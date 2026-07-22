@@ -1,0 +1,481 @@
+<cfcomponent output="false" hint="Route timeline weather point forecast service with DB cache.">
+
+    <cffunction name="init" access="public" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="false" default="">
+        <cfargument name="userAgent" type="string" required="false" default="FloatPlanWizard/1.0 (contact: support@floatplanwizard.com)">
+        <cfargument name="httpTimeout" type="numeric" required="false" default="4">
+        <cfscript>
+            variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : (structKeyExists(application, "dsn") ? trim(application.dsn) : "fpw");
+            variables.userAgent = trim(toString(arguments.userAgent));
+            if (!len(variables.userAgent)) variables.userAgent = "FloatPlanWizard/1.0 (contact: support@floatplanwizard.com)";
+            variables.httpTimeout = val(arguments.httpTimeout);
+            if (variables.httpTimeout LT 2) variables.httpTimeout = 2;
+            if (variables.httpTimeout GT 15) variables.httpTimeout = 15;
+            variables._cacheTableExists = javacast("null", "");
+            return this;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getWindAtTime" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="targetDT" type="date" required="true">
+        <cfargument name="options" type="struct" required="false" default="#structNew()#">
+        <cfscript>
+            var out = {
+                "wind_kt"=0,
+                "gust_kt"="",
+                "forecast_hour"="",
+                "source"="NWS",
+                "cache_hit"=false,
+                "cache_miss"=false,
+                "has_value"=false,
+                "fetch_failed"=false,
+                "raw_json"=""
+            };
+            var allowHttpFetch = normalizeBoolean(
+                structKeyExists(arguments.options, "allowHttpFetch") ? arguments.options.allowHttpFetch : true,
+                true
+            );
+            var latVal = normalizeCoord(arguments.lat);
+            var lngVal = normalizeCoord(arguments.lng);
+            var hourBucket = floorToHour(arguments.targetDT);
+            var cacheRow = {};
+            var ttlMinutes = 60;
+            var ageMinutes = 0;
+            var pointsRes = {};
+            var periodsRes = {};
+            var selected = {};
+            var upsertOk = false;
+
+            out.forecast_hour = dateTimeFormat(hourBucket, "yyyy-mm-dd HH:nn:ss");
+            if (!isNumeric(latVal) OR !isNumeric(lngVal)) {
+                out.source = "INVALID_COORDS";
+                return out;
+            }
+
+            if (hasCacheTable()) {
+                cacheRow = getCachedPointHour(latVal, lngVal, hourBucket);
+                if (structKeyExists(cacheRow, "found") AND cacheRow.found) {
+                    ttlMinutes = ttlMinutesForHour(hourBucket);
+                    ageMinutes = abs(dateDiff("n", cacheRow.fetched_at, now()));
+                    if (ageMinutes LTE ttlMinutes) {
+                        out.wind_kt = roundTo2(val(cacheRow.wind_kt));
+                        out.gust_kt = (isNull(cacheRow.gust_kt) ? "" : roundTo2(val(cacheRow.gust_kt)));
+                        out.source = trim(toString(cacheRow.source));
+                        if (!len(out.source)) out.source = "NWS";
+                        out.cache_hit = true;
+                        out.cache_miss = false;
+                        out.has_value = true;
+                        out.raw_json = (structKeyExists(cacheRow, "raw_json") ? toString(cacheRow.raw_json) : "");
+                        return out;
+                    }
+                }
+            }
+
+            out.cache_miss = true;
+            if (!allowHttpFetch) {
+                return out;
+            }
+
+            pointsRes = fetchForecastHourlyUrl(latVal, lngVal);
+            if (!pointsRes.success) {
+                out.fetch_failed = true;
+                return out;
+            }
+
+            periodsRes = fetchForecastPeriods(pointsRes.forecastHourlyUrl);
+            if (!periodsRes.success) {
+                out.fetch_failed = true;
+                return out;
+            }
+
+            selected = selectPeriodForHour(periodsRes.periods, hourBucket);
+            if (!selected.has_match) {
+                out.fetch_failed = true;
+                return out;
+            }
+
+            out.wind_kt = roundTo2(val(selected.wind_kt));
+            out.gust_kt = (isNumeric(selected.gust_kt) ? roundTo2(val(selected.gust_kt)) : "");
+            out.source = "NWS";
+            out.cache_hit = false;
+            out.cache_miss = true;
+            out.has_value = true;
+            out.raw_json = serializeJSON(selected.period_raw);
+
+            if (hasCacheTable()) {
+                upsertOk = upsertCachedPointHour(latVal, lngVal, hourBucket, out.wind_kt, out.gust_kt, out.source, out.raw_json);
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="fetchForecastHourlyUrl" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfscript>
+            var out = {
+                "success"=false,
+                "forecastHourlyUrl"=""
+            };
+            var pointsUrl = "https://api.weather.gov/points/" & arguments.lat & "," & arguments.lng;
+            var jsonRes = fetchJson(pointsUrl, "application/geo+json");
+            var obj = {};
+            if (!jsonRes.success) {
+                return out;
+            }
+            obj = jsonRes.data;
+            if (
+                isStruct(obj)
+                AND structKeyExists(obj, "properties")
+                AND isStruct(obj.properties)
+                AND structKeyExists(obj.properties, "forecastHourly")
+                AND len(trim(toString(obj.properties.forecastHourly)))
+            ) {
+                out.success = true;
+                out.forecastHourlyUrl = trim(toString(obj.properties.forecastHourly));
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="fetchForecastPeriods" access="public" returntype="struct" output="false">
+        <cfargument name="forecastHourlyUrl" type="string" required="true">
+        <cfscript>
+            var out = {
+                "success"=false,
+                "periods"=[]
+            };
+            var urlVal = trim(arguments.forecastHourlyUrl);
+            var jsonRes = {};
+            var obj = {};
+            if (!len(urlVal)) {
+                return out;
+            }
+            jsonRes = fetchJson(urlVal, "application/geo+json");
+            if (!jsonRes.success) {
+                return out;
+            }
+            obj = jsonRes.data;
+            if (
+                isStruct(obj)
+                AND structKeyExists(obj, "properties")
+                AND isStruct(obj.properties)
+                AND structKeyExists(obj.properties, "periods")
+                AND isArray(obj.properties.periods)
+            ) {
+                out.success = true;
+                out.periods = obj.properties.periods;
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="selectPeriodForHour" access="public" returntype="struct" output="false">
+        <cfargument name="periods" type="array" required="true">
+        <cfargument name="hourBucket" type="date" required="true">
+        <cfscript>
+            var out = {
+                "has_match"=false,
+                "wind_kt"=0,
+                "gust_kt"="",
+                "period_raw"={}
+            };
+            var i = 0;
+            var p = {};
+            var startRaw = "";
+            var startDt = now();
+            var pHour = now();
+            var diffMin = 0;
+            var bestDiff = 999999;
+            var best = {};
+            var windMph = 0;
+            var gustMph = "";
+
+            if (!isArray(arguments.periods) OR arrayLen(arguments.periods) EQ 0) {
+                return out;
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.periods); i++) {
+                p = arguments.periods[i];
+                if (!isStruct(p)) continue;
+                startRaw = (structKeyExists(p, "startTime") ? trim(toString(p.startTime)) : "");
+                if (!len(startRaw)) continue;
+                try {
+                    startDt = parseDateTime(startRaw);
+                } catch (any eDate) {
+                    continue;
+                }
+                pHour = floorToHour(startDt);
+                diffMin = abs(dateDiff("n", arguments.hourBucket, pHour));
+                if (diffMin LT bestDiff) {
+                    bestDiff = diffMin;
+                    best = p;
+                }
+                if (diffMin EQ 0) {
+                    best = p;
+                    bestDiff = 0;
+                    break;
+                }
+            }
+
+            if (!isStruct(best) OR structCount(best) EQ 0) {
+                return out;
+            }
+            if (bestDiff GT 180) {
+                return out;
+            }
+
+            windMph = parseWindMph(structKeyExists(best, "windSpeed") ? best.windSpeed : "");
+            gustMph = parseWindMph(structKeyExists(best, "windGust") ? best.windGust : "");
+
+            out.has_match = true;
+            out.wind_kt = mphToKnots(windMph);
+            out.gust_kt = (gustMph GT 0 ? mphToKnots(gustMph) : "");
+            out.period_raw = best;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseWindMph" access="public" returntype="numeric" output="false">
+        <cfargument name="windRaw" type="any" required="true">
+        <cfscript>
+            var txt = lCase(trim(toString(arguments.windRaw)));
+            var nums = [];
+            var firstVal = 0;
+            var secondVal = 0;
+            var mphVal = 0;
+            if (!len(txt)) return 0;
+            nums = reMatch("[0-9]+(?:\\.[0-9]+)?", txt);
+            if (!isArray(nums) OR arrayLen(nums) EQ 0) return 0;
+            firstVal = val(nums[1]);
+            if (arrayLen(nums) GTE 2 AND (find(" to ", txt) OR find("-", txt))) {
+                secondVal = val(nums[2]);
+                mphVal = (firstVal + secondVal) / 2;
+            } else {
+                mphVal = firstVal;
+            }
+            if (mphVal LT 0) mphVal = 0;
+            return roundTo2(mphVal);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="mphToKnots" access="public" returntype="numeric" output="false">
+        <cfargument name="mph" type="numeric" required="true">
+        <cfscript>
+            var v = val(arguments.mph);
+            if (v LT 0) v = 0;
+            return roundTo2(v * 0.868976);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="floorToHour" access="public" returntype="date" output="false">
+        <cfargument name="dt" type="date" required="true">
+        <cfscript>
+            return createDateTime(year(arguments.dt), month(arguments.dt), day(arguments.dt), hour(arguments.dt), 0, 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="ttlMinutesForHour" access="public" returntype="numeric" output="false">
+        <cfargument name="forecastHour" type="date" required="true">
+        <cfscript>
+            var aheadHours = dateDiff("h", now(), arguments.forecastHour);
+            if (aheadHours GTE 0 AND aheadHours LTE 24) {
+                return 60;
+            }
+            return 360;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasCacheTable" access="public" returntype="boolean" output="false">
+        <cfscript>
+            var q = queryNew("");
+            if (structKeyExists(variables, "_cacheTableExists") AND !isNull(variables._cacheTableExists)) {
+                return (variables._cacheTableExists ? true : false);
+            }
+            try {
+                q = queryExecute(
+                    "SELECT COUNT(*) AS cnt
+                     FROM information_schema.tables
+                     WHERE table_schema = DATABASE()
+                       AND table_name = 'weather_point_hourly_cache'",
+                    {},
+                    { datasource = variables.datasource }
+                );
+                variables._cacheTableExists = (q.recordCount GT 0 AND val(q.cnt[1]) GT 0);
+            } catch (any e) {
+                variables._cacheTableExists = false;
+            }
+            return (variables._cacheTableExists ? true : false);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getCachedPointHour" access="public" returntype="struct" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="forecastHour" type="date" required="true">
+        <cfscript>
+            var out = { "found"=false };
+            var q = queryNew("");
+            if (!hasCacheTable()) return out;
+            try {
+                q = queryExecute(
+                    "SELECT wind_kt, gust_kt, fetched_at, source, raw_json
+                     FROM weather_point_hourly_cache
+                     WHERE lat = :lat
+                       AND lng = :lng
+                       AND forecast_hour = :forecastHour
+                     LIMIT 1",
+                    {
+                        lat = { value=normalizeCoord(arguments.lat), cfsqltype="cf_sql_decimal", scale=7 },
+                        lng = { value=normalizeCoord(arguments.lng), cfsqltype="cf_sql_decimal", scale=7 },
+                        forecastHour = { value=arguments.forecastHour, cfsqltype="cf_sql_timestamp" }
+                    },
+                    { datasource = variables.datasource }
+                );
+                if (q.recordCount GT 0) {
+                    out = {
+                        "found"=true,
+                        "wind_kt"=(isNull(q.wind_kt[1]) ? 0 : val(q.wind_kt[1])),
+                        "gust_kt"=(isNull(q.gust_kt[1]) ? javacast("null", "") : val(q.gust_kt[1])),
+                        "fetched_at"=(isNull(q.fetched_at[1]) ? now() : q.fetched_at[1]),
+                        "source"=(isNull(q.source[1]) ? "NWS" : toString(q.source[1])),
+                        "raw_json"=(isNull(q.raw_json[1]) ? "" : toString(q.raw_json[1]))
+                    };
+                }
+            } catch (any e) {
+                out = { "found"=false };
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="upsertCachedPointHour" access="public" returntype="boolean" output="false">
+        <cfargument name="lat" type="numeric" required="true">
+        <cfargument name="lng" type="numeric" required="true">
+        <cfargument name="forecastHour" type="date" required="true">
+        <cfargument name="windKt" type="numeric" required="true">
+        <cfargument name="gustKt" type="any" required="false" default="">
+        <cfargument name="source" type="string" required="false" default="NWS">
+        <cfargument name="rawJson" type="string" required="false" default="">
+        <cfscript>
+            var gustIsNumeric = isNumeric(arguments.gustKt);
+            if (!hasCacheTable()) return false;
+            try {
+                queryExecute(
+                    "INSERT INTO weather_point_hourly_cache
+                        (lat, lng, forecast_hour, wind_kt, gust_kt, fetched_at, source, raw_json)
+                     VALUES
+                        (:lat, :lng, :forecastHour, :windKt, :gustKt, :fetchedAt, :source, :rawJson)
+                     ON DUPLICATE KEY UPDATE
+                        wind_kt = VALUES(wind_kt),
+                        gust_kt = VALUES(gust_kt),
+                        fetched_at = VALUES(fetched_at),
+                        source = VALUES(source),
+                        raw_json = VALUES(raw_json)",
+                    {
+                        lat = { value=normalizeCoord(arguments.lat), cfsqltype="cf_sql_decimal", scale=7 },
+                        lng = { value=normalizeCoord(arguments.lng), cfsqltype="cf_sql_decimal", scale=7 },
+                        forecastHour = { value=arguments.forecastHour, cfsqltype="cf_sql_timestamp" },
+                        windKt = { value=roundTo2(val(arguments.windKt)), cfsqltype="cf_sql_decimal", scale=2 },
+                        gustKt = gustIsNumeric
+                            ? { value=roundTo2(val(arguments.gustKt)), cfsqltype="cf_sql_decimal", scale=2 }
+                            : { value=0, null=true, cfsqltype="cf_sql_decimal", scale=2 },
+                        fetchedAt = { value=now(), cfsqltype="cf_sql_timestamp" },
+                        source = { value=left(trim(toString(arguments.source)), 40), cfsqltype="cf_sql_varchar" },
+                        rawJson = len(trim(arguments.rawJson))
+                            ? { value=arguments.rawJson, cfsqltype="cf_sql_longvarchar" }
+                            : { value="", null=true, cfsqltype="cf_sql_longvarchar" }
+                    },
+                    { datasource = variables.datasource }
+                );
+                return true;
+            } catch (any e) {
+                return false;
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="fetchJson" access="public" returntype="struct" output="false">
+        <cfargument name="url" type="string" required="true">
+        <cfargument name="accept" type="string" required="false" default="application/json">
+        <cfscript>
+            var out = { "success"=false, "data"={}, "status"=0, "raw"="" };
+            var res = {};
+            var statusVal = 0;
+            var raw = "";
+            var parsed = {};
+            try {
+                cfhttp(url=arguments.url, method="get", result="res", timeout=variables.httpTimeout, throwOnError="false") {
+                    cfhttpparam(type="header", name="User-Agent", value=variables.userAgent);
+                    cfhttpparam(type="header", name="Accept", value=arguments.accept);
+                }
+                statusVal = parseHttpStatus(res);
+                raw = (structKeyExists(res, "fileContent") ? toString(res.fileContent) : "");
+                out.status = statusVal;
+                out.raw = raw;
+                if (statusVal LT 200 OR statusVal GTE 300) {
+                    return out;
+                }
+                if (!len(trim(raw))) {
+                    return out;
+                }
+                parsed = deserializeJSON(raw, false, false, true);
+                if (isStruct(parsed)) {
+                    out.success = true;
+                    out.data = parsed;
+                }
+            } catch (any e) {
+                out.success = false;
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseHttpStatus" access="private" returntype="numeric" output="false">
+        <cfargument name="res" type="struct" required="true">
+        <cfscript>
+            var statusTxt = "";
+            var codeVal = 0;
+            if (structKeyExists(arguments.res, "statusCode")) {
+                statusTxt = trim(toString(arguments.res.statusCode));
+                if (isNumeric(statusTxt)) {
+                    return int(val(statusTxt));
+                }
+                if (len(statusTxt) GTE 3 AND isNumeric(left(statusTxt, 3))) {
+                    return int(val(left(statusTxt, 3)));
+                }
+            }
+            return codeVal;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeCoord" access="private" returntype="numeric" output="false">
+        <cfargument name="coord" type="any" required="true">
+        <cfscript>
+            var v = val(arguments.coord);
+            return round(v * 10000000) / 10000000;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeBoolean" access="private" returntype="boolean" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfargument name="defaultValue" type="boolean" required="false" default="false">
+        <cfscript>
+            var txt = lCase(trim(toString(arguments.value)));
+            if (!len(txt)) return arguments.defaultValue;
+            if (listFindNoCase("1,true,yes,y,on", txt)) return true;
+            if (listFindNoCase("0,false,no,n,off", txt)) return false;
+            if (isNumeric(txt)) return (val(txt) NEQ 0);
+            return arguments.defaultValue;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="roundTo2" access="private" returntype="numeric" output="false">
+        <cfargument name="n" type="numeric" required="true">
+        <cfreturn (round(arguments.n * 100) / 100)>
+    </cffunction>
+
+</cfcomponent>

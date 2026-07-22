@@ -1,0 +1,45 @@
+FPW_ERROR ts=2026-05-16 19:30:31 event=onApplicationStart message=Event handler exception. detail=An exception occurred while invoking an event handler method from Application.cfc. The method name is: onApplicationStart.
+FPW_ERROR ts=2026-05-16 20:32:39 event= message=access denied ("coldfusion.runtime.FunctionPermission" "createobject(java)") detail=
+FPW_ERROR ts=2026-05-16 20:33:52 event= message=access denied ("coldfusion.runtime.FunctionPermission" "createobject(java)") detail=
+FPW_ERROR ts=2026-05-17 23:19:03 event= message=Function handle does not support appreload as an argument in e:\web\FloatPlanWizard.com\api\v1\stripeWebhook.cfc detail=
+FPW_ERROR ts=2026-05-18 11:31:01 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-18 11:31:41 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-18 22:39:05 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 16:03:16 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 16:03:41 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 18:36:59 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 18:37:44 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 22:21:40 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 22:21:59 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 23:28:13 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-19 23:30:01 event= message=ColdFusion could not delete the file e:\web\FloatPlanWizard.com\api\api_assets\floatPlans/user_float_plans/Great_Loop_-_Day_1_-_Full_Route_20260519_233000_readonly.pdf. detail=Check if another request or process is not using the file.
+FPW_ERROR ts=2026-05-20 11:14:30 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 11:14:43 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 14:47:32 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 14:47:44 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 14:47:46 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 14:47:50 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 14:55:59 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 15:23:58 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 15:34:56 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 15:47:55 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-20 16:29:11 event= message=Variable TOCLEAR is undefined. detail=
+FPW_ERROR ts=2026-05-20 16:47:53 event= message=Variable SYSTEMCACHECLEAR is undefined. detail=
+FPW_ERROR ts=2026-05-21 01:48:00 event= message=Function handle does not support token as an argument in e:\web\FloatPlanWizard.com\api\v1\voyage.cfc detail=
+FPW_ERROR ts=2026-05-21 02:52:16 event= message=Function handle does not support action as an argument in e:\web\FloatPlanWizard.com\api\v1\vessel.cfc detail=
+FPW_ERROR ts=2026-05-21 02:52:16 event= message=Function handle does not support action as an argument in e:\web\FloatPlanWizard.com\api\v1\operator.cfc detail=
+FPW_ERROR ts=2026-05-21 02:52:16 event= message=Function handle does not support action as an argument in e:\web\FloatPlanWizard.com\api\v1\contact.cfc detail=
+FPW_ERROR ts=2026-05-21 10:05:19 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-21 11:16:56 event= message=Variable CACHED is undefined. detail=
+FPW_ERROR ts=2026-05-22 15:05:59 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:06:12 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:06:36 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:07:01 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:10:52 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:10:52 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:15:27 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:16:19 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:17:38 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:40:16 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:40:30 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=
+FPW_ERROR ts=2026-05-22 15:41:50 event= message=The value of parameter 2 of the function Left, which is now 0, must be a non-zero integer detail=

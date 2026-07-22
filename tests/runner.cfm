@@ -1,92 +1,202 @@
-<cfscript>
-setting requestTimeout=180;
+<cfsetting showdebugoutput="false" enablecfoutputonly="true" requesttimeout="120">
+<cfparam name="url.confirm" default="">
+<cfparam name="url.reporter" default="json">
 
-reporter = trim(url.reporter ?: "text");
-bundles = trim( url.bundles ?: "" );
+<cfset expectedConfirmation = "RUN_DISPOSABLE_PREMIUM_SEND_CREDIT_TESTS">
+<cfset serverName = structKeyExists(cgi, "server_name") ? lCase(trim(toString(cgi.server_name))) : "">
+<cfset httpHost = structKeyExists(cgi, "http_host") ? lCase(trim(toString(cgi.http_host))) : "">
+<cfset serverPort = structKeyExists(cgi, "server_port") ? val(cgi.server_port) : 0>
+<cfset isLocalServerName = listFindNoCase("localhost,127.0.0.1", serverName) GT 0 OR serverName EQ "::1">
+<cfset isLocalHostHeader = reFindNoCase("^(localhost|127\.0\.0\.1|\[::1\])(:8500)?$", httpHost) GT 0>
+<cfset isLocalDevRequest = isLocalServerName AND isLocalHostHeader AND serverPort EQ 8500>
+<cfset isJsonReporter = lCase(trim(toString(url.reporter))) EQ "json">
+<cfset testboxSystemPath = expandPath("/testbox/system")>
+<cfset fixtureEmailPattern = "codex-premium-send-contract-%">
 
-// HARD SET: this is the web-mapped path to your specs.
-specWebPath = "/fpw/tests";
-// Mapping path TestBox expects (dot notation)
-specMapping = "fpw.tests";
+<cfif trim(toString(url.confirm)) NEQ expectedConfirmation>
+  <cfheader statuscode="404">
+  <cfcontent type="application/json; charset=utf-8" reset="true">
+  <cfoutput>#serializeJSON({
+    SUCCESS = false,
+    ERROR = "TEST_CONFIRMATION_REQUIRED",
+    message = "The local Premium Send Credit test confirmation was not supplied."
+  })#</cfoutput>
+  <cfabort>
+</cfif>
 
-// Convert to an absolute filesystem path TestBox can scan.
-specAbsPath = expandPath(specWebPath);
-</cfscript>
-<cfsavecontent variable="runnerOutput"><cfscript>
-// Quick sanity diagnostics (you will SEE what it scans)
-writeOutput("TestBox scan directory (web): " & specWebPath & chr(10));
-writeOutput("TestBox scan directory (abs): " & specAbsPath & chr(10));
-writeOutput("TestBox mapping (dot): " & specMapping & chr(10));
+<cfif NOT isLocalDevRequest>
+  <cfheader statuscode="404">
+  <cfcontent type="application/json; charset=utf-8" reset="true">
+  <cfoutput>#serializeJSON({
+    SUCCESS = false,
+    ERROR = "LOCAL_TEST_RUNNER_ONLY",
+    message = "This test runner accepts only localhost requests on the local development port."
+  })#</cfoutput>
+  <cfabort>
+</cfif>
 
-if ( !directoryExists(specAbsPath) ) {
-  writeOutput("ERROR: Directory does not exist: " & specAbsPath & chr(10));
-} else {
-  if ( !structKeyExists( application, "floatPlanService" ) ) {
-    application.floatPlanService = {
-      normalizeTime = function( required any input ) {
-        return arguments.input;
-      }
-    };
-  }
+<cfif NOT isJsonReporter>
+  <cfheader statuscode="400">
+  <cfcontent type="application/json; charset=utf-8" reset="true">
+  <cfoutput>#serializeJSON({
+    SUCCESS = false,
+    ERROR = "JSON_REPORTER_REQUIRED",
+    message = "This guarded runner supports only the JSON reporter."
+  })#</cfoutput>
+  <cfabort>
+</cfif>
 
-  // Integration specs make HTTP calls back into API endpoints and rely on
-  // request cookie/session scopes. Ensure this runner request has explicit
-  // cookie values so those calls can consistently reattach to this session.
-  if ( structKeyExists( session, "sessionid" ) ) {
-    cookie.JSESSIONID = trim( toString( session.sessionid ) );
-  }
-  if ( isDefined( "CFID" ) ) {
-    cookie.CFID = trim( toString( CFID ) );
-  }
-  if ( isDefined( "CFTOKEN" ) ) {
-    cookie.CFTOKEN = trim( toString( CFTOKEN ) );
-  }
-  if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
-    session.user = {};
-  }
-  runnerUserId = structKeyExists( url, "testUserId" ) && isNumeric( url.testUserId ) && val( url.testUserId ) GT 0 ? val( url.testUserId ) : 187;
-  session.user.userId = runnerUserId;
-  session.user.id = runnerUserId;
-  session.user.USERID = runnerUserId;
+<cfif NOT directoryExists(testboxSystemPath)>
+  <cfheader statuscode="503">
+  <cfcontent type="application/json; charset=utf-8" reset="true">
+  <cfoutput>#serializeJSON({
+    SUCCESS = false,
+    ERROR = "TESTBOX_NOT_INSTALLED",
+    message = "Install the repo-local TestBox dependency before running this test."
+  })#</cfoutput>
+  <cfabort>
+</cfif>
 
-  // Optional: list spec files so we KNOW they’re visible
-  specFiles = directoryList(specAbsPath, true, "path", "*Spec.cfc");
-  writeOutput("Found *Spec.cfc files: " & arrayLen(specFiles) & chr(10));
-  for (f in specFiles) {
-    writeOutput(" - " & f & chr(10));
-  }
-  writeOutput(chr(10) & "----- RUNNING TESTBOX -----" & chr(10));
+<cfquery name="qTargetDatabase" datasource="fpw">
+  SELECT DATABASE() AS database_name
+</cfquery>
 
-  tbArgs = {
-    recurse  = true,
-    reporter = reporter
-  };
-  if ( len( bundles ) ) {
-    tbArgs.bundles = bundles;
-  } else {
-    tbArgs.directory = specMapping;
-  }
+<cfif
+  qTargetDatabase.recordCount NEQ 1
+  OR uCase(trim(toString(qTargetDatabase.database_name[1]))) NEQ "FPW"
+>
+  <cfheader statuscode="409">
+  <cfcontent type="application/json; charset=utf-8" reset="true">
+  <cfoutput>#serializeJSON({
+    SUCCESS = false,
+    ERROR = "LOCAL_FPW_DATABASE_REQUIRED",
+    message = "The guarded test runner requires the local FPW datasource."
+  })#</cfoutput>
+  <cfabort>
+</cfif>
 
-  try {
-    tb = new testbox.system.TestBox( argumentCollection = tbArgs );
-    tbRunOutput = tb.run();
-    if ( isSimpleValue( tbRunOutput ) && len( trim( toString( tbRunOutput ) ) ) ) {
-      writeOutput( toString( tbRunOutput ) );
-    }
-  } catch ( any testboxError ) {
-    writeOutput( "TESTBOX_RUNNER_ERROR" & chr(10) );
-    writeOutput( "MESSAGE: " & testboxError.message & chr(10) );
-    if ( structKeyExists( testboxError, "detail" ) && len( trim( toString( testboxError.detail ) ) ) ) {
-      writeOutput( "DETAIL: " & toString( testboxError.detail ) & chr(10) );
-    }
-    if ( structKeyExists( testboxError, "stacktrace" ) && len( trim( toString( testboxError.stacktrace ) ) ) ) {
-      writeOutput( "STACKTRACE: " & toString( testboxError.stacktrace ) & chr(10) );
-    }
-  }
-}
-</cfscript></cfsavecontent><cfscript>
-runnerPreview = left( reReplace( runnerOutput, "[\r\n\t]+", " | ", "all" ), 500 );
-cfheader( name = "X-TestBox-Output-Length", value = toString( len( runnerOutput ) ) );
-cfheader( name = "X-TestBox-Output-Preview", value = runnerPreview );
-</cfscript><cfoutput>#runnerOutput#</cfoutput>
+<cfset runnerStatus = 500>
+<cfset runnerResponse = {
+  SUCCESS = false,
+  ERROR = "TEST_RUNNER_FAILED",
+  message = "The Premium Send Credit contract test did not complete."
+}>
+<cfset cleanupResult = {
+  SUCCESS = false,
+  message = "Cleanup did not run."
+}>
 
+<cftry>
+  <cfset testboxRunner = createObject("component", "testbox.system.TestBox").init(
+    bundles = "fpw.tests.specs.PremiumSendCreditContractSpec"
+  )>
+  <cfset rawResults = testboxRunner.runRaw()>
+  <cfset resultMemento = rawResults.getMemento()>
+  <cfset totalSpecs = structKeyExists(resultMemento, "totalSpecs") ? val(resultMemento.totalSpecs) : 0>
+  <cfset totalFailures = structKeyExists(resultMemento, "totalFail") ? val(resultMemento.totalFail) : 0>
+  <cfset totalErrors = structKeyExists(resultMemento, "totalError") ? val(resultMemento.totalError) : 0>
+
+  <cfset runnerStatus = (
+    totalSpecs GT 0
+    AND totalFailures EQ 0
+    AND totalErrors EQ 0
+  ) ? 200 : 500>
+  <cfset runnerResponse = {
+    SUCCESS = runnerStatus EQ 200,
+    totalSpecs = totalSpecs,
+    totalFailures = totalFailures,
+    totalErrors = totalErrors,
+    results = resultMemento
+  }>
+
+  <cfcatch type="any">
+    <cfset runnerStatus = 500>
+    <cfset runnerResponse = {
+      SUCCESS = false,
+      ERROR = "TEST_RUNNER_EXCEPTION",
+      message = cfcatch.message,
+      type = cfcatch.type
+    }>
+  </cfcatch>
+
+  <cffinally>
+    <cftry>
+      <cfquery datasource="fpw">
+        DELETE FROM premium_send_receipts
+        WHERE user_id IN (
+          SELECT userId
+          FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM premium_send_credits
+        WHERE user_id IN (
+          SELECT userId
+          FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM member_entitlements
+        WHERE user_id IN (
+          SELECT userId
+          FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM user_stripe_customers
+        WHERE user_id IN (
+          SELECT userId
+          FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM floatplans
+        WHERE userId IN (
+          SELECT CAST(userId AS CHAR)
+          FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM users
+        WHERE email LIKE
+          <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+      </cfquery>
+      <cfset cleanupResult = {
+        SUCCESS = true,
+        message = "All disposable Premium Send Credit contract fixtures were removed."
+      }>
+
+      <cfcatch type="any">
+        <cfset runnerStatus = 500>
+        <cfset cleanupResult = {
+          SUCCESS = false,
+          ERROR = "DISPOSABLE_FIXTURE_CLEANUP_FAILED",
+          message = cfcatch.message,
+          type = cfcatch.type
+        }>
+      </cfcatch>
+    </cftry>
+  </cffinally>
+</cftry>
+
+<cfset runnerResponse.cleanup = cleanupResult>
+<cfif NOT cleanupResult.SUCCESS>
+  <cfset runnerResponse.SUCCESS = false>
+  <cfset runnerResponse.ERROR = "DISPOSABLE_FIXTURE_CLEANUP_FAILED">
+  <cfset runnerResponse.message = cleanupResult.message>
+</cfif>
+
+<cfheader statuscode="#runnerStatus#">
+<cfcontent type="application/json; charset=utf-8" reset="true">
+<cfoutput>#serializeJSON(runnerResponse)#</cfoutput>
+<cfsetting enablecfoutputonly="false">

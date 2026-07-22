@@ -31,15 +31,33 @@
             LIMIT 1
         </cfquery>
 
-        <cfif qOwner.recordCount EQ 1 AND len(trim(qOwner.email))>
-            <cfset e = lcase(trim(qOwner.email))>
-            <cfif isValid("email", e) AND NOT structKeyExists(seen, e)>
-                <cfset seen[e] = true>
-                <cfset arrayAppend(emails, e)>
-            </cfif>
-        </cfif>
+	        <cfif qOwner.recordCount EQ 1 AND len(trim(qOwner.email))>
+	            <cfset e = lcase(trim(qOwner.email))>
+	            <cfif isValid("email", e) AND NOT structKeyExists(seen, e)>
+	                <cfset seen[e] = true>
+	                <cfset arrayAppend(emails, e)>
+	            </cfif>
+	        </cfif>
 
-        <!-- Emergency contacts (schema-flex) -->
+	        <!-- Basic operational one-time contact snapshot -->
+	        <cftry>
+	            <cfquery name="qBasicContact" datasource="fpw">
+	                SELECT notification_contact_email AS email
+	                  FROM floatplan_basic_details
+	                 WHERE floatplan_id = <cfqueryparam value="#int(arguments.floatPlanId)#" cfsqltype="cf_sql_integer">
+	                 LIMIT 1
+	            </cfquery>
+	            <cfif qBasicContact.recordCount EQ 1 AND len(trim(qBasicContact.email))>
+	                <cfset e = lcase(trim(qBasicContact.email))>
+	                <cfif isValid("email", e) AND NOT structKeyExists(seen, e)>
+	                    <cfset seen[e] = true>
+	                    <cfset arrayAppend(emails, e)>
+	                </cfif>
+	            </cfif>
+	            <cfcatch></cfcatch>
+	        </cftry>
+
+	        <!-- Emergency contacts (schema-flex) -->
         <cftry>
             <cfquery name="qA" datasource="fpw">
                 SELECT c.email
@@ -152,11 +170,28 @@
         <cfset var seen = {}>
         <cfset var e = "">
 
-        <cfif int( arguments.planContext.FLOATPLANID ) LTE 0 OR int( arguments.planContext.USERID ) LTE 0>
-            <cfreturn emails>
-        </cfif>
+	        <cfif int( arguments.planContext.FLOATPLANID ) LTE 0 OR int( arguments.planContext.USERID ) LTE 0>
+	            <cfreturn emails>
+	        </cfif>
 
-        <cfquery name="qContacts" datasource="fpw">
+	        <cftry>
+	            <cfquery name="qBasicContact" datasource="fpw">
+	                SELECT notification_contact_email AS email
+	                  FROM floatplan_basic_details
+	                 WHERE floatplan_id = <cfqueryparam value="#int(arguments.planContext.FLOATPLANID)#" cfsqltype="cf_sql_integer">
+	                 LIMIT 1
+	            </cfquery>
+	            <cfif qBasicContact.recordCount EQ 1 AND len( trim( qBasicContact.email ) )>
+	                <cfset e = lcase( trim( qBasicContact.email ) )>
+	                <cfif isValid( "email", e ) AND NOT structKeyExists( seen, e )>
+	                    <cfset seen[ e ] = true>
+	                    <cfset arrayAppend( emails, e )>
+	                </cfif>
+	            </cfif>
+	            <cfcatch></cfcatch>
+	        </cftry>
+
+	        <cfquery name="qContacts" datasource="fpw">
             SELECT c.email
             FROM floatplan_contacts fc
             INNER JOIN floatplans fp ON fp.floatplanId = fc.floatplanId
@@ -543,5 +578,4 @@
     </cffunction>
 
 </cfcomponent>
-
 

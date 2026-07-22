@@ -16,25 +16,117 @@
     AuthUtils.clearAlert("joinAlert");
   };
   var fetchJson = AuthUtils.fetchJson;
+  var PHONE_ERROR_MESSAGE = "Please enter a valid US phone number or leave the phone field blank.";
+
+  function formatUsPhoneDigits(digits) {
+    digits = String(digits || "").slice(0, 10);
+    if (!digits.length) return "";
+    if (digits.length <= 3) return "(" + digits;
+    if (digits.length <= 6) return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  }
+
+  function getUsPhoneDigits(value, rawDigitsOverride) {
+    var hasRawOverride = rawDigitsOverride !== undefined && String(rawDigitsOverride || "").length;
+    var digits = hasRawOverride
+      ? String(rawDigitsOverride || "").replace(/\D/g, "")
+      : String(value || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return digits;
+  }
+
+  function normalizeOptionalUsPhone(value, rawDigitsOverride) {
+    var rawValue = String(value || "").trim();
+    var hasRawOverride = rawDigitsOverride !== undefined && String(rawDigitsOverride || "").length;
+    var rawDigits = hasRawOverride ? String(rawDigitsOverride || "").replace(/\D/g, "") : "";
+    var digits = getUsPhoneDigits(rawValue, rawDigitsOverride);
+
+    if (!rawValue.length && !rawDigits.length) {
+      return { valid: true, value: "" };
+    }
+    if (digits.length !== 10) {
+      return { valid: false, value: "" };
+    }
+    if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(digits)) {
+      return { valid: false, value: "" };
+    }
+    return { valid: true, value: formatUsPhoneDigits(digits) };
+  }
+
+  function formatUsPhoneInputValue(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.length > 10 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return formatUsPhoneDigits(digits);
+  }
+
+  function setPhoneFieldError(inputEl, errorEl, message) {
+    if (inputEl) {
+      inputEl.classList.add("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = message || "";
+    }
+  }
+
+  function clearPhoneFieldError(inputEl, errorEl) {
+    if (inputEl) {
+      inputEl.classList.remove("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = "";
+    }
+  }
+
+  function bindOptionalUsPhoneInput(inputEl, errorEl) {
+    if (!inputEl) return;
+    inputEl.addEventListener("input", function () {
+      inputEl.dataset.phoneRawDigits = String(inputEl.value || "").replace(/\D/g, "");
+      inputEl.value = formatUsPhoneInputValue(inputEl.value);
+      if (!inputEl.value || normalizeOptionalUsPhone(inputEl.value, inputEl.dataset.phoneRawDigits).valid) {
+        clearPhoneFieldError(inputEl, errorEl);
+      }
+    });
+    inputEl.addEventListener("blur", function () {
+      var normalized = normalizeOptionalUsPhone(inputEl.value, inputEl.dataset.phoneRawDigits || "");
+      if (normalized.valid) {
+        inputEl.value = normalized.value;
+        inputEl.dataset.phoneRawDigits = "";
+        clearPhoneFieldError(inputEl, errorEl);
+      }
+    });
+  }
 
   document.addEventListener("DOMContentLoaded", function () {
     var form = $("joinForm");
     var firstNameEl = $("firstName");
     var lastNameEl = $("lastName");
     var emailEl = $("email");
+    var passwordEl = $("password");
+    var confirmPasswordEl = $("confirmPassword");
     var addressEl = $("address");
     var cityEl = $("city");
     var stateEl = $("state");
     var zipEl = $("zip");
     var phoneEl = $("phone");
+    var phoneErrorEl = $("phoneError");
+    var websiteEl = $("website");
+    var termsAcceptedEl = $("termsAccepted");
     var btn = $("joinButton");
+    var btnLabel = btn ? btn.querySelector(".fpw-submit-label") : null;
 
-    if (!form || !firstNameEl || !lastNameEl || !emailEl || !btn) {
+    if (!form || !firstNameEl || !lastNameEl || !emailEl || !passwordEl || !confirmPasswordEl || !termsAcceptedEl || !btn) {
       console.error("join.js: required elements missing", {
         joinForm: !!form,
         firstName: !!firstNameEl,
         lastName: !!lastNameEl,
         email: !!emailEl,
+        password: !!passwordEl,
+        confirmPassword: !!confirmPasswordEl,
+        termsAccepted: !!termsAcceptedEl,
         joinButton: !!btn
       });
       return;
@@ -47,30 +139,72 @@
       var firstName = (firstNameEl.value || "").trim();
       var lastName = (lastNameEl.value || "").trim();
       var email = (emailEl.value || "").trim();
+      var password = passwordEl.value || "";
+      var confirmPassword = confirmPasswordEl.value || "";
       var address = addressEl ? (addressEl.value || "").trim() : "";
       var city = cityEl ? (cityEl.value || "").trim() : "";
       var state = stateEl ? (stateEl.value || "").trim() : "";
       var zip = zipEl ? (zipEl.value || "").trim() : "";
-      var phone = phoneEl ? (phoneEl.value || "").trim() : "";
+      var phoneResult = normalizeOptionalUsPhone(phoneEl ? phoneEl.value : "");
+      var website = websiteEl ? (websiteEl.value || "").trim() : "";
+      var termsAccepted = !!termsAcceptedEl.checked;
+
+      if (!termsAccepted) {
+        showAlert("Agreeing to the Terms of Service is required.", "warning");
+        return;
+      }
 
       if (!firstName || !lastName || !email) {
         showAlert("First name, last name, and email are required.", "warning");
         return;
       }
 
+      if (!password) {
+        showAlert("Password is required.", "warning");
+        return;
+      }
+
+      if (password.length < 8) {
+        showAlert("Password must be at least 8 characters.", "warning");
+        return;
+      }
+
+      if (!confirmPassword || password !== confirmPassword) {
+        showAlert("Password and confirmation do not match.", "warning");
+        return;
+      }
+
+      if (!phoneResult.valid) {
+        setPhoneFieldError(phoneEl, phoneErrorEl, PHONE_ERROR_MESSAGE);
+        showAlert(PHONE_ERROR_MESSAGE, "warning");
+        if (phoneEl) phoneEl.focus();
+        return;
+      }
+      if (phoneEl) {
+        phoneEl.value = phoneResult.value;
+      }
+
       btn.disabled = true;
-      btn.textContent = "Creating...";
+      if (btnLabel) {
+        btnLabel.textContent = "Creating...";
+      } else {
+        btn.textContent = "Creating...";
+      }
 
       try {
         var payload = {
           firstName: firstName,
           lastName: lastName,
           email: email,
+          password: password,
+          confirmPassword: confirmPassword,
+          termsAccepted: termsAccepted,
           address: address,
           city: city,
           state: state,
           zip: zip,
-          phone: phone
+          phone: phoneResult.value,
+          website: website
         };
 
         var data = await fetchJson(API_BASE + "/join.cfc?method=handle", {
@@ -80,17 +214,34 @@
         });
 
         var msg = (data && data.MESSAGE) ? data.MESSAGE : "User created.";
+        var redirectUrl = data && (data.redirectUrl || data.REDIRECT_URL);
 
         showAlert(msg, "success");
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("sign_up", {
+            method: "email",
+            source: "join_page"
+          });
+        }
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+          return;
+        }
         form.reset();
       } catch (err) {
         console.error("join error:", err);
         showAlert((err && err.MESSAGE) ? err.MESSAGE : "Request failed (see console).", "danger");
       } finally {
         btn.disabled = false;
-        btn.textContent = "Create User";
+        if (btnLabel) {
+          btnLabel.textContent = "Start My Free Account";
+        } else {
+          btn.textContent = "Start My Free Account";
+        }
       }
     });
+
+    bindOptionalUsPhoneInput(phoneEl, phoneErrorEl);
   });
 
 })(window, document);

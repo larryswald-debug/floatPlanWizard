@@ -11,6 +11,7 @@
     <cffunction name="getProjectionForStream" access="public" returntype="struct" output="false">
         <cfargument name="streamId" type="numeric" required="true">
         <cfargument name="asOfUtc" type="any" required="false" default="">
+        <cfargument name="options" type="any" required="false" default="">
         <cfscript>
             var out = baseProjection();
             var qStream = queryNew("");
@@ -36,15 +37,17 @@
                 return out;
             }
 
-            return getProjection(safeNumber(qStream.floatplan_id[1]), arguments.asOfUtc);
+            return getProjection(safeNumber(qStream.floatplan_id[1]), arguments.asOfUtc, arguments.options);
         </cfscript>
     </cffunction>
 
     <cffunction name="getProjection" access="public" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="asOfUtc" type="any" required="false" default="">
+        <cfargument name="options" type="any" required="false" default="">
         <cfscript>
             var out = baseProjection();
+            var projectionOptions = normalizeProjectionOptions(arguments.options);
             var qPlan = queryNew("");
             var qCanonicalEvents = queryNew("");
             var qCanonicalSegments = queryNew("");
@@ -63,7 +66,10 @@
             var segmentsForProjection = [];
             var currentLeg = {};
             var routeInputs = {};
+            var paceMeta = {};
             var speedKn = 0;
+            var progressSpeedKn = 0;
+            var manualDelayMinutes = 0;
             var dayBounds = {};
             var todayProgress = {};
             var currentLegProgress = {};
@@ -107,7 +113,9 @@
 
             if (canonicalEventsTableExists) {
                 qCanonicalEvents = queryExecute("
-                    SELECT id, event_type, event_status, occurred_at_utc, source, source_monitoring_id, source_post_id
+                    SELECT id, event_type, event_status,
+                           DATE_FORMAT(occurred_at_utc, '%Y-%m-%d %H:%i:%s') AS occurred_at_utc,
+                           source, source_monitoring_id, source_post_id
                     FROM floatplan_events
                     WHERE floatplan_id = :floatPlanId
                       AND voided_at_utc IS NULL
@@ -132,8 +140,12 @@
 
             if (canonicalSegmentsTableExists) {
                 qCanonicalSegments = queryExecute("
-                    SELECT id, route_instance_id, route_leg_order, local_timezone, segment_type, started_at_utc, ended_at_utc,
-                           expected_resume_at_utc, actual_resume_at_utc, source_start_event_id, source_end_event_id
+                    SELECT id, route_instance_id, route_leg_order, local_timezone, segment_type,
+                           DATE_FORMAT(started_at_utc, '%Y-%m-%d %H:%i:%s') AS started_at_utc,
+                           DATE_FORMAT(ended_at_utc, '%Y-%m-%d %H:%i:%s') AS ended_at_utc,
+                           DATE_FORMAT(expected_resume_at_utc, '%Y-%m-%d %H:%i:%s') AS expected_resume_at_utc,
+                           DATE_FORMAT(actual_resume_at_utc, '%Y-%m-%d %H:%i:%s') AS actual_resume_at_utc,
+                           source_start_event_id, source_end_event_id
                     FROM floatplan_activity_segments
                     WHERE floatplan_id = :floatPlanId
                     ORDER BY started_at_utc ASC, id ASC
@@ -184,7 +196,11 @@
 
             qRouteInstance = loadRouteInstance(routeInstanceId);
             routeInputs = parseRouteInputs(qRouteInstance);
-            speedKn = resolveEffectiveSpeed(routeInputs);
+            paceMeta = buildPaceMeta(routeInputs, arguments.floatPlanId);
+            speedKn = resolveEffectiveSpeed(routeInputs, arguments.floatPlanId);
+            progressSpeedKn = resolveProgressSpeed(routeInputs);
+            manualDelayMinutes = max(0, safeNumber(qPlan.manual_delay_minutes_total[1]));
+            out.pace = paceMeta;
 
             segmentsForProjection = (arrayLen(canonicalSegments) GT 0 ? canonicalSegments : diagnosticSegments);
             if (arrayLen(canonicalSegments) EQ 0 AND arrayLen(diagnosticSegments) GT 0) {
@@ -192,10 +208,10 @@
             }
 
             dayBounds = getLocalDayBounds(asOfDt, departureTz);
-            todayProgress = buildTodayProgress(segmentsForProjection, dayBounds, asOfDt, speedKn, out);
-            currentLegProgress = buildCurrentLegProgress(currentLeg, segmentsForProjection, asOfDt, speedKn, out);
-            etaProjection = buildEtaProjection(currentLeg, currentLegProgress, diagnosticOpenSegments, canonicalOpenSegments, asOfDt, speedKn);
-            routeTimeline = buildRouteTimeline(qPlan, qLegs, qProgress, currentLeg, currentLegProgress, etaProjection, canonicalSegments, asOfDt, speedKn, out);
+            todayProgress = buildTodayProgress(segmentsForProjection, dayBounds, asOfDt, progressSpeedKn, out);
+            currentLegProgress = buildCurrentLegProgress(currentLeg, segmentsForProjection, asOfDt, progressSpeedKn, out);
+            etaProjection = buildEtaProjection(currentLeg, currentLegProgress, diagnosticOpenSegments, canonicalOpenSegments, asOfDt, speedKn, manualDelayMinutes);
+            routeTimeline = buildRouteTimeline(qPlan, qLegs, qProgress, currentLeg, currentLegProgress, etaProjection, canonicalSegments, asOfDt, speedKn, out, projectionOptions, paceMeta);
 
             out.dailyWindow.localDate = dayBounds.localDate;
             out.dailyWindow.dayStartUtc = formatUtc(dayBounds.startUtc);
@@ -229,6 +245,7 @@
                 "dailyWindow" = {},
                 "activitySegments" = [],
                 "currentLeg" = {},
+                "pace" = {},
                 "todayProgress" = {},
                 "currentLegProgress" = {},
                 "etaProjection" = {},
@@ -239,15 +256,39 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="normalizeProjectionOptions" access="private" returntype="struct" output="false">
+        <cfargument name="options" type="any" required="false" default="">
+        <cfscript>
+            var out = {
+                "includeOperationalLockTime" = false,
+                "allowDraftScheduledProjection" = false
+            };
+
+            if (isStruct(arguments.options) AND structKeyExists(arguments.options, "includeOperationalLockTime")) {
+                out.includeOperationalLockTime = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.includeOperationalLockTime))) GT 0);
+            }
+            if (isStruct(arguments.options) AND structKeyExists(arguments.options, "allowDraftScheduledProjection")) {
+                out.allowDraftScheduledProjection = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.allowDraftScheduledProjection))) GT 0);
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="loadPlan" access="private" returntype="query" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             return queryExecute("
                 SELECT fp.floatPlanId, fp.userId, fp.status, fp.route_instance_id, fp.departureTZ, fp.departTimezone,
-                       fp.dailyStartLocalTime, fp.departureTime, fp.departureTimeUTC, fp.checkedInAt,
+                       fp.dailyStartLocalTime, fp.departureTime,
+                       DATE_FORMAT(fp.departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUTC,
+                       DATE_FORMAT(fp.checkedInAt, '%Y-%m-%d %H:%i:%s') AS checkedInAt,
                        fp.checkin_context, fp.overnight_pause_minutes_total, fp.manual_delay_minutes_total,
-                       fm.id AS monitoring_id, fm.monitor_state, fm.expected_checkin_at, fm.last_checkin_at,
-                       fm.last_checkin_status, fm.secure_for_night, fm.secure_for_night_until
+                       fm.id AS monitoring_id, fm.monitor_state,
+                       DATE_FORMAT(fm.expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at,
+                       DATE_FORMAT(fm.last_checkin_at, '%Y-%m-%d %H:%i:%s') AS last_checkin_at,
+                       fm.last_checkin_status, fm.secure_for_night,
+                       DATE_FORMAT(fm.secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until
                 FROM floatplans fp
                 LEFT JOIN floatplan_monitoring fm
                   ON fm.float_plan_id = fp.floatPlanId
@@ -263,7 +304,9 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             return queryExecute("
-                SELECT id, monitoring_id, event_type, event_at, checkin_status, actor_type, meta_json
+                SELECT id, monitoring_id, event_type,
+                       DATE_FORMAT(event_at, '%Y-%m-%d %H:%i:%s') AS event_at,
+                       checkin_status, actor_type, meta_json
                 FROM floatplan_monitor_events
                 WHERE float_plan_id = :floatPlanId
                 ORDER BY event_at ASC, id ASC
@@ -281,7 +324,11 @@
                 return queryNew("");
             }
             return queryExecute("
-                SELECT id, leg_order, UPPER(TRIM(status)) AS status_val, leg_started_at, completed_at, created_at, updated_at
+                SELECT id, leg_order, UPPER(TRIM(status)) AS status_val,
+                       DATE_FORMAT(leg_started_at, '%Y-%m-%d %H:%i:%s') AS leg_started_at,
+                       DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at,
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                       DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
                 FROM route_instance_leg_progress
                 WHERE route_instance_id = :routeInstanceId
                   AND user_id = :userId
@@ -415,6 +462,13 @@
                 }
 
                 if (eventType EQ "MONITORING_STARTED") {
+                    meta = parseJsonStruct(arguments.qEvents.meta_json[i]);
+                    if (
+                        structKeyExists(meta, "initialization_mode")
+                        AND compareNoCase(safeString(meta.initialization_mode), "scheduled_predeparture") EQ 0
+                    ) {
+                        continue;
+                    }
                     if (currentIndex EQ 0) {
                         arrayAppend(segments, newSegment("UNDERWAY", eventAt, "", "", "", arguments.timezone, arguments.routeInstanceId, arguments.userId, "legacy_diagnostic", arguments.qEvents.id[i], 0));
                         currentIndex = arrayLen(segments);
@@ -438,8 +492,18 @@
                     continue;
                 }
 
-                if (listFindNoCase("ON_TRACK,DELAYED,CHANGED_PLAN,ASSISTANCE_NEEDED", statusVal)) {
-                    if (currentIndex GT 0 AND segments[currentIndex].segmentType EQ "PAUSED_SECURE_FOR_NIGHT" AND !isDate(segments[currentIndex].endedAtUtc)) {
+                if (statusVal EQ "DELAYED") {
+                    if (currentIndex GT 0 AND segments[currentIndex].segmentType EQ "UNDERWAY" AND !isDate(segments[currentIndex].endedAtUtc)) {
+                        segments[currentIndex].endedAtUtc = formatUtc(eventAt);
+                        segments[currentIndex].sourceEndEventId = safeNumber(arguments.qEvents.id[i]);
+                        arrayAppend(segments, newSegment("PAUSED_DELAYED", eventAt, "", "", "", arguments.timezone, arguments.routeInstanceId, arguments.userId, "legacy_diagnostic", arguments.qEvents.id[i], 0));
+                        currentIndex = arrayLen(segments);
+                    }
+                    continue;
+                }
+
+                if (statusVal EQ "ON_TRACK") {
+                    if (currentIndex GT 0 AND isResumeEligiblePauseSegment(segments[currentIndex].segmentType) AND !isDate(segments[currentIndex].endedAtUtc)) {
                         segments[currentIndex].endedAtUtc = formatUtc(eventAt);
                         segments[currentIndex].actualResumeAtUtc = formatUtc(eventAt);
                         segments[currentIndex].sourceEndEventId = safeNumber(arguments.qEvents.id[i]);
@@ -525,11 +589,18 @@
             var statusVal = "";
             var startedAt = "";
             var completedAt = "";
+            var finalLegOrder = 0;
 
             for (i = 1; i LTE arguments.qProgress.recordCount; i++) {
                 statusVal = safeString(arguments.qProgress.status_val[i]);
                 if (statusVal EQ "COMPLETED" AND safeNumber(arguments.qProgress.leg_order[i]) GT highestCompleted) {
                     highestCompleted = safeNumber(arguments.qProgress.leg_order[i]);
+                }
+            }
+
+            for (i = 1; i LTE arguments.qLegs.recordCount; i++) {
+                if (safeNumber(arguments.qLegs.leg_order[i]) GT finalLegOrder) {
+                    finalLegOrder = safeNumber(arguments.qLegs.leg_order[i]);
                 }
             }
 
@@ -552,8 +623,20 @@
             }
 
             if (activeOrder LTE 0) {
-                activeOrder = highestCompleted + 1;
-                row = { "status" = "NOT_STARTED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                if (finalLegOrder GT 0 AND highestCompleted GTE finalLegOrder) {
+                    activeOrder = finalLegOrder;
+                    row = { "status" = "COMPLETED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                    for (i = 1; i LTE arguments.qProgress.recordCount; i++) {
+                        if (safeNumber(arguments.qProgress.leg_order[i]) EQ finalLegOrder) {
+                            row.startedAtUtc = formatUtc(arguments.qProgress.leg_started_at[i]);
+                            row.completedAtUtc = formatUtc(arguments.qProgress.completed_at[i]);
+                            break;
+                        }
+                    }
+                } else {
+                    activeOrder = highestCompleted + 1;
+                    row = { "status" = "NOT_STARTED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                }
             }
 
             legDetails = findLegDetails(arguments.qLegs, activeOrder);
@@ -601,7 +684,7 @@
         <cfargument name="currentLeg" type="struct" required="true">
         <cfargument name="segments" type="array" required="true">
         <cfargument name="asOfUtc" type="date" required="true">
-        <cfargument name="speedKn" type="numeric" required="true">
+        <cfargument name="progressSpeedKn" type="numeric" required="true">
         <cfargument name="out" type="struct" required="true">
         <cfscript>
             var legStart = "";
@@ -610,7 +693,8 @@
             var completedNm = 0;
             var remainingNm = 0;
             var pct = 0;
-            var openSegments = getOpenSegments(arguments.segments);
+            var currentLegSegments = filterSegmentsForCurrentLeg(arguments.segments, arguments.currentLeg, arguments.out);
+            var openSegments = getOpenSegments(currentLegSegments);
             var openType = "";
             var isPaused = false;
             var expectedResumeAtUtc = "";
@@ -624,6 +708,13 @@
                 if (isPaused) {
                     statusLabel = "Paused";
                     statusDetail = "Current leg progress is paused until resume.";
+                    if (openType EQ "PAUSED_DELAYED") {
+                        statusLabel = "Delayed";
+                        statusDetail = "Current leg progress is paused by the latest Delayed check-in.";
+                    } else if (openType EQ "PAUSED_SECURE_FOR_NIGHT") {
+                        statusLabel = "Secure for the Night";
+                        statusDetail = "Current leg progress is paused for secure overnight.";
+                    }
                 }
             }
 
@@ -638,16 +729,18 @@
                     "underwaySeconds" = 0,
                     "paused" = isPaused,
                     "expectedResumeAtUtc" = expectedResumeAtUtc,
-                    "speedKn" = arguments.speedKn,
+                    "speedKn" = arguments.progressSpeedKn,
+                    "progressSpeedKn" = arguments.progressSpeedKn,
+                    "completedNmAuthority" = "elapsed_underway_time_x_stable_progress_speed",
                     "statusLabel" = "Unavailable",
                     "statusDetail" = "Current leg progress cannot be projected without leg_started_at."
                 };
             }
             legStart = parseIsoUtc(arguments.currentLeg.startedAtUtc);
-            seconds = sumUnderwayOverlapSeconds(arguments.segments, legStart, arguments.asOfUtc);
+            seconds = sumUnderwayOverlapSeconds(currentLegSegments, legStart, arguments.asOfUtc);
             hours = seconds / 3600;
-            if (arguments.speedKn GT 0) {
-                completedNm = min(safeNumber(arguments.currentLeg.distanceNm), hours * arguments.speedKn);
+            if (arguments.progressSpeedKn GT 0) {
+                completedNm = min(safeNumber(arguments.currentLeg.distanceNm), hours * arguments.progressSpeedKn);
             }
             remainingNm = max(0, safeNumber(arguments.currentLeg.distanceNm) - completedNm);
             if (safeNumber(arguments.currentLeg.distanceNm) GT 0) {
@@ -663,11 +756,59 @@
                 "percentComplete" = roundTo1(pct),
                 "paused" = isPaused,
                 "expectedResumeAtUtc" = expectedResumeAtUtc,
-                "speedKn" = arguments.speedKn,
+                "speedKn" = arguments.progressSpeedKn,
+                "progressSpeedKn" = arguments.progressSpeedKn,
+                "completedNmAuthority" = "elapsed_underway_time_x_stable_progress_speed",
                 "statusLabel" = statusLabel,
                 "statusDetail" = statusDetail,
                 "usesLatestCheckinAsAnchor" = false
             };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="filterSegmentsForCurrentLeg" access="private" returntype="array" output="false">
+        <cfargument name="segments" type="array" required="true">
+        <cfargument name="currentLeg" type="struct" required="true">
+        <cfargument name="out" type="struct" required="true">
+        <cfscript>
+            var filtered = [];
+            var hasRouteAwareSegments = false;
+            var currentLegOrder = (structKeyExists(arguments.currentLeg, "routeLegOrder") ? safeNumber(arguments.currentLeg.routeLegOrder) : 0);
+            var currentRouteInstanceId = (structKeyExists(arguments.out, "routeInstanceId") ? safeNumber(arguments.out.routeInstanceId) : 0);
+            var i = 0;
+            var segmentRouteInstanceId = 0;
+            var segmentLegOrder = 0;
+
+            for (i = 1; i LTE arrayLen(arguments.segments); i++) {
+                if (
+                    (structKeyExists(arguments.segments[i], "routeInstanceId") AND safeNumber(arguments.segments[i].routeInstanceId) GT 0)
+                    OR (structKeyExists(arguments.segments[i], "routeLegOrder") AND safeNumber(arguments.segments[i].routeLegOrder) GT 0)
+                ) {
+                    hasRouteAwareSegments = true;
+                    break;
+                }
+            }
+
+            if (!hasRouteAwareSegments OR currentLegOrder LTE 0) {
+                return arguments.segments;
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.segments); i++) {
+                segmentRouteInstanceId = (structKeyExists(arguments.segments[i], "routeInstanceId") ? safeNumber(arguments.segments[i].routeInstanceId) : 0);
+                segmentLegOrder = (structKeyExists(arguments.segments[i], "routeLegOrder") ? safeNumber(arguments.segments[i].routeLegOrder) : 0);
+                if (
+                    segmentLegOrder EQ currentLegOrder
+                    AND (
+                        currentRouteInstanceId LTE 0
+                        OR segmentRouteInstanceId LTE 0
+                        OR segmentRouteInstanceId EQ currentRouteInstanceId
+                    )
+                ) {
+                    arrayAppend(filtered, arguments.segments[i]);
+                }
+            }
+
+            return filtered;
         </cfscript>
     </cffunction>
 
@@ -678,6 +819,7 @@
         <cfargument name="canonicalOpenSegments" type="array" required="true">
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="speedKn" type="numeric" required="true">
+        <cfargument name="manualDelayMinutes" type="numeric" required="false" default="0">
         <cfscript>
             var openSegments = (arrayLen(arguments.canonicalOpenSegments) ? arguments.canonicalOpenSegments : arguments.diagnosticOpenSegments);
             var isPaused = false;
@@ -685,6 +827,8 @@
             var remainingHours = 0;
             var etaDt = "";
             var openType = "";
+            var manualDelayMinutesVal = max(0, safeNumber(arguments.manualDelayMinutes));
+            var remainingDurationSeconds = 0;
 
             if (!structKeyExists(arguments.currentLegProgress, "available") OR !arguments.currentLegProgress.available OR arguments.speedKn LTE 0) {
                 return {
@@ -692,7 +836,9 @@
                     "authority" = "projection",
                     "reason" = "Missing current leg progress or effective speed.",
                     "etaUtc" = "",
-                    "paused" = false
+                    "paused" = false,
+                    "remainingDurationSeconds" = 0,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(0)
                 };
             }
 
@@ -711,6 +857,13 @@
                 etaDt = dateAdd("s", round(remainingHours * 3600), arguments.asOfUtc);
             }
 
+            if (isDate(etaDt) AND manualDelayMinutesVal GT 0) {
+                etaDt = dateAdd("n", manualDelayMinutesVal, etaDt);
+            }
+            if (isDate(etaDt)) {
+                remainingDurationSeconds = max(0, dateDiff("s", arguments.asOfUtc, etaDt));
+            }
+
             return {
                 "available" = isDate(etaDt),
                 "authority" = "current_leg_projection",
@@ -719,6 +872,11 @@
                 "expectedResumeAtUtc" = expectedResumeAtUtc,
                 "remainingNm" = safeNumber(arguments.currentLegProgress.remainingNm),
                 "speedKn" = arguments.speedKn,
+                "etaSpeedKn" = arguments.speedKn,
+                "etaSpeedAuthority" = "active_trip_pace_adjusted_projection_speed",
+                "remainingDurationSeconds" = remainingDurationSeconds,
+                "remainingDurationLabel" = formatDurationSecondsLabel(remainingDurationSeconds),
+                "manualDelayMinutesTotal" = manualDelayMinutesVal,
                 "usesLatestCheckinAsAnchor" = false
             };
         </cfscript>
@@ -735,6 +893,8 @@
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="speedKn" type="numeric" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
+        <cfargument name="paceMeta" type="struct" required="false" default="#{}#">
         <cfscript>
             var timeline = {};
             var i = 0;
@@ -768,6 +928,13 @@
             var arrivalSource = "";
             var legWarnings = [];
             var legLockModel = {};
+            var lockTimeMinutes = 0;
+            var legDurationSeconds = 0;
+            var legEstimatedDurationSeconds = 0;
+            var legRemainingDurationSeconds = 0;
+            var durationAuthority = "";
+            var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
+            var manualDelayAppliedToFuture = false;
 
             timeline = {
                 "available" = false,
@@ -778,6 +945,8 @@
                 "paused" = (structKeyExists(arguments.etaProjection, "paused") ? arguments.etaProjection.paused : false),
                 "expectedResumeAtUtc" = (structKeyExists(arguments.etaProjection, "expectedResumeAtUtc") ? arguments.etaProjection.expectedResumeAtUtc : ""),
                 "effectiveSpeedKn" = arguments.speedKn,
+                "pace" = duplicate(arguments.paceMeta),
+                "manualDelayMinutesTotal" = manualDelayMinutes,
                 "usesLatestCheckinAsAnchor" = false,
                 "summary" = {
                     "totalNm" = 0,
@@ -798,9 +967,9 @@
                     OR safeNumber(arguments.out.eventLedger.count) LTE 0
                     OR arrayLen(arguments.canonicalSegments) EQ 0
                 )
-                AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out)
+                AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out, arguments.projectionOptions)
             ) {
-                return buildScheduledRouteTimelineProjection(arguments.qPlan, arguments.qLegs, arguments.qProgress, arguments.currentLeg, arguments.asOfUtc, arguments.speedKn, timeline, arguments.out);
+                return buildScheduledRouteTimelineProjection(arguments.qPlan, arguments.qLegs, arguments.qProgress, arguments.currentLeg, arguments.asOfUtc, arguments.speedKn, timeline, arguments.out, arguments.projectionOptions);
             }
 
             if (!structKeyExists(arguments.out, "eventLedger") OR !structKeyExists(arguments.out.eventLedger, "count") OR safeNumber(arguments.out.eventLedger.count) LTE 0) {
@@ -873,11 +1042,23 @@
                 departureSource = "";
                 arrivalSource = "";
                 legWarnings = [];
+                legLockModel = buildLegLockModel(
+                    safeString(arguments.qLegs.lock_route_code[i]),
+                    safeNumber(arguments.qLegs.lock_leg_order[i]),
+                    safeNumber(arguments.qLegs.lock_count[i])
+                );
+                lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
+                legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
+                legEstimatedDurationSeconds = legDurationSeconds;
+                legRemainingDurationSeconds = legDurationSeconds;
+                durationAuthority = (lockTimeMinutes GT 0 ? "pace_weather_speed_plus_operational_lock_time" : "pace_weather_speed");
 
                 if (isCompleted) {
                     legCompletedNm = distanceNm;
                     legRemainingNm = 0;
                     legPct = 100;
+                    legRemainingDurationSeconds = 0;
+                    durationAuthority = "projected_duration_completed_leg_actuals_preserved";
                     departureUtc = startedAtUtc;
                     arrivalUtc = completedAtUtc;
                     etaUtc = completedAtUtc;
@@ -893,12 +1074,24 @@
                     legPct = safeNumber(arguments.currentLegProgress.percentComplete);
                     departureUtc = arguments.currentLeg.startedAtUtc;
                     etaUtc = (structKeyExists(arguments.etaProjection, "etaUtc") ? arguments.etaProjection.etaUtc : "");
+                    legRemainingDurationSeconds = (structKeyExists(arguments.etaProjection, "remainingDurationSeconds") ? safeNumber(arguments.etaProjection.remainingDurationSeconds) : round((legRemainingNm / arguments.speedKn) * 3600)) + round(lockTimeMinutes * 60);
+                    durationAuthority = (lockTimeMinutes GT 0 ? "current_leg_eta_projection_plus_operational_lock_time" : "current_leg_eta_projection");
+                    if (len(etaUtc) AND lockTimeMinutes GT 0) {
+                        etaUtc = formatUtc(dateAdd("s", round(lockTimeMinutes * 60), parseIsoUtc(etaUtc)));
+                    }
                     arrivalUtc = etaUtc;
                     departureSource = "route_instance_leg_progress.leg_started_at";
-                    arrivalSource = "etaProjection.etaUtc";
+                    arrivalSource = (lockTimeMinutes GT 0 ? "etaProjection.etaUtc_plus_operational_lock_time" : "etaProjection.etaUtc");
                     if (len(etaUtc)) {
                         priorArrivalDt = parseIsoUtc(etaUtc);
                         finalArrivalUtc = etaUtc;
+                    }
+                    manualDelayAppliedToFuture = (manualDelayMinutes GT 0);
+                    if (lockTimeMinutes GT 0) {
+                        arrayAppend(legWarnings, {
+                            "code" = "LOCK_TIME_NOT_POSITION_AWARE",
+                            "message" = "Operational lock time is applied in full to the current leg ETA; remaining-lock position awareness is not included in this phase."
+                        });
                     }
                     if (safeString(arguments.currentLeg.status) EQ "NOT_STARTED" AND len(safeString(arguments.currentLeg.startedAtUtc))) {
                         arrayAppend(legWarnings, {
@@ -909,7 +1102,11 @@
                 } else {
                     departureDt = (isDate(priorArrivalDt) ? priorArrivalDt : "");
                     if (isDate(departureDt)) {
-                        arrivalDt = dateAdd("s", round((distanceNm / arguments.speedKn) * 3600), departureDt);
+                        if (manualDelayMinutes GT 0 AND !manualDelayAppliedToFuture) {
+                            departureDt = dateAdd("n", manualDelayMinutes, departureDt);
+                            manualDelayAppliedToFuture = true;
+                        }
+                        arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
                         departureUtc = formatUtc(departureDt);
                         arrivalUtc = formatUtc(arrivalDt);
                         etaUtc = arrivalUtc;
@@ -917,14 +1114,8 @@
                         finalArrivalUtc = arrivalUtc;
                     }
                     departureSource = (len(departureUtc) ? "previous_leg_arrival_projection" : "");
-                    arrivalSource = (len(arrivalUtc) ? "projected_from_previous_leg" : "");
+                    arrivalSource = (len(arrivalUtc) ? (lockTimeMinutes GT 0 ? "projected_from_previous_leg_plus_operational_lock_time" : "projected_from_previous_leg") : "");
                 }
-
-                legLockModel = buildLegLockModel(
-                    safeString(arguments.qLegs.lock_route_code[i]),
-                    safeNumber(arguments.qLegs.lock_leg_order[i]),
-                    safeNumber(arguments.qLegs.lock_count[i])
-                );
                 completedTotalNm += legCompletedNm;
                 arrayAppend(timeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -945,6 +1136,11 @@
                     "completedNm" = roundTo1(legCompletedNm),
                     "remainingNm" = roundTo1(legRemainingNm),
                     "percentComplete" = roundTo1(legPct),
+                    "estimatedDurationSeconds" = legEstimatedDurationSeconds,
+                    "estimatedDurationLabel" = formatDurationSecondsLabel(legEstimatedDurationSeconds),
+                    "remainingDurationSeconds" = legRemainingDurationSeconds,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(legRemainingDurationSeconds),
+                    "durationAuthority" = durationAuthority,
                     "paused" = (isCurrent AND timeline.paused),
                     "expectedResumeAtUtc" = (isCurrent ? timeline.expectedResumeAtUtc : ""),
                     "departureSource" = departureSource,
@@ -968,7 +1164,9 @@
                 "completedNm" = roundTo1(completedTotalNm),
                 "remainingNm" = roundTo1(remainingTotalNm),
                 "percentComplete" = roundTo1(percentTotal),
-                "finalArrivalUtc" = finalArrivalUtc
+                "finalArrivalUtc" = finalArrivalUtc,
+                "effectiveSpeedKn" = arguments.speedKn,
+                "manualDelayMinutesTotal" = manualDelayMinutes
             };
             return timeline;
         </cfscript>
@@ -980,6 +1178,7 @@
         <cfargument name="currentLeg" type="struct" required="true">
         <cfargument name="canonicalSegments" type="array" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
         <cfscript>
             var planStatus = "";
             var currentStatus = "";
@@ -1003,7 +1202,10 @@
             }
 
             planStatus = uCase(safeString(arguments.qPlan.status[1]));
-            if (!listFindNoCase("ACTIVE,SCHEDULED,PLANNED", planStatus)) {
+            if (
+                !listFindNoCase("ACTIVE,SCHEDULED,PLANNED", planStatus)
+                AND !(arguments.projectionOptions.allowDraftScheduledProjection AND planStatus EQ "DRAFT")
+            ) {
                 return false;
             }
             if (!structKeyExists(arguments.currentLeg, "routeLegOrder") OR safeNumber(arguments.currentLeg.routeLegOrder) LTE 0) {
@@ -1034,6 +1236,7 @@
         <cfargument name="speedKn" type="numeric" required="true">
         <cfargument name="timeline" type="struct" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
         <cfscript>
             var scheduledTimeline = duplicate(arguments.timeline);
             var scheduledDepartureDt = getScheduledDepartureUtc(arguments.qPlan);
@@ -1055,6 +1258,10 @@
             var isCurrent = false;
             var finalArrivalUtc = "";
             var legLockModel = {};
+            var lockTimeMinutes = 0;
+            var legDurationSeconds = 0;
+            var durationAuthority = "";
+            var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
 
             scheduledTimeline.authority = "scheduled_projection";
             scheduledTimeline.available = false;
@@ -1063,6 +1270,7 @@
             scheduledTimeline.paused = false;
             scheduledTimeline.expectedResumeAtUtc = "";
             scheduledTimeline.effectiveSpeedKn = arguments.speedKn;
+            scheduledTimeline.manualDelayMinutesTotal = manualDelayMinutes;
             scheduledTimeline.usesLatestCheckinAsAnchor = false;
             scheduledTimeline.summary = {
                 "totalNm" = 0,
@@ -1109,6 +1317,9 @@
             }
 
             priorArrivalDt = scheduledDepartureDt;
+            if (manualDelayMinutes GT 0) {
+                priorArrivalDt = dateAdd("n", manualDelayMinutes, priorArrivalDt);
+            }
             for (i = 1; i LTE arguments.qLegs.recordCount; i++) {
                 legOrder = safeNumber(arguments.qLegs.leg_order[i]);
                 distanceNm = safeNumber(arguments.qLegs.base_dist_nm[i]);
@@ -1116,17 +1327,20 @@
                 statusVal = safeString(progressRow.status);
                 isCurrent = (legOrder EQ currentLegOrder);
                 departureDt = priorArrivalDt;
-                arrivalDt = dateAdd("s", round((distanceNm / arguments.speedKn) * 3600), departureDt);
-                departureUtc = formatUtc(departureDt);
-                arrivalUtc = formatUtc(arrivalDt);
-                departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
-                priorArrivalDt = arrivalDt;
-                finalArrivalUtc = arrivalUtc;
                 legLockModel = buildLegLockModel(
                     safeString(arguments.qLegs.lock_route_code[i]),
                     safeNumber(arguments.qLegs.lock_leg_order[i]),
                     safeNumber(arguments.qLegs.lock_count[i])
                 );
+                lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
+                legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
+                durationAuthority = (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection");
+                arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
+                departureUtc = formatUtc(departureDt);
+                arrivalUtc = formatUtc(arrivalDt);
+                departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
+                priorArrivalDt = arrivalDt;
+                finalArrivalUtc = arrivalUtc;
 
                 arrayAppend(scheduledTimeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -1147,10 +1361,15 @@
                     "completedNm" = 0,
                     "remainingNm" = roundTo1(distanceNm),
                     "percentComplete" = 0,
+                    "estimatedDurationSeconds" = legDurationSeconds,
+                    "estimatedDurationLabel" = formatDurationSecondsLabel(legDurationSeconds),
+                    "remainingDurationSeconds" = legDurationSeconds,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(legDurationSeconds),
+                    "durationAuthority" = durationAuthority,
                     "paused" = false,
                     "expectedResumeAtUtc" = "",
                     "departureSource" = departureSource,
-                    "arrivalSource" = "scheduled_projection",
+                    "arrivalSource" = (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection"),
                     "authority" = "scheduled_projection",
                     "usesLatestCheckinAsAnchor" = false,
                     "lockSummary" = legLockModel.lockSummary,
@@ -1165,7 +1384,9 @@
                 "completedNm" = 0,
                 "remainingNm" = roundTo1(totalNm),
                 "percentComplete" = 0,
-                "finalArrivalUtc" = finalArrivalUtc
+                "finalArrivalUtc" = finalArrivalUtc,
+                "effectiveSpeedKn" = arguments.speedKn,
+                "manualDelayMinutesTotal" = manualDelayMinutes
             };
             return scheduledTimeline;
         </cfscript>
@@ -1189,28 +1410,145 @@
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="timezone" type="string" required="true">
         <cfscript>
-            var qBounds = queryExecute("
-                SELECT
-                  DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)) AS local_date,
-                  CONVERT_TZ(DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)), :tz, 'UTC') AS day_start_utc,
-                  CONVERT_TZ(DATE_ADD(DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)), INTERVAL 1 DAY), :tz, 'UTC') AS day_end_utc
-            ", {
-                asOfUtc = { value = arguments.asOfUtc, cfsqltype = "cf_sql_timestamp" },
-                tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-            }, { datasource = variables.datasource });
+            var tz = normalizeProjectionTimezone(arguments.timezone);
+            var localWall = "";
+            var localDate = "";
+            var dayStartLocal = "";
+            var dayEndLocal = "";
+            var dayStartLocalDt = "";
+            var dayStartUtc = "";
+            var dayEndUtc = "";
 
-            if (qBounds.recordCount GT 0 AND isDate(qBounds.day_start_utc[1]) AND isDate(qBounds.day_end_utc[1])) {
+            if (!len(tz)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            if (tz EQ "UTC") {
+                dayStartUtc = createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0);
                 return {
-                    "localDate" = dateFormat(qBounds.local_date[1], "yyyy-mm-dd"),
-                    "startUtc" = qBounds.day_start_utc[1],
-                    "endUtc" = qBounds.day_end_utc[1]
+                    "localDate" = dateFormat(dayStartUtc, "yyyy-mm-dd"),
+                    "startUtc" = dayStartUtc,
+                    "endUtc" = dateAdd("d", 1, dayStartUtc)
                 };
             }
 
+            localWall = formatProjectionUtcAsLocalWall(arguments.asOfUtc, tz);
+            if (!len(localWall)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            localDate = left(localWall, 10);
+            if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", localDate)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            dayStartLocal = localDate & " 00:00:00";
+            if (!isDate(dayStartLocal)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            dayStartLocalDt = parseDateTime(dayStartLocal);
+            dayEndLocal = dateFormat(dateAdd("d", 1, dayStartLocalDt), "yyyy-mm-dd") & " 00:00:00";
+            dayStartUtc = convertProjectionLocalWallToUtc(dayStartLocal, tz);
+            dayEndUtc = convertProjectionLocalWallToUtc(dayEndLocal, tz);
+
+            if (!isDate(dayStartUtc) OR !isDate(dayEndUtc) OR dateCompare(dayEndUtc, dayStartUtc, "s") LTE 0) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
             return {
-                "localDate" = dateFormat(arguments.asOfUtc, "yyyy-mm-dd"),
-                "startUtc" = createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0),
-                "endUtc" = dateAdd("d", 1, createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0))
+                "localDate" = localDate,
+                "startUtc" = dayStartUtc,
+                "endUtc" = dayEndUtc
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeProjectionTimezone" access="private" returntype="string" output="false">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var tz = trim(arguments.timezone);
+            var tzKey = uCase(tz);
+
+            switch (tzKey) {
+                case "US/EASTERN":
+                    return "America/New_York";
+                case "US/CENTRAL":
+                    return "America/Chicago";
+                case "US/MOUNTAIN":
+                    return "America/Denver";
+                case "US/PACIFIC":
+                    return "America/Los_Angeles";
+                case "US/ALASKA":
+                    return "America/Anchorage";
+                case "US/HAWAII":
+                    return "Pacific/Honolulu";
+                case "+00:00":
+                case "UTC":
+                case "ETC/UTC":
+                case "GMT":
+                    return "UTC";
+            }
+
+            return tz;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatProjectionUtcAsLocalWall" access="private" returntype="string" output="false">
+        <cfargument name="utcValue" type="date" required="true">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            try {
+                return dateTimeFormat(arguments.utcValue, "yyyy-mm-dd HH:nn:ss", arguments.timezone);
+            } catch (any localFormatErr) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="convertProjectionLocalWallToUtc" access="private" returntype="any" output="false">
+        <cfargument name="localWall" type="string" required="true">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var normalizedWall = trim(arguments.localWall);
+            var localDt = "";
+            var offsetMinutes = -840;
+            var candidateUtc = "";
+            var roundTripWall = "";
+            var matches = [];
+
+            if (!len(normalizedWall) OR !isDate(normalizedWall)) {
+                return "";
+            }
+
+            if (arguments.timezone EQ "UTC") {
+                return parseDateTime(normalizedWall);
+            }
+
+            localDt = parseDateTime(normalizedWall);
+            for (offsetMinutes = -840; offsetMinutes LTE 840; offsetMinutes += 15) {
+                candidateUtc = dateAdd("n", -offsetMinutes, localDt);
+                roundTripWall = formatProjectionUtcAsLocalWall(candidateUtc, arguments.timezone);
+                if (roundTripWall EQ normalizedWall) {
+                    arrayAppend(matches, candidateUtc);
+                }
+            }
+
+            if (arrayLen(matches) EQ 1) {
+                return matches[1];
+            }
+
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="projectionDayBoundsUnavailable" access="private" returntype="struct" output="false">
+        <cfargument name="asOfUtc" type="date" required="true">
+        <cfscript>
+            return {
+                "localDate" = "",
+                "startUtc" = arguments.asOfUtc,
+                "endUtc" = arguments.asOfUtc
             };
         </cfscript>
     </cffunction>
@@ -1270,6 +1608,13 @@
                 return safeString(openSegments[arrayLen(openSegments)].segmentType);
             }
             return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="isResumeEligiblePauseSegment" access="private" returntype="boolean" output="false">
+        <cfargument name="segmentType" type="string" required="true">
+        <cfscript>
+            return listFindNoCase("PAUSED_SECURE_FOR_NIGHT,PAUSED_DELAYED", uCase(trim(arguments.segmentType))) GT 0;
         </cfscript>
     </cffunction>
 
@@ -1341,9 +1686,6 @@
             if (isDate(arguments.qPlan.departureTimeUTC[1])) {
                 return arguments.qPlan.departureTimeUTC[1];
             }
-            if (isDate(arguments.qPlan.departureTime[1])) {
-                return arguments.qPlan.departureTime[1];
-            }
             return "";
         </cfscript>
     </cffunction>
@@ -1356,9 +1698,6 @@
             }
             if (isDate(arguments.qPlan.departureTimeUTC[1])) {
                 return "floatplans.departureTimeUTC";
-            }
-            if (isDate(arguments.qPlan.departureTime[1])) {
-                return "floatplans.departureTime";
             }
             return "";
         </cfscript>
@@ -1413,6 +1752,7 @@
             var hasDelayModel = false;
             var i = 0;
             var lockRow = {};
+            var totalBaseCycle = 0;
             var totalBestDelay = 0;
             var totalTypicalDelay = 0;
             var totalWorstDelay = 0;
@@ -1450,10 +1790,12 @@
                     COALESCE(cl.source, '') AS source_url,
                     COALESCE(cl.notes, '') AS lock_notes,"
                     & (hasDelayModel ? "
+                    ldm.base_cycle_min,
                     ldm.best_wait_min,
                     ldm.typical_wait_min,
                     ldm.worst_wait_min,
                     COALESCE(ldm.notes, '') AS delay_notes" : "
+                    NULL AS base_cycle_min,
                     NULL AS best_wait_min,
                     NULL AS typical_wait_min,
                     NULL AS worst_wait_min,
@@ -1490,6 +1832,7 @@
                     "latitude" = (isNull(qLocks.lat[i]) ? javacast("null", "") : val(qLocks.lat[i])),
                     "longitude" = (isNull(qLocks.lng[i]) ? javacast("null", "") : val(qLocks.lng[i])),
                     "agency" = safeString(qLocks.agency[i]),
+                    "baseCycleMinutes" = (isNull(qLocks.base_cycle_min[i]) ? 0 : val(qLocks.base_cycle_min[i])),
                     "bestDelayMinutes" = (isNull(qLocks.best_wait_min[i]) ? 0 : val(qLocks.best_wait_min[i])),
                     "typicalDelayMinutes" = (isNull(qLocks.typical_wait_min[i]) ? 0 : val(qLocks.typical_wait_min[i])),
                     "worstDelayMinutes" = (isNull(qLocks.worst_wait_min[i]) ? 0 : val(qLocks.worst_wait_min[i])),
@@ -1498,6 +1841,7 @@
                     "source" = safeString(qLocks.source_url[i])
                 };
                 arrayAppend(out.locks, lockRow);
+                totalBaseCycle += val(lockRow.baseCycleMinutes);
                 totalBestDelay += val(lockRow.bestDelayMinutes);
                 totalTypicalDelay += val(lockRow.typicalDelayMinutes);
                 totalWorstDelay += val(lockRow.worstDelayMinutes);
@@ -1506,9 +1850,11 @@
             if (arrayLen(out.locks) GT 0) {
                 out.lockSummary.hasLocks = true;
                 out.lockSummary.lockCount = arrayLen(out.locks);
+                out.lockSummary.baseCycleMinutes = totalBaseCycle;
                 out.lockSummary.bestDelayMinutes = totalBestDelay;
                 out.lockSummary.typicalDelayMinutes = totalTypicalDelay;
                 out.lockSummary.worstDelayMinutes = totalWorstDelay;
+                out.lockSummary.operationalLockTimeMinutes = totalBaseCycle + totalTypicalDelay;
                 out.lockSummary.delayLabel = buildLockDelayLabel(totalBestDelay, totalTypicalDelay, totalWorstDelay);
                 out.lockSummary.source = "route_leg_locks";
             }
@@ -1525,9 +1871,11 @@
                 "lockSummary" = {
                     "hasLocks" = (lockCount GT 0),
                     "lockCount" = lockCount,
+                    "baseCycleMinutes" = 0,
                     "bestDelayMinutes" = 0,
                     "typicalDelayMinutes" = 0,
                     "worstDelayMinutes" = 0,
+                    "operationalLockTimeMinutes" = 0,
                     "delayLabel" = (lockCount GT 0 ? "Delay estimate unavailable" : "No locks mapped"),
                     "source" = arguments.source
                 },
@@ -1545,6 +1893,20 @@
                 return "Delay estimate unavailable";
             }
             return "Best " & numberFormat(arguments.bestDelayMinutes, "0") & " min / Typical " & numberFormat(arguments.typicalDelayMinutes, "0") & " min / Worst " & numberFormat(arguments.worstDelayMinutes, "0") & " min";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getOperationalLockTimeMinutes" access="private" returntype="numeric" output="false">
+        <cfargument name="legLockModel" type="struct" required="true">
+        <cfscript>
+            if (
+                !structKeyExists(arguments.legLockModel, "lockSummary")
+                OR !isStruct(arguments.legLockModel.lockSummary)
+                OR !structKeyExists(arguments.legLockModel.lockSummary, "operationalLockTimeMinutes")
+            ) {
+                return 0;
+            }
+            return max(0, safeNumber(arguments.legLockModel.lockSummary.operationalLockTimeMinutes));
         </cfscript>
     </cffunction>
 
@@ -1576,19 +1938,36 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="buildPaceMeta" access="private" returntype="struct" output="false">
+        <cfargument name="inputs" type="struct" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+        <cfscript>
+            return createActiveTripPaceService().buildPaceMeta(arguments.inputs, arguments.floatPlanId);
+        </cfscript>
+    </cffunction>
+
     <cffunction name="resolveEffectiveSpeed" access="private" returntype="numeric" output="false">
         <cfargument name="inputs" type="struct" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
         <cfscript>
-            var keys = [ "weather_adjusted_speed_kn", "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "cruising_speed", "vessel_most_efficient_speed_kn" ];
-            var i = 0;
-            var key = "";
-            for (i = 1; i LTE arrayLen(keys); i++) {
-                key = keys[i];
-                if (structKeyExists(arguments.inputs, key) AND isNumeric(arguments.inputs[key]) AND safeNumber(arguments.inputs[key]) GT 0) {
-                    return safeNumber(arguments.inputs[key]);
-                }
+            return createActiveTripPaceService().resolveEffectiveSpeedKn(arguments.inputs, arguments.floatPlanId);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveProgressSpeed" access="private" returntype="numeric" output="false">
+        <cfargument name="inputs" type="struct" required="true">
+        <cfscript>
+            return createActiveTripPaceService().resolveEffectiveSpeedKn(arguments.inputs, 0);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createActiveTripPaceService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.ActiveTripPaceService").init(variables.datasource);
+            } catch (any pacePathErr) {
+                return createObject("component", "api.v1.ActiveTripPaceService").init(variables.datasource);
             }
-            return 0;
         </cfscript>
     </cffunction>
 
@@ -1625,10 +2004,11 @@
     <cffunction name="normalizeAsOf" access="private" returntype="date" output="false">
         <cfargument name="asOfUtc" type="any" required="false" default="">
         <cfscript>
-            if (isDate(arguments.asOfUtc)) {
-                return arguments.asOfUtc;
+            var parsed = parseUtcMachineValue(arguments.asOfUtc);
+            if (isDate(parsed)) {
+                return parsed;
             }
-            return now();
+            return getDbUtcNow();
         </cfscript>
     </cffunction>
 
@@ -1654,6 +2034,10 @@
     <cffunction name="formatUtc" access="private" returntype="string" output="false">
         <cfargument name="value" type="any" required="true">
         <cfscript>
+            var raw = normalizeUtcMachineString(arguments.value);
+            if (len(raw)) {
+                return replace(raw, " ", "T", "one") & "Z";
+            }
             if (!isDate(arguments.value)) {
                 return "";
             }
@@ -1664,14 +2048,60 @@
     <cffunction name="parseIsoUtc" access="private" returntype="date" output="false">
         <cfargument name="value" type="any" required="true">
         <cfscript>
-            var s = trim(toString(arguments.value));
-            if (isDate(arguments.value)) {
-                return arguments.value;
+            var parsed = parseUtcMachineValue(arguments.value);
+            if (isDate(parsed)) {
+                return parsed;
+            }
+            return getDbUtcNow();
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeUtcMachineString" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var s = "";
+            if (isNull(arguments.value)) {
+                return "";
+            }
+            s = trim(toString(arguments.value));
+            if (!len(s)) {
+                return "";
             }
             s = replace(s, "T", " ", "one");
             s = replace(s, "Z", "", "one");
-            if (isDate(s)) {
-                return parseDateTime(s);
+            if (len(s) GTE 19) {
+                s = left(s, 19);
+            }
+            if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", s)) {
+                return s;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseUtcMachineValue" access="private" returntype="any" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var raw = normalizeUtcMachineString(arguments.value);
+            if (len(raw) AND isDate(raw)) {
+                return parseDateTime(raw);
+            }
+            if (isDate(arguments.value)) {
+                return arguments.value;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getDbUtcNow" access="private" returntype="any" output="false">
+        <cfscript>
+            var qNow = queryExecute(
+                "SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s') AS utc_now",
+                {},
+                { datasource = variables.datasource }
+            );
+            if (qNow.recordCount GT 0 AND !isNull(qNow.utc_now[1]) AND isDate(qNow.utc_now[1])) {
+                return parseDateTime(qNow.utc_now[1]);
             }
             return now();
         </cfscript>
@@ -1694,6 +2124,23 @@
                 return 0;
             }
             return val(arguments.value);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatDurationSecondsLabel" access="private" returntype="string" output="false">
+        <cfargument name="seconds" type="numeric" required="true">
+        <cfscript>
+            var totalMinutes = max(0, round(arguments.seconds / 60));
+            var hours = int(totalMinutes / 60);
+            var minutes = totalMinutes - (hours * 60);
+
+            if (hours LTE 0) {
+                return numberFormat(minutes, "0") & " min";
+            }
+            if (minutes LTE 0) {
+                return numberFormat(hours, "0") & " hr";
+            }
+            return numberFormat(hours, "0") & " hr " & numberFormat(minutes, "0") & " min";
         </cfscript>
     </cffunction>
 
@@ -1750,3 +2197,7 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+

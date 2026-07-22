@@ -25,7 +25,7 @@
                     return;
                 }
 
-                if (!isAdminUser(userStruct)) {
+                if (!structKeyExists(request, "fpwAdminAuthorization") OR request.fpwAdminAuthorization.authorized NEQ true) {
                     response = buildResponse(
                         false,
                         true,
@@ -780,34 +780,7 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="isAdminUser" access="private" returntype="boolean" output="false">
-        <cfargument name="userStruct" type="struct" required="true">
-        <cfscript>
-            var roleValue = "";
-            var emailValue = "";
-            var adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
-
-            if (structKeyExists(arguments.userStruct, "isAdmin") AND toBoolean(arguments.userStruct.isAdmin, false)) return true;
-            if (structKeyExists(arguments.userStruct, "ISADMIN") AND toBoolean(arguments.userStruct.ISADMIN, false)) return true;
-            if (structKeyExists(arguments.userStruct, "is_admin") AND toBoolean(arguments.userStruct.is_admin, false)) return true;
-
-            if (structKeyExists(arguments.userStruct, "role")) {
-                roleValue = lCase(trim(toString(arguments.userStruct.role)));
-            } else if (structKeyExists(arguments.userStruct, "ROLE")) {
-                roleValue = lCase(trim(toString(arguments.userStruct.ROLE)));
-            }
-            if (roleValue EQ "admin") return true;
-
-            if (structKeyExists(arguments.userStruct, "email")) {
-                emailValue = lCase(trim(toString(arguments.userStruct.email)));
-            } else if (structKeyExists(arguments.userStruct, "EMAIL")) {
-                emailValue = lCase(trim(toString(arguments.userStruct.EMAIL)));
-            }
-            if (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue)) return true;
-
-            return false;
-        </cfscript>
-    </cffunction>
+    <!--- Authorization is enforced centrally by Application.cfc. --->
 
     <cffunction name="getDatasource" access="private" returntype="string" output="false">
         <cfscript>
@@ -819,3 +792,6 @@
     </cffunction>
 
 </cfcomponent>
+
+
+

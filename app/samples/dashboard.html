@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FloatPlanWizard Dashboard Sample</title>
+  <meta name="description" content="Static FloatPlanWizard dashboard sample generated from the verified Great Loop - Day 1 - Full Route sample trip.">
+  <link rel="stylesheet" href="sample-trip.css">
+</head>
+<body>
+  <div class="sample-shell">
+    <header class="sample-topbar">
+      <a class="sample-brand" href="../../index.cfm" aria-label="FloatPlanWizard homepage">
+        <span class="sample-wheel" aria-hidden="true"></span>
+        <span><strong>FloatPlanWizard</strong><span>Built for serious recreational boaters</span></span>
+      </a>
+      <nav class="sample-nav" aria-label="Sample trip views">
+        <a href="active-cruise.html">Active Cruise</a>
+        <a href="follow-page.html">Follow Page</a>
+        <a href="dashboard.html" aria-current="page">Dashboard</a>
+      </nav>
+    </header>
+
+    <main class="sample-hero">
+      <section class="sample-panel">
+        <div class="sample-eyebrow">Sample dashboard</div>
+        <h1>Boating dashboard for the sample trip.</h1>
+        <p class="sample-lede">
+          This static dashboard sample uses the verified FPW sample route, float plan, and monitoring data:
+          Great Loop - Day 1 - Full Route aboard Big Blue.
+        </p>
+
+        <div class="sample-kpis" aria-label="Dashboard sample summary">
+          <div class="sample-kpi"><small>Float plan</small><strong>Great Loop</strong><span>Day 1 - Full Route</span></div>
+          <div class="sample-kpi"><small>Vessel</small><strong>Big Blue</strong><span>Default vessel</span></div>
+          <div class="sample-kpi"><small>Route</small><strong>56 legs</strong><span>Chicago to Chicago</span></div>
+          <div class="sample-kpi"><small>Locks</small><strong>68</strong><span>Route total</span></div>
+        </div>
+
+        <div class="sample-actions">
+          <a class="sample-button sample-button--bright" href="../join.cfm">Create Free Account &rarr;</a>
+          <a class="sample-button" href="../dashboard.cfm">Open real dashboard &rarr;</a>
+        </div>
+
+        <p class="sample-note">
+          The real dashboard is a signed-in app page. This public sample HTML is prepared for homepage preview use without exposing account credentials.
+        </p>
+      </section>
+
+      <section class="sample-product" aria-label="Dashboard product sample">
+        <div class="sample-browser">
+          <div class="sample-browser-top">
+            <div class="sample-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div>Dashboard - Float Plan Wizard</div>
+          </div>
+          <div class="sample-browser-body">
+            <div class="sample-grid">
+              <article class="sample-card">
+                <h3>Active Float Plan</h3>
+                <p>Great Loop - Day 1 - Full Route</p>
+                <span class="sample-status">Active</span>
+              </article>
+              <article class="sample-card">
+                <h3>Current Location</h3>
+                <p>Chicago</p>
+                <span class="sample-status sample-status--blue">Scheduled</span>
+              </article>
+              <article class="sample-card">
+                <h3>Next Stop</h3>
+                <p>Joliet</p>
+                <span class="sample-status sample-status--gold">ETA set</span>
+              </article>
+            </div>
+
+            <div class="sample-card">
+              <h3>Route Planning Context</h3>
+              <div class="sample-row"><div><strong>Route code</strong><span>USER_ROUTE_1_260601141534_c7d2b</span></div><span>CCW</span></div>
+              <div class="sample-row"><div><strong>Route total</strong><span>4,233 nm across 56 legs</span></div><span>68 locks</span></div>
+              <div class="sample-row"><div><strong>First leg</strong><span>Chicago to Joliet</span></div><span>35 nm</span></div>
+              <div class="sample-row"><div><strong>Monitoring</strong><span>The trip is scheduled and has not started yet.</span></div><span>All Good</span></div>
+            </div>
+
+            <div class="sample-map" aria-label="Stylized sample route view from Chicago to Joliet">
+              <div class="sample-map-line" aria-hidden="true"></div>
+              <div class="sample-map-pin sample-map-pin--start" aria-hidden="true"></div>
+              <div class="sample-map-pin sample-map-pin--next" aria-hidden="true"></div>
+              <div class="sample-map-label sample-map-label--start">Chicago</div>
+              <div class="sample-map-label sample-map-label--next">Next stop: Joliet</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="sample-disclaimer">
+      <strong>FloatPlan Wizard is not an emergency dispatch or rescue service.</strong>
+      In an emergency, use VHF Channel 16, DSC distress, 911, EPIRB/PLB, or other official emergency channels.
+    </div>
+  </div>
+</body>
+</html>

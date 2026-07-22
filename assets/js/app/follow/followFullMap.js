@@ -140,7 +140,8 @@
       typeof window.FPW.attachLeafletMarineLayers === "function"
     ) {
       window.FPW.attachLeafletMarineLayers({
-        map: state.mapInstance
+        map: state.mapInstance,
+        includeRadar: false
       });
       if (typeof window.FPW.attachLeafletWeatherOverlays === "function") {
         window.FPW.attachLeafletWeatherOverlays({
@@ -245,7 +246,7 @@
 
     bootstrap().catch(function (err) {
       var message = (err && err.message) ? err.message : "Unable to load full map.";
-      setTitles("Unable to load map", "Use the link below to return to the Follow page.");
+      setTitles("Unable to load map", "Use the link below to return to the Trip status page.");
       setStatus(message);
     });
   }

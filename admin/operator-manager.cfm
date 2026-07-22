@@ -4,7 +4,7 @@
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
 isAdmin = false;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 roleValue = "";
 emailValue = "";
 
@@ -17,36 +17,9 @@ function boolLike(any value, boolean defaultValue=false) {
     return arguments.defaultValue;
 }
 
-if (isLoggedIn) {
-    if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-        isAdmin = true;
-    } else {
-        if (structKeyExists(userStruct, "role")) {
-            roleValue = lCase(trim(toString(userStruct.role)));
-        } else if (structKeyExists(userStruct, "ROLE")) {
-            roleValue = lCase(trim(toString(userStruct.ROLE)));
-        }
-        if (roleValue EQ "admin") {
-            isAdmin = true;
-        } else {
-            if (structKeyExists(userStruct, "email")) {
-                emailValue = lCase(trim(toString(userStruct.email)));
-            } else if (structKeyExists(userStruct, "EMAIL")) {
-                emailValue = lCase(trim(toString(userStruct.EMAIL)));
-            }
-            if (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue)) {
-                isAdmin = true;
-            }
-        }
-    }
-}
-
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 </cfscript>
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <!doctype html>
 <html lang="en">
@@ -237,8 +210,19 @@ isAuthorized = isLoggedIn AND isAdmin;
   </cfif>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <cfoutput>
+    <script>
+      window.FPW_BASE = "#JSStringFormat(request.fpwBase)#";
+      window.FPW_API_BASE = "#JSStringFormat(request.fpwApiBase)#";
+    </script>
+  </cfoutput>
   <cfif isAuthorized>
-    <script src="/fpw/assets/js/app/admin/operator-manager.js?v=20260423b"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/operator-manager.js?v=<cfoutput>#encodeForHTMLAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script>
   </cfif>
 </body>
 </html>
+
+
+
+
+

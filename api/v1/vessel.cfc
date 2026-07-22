@@ -63,8 +63,15 @@
                 <cfset action = lcase(trim(body.action))>
             </cfif>
 
-            <cfif action EQ "save">
-                <cfset vessel = {}>
+	            <cfif action EQ "save">
+	                <cfset memberGateResult = getMemberAccessGateService().requirePlanningAccess(userId)>
+	                <cfif NOT memberGateResult.allowed>
+	                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+	                    <cfsetting enablecfoutputonly="false">
+	                    <cfabort>
+	                </cfif>
+
+	                <cfset vessel = {}>
                 <cfif structKeyExists(body, "vessel")>
                     <cfset vessel = body.vessel>
                 <cfelseif structKeyExists(body, "VESSEL")>
@@ -201,6 +208,25 @@
                     <cfif structKeyExists(insertResult, "generatedKey")>
                         <cfset vesselId = insertResult.generatedKey>
                     </cfif>
+                    <cfif vesselId GT 0>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "vessel_created",
+                                entityType = "vessel",
+                                entityId = vesselId,
+                                eventSource = "member_api",
+                                metadata = {
+                                    creation_source = "member"
+                                },
+                                idempotencyKey = "vessel_created:vessel:" & vesselId,
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                        <cfcatch type="any">
+                            <cflog file="fpw_product_events" type="error" text="vessel.cfc PRODUCT_EVENT_CALL_FAILED | event=vessel_created">
+                        </cfcatch>
+                        </cftry>
+                    </cfif>
                 </cfif>
 
                 <cfset response = {
@@ -208,6 +234,34 @@
                     AUTH    = true,
                     VESSELID = vesselId
                 }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif action EQ "removeimage">
+                <cfset vesselId = 0>
+                <cfif structKeyExists(body, "vesselId")>
+                    <cfset vesselId = val(body.vesselId)>
+                <cfelseif structKeyExists(body, "VESSELID")>
+                    <cfset vesselId = val(body.VESSELID)>
+                <cfelseif structKeyExists(url, "vesselId")>
+                    <cfset vesselId = val(url.vesselId)>
+                </cfif>
+
+                <cfif vesselId LTE 0>
+                    <cfthrow message="Vessel id is required.">
+                </cfif>
+
+                <cfset imageResult = getVesselImageService().removeVesselImage(vesselId, userId)>
+                <cfset response = {
+                    SUCCESS = imageResult.SUCCESS,
+                    AUTH    = true,
+                    MESSAGE = imageResult.MESSAGE
+                }>
+                <cfif NOT imageResult.SUCCESS>
+                    <cfset response.ERROR = "IMAGE_REMOVE_FAILED">
+                </cfif>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
                 <cfsetting enablecfoutputonly="false">
                 <cfabort>
@@ -304,6 +358,7 @@
                     WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
                       AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
                 </cfquery>
+                <cfset getVesselImageService().deleteVesselImageFiles(vesselId, userId)>
 
                 <cfset response = {
                     SUCCESS = true,
@@ -336,6 +391,24 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
-    </cffunction>
+	    </cffunction>
+
+	    <cffunction name="getVesselImageService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.VesselImageService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.VesselImageService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
+
+	    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.MemberAccessGateService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
 
 </cfcomponent>

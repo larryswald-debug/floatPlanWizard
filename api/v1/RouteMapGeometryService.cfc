@@ -744,7 +744,22 @@
     <cfargument name="y" type="numeric" required="true">
     <cfargument name="x" type="numeric" required="true">
     <cfscript>
-      return createObject("java", "java.lang.Math").atan2(arguments.y, arguments.x);
+      if (arguments.x GT 0) {
+        return atn(arguments.y / arguments.x);
+      }
+      if (arguments.x LT 0 AND arguments.y GTE 0) {
+        return atn(arguments.y / arguments.x) + pi();
+      }
+      if (arguments.x LT 0 AND arguments.y LT 0) {
+        return atn(arguments.y / arguments.x) - pi();
+      }
+      if (arguments.x EQ 0 AND arguments.y GT 0) {
+        return pi() / 2;
+      }
+      if (arguments.x EQ 0 AND arguments.y LT 0) {
+        return -pi() / 2;
+      }
+      return 0;
     </cfscript>
   </cffunction>
 

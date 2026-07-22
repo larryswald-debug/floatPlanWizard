@@ -1,3 +1,5 @@
+<cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/require_auth.cfm">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/floatplan-wizard.css?v=1">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/floatplan-wizard.css?v=20260526-cache-bump">
 </head>
 <body class="wizard-body">
 
@@ -23,7 +25,7 @@
 </header>
 
 <main>
-    <div id="wizardApp" class="wizard-container" data-contact-step="5">
+    <div id="wizardApp" class="wizard-container" data-contact-step="5" data-total-steps="7">
 
         <div v-if="isLoading" class="text-center py-5">
             <div class="spinner-border text-primary" role="status"></div>
@@ -147,7 +149,7 @@
                         v-model="fp.FLOATPLAN.DEPARTURE_TIME"
                         :class="{ 'is-invalid': hasError('DEPARTURE_TIME') }"
                         :aria-invalid="hasError('DEPARTURE_TIME') ? 'true' : 'false'"
-                        @input="clearFieldError('DEPARTURE_TIME')"
+                        @input="handleDepartureTimingChanged('DEPARTURE_TIME')"
                         />
                     <div class="invalid-feedback" v-if="hasError('DEPARTURE_TIME')">{{ getError('DEPARTURE_TIME') }}</div>
                 </div>
@@ -161,7 +163,7 @@
                         v-model="fp.FLOATPLAN.DEPARTURE_TIMEZONE"
                         :class="{ 'is-invalid': hasError('DEPARTURE_TIMEZONE') }"
                         :aria-invalid="hasError('DEPARTURE_TIMEZONE') ? 'true' : 'false'"
-                        @change="clearFieldError('DEPARTURE_TIMEZONE')"
+                        @change="handleDepartureTimingChanged('DEPARTURE_TIMEZONE')"
                         required
                     >
                         <option value="">Select time zone</option>
@@ -196,7 +198,7 @@
                         v-model="fp.FLOATPLAN.RETURN_TIME"
                         :class="{ 'is-invalid': hasError('RETURN_TIME') }"
                         :aria-invalid="hasError('RETURN_TIME') ? 'true' : 'false'"
-                        @input="clearFieldError('RETURN_TIME')"
+                        @input="handleReturnTimeInput()"
                         />
                         <div class="invalid-feedback" v-if="hasError('RETURN_TIME')">{{ getError('RETURN_TIME') }}</div>
 
@@ -247,6 +249,7 @@
                         required
                     >
                         <option :value="0">Select a rescue authority</option>
+                        <option :value="NA_RESCUE_CENTER_ID">N/A - Not Applicable</option>
                         <option v-for="center in rescueCenters" :key="'resc-'+center.recId" :value="center.recId">
                             {{ formatRescueCenterLabel(center) }}
                         </option>
@@ -310,6 +313,9 @@
                     </button>
                 </div>
                 <p class="small text-muted">Tap to include for notifications.</p>
+                <div class="invalid-feedback d-block mb-2" v-if="hasError('CONTACTS')">
+                    {{ getError('CONTACTS') }}
+                </div>
                 <div class="list-group">
                     <button
                         v-for="c in contacts"
@@ -379,6 +385,29 @@
                 <button type="button" class="btn btn-primary w-100" @click="submitPlan" :disabled="isSaving">
                     {{ isSaving ? 'Saving…' : 'Save Float Plan' }}
                 </button>
+
+                <div class="alert alert-info mt-3 mb-2">
+                    <h3 class="h6 mb-2">Premium Save &amp; Send</h3>
+                    <p class="small mb-2">Includes the Premium float-plan PDF, email delivery, Active Cruise, premium monitoring, and private Trip/Follow access for this exact float plan.</p>
+                    <p class="small mb-3">{{ premiumSendAvailabilityMessage }}</p>
+                    <button
+                        v-if="canSendPremiumFloatPlan"
+                        type="button"
+                        class="btn btn-primary w-100"
+                        @click="submitPlanAndSend"
+                        :disabled="isSaving || checkoutBusy">
+                        {{ isSaving ? 'Sending...' : (hasCommittedPremiumSend ? 'Show Original Premium Send Result' : 'Premium Save &amp; Send') }}
+                    </button>
+                    <div v-else class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy || !oneTripCheckoutAvailable">{{ oneTripCheckoutAvailable ? 'Buy One Trip' : 'Buy One Trip Unavailable' }}</button>
+                        <button type="button" class="btn btn-outline-primary" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
+                        <button type="button" class="btn btn-outline-primary" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
+                    </div>
+                </div>
+                <a class="btn btn-outline-secondary w-100 mt-2" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm?openBasicFloatPlan=1">
+                    Basic Save &amp; Send
+                </a>
+                <p class="small text-muted mt-2 mb-0">Basic Save &amp; Send remains free and uses the separate Basic Float Plan flow. Your saved Draft is not removed.</p>
             </section>
 
             <div class="wizard-nav">
@@ -399,7 +428,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20251227b"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-phase3-cutover"></script>
 
 </body>
 </html>

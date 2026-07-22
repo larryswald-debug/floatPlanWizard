@@ -1,5 +1,20 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
+<cfscript>
+if (!structKeyExists(request, "fpwBase")) {
+  request.fpwBase = getDirectoryFromPath(cgi.script_name);
+  request.fpwBase = reReplace(request.fpwBase, "/app/?$", "");
+  request.fpwBase = reReplace(request.fpwBase, "/$", "");
+  if (request.fpwBase == "/") {
+    request.fpwBase = "";
+  }
+}
+fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.user);
+fuelCalcCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  && listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+);
+</cfscript>
 
 <!doctype html>
 <html lang="en">
@@ -8,6 +23,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fuel Calculator</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
   <style>
     :root {
       --panel: rgba(11, 29, 43, 0.78);
@@ -24,7 +40,7 @@
     html { scroll-behavior: smooth; }
     a { color: inherit; text-decoration: none; }
     .shell {
-      width: min(calc(100% - 32px), 1200px);
+      width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
     .topbar {
@@ -174,7 +190,7 @@
     }
     .fuelcalc-main { padding: 10px 0 18px; }
     .fuelcalc-main .wrap {
-      max-width: 1240px;
+      max-width: none;
       margin: 0 auto;
       background: linear-gradient(180deg, rgba(9, 24, 42, 0.96), rgba(5, 17, 32, 0.96));
       border: 1px solid rgba(82, 132, 204, 0.45);
@@ -349,55 +365,32 @@
       .fuelcalc-main .card .value { font-size: 34px; }
     }
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 20px), 1200px); }
+      .shell { width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; }
     }
     @media (max-width: 560px) {
       .promo-strip-copy { white-space: normal; }
     }
-    footer {
-      padding: 0 0 27px;
-    }
-    .footer-card {
-      padding: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      background: rgba(8,19,28,0.95);
-    }
-    .footer-card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    .footer-card .footer-copyright {
-      display: block;
-      margin-top: 6px;
-      color: var(--soft);
-      font-size: 0.84rem;
-    }
-    .footer-links {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      color: var(--soft);
-      font-size: 0.9rem;
-      letter-spacing: 0.01em;
-    }
   </style>
 </head>
 <body class="fuelcalc-page">
+  <cfif fuelCalcShowMemberNav>
+    <cfset request.fpwTopNavActive = "fuel">
+    <cfinclude template="../includes/top_nav.cfm">
+  <cfelse>
   <header class="topbar">
     <div class="promo-strip">
       <div class="shell promo-strip-inner">
-        <p class="promo-strip-copy">Join prelaunch &mdash; get <strong>2 months of Premium free</strong></p>
+        <p class="promo-strip-copy"><cfif fuelCalcCreditModelEnabled>Free membership &mdash; <strong>first complete Premium trip included</strong> for eligible new members<cfelse>Join prelaunch &mdash; get <strong>2 months of Premium free</strong></cfif></p>
       </div>
     </div>
     <div class="shell topbar-inner">
-      <a href="/preLaunch.cfm#top" class="brand" aria-label="FloatPlanWizard home">
+      <cfif fuelCalcCreditModelEnabled>
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/#top" class="brand" aria-label="FloatPlanWizard home">
+      <cfelse>
+        <a href="/preLaunch.cfm#top" class="brand" aria-label="FloatPlanWizard home">
+      </cfif>
         <div class="brand-mark"><i class="bi bi-compass-fill" aria-hidden="true"></i></div>
         <div class="brand-copy">
           <div class="brand-name">FloatPlanWizard</div>
@@ -405,15 +398,24 @@
         </div>
       </a>
       <nav class="nav" aria-label="Primary">
-        <a href="/preLaunch.cfm#features">Features</a>
-        <a href="/preLaunch.cfm#great-loop">Great Loop</a>
-        <a href="/preLaunch.cfm#followers">Share the Trip</a>
-        <a href="/preLaunch.cfm#story">Why FPW</a>
-        <a href="/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
-        <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
+        <cfif fuelCalcCreditModelEnabled>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/#fpwHowItWorks">How It Works</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/#fpwFeatures">Features</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/pricing.cfm">Pricing</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm" class="btn btn-secondary">Start Free</a>
+        <cfelse>
+          <a href="/preLaunch.cfm#features">Features</a>
+          <a href="/preLaunch.cfm#great-loop">Great Loop</a>
+          <a href="/preLaunch.cfm#followers">Share the Trip</a>
+          <a href="/preLaunch.cfm#story">Why FPW</a>
+          <a href="/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+          <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
+        </cfif>
       </nav>
     </div>
   </header>
+  </cfif>
   <main class="fuelcalc-main">
     <div class="wrap shell">
       <h1>Fuel Calculator</h1>
@@ -546,17 +548,7 @@
     </div>
   </main>
 
-  <footer>
-    <div class="shell">
-      <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
-        <div class="footer-links">
-          <span>Launching Spring 2026</span>
-          <span>Built for Great Loopers and serious recreational boaters</span>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <cfinclude template="../includes/footer.cfm">
 
   <script>
     (function () {
@@ -1133,5 +1125,8 @@
       resetInputs();
     })();
   </script>
+  <cfif fuelCalcShowMemberNav>
+    <cfinclude template="../includes/footer_scripts.cfm">
+  </cfif>
 </body>
 </html>

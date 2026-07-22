@@ -6,6 +6,7 @@
         <cfargument name="email" type="any" required="false">
         <cfargument name="description" type="any" required="false">
         <cfargument name="website" type="any" required="false">
+        <cfargument name="submit" type="any" required="false">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
 
         <cfif NOT structKeyExists(request, "fpwBase")>
@@ -43,7 +44,7 @@
             <cftry>
                 <cfmail
                     to="support@floatplanwizard.com"
-                    from="no-reply@floatplanwizard.com"
+                    from="noreply@floatplanwizard.com"
                     replyto="#email#"
                     subject="Float Plan Wizard Contact Us: #firstName# #lastName#"
                     type="text">

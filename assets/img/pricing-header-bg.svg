@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#020817"/>
+      <stop offset="0.45" stop-color="#071a34"/>
+      <stop offset="1" stop-color="#04111f"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#082449"/>
+      <stop offset="1" stop-color="#020b18"/>
+    </linearGradient>
+    <radialGradient id="moonGlow" cx="12%" cy="28%" r="25%">
+      <stop offset="0" stop-color="#7db8ff" stop-opacity="0.45"/>
+      <stop offset="0.45" stop-color="#2b79ff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="boatGlow" cx="84%" cy="56%" r="20%">
+      <stop offset="0" stop-color="#5aa7ff" stop-opacity="0.32"/>
+      <stop offset="0.55" stop-color="#0a4cff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softBlur">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="420" fill="url(#sky)"/>
+  <rect width="1600" height="420" fill="url(#moonGlow)"/>
+  <rect width="1600" height="420" fill="url(#boatGlow)"/>
+
+  <path d="M0 190 C160 150 250 185 390 145 C530 105 680 165 820 132 C980 96 1120 150 1250 116 C1390 78 1500 118 1600 92 L1600 420 L0 420 Z" fill="#06152b" opacity="0.72"/>
+  <path d="M0 225 C180 205 320 230 500 205 C720 174 850 228 1040 198 C1250 165 1390 205 1600 176 L1600 420 L0 420 Z" fill="#04101f" opacity="0.88"/>
+
+  <rect y="225" width="1600" height="195" fill="url(#water)"/>
+  <path d="M0 260 C180 250 320 268 500 254 C730 236 890 266 1110 244 C1310 225 1450 250 1600 236" fill="none" stroke="#1c6ad6" stroke-opacity="0.18" stroke-width="2"/>
+  <path d="M0 310 C220 295 430 318 620 300 C850 278 1050 318 1260 292 C1420 272 1510 298 1600 286" fill="none" stroke="#3aa7ff" stroke-opacity="0.12" stroke-width="2"/>
+  <path d="M0 355 C180 348 360 364 540 350 C740 335 930 360 1135 342 C1320 326 1460 346 1600 334" fill="none" stroke="#8ecbff" stroke-opacity="0.08" stroke-width="2"/>
+
+  <!-- lighthouse left -->
+  <g transform="translate(145 118)">
+    <ellipse cx="21" cy="115" rx="82" ry="10" fill="#6fb7ff" opacity="0.18" filter="url(#softBlur)"/>
+    <path d="M4 112 L14 26 L29 26 L40 112 Z" fill="#dbeaff" opacity="0.95"/>
+    <path d="M11 55 H33 L35 70 H9 Z" fill="#0b2a53"/>
+    <path d="M16 26 L18 6 H26 L29 26 Z" fill="#f3f7ff"/>
+    <rect x="13" y="0" width="20" height="8" rx="2" fill="#f3f7ff"/>
+    <path d="M16 -6 H30 L34 0 H12 Z" fill="#dbeaff"/>
+    <circle cx="23" cy="17" r="7" fill="#ffd46a"/>
+    <path d="M23 17 L-70 -18" stroke="#ffdc7b" stroke-width="2" opacity="0.24"/>
+    <path d="M23 17 L112 -10" stroke="#ffdc7b" stroke-width="2" opacity="0.16"/>
+    <path d="M-20 113 C5 95 36 97 65 113 Z" fill="#101827"/>
+  </g>
+
+  <!-- boat right -->
+  <g transform="translate(1270 200)">
+    <ellipse cx="90" cy="92" rx="160" ry="18" fill="#62b3ff" opacity="0.18" filter="url(#softBlur)"/>
+    <path d="M25 66 C70 76 150 76 220 62 C205 86 174 99 96 101 C55 100 30 87 25 66 Z" fill="#e5eef8"/>
+    <path d="M62 45 H152 L190 66 H42 Z" fill="#f7fbff"/>
+    <path d="M88 22 H142 L165 45 H70 Z" fill="#dfeafa"/>
+    <rect x="96" y="27" width="26" height="14" rx="3" fill="#0a2c59"/>
+    <rect x="129" y="27" width="24" height="14" rx="3" fill="#0a2c59"/>
+    <path d="M60 101 C112 118 172 114 230 96" fill="none" stroke="#d8f1ff" stroke-width="6" opacity="0.7"/>
+    <path d="M36 107 C105 138 183 130 260 101" fill="none" stroke="#4aa3ff" stroke-width="3" opacity="0.38"/>
+  </g>
+
+  <!-- stars -->
+  <g fill="#ffffff" opacity="0.65">
+    <circle cx="320" cy="54" r="1.4"/>
+    <circle cx="455" cy="82" r="1.1"/>
+    <circle cx="760" cy="43" r="1.3"/>
+    <circle cx="1030" cy="70" r="1.2"/>
+    <circle cx="1175" cy="42" r="1.1"/>
+    <circle cx="1395" cy="78" r="1.3"/>
+    <circle cx="1480" cy="130" r="1.1"/>
+  </g>
+
+  <rect width="1600" height="420" fill="#020817" opacity="0.36"/>
+</svg>

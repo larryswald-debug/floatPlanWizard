@@ -1,0 +1,32 @@
+<svg width="720" height="420" viewBox="0 0 720 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="420" rx="10" fill="#CDEBFA"/>
+  <path d="M0 0h720v420H0z" fill="#BFE4F7"/>
+  <g opacity=".35" stroke="#72B8DC" stroke-width="1">
+    <path d="M0 70h720M0 140h720M0 210h720M0 280h720M0 350h720M90 0v420M180 0v420M270 0v420M360 0v420M450 0v420M540 0v420M630 0v420"/>
+  </g>
+  <path d="M302 15c-32 37-36 83-13 128 13 27 11 50-4 70-16 21-4 44 23 61 42 27 33 61 60 81 26 20 44-2 38-32-8-41-36-61-27-101 8-34 31-58 19-99-12-42-37-67-24-108-27 11-48 10-72 0Z" fill="#B5DDA5" stroke="#72A96E" stroke-width="2"/>
+  <path d="M284 30c-61 39-103 65-149 86-36 16-63 47-66 90-3 39 35 69 87 69 44 0 68-17 107-9 51 11 78 62 123 45" stroke="#8CCB7B" stroke-width="15" opacity=".28" stroke-linecap="round"/>
+  <g stroke="#1F66D1" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M206 55C246 88 247 119 213 150C184 176 187 211 226 232C272 257 315 263 339 294C365 328 396 337 434 350"/>
+  </g>
+  <g fill="#fff" stroke="#1F66D1" stroke-width="5">
+    <circle cx="206" cy="55" r="9"/>
+    <circle cx="230" cy="89" r="8"/>
+    <circle cx="213" cy="150" r="8"/>
+    <circle cx="203" cy="198" r="8"/>
+    <circle cx="226" cy="232" r="8"/>
+    <circle cx="288" cy="255" r="8"/>
+    <circle cx="339" cy="294" r="8"/>
+    <circle cx="434" cy="350" r="10"/>
+  </g>
+  <g font-family="Inter, Arial, sans-serif" font-size="13" fill="#1A3F61" font-weight="700">
+    <text x="196" y="38">Tampa</text>
+    <text x="244" y="140">Sarasota</text>
+    <text x="308" y="220">Cape Coral</text>
+    <text x="438" y="374">Key West</text>
+  </g>
+  <g transform="translate(656 246)">
+    <rect width="42" height="86" rx="7" fill="#fff" stroke="#BFD0E1"/>
+    <path d="M21 17v26M8 30h26M9 62h24" stroke="#0B2850" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>

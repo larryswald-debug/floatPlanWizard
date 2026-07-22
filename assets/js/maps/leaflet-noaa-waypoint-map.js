@@ -69,10 +69,11 @@
     var chartsVisible = false;
     var chartsZoomNoteControl = null;
     var baseLayer = settings.baseLayer || null;
+    var includeRadar = settings.includeRadar !== false;
 
     var chartWmsUrl = "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
     var chartLayerNames = "0,1,2,3,4,5,6,7,8,9,10,11,12";
-    var radarWmsUrl = getFpwApiBase() + "/wmsProxy.cfc?method=tile&target=nws-radar";
+    var radarWmsUrl = "https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer";
     var radarLayerName = "radar_base_reflectivity_time";
     var radarCoverageBbox3857 = {
       minx: -19592230.379600,
@@ -188,18 +189,12 @@
     function updateChartsZoomVisibility() {
       if (!map || !chartsOverlay) return;
       var zoom = map.getZoom();
-      if (chartsWanted && zoom <= chartsZoomThreshold) {
-        if (map.hasLayer(chartsOverlay)) {
-          map.removeLayer(chartsOverlay);
-        }
-        chartsVisible = false;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(true);
-      } else if (chartsWanted && zoom > chartsZoomThreshold) {
+      if (chartsWanted) {
         if (!map.hasLayer(chartsOverlay)) {
           chartsOverlay.addTo(map);
         }
-        chartsVisible = true;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(false);
+        chartsVisible = zoom > chartsZoomThreshold;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(zoom <= chartsZoomThreshold);
       } else {
         if (map.hasLayer(chartsOverlay)) {
           map.removeLayer(chartsOverlay);
@@ -258,7 +253,7 @@
     }
 
     function fetchRadarTime() {
-      var url = radarWmsUrl + "&SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0";
+      var url = radarWmsUrl + (radarWmsUrl.indexOf("?") >= 0 ? "&" : "?") + "SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0";
       return fetch(url, { credentials: "same-origin" })
         .then(function (res) { return res.text(); })
         .then(function (text) {
@@ -362,38 +357,46 @@
       attribution: "NOAA"
     });
 
-    radarLayer = window.L.tileLayer.wms(radarWmsUrl, {
-      layers: radarLayerName,
-      styles: "",
-      format: "image/png",
-      transparent: true,
-      version: "1.3.0",
-      crs: window.L.CRS.EPSG3857,
-      opacity: radarOpacity
-    });
-    if (radarTime) {
-      radarLayer.setParams({ time: radarTime });
+    if (includeRadar) {
+      radarLayer = window.L.tileLayer.wms(radarWmsUrl, {
+        layers: radarLayerName,
+        styles: "",
+        format: "image/png",
+        transparent: true,
+        version: "1.3.0",
+        crs: window.L.CRS.EPSG3857,
+        opacity: radarOpacity
+      });
+      if (radarTime) {
+        radarLayer.setParams({ time: radarTime });
+      }
+    }
+
+    var overlays = {
+      "NOAA Nautical Charts": chartsOverlay
+    };
+    if (includeRadar && radarLayer) {
+      overlays["NOAA/NWS Radar"] = radarLayer;
     }
 
     layersControl = window.L.control.layers(
       baseLayer ? { "OpenStreetMap": baseLayer } : {},
-      {
-        "NOAA Nautical Charts": chartsOverlay,
-        "NOAA/NWS Radar": radarLayer
-      },
+      overlays,
       { collapsed: false }
     ).addTo(map);
     scaleControl = window.L.control.scale({ imperial: true, metric: false }).addTo(map);
 
-    radarOpacityControl = createRadarOpacityControl(setRadarOpacity);
-    if (radarOpacityControl) {
-      radarOpacityControl.addTo(map);
-      radarOpacityControl.setEnabled(false);
-    }
-    radarNoteControl = createRadarNoteControl();
-    if (radarNoteControl) {
-      radarNoteControl.addTo(map);
-      radarNoteControl.setVisible(false);
+    if (includeRadar) {
+      radarOpacityControl = createRadarOpacityControl(setRadarOpacity);
+      if (radarOpacityControl) {
+        radarOpacityControl.addTo(map);
+        radarOpacityControl.setEnabled(false);
+      }
+      radarNoteControl = createRadarNoteControl();
+      if (radarNoteControl) {
+        radarNoteControl.addTo(map);
+        radarNoteControl.setVisible(false);
+      }
     }
     chartsZoomNoteControl = createChartsZoomNoteControl();
     if (chartsZoomNoteControl) {
@@ -401,16 +404,19 @@
       chartsZoomNoteControl.setVisible(false);
     }
 
-    map.on("overlayadd", handleRadarOverlayAdd);
-    map.on("overlayremove", handleRadarOverlayRemove);
+    if (includeRadar) {
+      map.on("overlayadd", handleRadarOverlayAdd);
+      map.on("overlayremove", handleRadarOverlayRemove);
+    }
     map.on("overlayadd", handleChartsOverlayAdd);
     map.on("overlayremove", handleChartsOverlayRemove);
     map.on("moveend", handleMoveEnd);
     map.on("zoomend", handleZoomEnd);
 
-    fetchRadarTime();
     updateChartsZoomVisibility();
-    updateRadarVisibility();
+    if (includeRadar) {
+      updateRadarVisibility();
+    }
 
     map.__fpwMarineLayersController = {
       getMap: function () {
@@ -470,10 +476,10 @@
     var chartWmsUrl = "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
     var chartLayerNames = "0,1,2,3,4,5,6,7,8,9,10,11,12";
 
-    // NWS eventdriven radar GetCapabilities URL (via proxy):
-    // /fpw/api/v1/wmsProxy.cfc?method=tile&target=nws-radar&SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0
+    // NWS eventdriven radar GetCapabilities URL:
+    // https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0
     // Selected layer name: "radar_base_reflectivity_time".
-    var radarWmsUrl = getFpwApiBase() + "/wmsProxy.cfc?method=tile&target=nws-radar";
+    var radarWmsUrl = "https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer";
     var radarLayerName = "radar_base_reflectivity_time";
     var radarCoverageBbox3857 = {
       minx: -19592230.379600,
@@ -603,18 +609,12 @@
     function updateChartsZoomVisibility() {
       if (!map || !chartsOverlay) return;
       var zoom = map.getZoom();
-      if (chartsWanted && zoom <= chartsZoomThreshold) {
-        if (map.hasLayer(chartsOverlay)) {
-          map.removeLayer(chartsOverlay);
-        }
-        chartsVisible = false;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(true);
-      } else if (chartsWanted && zoom > chartsZoomThreshold) {
+      if (chartsWanted) {
         if (!map.hasLayer(chartsOverlay)) {
           chartsOverlay.addTo(map);
         }
-        chartsVisible = true;
-        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(false);
+        chartsVisible = zoom > chartsZoomThreshold;
+        if (chartsZoomNoteControl) chartsZoomNoteControl.setVisible(zoom <= chartsZoomThreshold);
       } else {
         if (map.hasLayer(chartsOverlay)) {
           map.removeLayer(chartsOverlay);
@@ -673,7 +673,7 @@
     }
 
     function fetchRadarTime() {
-      var url = radarWmsUrl + "&SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0";
+      var url = radarWmsUrl + (radarWmsUrl.indexOf("?") >= 0 ? "&" : "?") + "SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0";
       return fetch(url, { credentials: "same-origin" })
         .then(function (res) { return res.text(); })
         .then(function (text) {
@@ -816,7 +816,6 @@
 
       map.setView([center.lat, center.lng], defaultZoom);
       map.whenReady(function () {
-        fetchRadarTime();
         updateChartsZoomVisibility();
         updateRadarVisibility();
         if (onMapReady) onMapReady(map);

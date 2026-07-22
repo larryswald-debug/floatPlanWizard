@@ -1,5 +1,6 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <cfscript>
 actionType = "";
@@ -16,6 +17,14 @@ legOverrideTableExists = false;
 userRouteTablesExist = false;
 selectedGeneratedRouteIds = [];
 selectedCustomRouteIds = [];
+routeDeleteBlocked = false;
+routeDeleteBlockCode = "";
+routeDeleteProtection = {
+    premiumHistoryCount = 0,
+    activeCount = 0,
+    firstPremiumHistoryFloatPlanId = 0,
+    firstActiveFloatPlanId = 0
+};
 
 summary = {
     totalRoutes = 0,
@@ -75,6 +84,144 @@ function parsePositiveIntegerList(any rawValue="") {
         arrayAppend(out, itemVal);
     }
     return out;
+}
+
+function loadRouteDeleteProtection(
+    required numeric userId,
+    required array generatedRouteCodes,
+    required array customRouteIds,
+    boolean lockRows=false
+) {
+    var result = {
+        premiumHistoryCount = 0,
+        activeCount = 0,
+        firstPremiumHistoryFloatPlanId = 0,
+        firstActiveFloatPlanId = 0
+    };
+    var queryGroups = [];
+    var qGroup = queryNew("");
+    var lockSql = arguments.lockRows ? " FOR UPDATE" : "";
+    var seenPlans = {};
+    var planKey = "";
+    var planId = 0;
+    var i = 0;
+
+    if (arrayLen(arguments.generatedRouteCodes)) {
+        arrayAppend(
+            queryGroups,
+            queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    UPPER(TRIM(fp.`status`)) AS statusValue,
+                    EXISTS (
+                        SELECT 1
+                          FROM premium_send_credits psc
+                         WHERE psc.consumed_float_plan_id = fp.floatplanId
+                    ) AS hasConsumedCredit,
+                    EXISTS (
+                        SELECT 1
+                          FROM premium_send_receipts psr
+                         WHERE psr.float_plan_id = fp.floatplanId
+                    ) AS hasPremiumSendReceipt
+                   FROM floatplans fp
+                   INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                  WHERE fp.userId = :userId
+                    AND ri.user_id = :userIdText
+                    AND ri.generated_route_code IN (:routeCodes)
+                  ORDER BY fp.floatplanId" & lockSql,
+                {
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    routeCodes = {
+                        value = arrayToList(arguments.generatedRouteCodes),
+                        cfsqltype = "cf_sql_varchar",
+                        list = true
+                    }
+                },
+                { datasource = "fpw" }
+            )
+        );
+    }
+
+    if (arrayLen(arguments.customRouteIds)) {
+        arrayAppend(
+            queryGroups,
+            queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    UPPER(TRIM(fp.`status`)) AS statusValue,
+                    EXISTS (
+                        SELECT 1
+                          FROM premium_send_credits psc
+                         WHERE psc.consumed_float_plan_id = fp.floatplanId
+                    ) AS hasConsumedCredit,
+                    EXISTS (
+                        SELECT 1
+                          FROM premium_send_receipts psr
+                         WHERE psr.float_plan_id = fp.floatplanId
+                    ) AS hasPremiumSendReceipt
+                   FROM floatplans fp
+                   INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                  WHERE fp.userId = :userId
+                    AND ri.user_id = :userIdText
+                    AND JSON_VALID(COALESCE(ri.routegen_inputs_json, ''))
+                    AND (
+                        CAST(
+                            COALESCE(
+                                NULLIF(JSON_UNQUOTE(JSON_EXTRACT(ri.routegen_inputs_json, '$.source_user_route_id')), ''),
+                                '0'
+                            ) AS UNSIGNED
+                        ) IN (:customRouteIds)
+                        OR (
+                            UPPER(TRIM(ri.template_route_code)) = 'MY_ROUTE'
+                            AND CAST(
+                                COALESCE(
+                                    NULLIF(JSON_UNQUOTE(JSON_EXTRACT(ri.routegen_inputs_json, '$.route_id')), ''),
+                                    '0'
+                                ) AS UNSIGNED
+                            ) IN (:customRouteIds)
+                        )
+                    )
+                  ORDER BY fp.floatplanId" & lockSql,
+                {
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    customRouteIds = {
+                        value = arrayToList(arguments.customRouteIds),
+                        cfsqltype = "cf_sql_integer",
+                        list = true
+                    }
+                },
+                { datasource = "fpw" }
+            )
+        );
+    }
+
+    for (qGroup in queryGroups) {
+        for (i = 1; i LTE qGroup.recordCount; i++) {
+            planId = val(qGroup.floatplanId[i]);
+            planKey = toString(planId);
+            if (planId LTE 0 OR structKeyExists(seenPlans, planKey)) {
+                continue;
+            }
+            seenPlans[planKey] = true;
+
+            if (val(qGroup.hasConsumedCredit[i]) GT 0 OR val(qGroup.hasPremiumSendReceipt[i]) GT 0) {
+                result.premiumHistoryCount += 1;
+                if (result.firstPremiumHistoryFloatPlanId LTE 0) {
+                    result.firstPremiumHistoryFloatPlanId = planId;
+                }
+            }
+            if (trim(toString(qGroup.statusValue[i])) EQ "ACTIVE") {
+                result.activeCount += 1;
+                if (result.firstActiveFloatPlanId LTE 0) {
+                    result.firstActiveFloatPlanId = planId;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 if (structKeyExists(form, "actionType")) {
@@ -174,6 +321,19 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
             }
             if (!arrayLen(selectedGeneratedRouteIds) AND !arrayLen(selectedCustomRouteIds)) {
                 message = "No checked routes were found for this user.";
+                messageType = "error";
+            } else {
+            routeDeleteProtection = loadRouteDeleteProtection(
+                targetUserId,
+                selectedGeneratedRouteCodes,
+                selectedCustomRouteIds,
+                false
+            );
+            if (routeDeleteProtection.premiumHistoryCount GT 0) {
+                message = "PREMIUM_SEND_HISTORY_DELETE_BLOCKED: A selected route is attached to retained Premium Send history.";
+                messageType = "error";
+            } else if (routeDeleteProtection.activeCount GT 0) {
+                message = "ACTIVE_ROUTE_DELETE_BLOCKED: Close or cancel the active route/float-plan group before deleting this route.";
                 messageType = "error";
             } else {
             forceLegOverrideCount = 0;
@@ -375,7 +535,32 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                 OR forceCustomLegCount GT 0
                 OR forceCustomOverrideCount GT 0
             ) {
+                routeDeleteBlocked = false;
                 transaction {
+                    queryExecute(
+                        "SELECT userId
+                           FROM users
+                          WHERE userId = :userId
+                          LIMIT 1
+                          FOR UPDATE",
+                        {
+                            userId = { value = targetUserId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = "fpw" }
+                    );
+                    routeDeleteProtection = loadRouteDeleteProtection(
+                        targetUserId,
+                        selectedGeneratedRouteCodes,
+                        selectedCustomRouteIds,
+                        true
+                    );
+                    if (routeDeleteProtection.premiumHistoryCount GT 0) {
+                        routeDeleteBlocked = true;
+                        routeDeleteBlockCode = "PREMIUM_SEND_HISTORY_DELETE_BLOCKED";
+                    } else if (routeDeleteProtection.activeCount GT 0) {
+                        routeDeleteBlocked = true;
+                        routeDeleteBlockCode = "ACTIVE_ROUTE_DELETE_BLOCKED";
+                    } else {
                     if (arrayLen(selectedGeneratedRouteIds)) {
                         queryExecute(
                             "UPDATE floatplans fp
@@ -503,7 +688,12 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                             { datasource = "fpw" }
                         );
                     }
+                    }
                 }
+                if (routeDeleteBlocked) {
+                    message = routeDeleteBlockCode & ": The selected route cleanup was blocked after the transactional recheck.";
+                    messageType = "error";
+                } else {
                 message = "Force deleted "
                     & forceRouteCount & " generated route(s), "
                     & forceInstanceCount & " route instance(s), "
@@ -511,7 +701,7 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                     & forceCustomRouteCount & " custom route(s), "
                     & forceCustomLegCount & " custom route leg(s), and "
                     & forceCustomOverrideCount & " custom route override record(s) for user " & targetUserId
-                    & ". Snapshot: /fpw/tmp/" & snapshotFile;
+                    & ". Snapshot: " & request.fpwBase & "/tmp/" & snapshotFile;
                 if (!legOverrideTableExists) {
                     message &= " Override table not found; skipped override cleanup.";
                 }
@@ -522,9 +712,11 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
                     message &= " Unlinked " & snapshotFloatplansQ.recordCount & " float plan(s) from deleted route instances.";
                 }
                 messageType = "success";
+                }
             } else {
-                message = "No generated routes, route instances, generated overrides, custom routes, custom route legs, or custom route overrides found for user " & targetUserId & ". Empty snapshot created: /fpw/tmp/" & snapshotFile;
+                message = "No generated routes, route instances, generated overrides, custom routes, custom route legs, or custom route overrides found for user " & targetUserId & ". Empty snapshot created: " & request.fpwBase & "/tmp/" & snapshotFile;
                 messageType = "info";
+            }
             }
             }
         }
@@ -706,11 +898,11 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
         <li>Check the generated routes and custom routes you want to remove.</li>
         <li><strong>Delete Selected Route Artifacts</strong> removes only the checked generated routes, custom routes, route instances, route-specific overrides, custom route legs, and unlinks related float plans.</li>
         <li><strong>Force Delete Selected Route Artifacts</strong> does the same delete flow, but requires explicit typed confirmation.</li>
-        <li>Delete actions always write a rollback snapshot JSON file under <code>/fpw/tmp/</code> before deleting.</li>
+        <li>Delete actions always write a rollback snapshot JSON file under <code><cfoutput>#request.fpwBase#</cfoutput>/tmp/</code> before deleting.</li>
       </ol>
     </div>
 
-    <form method="post" action="/fpw/admin/route-cleanup.cfm">
+    <form method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/admin/route-cleanup.cfm">
       <div class="row">
         <label for="targetUserId"><strong>User ID</strong></label>
         <input id="targetUserId" name="targetUserId" type="text" value="<cfoutput>#encodeForHtmlAttribute(targetUserIdRaw)#</cfoutput>" placeholder="e.g. 187">
@@ -851,4 +1043,3 @@ if (hasValidUserId AND listFindNoCase("preview,delete,forcedelete", actionType))
   </script>
 </body>
 </html>
-

@@ -5,6 +5,8 @@
         <cfargument name="slug" type="string" required="false" default="">
         <cfargument name="t" type="string" required="false" default="">
         <cfargument name="stream_id" type="numeric" required="false" default="0">
+        <cfargument name="body" type="string" required="false" default="">
+        <cfargument name="media_file" type="any" required="false" default="">
         <cfargument name="cursor" type="numeric" required="false" default="0">
         <cfargument name="limit" type="numeric" required="false" default="20">
         <cfargument name="routeCode" type="string" required="false" default="">
@@ -22,7 +24,7 @@
         <cftry>
             <cfset var contentTypeVal = structKeyExists(cgi, "content_type") ? lCase(toString(cgi.content_type)) : "">
             <cfset var isMultipartRequest = findNoCase("multipart/form-data", contentTypeVal) GT 0>
-            <cfset var body = isMultipartRequest ? {} : getBodyJson()>
+            <cfset local.body = isMultipartRequest ? {} : getBodyJson()>
             <cfset var act = lCase(trim(arguments.action))>
             <cfset var currentUserId = resolveSessionUserId()>
             <cfset var payload = {}>
@@ -43,6 +45,7 @@
             <cfset var followerIdVal = 0>
             <cfset var floatPlanIdVal = 0>
             <cfset var pointVal = "">
+            <cfset var routeLegOrderVal = "">
             <cfset var asOfUtcVal = "">
             <cfif act EQ "getstreambootstrap">
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
@@ -52,10 +55,29 @@
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "downloadfloatplanpdf">
+                <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
+                <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
+                <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
+                <cfset payload = prepareFollowFloatPlanPdfDownload(slugVal, tokenVal, streamIdVal, currentUserId)>
+                <cfif NOT payload.SUCCESS>
+                    <cfif structKeyExists(payload, "STATUS_CODE")>
+                        <cfheader statuscode="#val(payload.STATUS_CODE)#">
+                    </cfif>
+                    <cfoutput>#serializeJSON(payload)#</cfoutput>
+                    <cfreturn>
+                </cfif>
+                <cfheader name="Content-Disposition" value="attachment; filename=""#payload.FILE_NAME#""">
+                <cfheader name="X-Content-Type-Options" value="nosniff">
+                <cfcontent type="application/pdf" file="#payload.FILE_PATH#" deletefile="false" reset="true">
+                <cfsetting enablecfoutputonly="false">
+                <cfreturn>
+
             <cfelseif act EQ "getactivecruiseweather">
                 <cfset floatPlanIdVal = val(pickArg(body, "floatPlanId", "float_plan_id", 0))>
                 <cfset pointVal = lCase(trim(toString(pickArg(body, "point", "leg_point", ""))))>
-                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal)>
+                <cfset routeLegOrderVal = trim(toString(pickArg(body, "routeLegOrder", "route_leg_order", "")))>
+                <cfset payload = getActiveCruiseWeatherCanonical(currentUserId, floatPlanIdVal, pointVal, routeLegOrderVal)>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -237,6 +259,10 @@
         <cfscript>
             var projectionService = "";
             var projection = {};
+            var ds = resolveDatasource();
+            var qTarget = queryNew("");
+            var targetFloatPlanId = 0;
+            var memberGateResult = {};
 
             if (!isLocalTripProjectionDiagnosticRequest()) {
                 return {
@@ -254,6 +280,63 @@
                     "message" = "stream_id or floatplan_id is required.",
                     "error" = { "message" = "Missing stream_id or floatplan_id." }
                 };
+            }
+
+            if (arguments.currentUserId LTE 0) {
+                return {
+                    "success" = false,
+                    "auth" = false,
+                    "message" = "Owner session required.",
+                    "error" = { "message" = "Owner session required." }
+                };
+            }
+
+            if (arguments.streamId GT 0) {
+                qTarget = queryExecute(
+                    "SELECT vs.floatplan_id
+                     FROM voyage_streams vs
+                     INNER JOIN floatplans fp ON fp.floatplanId = vs.floatplan_id
+                     WHERE vs.id = :streamId
+                       AND vs.owner_user_id = :userId
+                       AND fp.userId = :userId
+                     LIMIT 1",
+                    {
+                        streamId = { value=arguments.streamId, cfsqltype="cf_sql_integer" },
+                        userId = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+            } else {
+                qTarget = queryExecute(
+                    "SELECT fp.floatplanId AS floatplan_id
+                     FROM floatplans fp
+                     WHERE fp.floatplanId = :floatPlanId
+                       AND fp.userId = :userId
+                     LIMIT 1",
+                    {
+                        floatPlanId = { value=arguments.floatPlanId, cfsqltype="cf_sql_integer" },
+                        userId = { value=arguments.currentUserId, cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+            }
+
+            if (qTarget.recordCount EQ 0) {
+                return {
+                    "success" = false,
+                    "auth" = true,
+                    "message" = "Trip not found.",
+                    "error" = { "message" = "No owned trip matched the supplied identifier." }
+                };
+            }
+
+            targetFloatPlanId = val(qTarget.floatplan_id[1]);
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                arguments.currentUserId,
+                targetFloatPlanId
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             try {
@@ -291,6 +374,16 @@
                 return createObject("component", "fpw.api.v1.TripProgressProjectionService").init("fpw");
             } catch (any projectionPathErr) {
                 return createObject("component", "api.v1.TripProgressProjectionService").init("fpw");
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="createActiveTripPaceService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.ActiveTripPaceService").init(resolveDatasource());
+            } catch (any pacePathErr) {
+                return createObject("component", "api.v1.ActiveTripPaceService").init(resolveDatasource());
             }
         </cfscript>
     </cffunction>
@@ -392,7 +485,9 @@
                 "legWeather"={},
                 "pinned"={},
                 "timeline"={"summary"={}, "legs"=[], "meta"={}},
-                "body"={}
+                "body"={},
+                "publicAuthority"={},
+                "trackLog"={"count"=0, "gpsCount"=0, "entries"=[]}
             };
             var streamRow = readStream(arguments.slug, arguments.streamId);
             var canRead = {};
@@ -429,17 +524,18 @@
             var actualCheckInLabel = "";
             var actualCheckInUtc = "";
             var checkedInAtVal = "";
-            var expectedCheckInDt = "";
             var checkInContextVal = "";
             var isOvernightCheckIn = false;
             var actualResumeAt = "";
-            var actualResumeAtLocal = "";
             var hasActualResumeAt = false;
             var departureTimeZoneVal = "";
             var dailyStartLocalTimeVal = "";
             var storedOvernightPauseMinutes = 0;
             var storedManualDelayMinutes = 0;
             var followProjection = {};
+            var publicAuthority = {};
+            var publicAuthorityService = "";
+            var trackLog = {"count"=0, "gpsCount"=0, "entries"=[]};
             var useCanonicalFollowProjection = false;
             var canonicalFollowProjectionBlocked = false;
             var followProjectionWarningIndex = 0;
@@ -452,33 +548,18 @@
             var qFollowProjectionEtaLocal = queryNew("");
             var elapsedCheckInLabel = "-- since last check-in";
             var nextStopLabelVal = "";
-            var nextStopEtaBaseDt = "";
-            var nextStopEtaDt = "";
-            var nextStopEtaMinutes = 0;
-            var nextStopCumulativeMinutes = 0;
-            var activeLegEtaBaseDt = "";
-            var activeLegEtaMinutes = 0;
-            var overnightPauseMinutes = 0;
-            var nextMorningResumeDt = "";
-            var resumeTimeZone = "";
-            var resumeCalendar = "";
             var localDayStartRule = loadOvernightTimingRule();
             var plannedNextStopEtaDt = "";
-            var nextStopLeg = {};
             var qTripStart = queryNew("");
             var journeyDepartedDt = "";
-            var qLegTiming = queryNew("");
+            var journeyDepartedUtc = "";
             var qMilesTodayTiming = queryNew("");
-            var qActualResumeLocal = queryNew("");
-            var currentLegStartedAt = "";
-            var priorLegCompletedAt = "";
             var scheduledDepartureRawDt = "";
             var hasOperationalCheckIn = false;
-            var hasValidCurrentLegStart = false;
-            var hasValidPriorLegCompletion = false;
             var tripStartState = {};
             var tripStarted = true;
             var routeInstanceIdVal = 0;
+            var memberGateResult = {};
             var weatherComponent = "";
             var weatherComponentPath = "";
             var legWeather = {
@@ -571,7 +652,6 @@
             var routeMapActiveLegOrder = 0;
             var actualResumeLegOrder = 0;
             var awaitingDepartureState = false;
-            var usingActiveLegEta = false;
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -589,6 +669,12 @@
 	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	                return out;
 	            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!memberGateResult.SUCCESS) {
+                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
+                return memberGateResult;
+            }
 
 	            if (streamRow.floatplan_id LTE 0) {
 	                out.MESSAGE = "No active trip";
@@ -609,9 +695,10 @@
                     fp.status,
                     fp.departing,
                     fp.departureTime,
+                    fp.departureTimeUTC,
                     fp.departTimezone,
                     fp.departureTZ,
-                    fp.returning,
+                    fp.`returning`,
                     fp.returnTime,
                     fp.route_instance_id,
                     fp.route_day_number,
@@ -620,23 +707,6 @@
                     & "
                     fp.checkin_context,
                     fp.dailyStartLocalTime,
-                    (
-                        SELECT
-                            COALESCE(
-                                CONVERT_TZ(
-                                    m.expected_checkin_at,
-                                    'UTC',
-                                    NULLIF(COALESCE(NULLIF(fp.departureTZ, ''), NULLIF(fp.departTimezone, ''), 'UTC'), '')
-                                ),
-                                m.expected_checkin_at
-                            )
-                        FROM floatplan_monitoring m
-                        WHERE m.float_plan_id = fp.floatplanId
-                          AND m.is_monitoring_enabled = 1
-                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
-                        ORDER BY m.id DESC
-                        LIMIT 1
-                    ) AS expected_checkin_at,
                     (
                         SELECT
                             NULLIF(UPPER(TRIM(m.monitor_state)), '')
@@ -725,6 +795,16 @@
                 monitoringCheckinStatusVal = uCase(trim(toString(qPlan.last_checkin_status[1])));
             }
             routeInstanceIdVal = (!isNull(qPlan.route_instance_id[1]) ? val(qPlan.route_instance_id[1]) : 0);
+            try {
+                try {
+                    publicAuthorityService = createObject("component", "fpw.api.v1.ActiveCruiseViewModelService").init(ds);
+                } catch (any publicAuthorityPathErr) {
+                    publicAuthorityService = createObject("component", "api.v1.ActiveCruiseViewModelService").init(ds);
+                }
+                publicAuthority = publicAuthorityService.getPublicFollowAuthority(streamRow.owner_user_id, streamRow.floatplan_id);
+            } catch (any publicAuthorityErr) {
+                publicAuthority = {};
+            }
             checkInContextVal = normalizeCheckInContext(isNull(qPlan.checkin_context[1]) ? "" : qPlan.checkin_context[1]);
             isOvernightCheckIn = (checkInContextVal EQ "overnight");
             storedOvernightPauseMinutes = (
@@ -748,16 +828,17 @@
                 departureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
             }
             dailyStartLocalTimeVal = (isNull(qPlan.dailyStartLocalTime[1]) ? "" : trim(toString(qPlan.dailyStartLocalTime[1])));
+            trackLog = buildFollowTrackLog(streamRow, departureTimeZoneVal);
             localDayStartRule = loadOvernightTimingRule(dailyStartLocalTimeVal);
             if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
                 scheduledDepartureRawDt = qPlan.departureTime[1];
                 journeyDepartedDt = qPlan.departureTime[1];
             }
+            if (!isNull(qPlan.departureTimeUTC[1]) AND isDate(qPlan.departureTimeUTC[1])) {
+                journeyDepartedUtc = formatUtcDate(qPlan.departureTimeUTC[1]);
+            }
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
-            }
-            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
-                expectedCheckInDt = qPlan.expected_checkin_at[1];
             }
             hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
             if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
@@ -984,256 +1065,6 @@
             }
 
             nextStopLabelVal = (len(routeMap.next_stop_label) ? trim(toString(routeMap.next_stop_label)) : "");
-            if (
-                qPlan.recordCount GT 0
-                AND !isNull(qPlan.departureTime[1])
-                AND isDate(qPlan.departureTime[1])
-                AND len(nextStopLabelVal)
-                AND (!tripStarted OR routeMapActiveLegOrder GT 0 OR hasActualResumeAt)
-                AND isStruct(followTimeline)
-                AND structKeyExists(followTimeline, "legs")
-                AND isArray(followTimeline.legs)
-            ) {
-                nextStopEtaBaseDt = qPlan.departureTime[1];
-                storedDepartureTimeZoneVal = (isNull(qPlan.departTimezone[1]) ? "" : trim(toString(qPlan.departTimezone[1])));
-                if (
-                    isDate(nextStopEtaBaseDt)
-                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                    AND len(departureTimeZoneVal)
-                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                ) {
-                    qLocalDeparture = queryExecute("
-                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                    ", {
-                        utcDateTime = { value = nextStopEtaBaseDt, cfsqltype = "cf_sql_timestamp" },
-                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                    }, { datasource = ds });
-                    if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
-                        nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
-                    }
-                }
-                actualResumeAtLocal = "";
-                if (hasActualResumeAt AND isDate(actualResumeAt)) {
-                    actualResumeAtLocal = actualResumeAt;
-                    if (
-                        ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                        AND len(departureTimeZoneVal)
-                        AND ucase(departureTimeZoneVal) NEQ "UTC"
-                    ) {
-                        qActualResumeLocal = queryExecute("
-                            SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                        ", {
-                            utcDateTime = { value = actualResumeAt, cfsqltype = "cf_sql_timestamp" },
-                            targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                        }, { datasource = ds });
-                        if (qActualResumeLocal.recordCount GT 0 AND !isNull(qActualResumeLocal.localDateTime[1]) AND isDate(qActualResumeLocal.localDateTime[1])) {
-                            actualResumeAtLocal = qActualResumeLocal.localDateTime[1];
-                        }
-                    }
-                }
-                for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
-                    nextStopLeg = followTimeline.legs[i];
-                    if (!isStruct(nextStopLeg)) {
-                        continue;
-                    }
-                    if (!structKeyExists(nextStopLeg, "end_name")) {
-                        continue;
-                    }
-                    if (
-                        tripStarted
-                        AND routeMapActiveLegOrder GT 0
-                        AND (
-                            !structKeyExists(nextStopLeg, "leg_order")
-                            OR !isNumeric(nextStopLeg.leg_order)
-                            OR val(nextStopLeg.leg_order) NEQ routeMapActiveLegOrder
-                        )
-                    ) {
-                        continue;
-                    }
-                    if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
-                        continue;
-                    }
-                    nextStopEtaMinutes = 0;
-                    nextStopCumulativeMinutes = 0;
-                    activeLegEtaMinutes = 0;
-                    activeLegEtaBaseDt = nextStopEtaBaseDt;
-
-                    if (structKeyExists(nextStopLeg, "cumulative_hours") AND isNumeric(nextStopLeg.cumulative_hours) AND val(nextStopLeg.cumulative_hours) GTE 0) {
-                        nextStopCumulativeMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
-                    }
-                    if (structKeyExists(nextStopLeg, "hours") AND isNumeric(nextStopLeg.hours) AND val(nextStopLeg.hours) GTE 0) {
-                        activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
-                    }
-                    currentLegStartedAt = "";
-                    currentLegStartedAtLocal = "";
-                    priorLegCompletedAt = "";
-                    priorLegCompletedAtLocal = "";
-                    if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
-                        qLegTiming = queryExecute(
-                            "SELECT
-                                curr.leg_started_at AS current_leg_started_at,
-                                COALESCE(CONVERT_TZ(curr.leg_started_at, 'UTC', :targetTimeZone), curr.leg_started_at) AS current_leg_started_at_local,
-                                prev.completed_at AS prior_leg_completed_at,
-                                COALESCE(CONVERT_TZ(prev.completed_at, 'UTC', :targetTimeZone), prev.completed_at) AS prior_leg_completed_at_local
-                             FROM route_instance_leg_progress curr
-                             LEFT JOIN route_instance_leg_progress prev
-                               ON prev.route_instance_id = curr.route_instance_id
-                              AND prev.user_id = curr.user_id
-                              AND prev.leg_order = curr.leg_order - 1
-                             WHERE curr.route_instance_id = :routeInstanceId
-                               AND curr.user_id = :ownerUserId
-                               AND curr.leg_order = :legOrder
-                             LIMIT 1",
-                            {
-                                routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
-                                ownerUserId = { value = streamRow.owner_user_id, cfsqltype = "cf_sql_integer" },
-                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" },
-                                targetTimeZone = { value = (len(departureTimeZoneVal) ? departureTimeZoneVal : "UTC"), cfsqltype = "cf_sql_varchar" }
-                            },
-                            { datasource = ds }
-                        );
-                        if (qLegTiming.recordCount GT 0) {
-                            if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
-                                currentLegStartedAt = qLegTiming.current_leg_started_at[1];
-                                currentLegStartedAtLocal = currentLegStartedAt;
-                                if (
-                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                                    AND len(departureTimeZoneVal)
-                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                                    AND !isNull(qLegTiming.current_leg_started_at_local[1])
-                                    AND isDate(qLegTiming.current_leg_started_at_local[1])
-                                ) {
-                                    currentLegStartedAtLocal = qLegTiming.current_leg_started_at_local[1];
-                                }
-                            }
-                            if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
-                                priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
-                                priorLegCompletedAtLocal = priorLegCompletedAt;
-                                if (
-                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                                    AND len(departureTimeZoneVal)
-                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                                    AND !isNull(qLegTiming.prior_leg_completed_at_local[1])
-                                    AND isDate(qLegTiming.prior_leg_completed_at_local[1])
-                                ) {
-                                    priorLegCompletedAtLocal = qLegTiming.prior_leg_completed_at_local[1];
-                                }
-                            }
-                        }
-                    }
-
-                    if (nextStopCumulativeMinutes GT 0) {
-                        plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
-                        if (tripStarted AND storedOvernightPauseMinutes GT 0) {
-                            plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
-                        }
-                    }
-
-                    hasValidCurrentLegStart = (tripStarted AND isDate(currentLegStartedAt));
-                    if (hasValidCurrentLegStart AND isDate(scheduledDepartureRawDt)) {
-                        hasValidCurrentLegStart = (dateCompare(currentLegStartedAt, scheduledDepartureRawDt, "s") GTE 0);
-                    }
-                    hasValidPriorLegCompletion = (tripStarted AND isDate(priorLegCompletedAt));
-                    if (hasValidPriorLegCompletion AND isDate(scheduledDepartureRawDt)) {
-                        hasValidPriorLegCompletion = (dateCompare(priorLegCompletedAt, scheduledDepartureRawDt, "s") GTE 0);
-                    }
-
-                    resumeDayStartDt = "";
-                    resumeAnchorDt = "";
-                    useResumedDayStartEtaBase = false;
-                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND !hasActualResumeAt AND isDate(checkedInAtVal)) {
-                        resumeDayStartDt = createDateTime(
-                            year(checkedInAtVal),
-                            month(checkedInAtVal),
-                            day(checkedInAtVal),
-                            localDayStartRule.local_day_start_hour,
-                            localDayStartRule.local_day_start_minute,
-                            localDayStartRule.local_day_start_second
-                        );
-                        if (hasValidCurrentLegStart) {
-                            resumeAnchorDt = currentLegStartedAtLocal;
-                        } else if (hasValidPriorLegCompletion) {
-                            resumeAnchorDt = priorLegCompletedAtLocal;
-                        }
-                        if (
-                            isDate(resumeAnchorDt)
-                            AND isDate(resumeDayStartDt)
-                            AND dateCompare(resumeAnchorDt, resumeDayStartDt, "s") LT 0
-                            AND dateCompare(checkedInAtVal, resumeDayStartDt, "s") GTE 0
-                        ) {
-                            activeLegEtaBaseDt = resumeDayStartDt;
-                            useResumedDayStartEtaBase = true;
-                        }
-                    }
-
-                    if (!useResumedDayStartEtaBase AND tripStarted AND isOvernightCheckIn AND hasOperationalCheckIn AND len(departureTimeZoneVal)) {
-                        try {
-                            if (isDate(expectedCheckInDt)) {
-                                nextMorningResumeDt = expectedCheckInDt;
-                            } else {
-                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
-                                nextMorningResumeDt = createDateTime(
-                                    year(nextMorningResumeDt),
-                                    month(nextMorningResumeDt),
-                                    day(nextMorningResumeDt),
-                                    localDayStartRule.local_day_start_hour,
-                                    localDayStartRule.local_day_start_minute,
-                                    localDayStartRule.local_day_start_second
-                                );
-                            }
-                            if (isDate(nextMorningResumeDt)) {
-                                activeLegEtaBaseDt = nextMorningResumeDt;
-                            }
-                            if (isOvernightCheckIn AND hasOperationalCheckIn AND isDate(checkedInAtVal)) {
-                                overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
-                                if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
-                                    plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
-                                }
-                            }
-                        } catch (any overnightEtaErr) {
-                            if (hasValidCurrentLegStart) {
-                                activeLegEtaBaseDt = currentLegStartedAtLocal;
-                            } else if (hasValidPriorLegCompletion) {
-                                activeLegEtaBaseDt = priorLegCompletedAtLocal;
-                            }
-                        }
-                    } else if (
-                        !useResumedDayStartEtaBase
-                        AND hasActualResumeAt
-                        AND isDate(actualResumeAt)
-                        AND isDate(actualResumeAtLocal)
-                        AND (
-                            !hasValidCurrentLegStart
-                            OR !isDate(currentLegStartedAt)
-                            OR dateCompare(currentLegStartedAt, actualResumeAt, "s") LT 0
-                        )
-                    ) {
-                        activeLegEtaBaseDt = actualResumeAtLocal;
-                    } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
-                        activeLegEtaBaseDt = currentLegStartedAtLocal;
-                    } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
-                        activeLegEtaBaseDt = priorLegCompletedAtLocal;
-                    }
-
-                    usingActiveLegEta = false;
-                    if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
-                        usingActiveLegEta = true;
-                        nextStopEtaMinutes = activeLegEtaMinutes;
-                        nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
-                    } else {
-                        nextStopEtaMinutes = nextStopCumulativeMinutes;
-                        nextStopEtaDt = plannedNextStopEtaDt;
-                    }
-                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
-                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
-                    }
-                    if (isDate(nextStopEtaDt)) {
-                        etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
-                        etaUtc = formatUtcInstantFromLocalTime(nextStopEtaDt, departureTimeZoneVal);
-                    }
-                    break;
-                }
-            }
 
             timelineSummary = (
                 isStruct(followTimeline) AND structKeyExists(followTimeline, "summary") AND isStruct(followTimeline.summary)
@@ -1258,174 +1089,6 @@
             actualResumeLegOrder = routeMapActiveLegOrder;
             if (hasActualResumeAt AND actualResumeLegOrder LTE 0 AND structKeyExists(timelineSummary, "completed_legs") AND isNumeric(timelineSummary.completed_legs)) {
                 actualResumeLegOrder = val(timelineSummary.completed_legs) + 1;
-            }
-
-            if (tripStarted AND routeInstanceIdVal GT 0 AND len(departureTimeZoneVal) AND isStruct(followTimeline) AND structKeyExists(followTimeline, "legs") AND isArray(followTimeline.legs)) {
-                localNowQuery = queryExecute(
-                    "SELECT
-                        CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone) AS localNow,
-                        CONVERT_TZ(
-                            CONCAT(DATE(CONVERT_TZ(UTC_TIMESTAMP(), 'UTC', :targetTimeZone)), ' ', :localDayStartTime),
-                            :targetTimeZone,
-                            'UTC'
-                        ) AS milesTodayStartUtc,
-                        UTC_TIMESTAMP() AS utcNow",
-                    {
-                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" },
-                        localDayStartTime = { value = localDayStartRule.local_day_start_sql, cfsqltype = "cf_sql_varchar" }
-                    },
-                    { datasource = ds }
-                );
-                if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.localNow[1]) AND isDate(localNowQuery.localNow[1])) {
-                    localNowDt = localNowQuery.localNow[1];
-                }
-                if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.milesTodayStartUtc[1]) AND isDate(localNowQuery.milesTodayStartUtc[1])) {
-                    milesTodayWindowStartDt = localNowQuery.milesTodayStartUtc[1];
-                }
-                if (localNowQuery.recordCount GT 0 AND !isNull(localNowQuery.utcNow[1]) AND isDate(localNowQuery.utcNow[1])) {
-                    utcNowDt = localNowQuery.utcNow[1];
-                }
-                if (hasActualResumeAt AND isDate(actualResumeAt)) {
-                    milesTodayWindowStartDt = actualResumeAt;
-                }
-                if (isDate(milesTodayWindowStartDt)) {
-                    if (isOvernightCheckIn AND isDate(checkedInAtVal)) {
-                        milesTodayWindowEndDt = checkedInAtVal;
-                    } else if (isDate(utcNowDt)) {
-                        milesTodayWindowEndDt = utcNowDt;
-                    } else {
-                        milesTodayWindowEndDt = localNowDt;
-                    }
-                }
-
-                if (isDate(milesTodayWindowStartDt) AND isDate(milesTodayWindowEndDt)) {
-                    qMilesTodayTiming = queryExecute(
-                        "SELECT
-                            leg_order,
-                            UPPER(TRIM(status)) AS status_val,
-                            leg_started_at,
-                            completed_at
-                         FROM route_instance_leg_progress
-                         WHERE route_instance_id = :routeInstanceId
-                           AND user_id = :ownerUserId
-                         ORDER BY leg_order ASC, id DESC",
-                        {
-                            routeInstanceId = { value = routeInstanceIdVal, cfsqltype = "cf_sql_integer" },
-                            ownerUserId = { value = streamRow.owner_user_id, cfsqltype = "cf_sql_integer" }
-                        },
-                        { datasource = ds }
-                    );
-
-                    for (i = 1; i LTE qMilesTodayTiming.recordCount; i++) {
-                        milesTodayLegKey = toString(val(qMilesTodayTiming.leg_order[i]));
-                        if (structKeyExists(milesTodayTimingByOrder, milesTodayLegKey)) {
-                            continue;
-                        }
-                        milesTodayTimingByOrder[milesTodayLegKey] = {
-                            "status"=(isNull(qMilesTodayTiming.status_val[i]) ? "" : trim(toString(qMilesTodayTiming.status_val[i]))),
-                            "leg_started_at"=(isNull(qMilesTodayTiming.leg_started_at[i]) ? "" : qMilesTodayTiming.leg_started_at[i]),
-                            "completed_at"=(isNull(qMilesTodayTiming.completed_at[i]) ? "" : qMilesTodayTiming.completed_at[i])
-                        };
-                    }
-
-                    milesTodayNm = 0;
-                    hoursTodayTotal = 0;
-                    for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
-                        timelineLeg = followTimeline.legs[i];
-                        if (!isStruct(timelineLeg)) {
-                            continue;
-                        }
-                        milesTodayLegOrder = (structKeyExists(timelineLeg, "leg_order") AND isNumeric(timelineLeg.leg_order) ? val(timelineLeg.leg_order) : 0);
-                        if (milesTodayLegOrder LTE 0) {
-                            continue;
-                        }
-                        milesTodayLegKey = toString(milesTodayLegOrder);
-                        if (!structKeyExists(milesTodayTimingByOrder, milesTodayLegKey)) {
-                            continue;
-                        }
-
-                        milesTodayTiming = milesTodayTimingByOrder[milesTodayLegKey];
-                        milesTodayLegStartDt = (structKeyExists(milesTodayTiming, "leg_started_at") AND isDate(milesTodayTiming.leg_started_at) ? milesTodayTiming.leg_started_at : "");
-                        if (
-                            hasActualResumeAt
-                            AND milesTodayLegOrder EQ actualResumeLegOrder
-                            AND isDate(actualResumeAt)
-                            AND (!isDate(milesTodayLegStartDt) OR dateCompare(milesTodayLegStartDt, actualResumeAt, "s") LT 0)
-                        ) {
-                            milesTodayLegStartDt = actualResumeAt;
-                        }
-                        if (!isDate(milesTodayLegStartDt)) {
-                            continue;
-                        }
-
-                        milesTodayLegDistanceNm = (
-                            structKeyExists(timelineLeg, "dist_nm") AND isNumeric(timelineLeg.dist_nm)
-                                ? val(timelineLeg.dist_nm)
-                                : 0
-                        );
-                        if (milesTodayLegDistanceNm LTE 0) {
-                            continue;
-                        }
-
-                        milesTodayLegNm = 0;
-                        hoursTodayLegHours = 0;
-                        milesTodayLegEndDt = "";
-                        milesTodayOverlapStartDt = "";
-                        milesTodayOverlapEndDt = "";
-                        milesTodayOverlapMinutes = 0;
-                        if (structKeyExists(milesTodayTiming, "completed_at") AND isDate(milesTodayTiming.completed_at)) {
-                            if (
-                                dateCompare(milesTodayTiming.completed_at, milesTodayWindowStartDt, "s") GTE 0
-                                AND dateCompare(milesTodayTiming.completed_at, milesTodayWindowEndDt, "s") LTE 0
-                            ) {
-                                milesTodayLegNm = milesTodayLegDistanceNm;
-                                milesTodayLegEndDt = milesTodayTiming.completed_at;
-                            }
-                        } else {
-                            milesTodayLegEndDt = milesTodayWindowEndDt;
-                        }
-
-                        if (isDate(milesTodayLegEndDt)) {
-                            milesTodayOverlapStartDt = (dateCompare(milesTodayLegStartDt, milesTodayWindowStartDt, "s") GTE 0 ? milesTodayLegStartDt : milesTodayWindowStartDt);
-                            milesTodayOverlapEndDt = (dateCompare(milesTodayLegEndDt, milesTodayWindowEndDt, "s") LTE 0 ? milesTodayLegEndDt : milesTodayWindowEndDt);
-                            if (dateCompare(milesTodayOverlapEndDt, milesTodayOverlapStartDt, "s") GT 0) {
-                                milesTodayOverlapMinutes = dateDiff("n", milesTodayOverlapStartDt, milesTodayOverlapEndDt);
-                                if (milesTodayOverlapMinutes GT 0) {
-                                    hoursTodayLegHours = milesTodayOverlapMinutes / 60;
-                                    if (!(structKeyExists(milesTodayTiming, "completed_at") AND isDate(milesTodayTiming.completed_at))) {
-                                        milesTodayLegHours = (
-                                            structKeyExists(timelineLeg, "hours") AND isNumeric(timelineLeg.hours)
-                                                ? val(timelineLeg.hours)
-                                                : 0
-                                        );
-                                        if (milesTodayLegHours GT 0) {
-                                            milesTodayPlannedLegMinutes = int(round(milesTodayLegHours * 60));
-                                            if (milesTodayPlannedLegMinutes GT 0) {
-                                                milesTodayLegNm = milesTodayLegDistanceNm * (milesTodayOverlapMinutes / milesTodayPlannedLegMinutes);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if (milesTodayLegNm LT 0) {
-                            milesTodayLegNm = 0;
-                        }
-                        if (milesTodayLegNm GT milesTodayLegDistanceNm) {
-                            milesTodayLegNm = milesTodayLegDistanceNm;
-                        }
-                        milesTodayNm += milesTodayLegNm;
-                        hoursTodayTotal += hoursTodayLegHours;
-                    }
-
-                    if (isNumeric(milesTodayNm)) {
-                        milesTodayNm = roundTo1(milesTodayNm);
-                    }
-                    if (isNumeric(hoursTodayTotal)) {
-                        hoursTodayTotal = roundTo1(hoursTodayTotal);
-                    }
-                }
             }
 
             // Canonical projection is used only for streams with real canonical segments; legacy diagnostics remain fallback-only.
@@ -1487,30 +1150,7 @@
                     etaUtc = followProjectionEtaUtc;
                     etaLabel = "";
                     followProjectionEtaLocalInput = replace(replace(followProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
-                    if (len(departureTimeZoneVal) AND isDate(followProjectionEtaLocalInput)) {
-                        try {
-                            qFollowProjectionEtaLocal = queryExecute(
-                                "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
-                                {
-                                    utcDateTime = { value = followProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
-                                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                                },
-                                { datasource = ds }
-                            );
-                            if (
-                                qFollowProjectionEtaLocal.recordCount GT 0
-                                AND !isNull(qFollowProjectionEtaLocal.localDateTime[1])
-                                AND isDate(qFollowProjectionEtaLocal.localDateTime[1])
-                            ) {
-                                etaLabel = dateTimeFormat(qFollowProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
-                            }
-                        } catch (any followProjectionEtaErr) {
-                            etaLabel = "";
-                        }
-                    }
-                    if (!len(etaLabel) AND isDate(followProjectionEtaLocalInput)) {
-                        etaLabel = dateTimeFormat(followProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
-                    }
+                    etaLabel = formatVoyageUtcDisplayLabel(followProjectionEtaUtc, departureTimeZoneVal);
                 }
                 if (
                     structKeyExists(followProjection, "currentLeg")
@@ -1833,7 +1473,7 @@
                 "journey_subtitle"="Current leg is active.",
                 "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
                 "journey_departed_meta"=(isDate(journeyDepartedDt) ? dateTimeFormat(journeyDepartedDt, "mmm d, yyyy h:nn tt") : ""),
-                "journey_departed_meta_utc"=(isDate(journeyDepartedDt) ? formatUtcDate(journeyDepartedDt) : ""),
+                "journey_departed_meta_utc"=journeyDepartedUtc,
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
                 "card_status_copy"=voyageProgressStatusCopy,
@@ -1880,8 +1520,10 @@
             };
 	            out.legWeather = legWeather;
 	            out.pinned = pinned;
-	            out.timeline = followTimeline;
-	            out.body = body;
+            out.timeline = followTimeline;
+            out.body = body;
+            out.publicAuthority = publicAuthority;
+            out.trackLog = trackLog;
             if (!tripStarted) {
                 out.stream.status = "Scheduled";
                 out.topCards.status = "Scheduled";
@@ -1935,10 +1577,14 @@
                 out.body.trip_summary_mode = "Trip mode: Awaiting departure";
                 out.body.timeline_next_update = "At next departure";
             }
+            out = applyPublicAuthorityToFollowBootstrap(out, publicAuthority);
+            if (!tripStarted) {
+                out = applyScheduledFollowDisplayOverride(out);
+            }
 	            writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	            return out;
 	        </cfscript>
-		    </cffunction>
+    </cffunction>
 
     <cffunction name="getActiveCruiseHeroCanonical" access="public" returntype="struct" output="false">
         <cfargument name="currentUserId" type="numeric" required="true">
@@ -1969,11 +1615,9 @@
             var ds = resolveDatasource();
             var qPlan = queryNew("");
             var routeMap = {};
-            var followTimeline = { "summary"={}, "legs"=[], "meta"={} };
             var statusLabel = "Status Unavailable";
             var statusVariant = "good";
             var checkedInAtVal = "";
-            var expectedCheckInDt = "";
             var actualCheckInLabel = "";
             var actualCheckInUtc = "";
             var checkInContextVal = "";
@@ -1999,7 +1643,6 @@
             var localDayStartRule = loadOvernightTimingRule();
             var plannedNextStopEtaDt = "";
             var nextStopLeg = {};
-            var qLegTiming = queryNew("");
             var currentLegStartedAt = "";
             var priorLegCompletedAt = "";
             var etaLabel = "";
@@ -2008,17 +1651,14 @@
             var legArrivalUtc = "";
             var tripStartLocalDt = "";
             var legArrivalLocalDt = "";
-            var qLocalDeparture = queryNew("");
             var qLocalTripStart = queryNew("");
             var qLocalLegArrival = queryNew("");
-            var qActualResumeLocal = queryNew("");
             var scheduledDepartureRawDt = "";
             var hasOperationalCheckIn = false;
             var hasValidCurrentLegStart = false;
             var hasValidPriorLegCompletion = false;
             var tripStartState = {};
             var tripStarted = true;
-            var routeMapActiveLegOrder = 0;
             var awaitingDepartureState = false;
             var monitorStateVal = "";
             var lastCheckinStatusVal = "";
@@ -2034,7 +1674,6 @@
             var activeCruiseProjectionEtaUtc = "";
             var activeCruiseProjectionEtaLocalInput = "";
             var qActiveCruiseProjectionEtaLocal = queryNew("");
-            var i = 0;
 
             if (arguments.currentUserId LTE 0 OR arguments.floatPlanId LTE 0) {
                 out.MESSAGE = "Active Cruise requires a valid owner and float plan.";
@@ -2063,9 +1702,11 @@
                     status,
                     route_instance_id,
                     departureTime,
+                    departureTimeUTC,
                     departTimezone,
                     departureTZ,
                     returnTime,
+                    returnTimeUTC,
                     returnTimezone,
                     returnTZ,
                     checkedInAt,
@@ -2089,23 +1730,6 @@
                         ORDER BY m.id DESC
                         LIMIT 1
                     ) AS last_checkin_status,
-                    (
-                        SELECT
-                            COALESCE(
-                                CONVERT_TZ(
-                                    m.expected_checkin_at,
-                                    'UTC',
-                                    NULLIF(COALESCE(NULLIF(floatplans.departureTZ, ''), NULLIF(floatplans.departTimezone, ''), 'UTC'), '')
-                                ),
-                                m.expected_checkin_at
-                            )
-                        FROM floatplan_monitoring m
-                        WHERE m.float_plan_id = floatplans.floatplanId
-                          AND m.is_monitoring_enabled = 1
-                          AND UPPER(TRIM(m.monitor_state)) <> 'CLOSED'
-                        ORDER BY m.id DESC
-                        LIMIT 1
-                    ) AS expected_checkin_at,
                     overnight_pause_minutes_total,
                     manual_delay_minutes_total
                  FROM floatplans
@@ -2178,9 +1802,6 @@
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
             }
-            if (!isNull(qPlan.expected_checkin_at[1]) AND isDate(qPlan.expected_checkin_at[1])) {
-                expectedCheckInDt = qPlan.expected_checkin_at[1];
-            }
             hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
             if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
                 hasOperationalCheckIn = (dateCompare(checkedInAtVal, scheduledDepartureRawDt, "s") GTE 0);
@@ -2242,309 +1863,26 @@
             }
             storedReturnTimeZoneVal = (isNull(qPlan.returnTimezone[1]) ? "" : trim(toString(qPlan.returnTimezone[1])));
 
-            tripStartLocalDt = (isNull(qPlan.departureTime[1]) ? "" : qPlan.departureTime[1]);
-            if (
-                isDate(tripStartLocalDt)
-                AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                AND len(departureTimeZoneVal)
-                AND ucase(departureTimeZoneVal) NEQ "UTC"
-            ) {
-                qLocalTripStart = queryExecute("
-                    SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                ", {
-                    utcDateTime = { value = tripStartLocalDt, cfsqltype = "cf_sql_timestamp" },
-                    targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                }, { datasource = ds });
-                if (qLocalTripStart.recordCount GT 0 AND !isNull(qLocalTripStart.localDateTime[1])) {
-                    tripStartLocalDt = qLocalTripStart.localDateTime[1];
-                }
-            }
-            if (isDate(tripStartLocalDt) AND len(departureTimeZoneVal)) {
-                heroTripStartUtc = formatUtcInstantFromLocalTime(tripStartLocalDt, departureTimeZoneVal);
+            if (!isNull(qPlan.departureTimeUTC[1]) AND isDate(qPlan.departureTimeUTC[1])) {
+                heroTripStartUtc = formatUtcDate(qPlan.departureTimeUTC[1]);
                 if (len(heroTripStartUtc)) {
                     out.heroTripStartUtc = heroTripStartUtc;
                 }
             }
 
-            legArrivalLocalDt = (isNull(qPlan.returnTime[1]) ? "" : qPlan.returnTime[1]);
-            if (
-                isDate(legArrivalLocalDt)
-                AND ucase(storedReturnTimeZoneVal) EQ "UTC"
-                AND len(returnTimeZoneVal)
-                AND ucase(returnTimeZoneVal) NEQ "UTC"
-            ) {
-                qLocalLegArrival = queryExecute("
-                    SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                ", {
-                    utcDateTime = { value = legArrivalLocalDt, cfsqltype = "cf_sql_timestamp" },
-                    targetTimeZone = { value = returnTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                }, { datasource = ds });
-                if (qLocalLegArrival.recordCount GT 0 AND !isNull(qLocalLegArrival.localDateTime[1])) {
-                    legArrivalLocalDt = qLocalLegArrival.localDateTime[1];
-                }
-            }
-            if (isDate(legArrivalLocalDt) AND len(returnTimeZoneVal)) {
-                legArrivalUtc = formatUtcInstantFromLocalTime(legArrivalLocalDt, returnTimeZoneVal);
+            if (!isNull(qPlan.returnTimeUTC[1]) AND isDate(qPlan.returnTimeUTC[1])) {
+                legArrivalUtc = formatUtcDate(qPlan.returnTimeUTC[1]);
                 if (len(legArrivalUtc)) {
                     out.legArrivalUtc = legArrivalUtc;
                 }
             }
 
             routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
-            followTimeline = buildFollowCruiseTimeline(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
-            routeMapActiveLegOrder = (structKeyExists(routeMap, "active_leg_order") ? val(routeMap.active_leg_order) : 0);
             awaitingDepartureState = (tripStarted AND structKeyExists(routeMap, "awaiting_departure") AND routeMap.awaiting_departure EQ true);
 
             nextStopLabelVal = (len(routeMap.next_stop_label) ? trim(toString(routeMap.next_stop_label)) : "");
             out.heroNextStop = (len(nextStopLabelVal) ? nextStopLabelVal : "n/a");
 
-            if (
-                !isNull(qPlan.departureTime[1])
-                AND isDate(qPlan.departureTime[1])
-                AND len(nextStopLabelVal)
-                AND (!tripStarted OR routeMapActiveLegOrder GT 0)
-                AND isStruct(followTimeline)
-                AND structKeyExists(followTimeline, "legs")
-                AND isArray(followTimeline.legs)
-            ) {
-                nextStopEtaBaseDt = qPlan.departureTime[1];
-                if (
-                    isDate(nextStopEtaBaseDt)
-                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                    AND len(departureTimeZoneVal)
-                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                ) {
-                    qLocalDeparture = queryExecute("
-                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                    ", {
-                        utcDateTime = { value = nextStopEtaBaseDt, cfsqltype = "cf_sql_timestamp" },
-                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                    }, { datasource = ds });
-                    if (qLocalDeparture.recordCount GT 0 AND !isNull(qLocalDeparture.localDateTime[1])) {
-                        nextStopEtaBaseDt = qLocalDeparture.localDateTime[1];
-                    }
-                }
-                actualResumeAtLocal = actualResumeAt;
-                if (
-                    hasActualResumeAt
-                    AND isDate(actualResumeAtLocal)
-                    AND ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                    AND len(departureTimeZoneVal)
-                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                ) {
-                    qActualResumeLocal = queryExecute("
-                        SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime
-                    ", {
-                        utcDateTime = { value = actualResumeAtLocal, cfsqltype = "cf_sql_timestamp" },
-                        targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                    }, { datasource = ds });
-                    if (qActualResumeLocal.recordCount GT 0 AND !isNull(qActualResumeLocal.localDateTime[1]) AND isDate(qActualResumeLocal.localDateTime[1])) {
-                        actualResumeAtLocal = qActualResumeLocal.localDateTime[1];
-                    }
-                }
-
-                for (i = 1; i LTE arrayLen(followTimeline.legs); i++) {
-                    nextStopLeg = followTimeline.legs[i];
-                    if (!isStruct(nextStopLeg) OR !structKeyExists(nextStopLeg, "end_name")) {
-                        continue;
-                    }
-                    if (
-                        tripStarted
-                        AND routeMapActiveLegOrder GT 0
-                        AND (
-                            !structKeyExists(nextStopLeg, "leg_order")
-                            OR !isNumeric(nextStopLeg.leg_order)
-                            OR val(nextStopLeg.leg_order) NEQ routeMapActiveLegOrder
-                        )
-                    ) {
-                        continue;
-                    }
-                    if (trim(toString(nextStopLeg.end_name)) NEQ nextStopLabelVal) {
-                        continue;
-                    }
-
-                    nextStopCumulativeMinutes = 0;
-                    activeLegEtaMinutes = 0;
-                    activeLegEtaBaseDt = nextStopEtaBaseDt;
-                    plannedNextStopEtaDt = "";
-                    nextStopEtaDt = "";
-
-                    if (structKeyExists(nextStopLeg, "cumulative_hours") AND isNumeric(nextStopLeg.cumulative_hours) AND val(nextStopLeg.cumulative_hours) GTE 0) {
-                        nextStopCumulativeMinutes = int(round(val(nextStopLeg.cumulative_hours) * 60));
-                    }
-                    if (structKeyExists(nextStopLeg, "hours") AND isNumeric(nextStopLeg.hours) AND val(nextStopLeg.hours) GTE 0) {
-                        activeLegEtaMinutes = int(round(val(nextStopLeg.hours) * 60));
-                    }
-                    currentLegStartedAt = "";
-                    currentLegStartedAtLocal = "";
-                    priorLegCompletedAt = "";
-                    priorLegCompletedAtLocal = "";
-                    if (structKeyExists(nextStopLeg, "leg_order") AND isNumeric(nextStopLeg.leg_order) AND val(nextStopLeg.leg_order) GT 0) {
-                        qLegTiming = queryExecute(
-                            "SELECT
-                                curr.leg_started_at AS current_leg_started_at,
-                                COALESCE(CONVERT_TZ(curr.leg_started_at, 'UTC', :targetTimeZone), curr.leg_started_at) AS current_leg_started_at_local,
-                                prev.completed_at AS prior_leg_completed_at,
-                                COALESCE(CONVERT_TZ(prev.completed_at, 'UTC', :targetTimeZone), prev.completed_at) AS prior_leg_completed_at_local
-                             FROM route_instance_leg_progress curr
-                             LEFT JOIN route_instance_leg_progress prev
-                               ON prev.route_instance_id = curr.route_instance_id
-                              AND prev.user_id = curr.user_id
-                              AND prev.leg_order = curr.leg_order - 1
-                             WHERE curr.route_instance_id = :routeInstanceId
-                               AND curr.user_id = :ownerUserId
-                               AND curr.leg_order = :legOrder
-                             LIMIT 1",
-                            {
-                                routeInstanceId = { value = canonicalPlan.ROUTE_INSTANCE_ID, cfsqltype = "cf_sql_integer" },
-                                ownerUserId = { value = arguments.currentUserId, cfsqltype = "cf_sql_integer" },
-                                legOrder = { value = val(nextStopLeg.leg_order), cfsqltype = "cf_sql_integer" },
-                                targetTimeZone = { value = (len(departureTimeZoneVal) ? departureTimeZoneVal : "UTC"), cfsqltype = "cf_sql_varchar" }
-                            },
-                            { datasource = ds }
-                        );
-                        if (qLegTiming.recordCount GT 0) {
-                            if (!isNull(qLegTiming.current_leg_started_at[1]) AND isDate(qLegTiming.current_leg_started_at[1])) {
-                                currentLegStartedAt = qLegTiming.current_leg_started_at[1];
-                                currentLegStartedAtLocal = currentLegStartedAt;
-                                if (
-                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                                    AND len(departureTimeZoneVal)
-                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                                    AND !isNull(qLegTiming.current_leg_started_at_local[1])
-                                    AND isDate(qLegTiming.current_leg_started_at_local[1])
-                                ) {
-                                    currentLegStartedAtLocal = qLegTiming.current_leg_started_at_local[1];
-                                }
-                            }
-                            if (!isNull(qLegTiming.prior_leg_completed_at[1]) AND isDate(qLegTiming.prior_leg_completed_at[1])) {
-                                priorLegCompletedAt = qLegTiming.prior_leg_completed_at[1];
-                                priorLegCompletedAtLocal = priorLegCompletedAt;
-                                if (
-                                    ucase(storedDepartureTimeZoneVal) EQ "UTC"
-                                    AND len(departureTimeZoneVal)
-                                    AND ucase(departureTimeZoneVal) NEQ "UTC"
-                                    AND !isNull(qLegTiming.prior_leg_completed_at_local[1])
-                                    AND isDate(qLegTiming.prior_leg_completed_at_local[1])
-                                ) {
-                                    priorLegCompletedAtLocal = qLegTiming.prior_leg_completed_at_local[1];
-                                }
-                            }
-                        }
-                    }
-
-                    if (nextStopCumulativeMinutes GT 0) {
-                        plannedNextStopEtaDt = dateAdd("n", nextStopCumulativeMinutes, nextStopEtaBaseDt);
-                        if (tripStarted AND storedOvernightPauseMinutes GT 0) {
-                            plannedNextStopEtaDt = dateAdd("n", storedOvernightPauseMinutes, plannedNextStopEtaDt);
-                        }
-                    }
-
-                    hasValidCurrentLegStart = (tripStarted AND isDate(currentLegStartedAt));
-                    if (hasValidCurrentLegStart AND isDate(scheduledDepartureRawDt)) {
-                        hasValidCurrentLegStart = (dateCompare(currentLegStartedAt, scheduledDepartureRawDt, "s") GTE 0);
-                    }
-                    hasValidPriorLegCompletion = (tripStarted AND isDate(priorLegCompletedAt));
-                    if (hasValidPriorLegCompletion AND isDate(scheduledDepartureRawDt)) {
-                        hasValidPriorLegCompletion = (dateCompare(priorLegCompletedAt, scheduledDepartureRawDt, "s") GTE 0);
-                    }
-
-                    resumeDayStartDt = "";
-                    resumeAnchorDt = "";
-                    useResumedDayStartEtaBase = false;
-                    if (tripStarted AND storedOvernightPauseMinutes GT 0 AND hasOperationalCheckIn AND !hasActualResumeAt AND isDate(checkedInAtVal)) {
-                        resumeDayStartDt = createDateTime(
-                            year(checkedInAtVal),
-                            month(checkedInAtVal),
-                            day(checkedInAtVal),
-                            localDayStartRule.local_day_start_hour,
-                            localDayStartRule.local_day_start_minute,
-                            localDayStartRule.local_day_start_second
-                        );
-                        if (hasValidCurrentLegStart) {
-                            resumeAnchorDt = currentLegStartedAtLocal;
-                        } else if (hasValidPriorLegCompletion) {
-                            resumeAnchorDt = priorLegCompletedAtLocal;
-                        }
-                        if (
-                            isDate(resumeAnchorDt)
-                            AND isDate(resumeDayStartDt)
-                            AND dateCompare(resumeAnchorDt, resumeDayStartDt, "s") LT 0
-                            AND dateCompare(checkedInAtVal, resumeDayStartDt, "s") GTE 0
-                        ) {
-                            activeLegEtaBaseDt = resumeDayStartDt;
-                            useResumedDayStartEtaBase = true;
-                        }
-                    }
-
-                    if (!useResumedDayStartEtaBase AND tripStarted AND isOvernightCheckIn AND hasOperationalCheckIn AND len(departureTimeZoneVal)) {
-                        try {
-                            if (isDate(expectedCheckInDt)) {
-                                nextMorningResumeDt = expectedCheckInDt;
-                            } else if (isDate(checkedInAtVal)) {
-                                nextMorningResumeDt = dateAdd("d", 1, checkedInAtVal);
-                                nextMorningResumeDt = createDateTime(
-                                    year(nextMorningResumeDt),
-                                    month(nextMorningResumeDt),
-                                    day(nextMorningResumeDt),
-                                    localDayStartRule.local_day_start_hour,
-                                    localDayStartRule.local_day_start_minute,
-                                    localDayStartRule.local_day_start_second
-                                );
-                            }
-                            if (isDate(nextMorningResumeDt)) {
-                                activeLegEtaBaseDt = nextMorningResumeDt;
-                            }
-                            overnightPauseMinutes = dateDiff("n", checkedInAtVal, nextMorningResumeDt);
-                            if (storedOvernightPauseMinutes LTE 0 AND isDate(plannedNextStopEtaDt) AND overnightPauseMinutes GT 0) {
-                                plannedNextStopEtaDt = dateAdd("n", overnightPauseMinutes, plannedNextStopEtaDt);
-                            }
-                        } catch (any overnightEtaErr) {
-                            // Preserve additive behavior if overnight resume derivation fails.
-                        }
-                    } else if (
-                        !useResumedDayStartEtaBase
-                        AND hasActualResumeAt
-                        AND isDate(actualResumeAt)
-                        AND isDate(actualResumeAtLocal)
-                        AND (
-                            !hasValidCurrentLegStart
-                            OR !isDate(currentLegStartedAt)
-                            OR dateCompare(currentLegStartedAt, actualResumeAt, "s") LT 0
-                        )
-                    ) {
-                        activeLegEtaBaseDt = actualResumeAtLocal;
-                    } else if (!useResumedDayStartEtaBase AND hasValidCurrentLegStart) {
-                        activeLegEtaBaseDt = currentLegStartedAtLocal;
-                    } else if (!useResumedDayStartEtaBase AND hasValidPriorLegCompletion) {
-                        activeLegEtaBaseDt = priorLegCompletedAtLocal;
-                    }
-
-                    usingActiveLegEta = false;
-                    if (activeLegEtaMinutes GT 0 AND isDate(activeLegEtaBaseDt)) {
-                        usingActiveLegEta = true;
-                        nextStopEtaDt = dateAdd("n", activeLegEtaMinutes, activeLegEtaBaseDt);
-                    } else {
-                        nextStopEtaDt = plannedNextStopEtaDt;
-                    }
-                    if (usingActiveLegEta AND tripStarted AND storedManualDelayMinutes GT 0 AND isDate(nextStopEtaDt)) {
-                        nextStopEtaDt = dateAdd("n", storedManualDelayMinutes, nextStopEtaDt);
-                    }
-
-                    if (isDate(nextStopEtaDt)) {
-                        etaLabel = dateTimeFormat(nextStopEtaDt, "mmm d, yyyy h:nn tt");
-                        etaUtc = formatUtcInstantFromLocalTime(nextStopEtaDt, departureTimeZoneVal);
-                    }
-                    break;
-                }
-            }
-
-            if (len(etaLabel)) {
-                out.heroEta = etaLabel;
-            }
-            if (len(etaUtc)) {
-                out.heroEtaUtc = etaUtc;
-            }
             // Canonical hooks expose real canonical segments or scheduled route timelines; legacy diagnostics remain fallback-only.
             try {
                 activeCruiseProjection = createTripProgressProjectionService().getProjection(arguments.floatPlanId);
@@ -2644,30 +1982,7 @@
                 out.legArrivalUtc = activeCruiseProjectionEtaUtc;
                 out.heroEta = "";
                 activeCruiseProjectionEtaLocalInput = replace(replace(activeCruiseProjectionEtaUtc, "T", " ", "one"), "Z", "", "one");
-                if (len(departureTimeZoneVal) AND isDate(activeCruiseProjectionEtaLocalInput)) {
-                    try {
-                        qActiveCruiseProjectionEtaLocal = queryExecute(
-                            "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :targetTimeZone) AS localDateTime",
-                            {
-                                utcDateTime = { value = activeCruiseProjectionEtaLocalInput, cfsqltype = "cf_sql_timestamp" },
-                                targetTimeZone = { value = departureTimeZoneVal, cfsqltype = "cf_sql_varchar" }
-                            },
-                            { datasource = ds }
-                        );
-                        if (
-                            qActiveCruiseProjectionEtaLocal.recordCount GT 0
-                            AND !isNull(qActiveCruiseProjectionEtaLocal.localDateTime[1])
-                            AND isDate(qActiveCruiseProjectionEtaLocal.localDateTime[1])
-                        ) {
-                            out.heroEta = dateTimeFormat(qActiveCruiseProjectionEtaLocal.localDateTime[1], "mmm d, yyyy h:nn tt");
-                        }
-                    } catch (any activeCruiseProjectionEtaErr) {
-                        out.heroEta = "";
-                    }
-                }
-                if (!len(out.heroEta) AND isDate(activeCruiseProjectionEtaLocalInput)) {
-                    out.heroEta = dateTimeFormat(activeCruiseProjectionEtaLocalInput, "mmm d, yyyy h:nn tt");
-                }
+                out.heroEta = formatVoyageUtcDisplayLabel(activeCruiseProjectionEtaUtc, departureTimeZoneVal);
             }
             if (awaitingDepartureState) {
                 out.heroEta = "--";
@@ -2684,10 +1999,17 @@
         <cfargument name="currentUserId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="point" type="string" required="true">
+        <cfargument name="routeLegOrder" type="string" required="false" default="">
         <cfscript>
             var canonicalPlan = {};
+            var memberGateResult = {};
             var routeMap = {};
             var pointKey = lCase(trim(arguments.point));
+            var routeLegOrderRaw = trim(toString(arguments.routeLegOrder));
+            var routeLegOrderProvided = len(routeLegOrderRaw) GT 0;
+            var routeLegOrderVal = val(routeLegOrderRaw);
+            var ds = resolveDatasource();
+            var qRouteLeg = queryNew("");
             var pointLabel = "";
             var pointLat = "";
             var pointLng = "";
@@ -2752,15 +2074,52 @@
                 );
             }
 
-            routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
-            if (pointKey EQ "start") {
-                pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
-                pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
-                pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                arguments.currentUserId,
+                canonicalPlan.FLOATPLANID
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
+            }
+
+            if (routeLegOrderProvided) {
+                if (routeLegOrderVal GT 0) {
+                    qRouteLeg = queryExecute(
+                        "SELECT start_name, end_name, start_lat, start_lng, end_lat, end_lng
+                         FROM route_instance_legs
+                         WHERE route_instance_id = :routeInstanceId
+                           AND leg_order = :legOrder
+                         ORDER BY id ASC
+                         LIMIT 1",
+                        {
+                            routeInstanceId = { value=canonicalPlan.ROUTE_INSTANCE_ID, cfsqltype="cf_sql_integer" },
+                            legOrder = { value=routeLegOrderVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource=ds }
+                    );
+                }
+                if (qRouteLeg.recordCount GT 0) {
+                    if (pointKey EQ "start") {
+                        pointLabel = (isNull(qRouteLeg.start_name[1]) ? "" : trim(toString(qRouteLeg.start_name[1])));
+                        pointLat = (isNull(qRouteLeg.start_lat[1]) ? "" : qRouteLeg.start_lat[1]);
+                        pointLng = (isNull(qRouteLeg.start_lng[1]) ? "" : qRouteLeg.start_lng[1]);
+                    } else {
+                        pointLabel = (isNull(qRouteLeg.end_name[1]) ? "" : trim(toString(qRouteLeg.end_name[1])));
+                        pointLat = (isNull(qRouteLeg.end_lat[1]) ? "" : qRouteLeg.end_lat[1]);
+                        pointLng = (isNull(qRouteLeg.end_lng[1]) ? "" : qRouteLeg.end_lng[1]);
+                    }
+                }
             } else {
-                pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
-                pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
-                pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+                routeMap = buildRouteMapData(canonicalPlan.ROUTE_INSTANCE_ID, arguments.currentUserId);
+                if (pointKey EQ "start") {
+                    pointLabel = (structKeyExists(routeMap, "active_leg_start_name") ? trim(toString(routeMap.active_leg_start_name)) : "");
+                    pointLat = (structKeyExists(routeMap, "active_leg_start_lat") ? routeMap.active_leg_start_lat : "");
+                    pointLng = (structKeyExists(routeMap, "active_leg_start_lng") ? routeMap.active_leg_start_lng : "");
+                } else {
+                    pointLabel = (structKeyExists(routeMap, "active_leg_end_name") ? trim(toString(routeMap.active_leg_end_name)) : "");
+                    pointLat = (structKeyExists(routeMap, "active_leg_end_lat") ? routeMap.active_leg_end_lat : "");
+                    pointLng = (structKeyExists(routeMap, "active_leg_end_lng") ? routeMap.active_leg_end_lng : "");
+                }
             }
 
             if (!isNumeric(pointLat) OR !isNumeric(pointLng)) {
@@ -2799,7 +2158,7 @@
             }
 
             try {
-                weatherPayload = weatherComponent.getWeatherForCoordinates(val(pointLat), val(pointLng));
+                weatherPayload = weatherComponent.getWeatherForCoordinates(val(pointLat), val(pointLng), "quick", false);
             } catch (any weatherLookupErr) {
                 return buildApiEnvelope(
                     success=false,
@@ -2914,6 +2273,7 @@
             var sql = "";
             var params = {};
             var commentObj = {};
+            var memberGateResult = {};
 
             if (streamIdVal LTE 0) {
                 out.MESSAGE = "stream_id required";
@@ -2937,6 +2297,11 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (isOwner) {
@@ -2964,7 +2329,8 @@
                     lng,
                     media_url,
                     media_thumb_url,
-                    created_utc
+                    created_utc,
+                    DATE_FORMAT(created_utc, '%Y-%m-%d %H:%i:%s') AS created_utc_raw
                  FROM voyage_posts
                  WHERE stream_id = :streamId";
             params = {
@@ -3021,6 +2387,7 @@
                         vc.id,
                         vc.body,
                         vc.created_utc,
+                        DATE_FORMAT(vc.created_utc, '%Y-%m-%d %H:%i:%s') AS created_utc_raw,
                         vf.display_name
                      FROM voyage_comments vc
                      LEFT JOIN voyage_followers vf ON vf.id = vc.follower_id
@@ -3038,7 +2405,7 @@
                         "id"=val(qComments.id[j]),
                         "body"=(isNull(qComments.body[j]) ? "" : toString(qComments.body[j])),
                         "display_name"=(isNull(qComments.display_name[j]) ? "Viewer" : toString(qComments.display_name[j])),
-                        "created_utc"=formatUtcDate(qComments.created_utc[j])
+                        "created_utc"=formatRawUtcDate(qComments.created_utc_raw[j])
                     };
                     arrayAppend(comments, commentObj);
                 }
@@ -3058,7 +2425,7 @@
                     "lng"=(isNull(qPosts.lng[i]) ? "" : qPosts.lng[i]),
                     "media_url"=(isNull(qPosts.media_url[i]) ? "" : toString(qPosts.media_url[i])),
                     "media_thumb_url"=(isNull(qPosts.media_thumb_url[i]) ? "" : toString(qPosts.media_thumb_url[i])),
-                    "created_utc"=formatUtcDate(qPosts.created_utc[i]),
+                    "created_utc"=formatRawUtcDate(qPosts.created_utc_raw[i]),
                     "reaction_counts"=reactions,
                     "viewer_reactions"=viewerReactionMap,
                     "comments"=comments
@@ -3097,6 +2464,7 @@
             var followerToken = "";
             var followerId = 0;
             var hashVal = "";
+            var memberGateResult = {};
 
             if (streamIdVal LTE 0) {
                 out.MESSAGE = "stream_id required";
@@ -3115,6 +2483,11 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (!len(displayNameVal)) {
@@ -3476,6 +2849,7 @@
             var postIdVal = 0;
             var postTypeVal = "text";
             var titleVal = "";
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3505,6 +2879,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can create posts." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                streamRow.owner_user_id,
+                streamRow.floatplan_id
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             if (len(mediaUrlVal)) {
@@ -3592,6 +2974,7 @@
         <cfset var mimeVal = "">
         <cfset var mediaUrlVal = "">
         <cfset var createRes = {}>
+        <cfset var memberGateResult = {}>
         <cfset var maxBytes = 5 * 1024 * 1024>
         <cfif arguments.currentUserId LTE 0>
             <cfset out.MESSAGE = "Unauthorized">
@@ -3627,6 +3010,11 @@
             <cfreturn out>
         </cfif>
 
+        <cfset memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id)>
+        <cfif NOT memberGateResult.SUCCESS>
+            <cfreturn memberGateResult>
+        </cfif>
+
         <cfset uploadDir = resolveVoyageUploadDirectory(streamIdVal)>
         <cfif !directoryExists(uploadDir)>
             <cfset directoryCreate(uploadDir)>
@@ -3637,7 +3025,6 @@
                 fileField="media_file"
                 destination="#uploadDir#"
                 nameConflict="makeunique"
-                accept="image/jpeg,image/pjpeg,image/png,image/webp,image/x-webp"
                 result="uploadResult">
             <cfcatch>
                 <cfset out.MESSAGE = "Invalid image upload">
@@ -3701,6 +3088,7 @@
             var authorTypeVal = "";
             var postTypeVal = "";
             var eventTypeVal = "";
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3722,7 +3110,8 @@
                     vp.post_type,
                     vp.event_type,
                     vp.media_url,
-                    vs.owner_user_id
+                    vs.owner_user_id,
+                    vs.floatplan_id
                  FROM voyage_posts vp
                  INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
                  WHERE vp.id = :postId
@@ -3743,6 +3132,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can delete posts." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                val(qCheck.owner_user_id[1]),
+                val(qCheck.floatplan_id[1])
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             authorTypeVal = lCase(trim(toString(qCheck.author_type[1])));
@@ -3805,6 +3202,7 @@
             var commentIdVal = val(arguments.commentId);
             var ds = resolveDatasource();
             var qCheck = queryNew("");
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3821,7 +3219,8 @@
             qCheck = queryExecute(
                 "SELECT
                     vc.id,
-                    vs.owner_user_id
+                    vs.owner_user_id,
+                    vs.floatplan_id
                  FROM voyage_comments vc
                  INNER JOIN voyage_posts vp ON vp.id = vc.post_id
                  INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
@@ -3843,6 +3242,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can delete comments." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                val(qCheck.owner_user_id[1]),
+                val(qCheck.floatplan_id[1])
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             queryExecute(
@@ -3875,6 +3282,7 @@
             var followerIdVal = val(arguments.followerId);
             var ds = resolveDatasource();
             var qCheck = queryNew("");
+            var memberGateResult = {};
 
             if (arguments.currentUserId LTE 0) {
                 out.MESSAGE = "Unauthorized";
@@ -3891,7 +3299,8 @@
             qCheck = queryExecute(
                 "SELECT
                     vf.id,
-                    vs.owner_user_id
+                    vs.owner_user_id,
+                    vs.floatplan_id
                  FROM voyage_followers vf
                  INNER JOIN voyage_streams vs ON vs.id = vf.stream_id
                  WHERE vf.id = :followerId
@@ -3912,6 +3321,14 @@
                 out.STATUS_CODE = 403;
                 out.ERROR = { "MESSAGE"="Only the stream owner can block followers." };
                 return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                val(qCheck.owner_user_id[1]),
+                val(qCheck.floatplan_id[1])
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
             }
 
             queryExecute(
@@ -3938,6 +3355,7 @@
             var storageCheck = checkVoyageStorageReady();
             var userIdText = toString(arguments.currentUserId);
             var canonicalPlan = {};
+            var memberGateResult = {};
             var qInst = queryNew("");
             var qPlan = queryNew("");
             var qStream = queryNew("");
@@ -3992,6 +3410,14 @@
 
             floatPlanIdVal = canonicalPlan.FLOATPLANID;
             routeInstanceIdVal = canonicalPlan.ROUTE_INSTANCE_ID;
+
+            memberGateResult = requireOwnerPremiumFollowAccess(
+                arguments.currentUserId,
+                floatPlanIdVal
+            );
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
+            }
 
             qPlan = queryExecute(
                 "SELECT floatplanId, floatPlanName
@@ -4109,7 +3535,7 @@
                         :ownerUserId,
                         :slug,
                         :shareToken,
-                        'public',
+                        'invite',
                         1,
                         UTC_TIMESTAMP(),
                         UTC_TIMESTAMP()
@@ -5236,6 +4662,7 @@
             var planVesselId = 0;
             var legLockDetails = {};
             var canonicalActivePlan = {};
+            var activePaceFloatPlanId = 0;
             var qActivePlanDelay = queryNew("");
             var manualDelayMinutesTotal = 0;
             var manualDelayHoursTotal = 0.0;
@@ -5293,6 +4720,7 @@
                 AND structKeyExists(canonicalActivePlan, "ROUTE_INSTANCE_ID")
                 AND val(canonicalActivePlan.ROUTE_INSTANCE_ID) EQ routeInstanceIdVal
             ) {
+                activePaceFloatPlanId = val(canonicalActivePlan.FLOATPLANID);
                 qActivePlanDelay = queryExecute(
                     "SELECT manual_delay_minutes_total
                      FROM floatplans
@@ -5376,7 +4804,7 @@
                 }
             }
             if (effectiveSpeedKn LTE 0) {
-                routeInputSpeedKn = deriveEffectiveSpeedFromInputs(storedInputs);
+                routeInputSpeedKn = deriveEffectiveSpeedFromInputs(storedInputs, activePaceFloatPlanId);
                 if (routeInputSpeedKn GT 0) {
                     effectiveSpeedKn = roundTo2(routeInputSpeedKn);
                     usedRouteInputs = true;
@@ -5821,17 +5249,28 @@
 
     <cffunction name="deriveEffectiveSpeedFromInputs" access="private" returntype="numeric" output="false">
         <cfargument name="routeInputs" type="any" required="false" default="#{}#">
+        <cfargument name="floatPlanId" type="numeric" required="false" default="0">
         <cfscript>
             var src = (isStruct(arguments.routeInputs) ? arguments.routeInputs : {});
+            var activePaceSpeed = 0;
             var directSpeed = getNumericFromKeys(
                 src,
                 [ "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn", "effective_speed_kn", "effectiveSpeedKn", "effective_cruising_speed", "effectiveCruisingSpeed" ],
                 true
             );
             var maxSpeed = 0;
+            var mostEfficientSpeed = 0;
             var paceFactor = 0.25;
+            var paceVal = "";
             var weatherPct = 0;
             var out = 0;
+
+            if (arguments.floatPlanId GT 0) {
+                activePaceSpeed = createActiveTripPaceService().resolveEffectiveSpeedKn(src, arguments.floatPlanId);
+                if (activePaceSpeed GT 0) {
+                    return roundTo2(activePaceSpeed);
+                }
+            }
             if (directSpeed GT 0) return roundTo2(directSpeed);
 
             maxSpeed = getNumericFromKeys(
@@ -5850,8 +5289,18 @@
             );
             if (maxSpeed LTE 0) return 0;
 
-            paceFactor = resolvePaceFactor(structKeyExists(src, "pace") ? src.pace : "RELAXED");
-            out = roundTo2(maxSpeed * paceFactor);
+            paceVal = (structKeyExists(src, "pace") ? uCase(trim(toString(src.pace))) : "RELAXED");
+            mostEfficientSpeed = getNumericFromKeys(
+                src,
+                [ "vessel_most_efficient_speed_kn", "vesselMostEfficientSpeedKn", "most_efficient_speed_kn", "mostEfficientSpeedKn", "MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED" ],
+                true
+            );
+            if (paceVal EQ "BALANCED" AND mostEfficientSpeed GTE 1) {
+                out = roundTo2(min(60, mostEfficientSpeed));
+            } else {
+                paceFactor = resolvePaceFactor(paceVal);
+                out = roundTo2(maxSpeed * paceFactor);
+            }
             if (out LT 0.5) out = 0.5;
 
             weatherPct = getNumericFromKeys(
@@ -6399,6 +5848,465 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="prepareFollowFloatPlanPdfDownload" access="private" returntype="struct" output="false">
+        <cfargument name="slug" type="string" required="false" default="">
+        <cfargument name="shareToken" type="string" required="false" default="">
+        <cfargument name="streamId" type="numeric" required="false" default="0">
+        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "AUTH"=(arguments.currentUserId GT 0),
+                "MESSAGE"="Float plan PDF unavailable"
+            };
+            var streamRow = readStream(arguments.slug, arguments.streamId);
+            var isOwner = false;
+            var canRead = {};
+            var memberGateResult = {};
+            var canonicalPlan = {};
+            var ds = resolveDatasource();
+            var qPlan = queryNew("");
+            var planName = "";
+            var floatPlanUtils = {};
+            var pdfFileName = "";
+            var pdfPath = "";
+
+            if (!structCount(streamRow)) {
+                out.MESSAGE = "Stream not found";
+                out.STATUS_CODE = 404;
+                out.ERROR = { "CODE"="STREAM_NOT_FOUND", "MESSAGE"="No voyage stream matched the provided slug or stream id." };
+                return out;
+            }
+
+            isOwner = (arguments.currentUserId GT 0 AND arguments.currentUserId EQ streamRow.owner_user_id);
+            canRead = canReadStream(streamRow, arguments.shareToken, isOwner);
+            if (!canRead.allowed) {
+                out.MESSAGE = "Forbidden";
+                out.STATUS_CODE = 403;
+                out.ERROR = { "CODE"=canRead.code, "MESSAGE"=canRead.message };
+                return out;
+            }
+
+            memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!memberGateResult.SUCCESS) {
+                return memberGateResult;
+            }
+
+            if (streamRow.floatplan_id LTE 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 404;
+                out.ERROR = {
+                    "CODE"="INVALID_STREAM",
+                    "MESSAGE"="This Trip Page is not linked to an active trip."
+                };
+                return out;
+            }
+
+            qPlan = queryExecute(
+                "SELECT floatplanId, userId, floatPlanName, status
+                 FROM floatplans
+                 WHERE floatplanId = :planId
+                   AND userId = :ownerUserId
+                 LIMIT 1",
+                {
+                    planId = { value=streamRow.floatplan_id, cfsqltype="cf_sql_integer" },
+                    ownerUserId = { value=streamRow.owner_user_id, cfsqltype="cf_sql_integer" }
+                },
+                { datasource=ds }
+            );
+
+            if (qPlan.recordCount EQ 0) {
+                out.MESSAGE = "No active trip";
+                out.STATUS_CODE = 404;
+                out.ERROR = {
+                    "CODE"="FLOATPLAN_NOT_FOUND",
+                    "MESSAGE"="This Trip Page is not linked to an active trip."
+                };
+                return out;
+            }
+
+            canonicalPlan = resolveCanonicalActiveFloatPlan(streamRow.owner_user_id, streamRow.floatplan_id);
+            if (!canonicalPlan.SUCCESS) {
+                out.MESSAGE = canonicalPlan.MESSAGE;
+                out.STATUS_CODE = 403;
+                out.ERROR = {
+                    "CODE"=(structKeyExists(canonicalPlan, "ERROR") ? canonicalPlan.ERROR : "FOLLOW_UNAVAILABLE"),
+                    "MESSAGE"=canonicalPlan.MESSAGE
+                };
+                return out;
+            }
+
+            try {
+                floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
+                pdfFileName = floatPlanUtils.createPDF(streamRow.floatplan_id, streamRow.owner_user_id);
+            } catch (any pdfErr) {
+                appendFpwPdfLog(
+                    "error",
+                    "Follow PDF createPDF failed streamId=#streamRow.id# slug=#left(trim(toString(streamRow.slug)), 160)# floatPlanId=#streamRow.floatplan_id# ownerUserId=#streamRow.owner_user_id# msg=#left(trim(toString(pdfErr.message)), 500)# detail=#left(trim(toString(pdfErr.detail)), 1000)#"
+                );
+                out.MESSAGE = "Unable to generate float plan PDF.";
+                out.STATUS_CODE = 500;
+                out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to generate float plan PDF." };
+                return out;
+            }
+
+            if (!len(trim(pdfFileName))) {
+                out.MESSAGE = "Unable to generate float plan PDF.";
+                out.STATUS_CODE = 500;
+                out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to generate float plan PDF." };
+                return out;
+            }
+
+            pdfPath = floatPlanUtils.getPdfPath(pdfFileName);
+            if (!fileExists(pdfPath)) {
+                out.MESSAGE = "Unable to locate generated float plan PDF.";
+                out.STATUS_CODE = 500;
+                out.ERROR = { "CODE"="PDF_FAILED", "MESSAGE"="Unable to locate generated float plan PDF." };
+                return out;
+            }
+
+            planName = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
+            out.SUCCESS = true;
+            out.MESSAGE = "OK";
+            out.FILE_PATH = pdfPath;
+            out.FILE_NAME = buildFollowPdfDownloadFileName(planName, streamRow.floatplan_id);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFollowPdfDownloadFileName" access="private" returntype="string" output="false">
+        <cfargument name="planName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var fileBase = trim(arguments.planName);
+            if (!len(fileBase)) {
+                fileBase = "float-plan-" & arguments.floatPlanId;
+            }
+
+            fileBase = reReplace(fileBase, "[^A-Za-z0-9._-]+", "-", "all");
+            fileBase = reReplace(fileBase, "-{2,}", "-", "all");
+            fileBase = reReplace(fileBase, "(^-|-$)", "", "all");
+
+            if (!len(fileBase)) {
+                fileBase = "float-plan-" & arguments.floatPlanId;
+            }
+
+            if (right(lCase(fileBase), 4) NEQ ".pdf") {
+                fileBase &= ".pdf";
+            }
+
+            return fileBase;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveFloatPlanUtilsComponentPath" access="private" returntype="string" output="false">
+        <cfscript>
+            var webRoot = "";
+            var templatePath = getCurrentTemplatePath();
+            var relativePath = "";
+            var firstSegment = "";
+            var prefix = "";
+            try {
+                webRoot = expandPath("/");
+            } catch (any e) {
+                webRoot = "";
+            }
+
+            if (len(webRoot)) {
+                relativePath = replaceNoCase(templatePath, webRoot, "", "one");
+            } else {
+                relativePath = templatePath;
+            }
+
+            relativePath = replace(relativePath, chr(92), "/", "all");
+            if (left(relativePath, 1) EQ "/") {
+                relativePath = right(relativePath, len(relativePath) - 1);
+            }
+
+            firstSegment = listFirst(relativePath, "/");
+            if (len(firstSegment) AND firstSegment NEQ "api") {
+                prefix = firstSegment;
+            }
+
+            return (len(prefix) ? prefix & "." : "") & "api.api_assets.floatPlanUtils";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="applyPublicAuthorityToFollowBootstrap" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfargument name="authority" type="any" required="false" default="">
+        <cfscript>
+            var out = duplicate(arguments.payload);
+            var monitoring = getPublicAuthoritySection(arguments.authority, "monitoring");
+            var timing = getPublicAuthoritySection(arguments.authority, "timing");
+            var progress = getPublicAuthoritySection(arguments.authority, "progress");
+            var currentLeg = getPublicAuthoritySection(arguments.authority, "currentLeg");
+            var tripState = getPublicAuthoritySection(arguments.authority, "tripState");
+            var statusLabel = "";
+            var statusVariant = "";
+            var tripStateLabel = "";
+            var tripStateHelper = "";
+            var lastCheckinUtc = "";
+            var lastCheckinLabel = "";
+            var nextExpectedLabel = "";
+            var etaUtc = "";
+            var etaLabel = "";
+            var locationLabel = "";
+            var nextStopLabel = "";
+            var milesToday = "";
+            var hoursToday = "";
+
+            if (!hasUsablePublicAuthority(arguments.authority)) {
+                return out;
+            }
+
+            if (!structKeyExists(out, "topCards") OR !isStruct(out.topCards)) out.topCards = {};
+            if (!structKeyExists(out, "stream") OR !isStruct(out.stream)) out.stream = {};
+            if (!structKeyExists(out, "sidebar") OR !isStruct(out.sidebar)) out.sidebar = {};
+            if (!structKeyExists(out, "pinned") OR !isStruct(out.pinned)) out.pinned = {};
+            if (!structKeyExists(out, "body") OR !isStruct(out.body)) out.body = {};
+
+            statusLabel = publicAuthorityText(monitoring, "publicHealthLabel");
+            if (!len(statusLabel)) {
+                statusLabel = publicAuthorityText(tripState, "label");
+            }
+            statusVariant = publicAuthorityText(monitoring, "publicHealthVariant");
+            tripStateLabel = publicAuthorityText(tripState, "label");
+            tripStateHelper = publicAuthorityText(tripState, "helperText");
+            lastCheckinUtc = publicAuthorityText(monitoring, "lastCheckinUtc");
+            lastCheckinLabel = publicAuthorityText(monitoring, "lastCheckinLocalLabel");
+            nextExpectedLabel = publicAuthorityText(monitoring, "nextExpectedCheckinLocalLabel");
+            etaUtc = publicAuthorityText(timing, "etaUtc");
+            etaLabel = publicAuthorityText(timing, "etaLocalLabel");
+            locationLabel = publicAuthorityText(currentLeg, "fromName");
+            nextStopLabel = publicAuthorityText(currentLeg, "toName");
+            milesToday = publicAuthorityText(timing, "milesTodayNm");
+            hoursToday = publicAuthorityText(timing, "hoursToday");
+
+            if (len(statusLabel)) {
+                out.stream.status = statusLabel;
+                out.topCards.status = statusLabel;
+                out.topCards.voyage_progress_status = statusLabel;
+                out.sidebar.monitoring_summary = statusLabel;
+                out.sidebar.monitor_state_label = statusLabel;
+                out.sidebar.monitor_state_text_html = "<strong>" & statusLabel & "</strong>" & (len(tripStateHelper) ? "<br />" & tripStateHelper : "");
+                out.body.card_status_copy = (len(tripStateHelper) ? tripStateHelper : statusLabel);
+                out.body.voyage_progress_status_copy = out.body.card_status_copy;
+            }
+            if (len(statusVariant)) {
+                out.topCards.voyage_progress_status_variant = statusVariant;
+            }
+            if (len(lastCheckinUtc)) {
+                out.topCards.last_checkin_utc = lastCheckinUtc;
+                out.sidebar.last_checkin_utc = lastCheckinUtc;
+            }
+            if (len(lastCheckinLabel)) {
+                out.topCards.last_checkin = lastCheckinLabel;
+                out.sidebar.last_checkin = lastCheckinLabel;
+                out.pinned.updated_label = lastCheckinLabel;
+                out.body.journey_checkin_value = "Checked in at " & lastCheckinLabel;
+            }
+            if (len(nextExpectedLabel)) {
+                out.body.journey_checkin_meta = "Next expected: " & nextExpectedLabel;
+            } else if (len(tripStateHelper)) {
+                out.body.journey_checkin_meta = tripStateHelper;
+            }
+            if (len(etaUtc)) {
+                out.topCards.eta_utc = etaUtc;
+            }
+            if (len(etaLabel)) {
+                out.topCards.eta = etaLabel;
+            }
+            if (len(locationLabel)) {
+                out.topCards.location_label = locationLabel;
+            }
+            if (len(nextStopLabel)) {
+                out.topCards.next_stop = nextStopLabel;
+            }
+            if (isNumeric(milesToday)) {
+                out.pinned.miles_today_nm = val(milesToday);
+            }
+            if (isNumeric(hoursToday)) {
+                out.pinned.hours_today = val(hoursToday);
+            }
+            if (len(tripStateLabel)) {
+                out.body.trip_summary_mode = "Trip state: " & tripStateLabel;
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="applyScheduledFollowDisplayOverride" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="struct" required="true">
+        <cfscript>
+            var out = duplicate(arguments.payload);
+            var scheduledDepartureLabel = "";
+            var scheduledDepartureMeta = "Scheduled departure pending";
+            var firstFrom = "";
+            var firstTo = "";
+
+            if (!structKeyExists(out, "topCards") OR !isStruct(out.topCards)) out.topCards = {};
+            if (!structKeyExists(out, "stream") OR !isStruct(out.stream)) out.stream = {};
+            if (!structKeyExists(out, "sidebar") OR !isStruct(out.sidebar)) out.sidebar = {};
+            if (!structKeyExists(out, "pinned") OR !isStruct(out.pinned)) out.pinned = {};
+            if (!structKeyExists(out, "body") OR !isStruct(out.body)) out.body = {};
+            if (!structKeyExists(out, "publicAuthority") OR !isStruct(out.publicAuthority)) out.publicAuthority = {};
+
+            scheduledDepartureLabel = publicAuthorityText(out.body, "journey_departed_meta");
+            if (len(scheduledDepartureLabel)) {
+                scheduledDepartureMeta = (findNoCase("Scheduled departure:", scheduledDepartureLabel) EQ 1)
+                    ? scheduledDepartureLabel
+                    : "Scheduled departure: " & scheduledDepartureLabel;
+            }
+
+            firstFrom = publicAuthorityText(out.topCards, "location_label");
+            firstTo = publicAuthorityText(out.topCards, "next_stop");
+            if (
+                !len(firstFrom)
+                AND structKeyExists(out, "map")
+                AND isStruct(out.map)
+                AND structKeyExists(out.map, "current")
+                AND isStruct(out.map.current)
+            ) {
+                firstFrom = publicAuthorityText(out.map.current, "label");
+            }
+            if (!len(firstTo) AND structKeyExists(out, "map") AND isStruct(out.map)) {
+                firstTo = publicAuthorityText(out.map, "next_stop_label");
+            }
+
+            out.stream.status = "Scheduled";
+            out.topCards.status = "Scheduled";
+            out.topCards.voyage_progress_status = "Scheduled";
+            out.topCards.voyage_progress_status_variant = "good";
+            out.topCards.last_checkin = "";
+            out.topCards.last_checkin_utc = "";
+            out.topCards.eta = "";
+            out.topCards.eta_utc = "";
+            out.topCards.conditions = "Monitoring pending";
+            if (len(firstFrom)) out.topCards.location_label = firstFrom;
+            if (len(firstTo)) out.topCards.next_stop = firstTo;
+
+            out.pinned.updated_label = "";
+            out.pinned.miles_today_nm = "";
+            out.pinned.hours_today = "";
+
+            out.sidebar.last_checkin = "";
+            out.sidebar.last_checkin_utc = "";
+            out.sidebar.monitoring_summary = "Monitoring pending";
+            out.sidebar.monitor_state_text_html = "<strong>Monitoring pending</strong><br />Monitoring starts at scheduled departure.";
+            out.sidebar.monitor_state_label = "Pending";
+
+            out.body.page_subtitle = "Follow the scheduled departure and planned route timing before the trip is underway.";
+            out.body.journey_subtitle = "Scheduled departure pending.";
+            out.body.journey_departed_value = "Trip scheduled";
+            out.body.journey_departed_meta = scheduledDepartureMeta;
+            out.body.journey_checkin_value = "No check-ins yet";
+            out.body.journey_checkin_meta = "First check-in expected at scheduled departure.";
+            out.body.card_status_copy = "Monitoring starts at scheduled departure.";
+            out.body.voyage_progress_status_copy = out.body.card_status_copy;
+            out.body.card_location_copy = "Departure is scheduled and the trip has not started yet.";
+            out.body.card_destination_copy = "First planned stop after scheduled departure.";
+            out.body.card_arrival_copy = "Arrival estimates appear after the trip is underway.";
+            out.body.card_conditions_copy = "Monitoring starts at scheduled departure.";
+            out.body.trip_summary_confidence = "Tracking confidence: Scheduled departure pending";
+            out.body.trip_summary_mode = "Trip mode: Scheduled departure pending";
+            out.body.trip_summary_safety = "Safety state: Monitoring not started";
+            out.body.family_confidence_subtitle = "The trip is scheduled and has not started yet.";
+            out.body.timeline_next_update = "At scheduled departure";
+
+            if (!structKeyExists(out.publicAuthority, "monitoring") OR !isStruct(out.publicAuthority.monitoring)) {
+                out.publicAuthority.monitoring = {};
+            }
+            if (!structKeyExists(out.publicAuthority, "timing") OR !isStruct(out.publicAuthority.timing)) {
+                out.publicAuthority.timing = {};
+            }
+            if (!structKeyExists(out.publicAuthority, "tripState") OR !isStruct(out.publicAuthority.tripState)) {
+                out.publicAuthority.tripState = {};
+            }
+            out.publicAuthority.monitoring.publicHealthLabel = "Scheduled";
+            out.publicAuthority.monitoring.publicHealthVariant = "good";
+            out.publicAuthority.monitoring.lastCheckinUtc = "";
+            out.publicAuthority.monitoring.lastCheckinLocalLabel = "";
+            out.publicAuthority.monitoring.nextExpectedCheckinUtc = "";
+            out.publicAuthority.monitoring.nextExpectedCheckinLocalLabel = "";
+            out.publicAuthority.timing.etaUtc = "";
+            out.publicAuthority.timing.etaLocalLabel = "";
+            out.publicAuthority.timing.milesTodayNm = "";
+            out.publicAuthority.timing.hoursToday = "";
+            out.publicAuthority.tripState.code = "scheduled";
+            out.publicAuthority.tripState.label = "Scheduled";
+            out.publicAuthority.tripState.helperText = "The trip is scheduled and has not started yet.";
+
+            if (
+                structKeyExists(out, "timeline")
+                AND isStruct(out.timeline)
+                AND structKeyExists(out.timeline, "summary")
+                AND isStruct(out.timeline.summary)
+            ) {
+                out.timeline.summary.effective_speed_kn = "";
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="hasUsablePublicAuthority" access="private" returntype="boolean" output="false">
+        <cfargument name="authority" type="any" required="false" default="">
+        <cfscript>
+            var identity = getPublicAuthoritySection(arguments.authority, "identity");
+            var progress = getPublicAuthoritySection(arguments.authority, "progress");
+            var timing = getPublicAuthoritySection(arguments.authority, "timing");
+            var monitoring = getPublicAuthoritySection(arguments.authority, "monitoring");
+            var tripState = getPublicAuthoritySection(arguments.authority, "tripState");
+
+            if (!isStruct(arguments.authority)) {
+                return false;
+            }
+            if (len(publicAuthorityText(arguments.authority, "errorCode"))) {
+                return false;
+            }
+            if (val(publicAuthorityText(identity, "floatPlanId")) LTE 0) {
+                return false;
+            }
+            return (
+                structCount(progress) GT 0
+                AND structCount(timing) GT 0
+                AND structCount(monitoring) GT 0
+                AND structCount(tripState) GT 0
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getPublicAuthoritySection" access="private" returntype="struct" output="false">
+        <cfargument name="authority" type="any" required="false" default="">
+        <cfargument name="sectionName" type="string" required="true">
+        <cfscript>
+            if (
+                isStruct(arguments.authority)
+                AND structKeyExists(arguments.authority, arguments.sectionName)
+                AND isStruct(arguments.authority[arguments.sectionName])
+            ) {
+                return arguments.authority[arguments.sectionName];
+            }
+            return {};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="publicAuthorityText" access="private" returntype="string" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="keyName" type="string" required="true">
+        <cfscript>
+            if (!structKeyExists(arguments.source, arguments.keyName)) {
+                return "";
+            }
+            if (isNull(arguments.source[arguments.keyName])) {
+                return "";
+            }
+            return trim(toString(arguments.source[arguments.keyName]));
+        </cfscript>
+    </cffunction>
+
     <cffunction name="canReadStream" access="private" returntype="struct" output="false">
         <cfargument name="streamRow" type="struct" required="true">
         <cfargument name="shareToken" type="string" required="false" default="">
@@ -6460,6 +6368,7 @@
             var ds = resolveDatasource();
             var q = queryNew("");
             var ownerFollower = {};
+            var memberGateResult = {};
 
             if (postIdVal LTE 0) {
                 out.MESSAGE = "post_id required";
@@ -6471,6 +6380,8 @@
                     "SELECT
                         vp.id AS post_id,
                         vp.stream_id,
+                        vs.owner_user_id,
+                        vs.floatplan_id,
                         vs.allow_interactions,
                         vf.id AS follower_id,
                         vf.display_name,
@@ -6507,6 +6418,11 @@
                     return out;
                 }
 
+                memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]), val(q.floatplan_id[1]));
+                if (!memberGateResult.SUCCESS) {
+                    return memberGateResult;
+                }
+
                 queryExecute(
                     "UPDATE voyage_followers
                      SET last_seen_utc = UTC_TIMESTAMP()
@@ -6533,7 +6449,8 @@
                     "SELECT
                         vp.id AS post_id,
                         vp.stream_id,
-                        vs.owner_user_id
+                        vs.owner_user_id,
+                        vs.floatplan_id
                      FROM voyage_posts vp
                      INNER JOIN voyage_streams vs ON vs.id = vp.stream_id
                      WHERE vp.id = :postId
@@ -6545,6 +6462,10 @@
                 );
 
                 if (q.recordCount GT 0 AND val(q.owner_user_id[1]) EQ arguments.currentUserId) {
+                    memberGateResult = requireOwnerPremiumFollowAccess(val(q.owner_user_id[1]), val(q.floatplan_id[1]));
+                    if (!memberGateResult.SUCCESS) {
+                        return memberGateResult;
+                    }
                     ownerFollower = ensureOwnerInteractionFollower(val(q.stream_id[1]), arguments.currentUserId);
                     if (!structCount(ownerFollower)) {
                         out.MESSAGE = "Owner interaction unavailable";
@@ -6928,10 +6849,8 @@
     <cffunction name="resolveVoyageUploadDirectory" access="private" returntype="string" output="false">
         <cfargument name="streamId" type="numeric" required="true">
         <cfscript>
-            var fileObj = createObject("java", "java.io.File").init(getDirectoryFromPath(getCurrentTemplatePath()));
-            var rootPath = fileObj.getParentFile().getParentFile().getCanonicalPath();
-            var sep = createObject("java", "java.io.File").separator;
-            return rootPath & sep & "assets" & sep & "uploads" & sep & "voyage" & sep & val(arguments.streamId);
+            var apiDir = getDirectoryFromPath(getCurrentTemplatePath());
+            return apiDir & "../../assets/uploads/voyage/" & val(arguments.streamId);
         </cfscript>
     </cffunction>
 
@@ -6953,7 +6872,6 @@
             var expectedPrefix = buildVoyageUploadUrl(arguments.streamId, "");
             var fileName = "";
             var filePath = "";
-            var sep = createObject("java", "java.io.File").separator;
 
             if (!len(mediaUrlVal)) {
                 return false;
@@ -6970,7 +6888,7 @@
                 return false;
             }
 
-            filePath = resolveVoyageUploadDirectory(arguments.streamId) & sep & fileName;
+            filePath = resolveVoyageUploadDirectory(arguments.streamId) & "/" & fileName;
             if (!fileExists(filePath)) {
                 return false;
             }
@@ -7169,7 +7087,22 @@
         <cfargument name="y" type="numeric" required="true">
         <cfargument name="x" type="numeric" required="true">
         <cfscript>
-            return createObject("java", "java.lang.Math").atan2(arguments.y, arguments.x);
+            if (arguments.x GT 0) {
+                return atn(arguments.y / arguments.x);
+            }
+            if (arguments.x LT 0 AND arguments.y GTE 0) {
+                return atn(arguments.y / arguments.x) + pi();
+            }
+            if (arguments.x LT 0 AND arguments.y LT 0) {
+                return atn(arguments.y / arguments.x) - pi();
+            }
+            if (arguments.x EQ 0 AND arguments.y GT 0) {
+                return pi() / 2;
+            }
+            if (arguments.x EQ 0 AND arguments.y LT 0) {
+                return -pi() / 2;
+            }
+            return 0;
         </cfscript>
     </cffunction>
 
@@ -7183,6 +7116,194 @@
             if (s EQ "DRAFT") return "Draft";
             if (!len(s)) return "Status Unavailable";
             return s;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFollowTrackLog" access="private" returntype="struct" output="false">
+        <cfargument name="streamRow" type="struct" required="true">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var out = {"count"=0, "gpsCount"=0, "entries"=[]};
+            var ds = resolveDatasource();
+            var q = queryNew("");
+            var i = 0;
+            var rawPayload = "";
+            var payload = {};
+            var location = {};
+            var localLabel = "";
+            var occurredUtc = "";
+            var sourceVal = "";
+            var entry = {};
+
+            if (
+                !structKeyExists(arguments.streamRow, "floatplan_id")
+                OR !structKeyExists(arguments.streamRow, "owner_user_id")
+                OR val(arguments.streamRow.floatplan_id) LTE 0
+                OR val(arguments.streamRow.owner_user_id) LTE 0
+            ) {
+                return out;
+            }
+
+            try {
+                q = queryExecute(
+                    "SELECT event_status, occurred_at_utc, source, latitude, longitude, payload_json
+                     FROM floatplan_events
+                     WHERE floatplan_id = :floatPlanId
+                       AND user_id = :userId
+                       AND event_type = 'CHECKIN_RECEIVED'
+                       AND source = 'active_cruise_checkin'
+                       AND voided_at_utc IS NULL
+                     ORDER BY occurred_at_utc DESC, id DESC
+                     LIMIT 25",
+                    {
+                        floatPlanId = { value=val(arguments.streamRow.floatplan_id), cfsqltype="cf_sql_integer" },
+                        userId = { value=val(arguments.streamRow.owner_user_id), cfsqltype="cf_sql_integer" }
+                    },
+                    { datasource=ds }
+                );
+            } catch (any trackLogQueryErr) {
+                return out;
+            }
+
+            for (i = 1; i LTE q.recordCount; i++) {
+                payload = {};
+                rawPayload = (isNull(q.payload_json[i]) ? "" : trim(toString(q.payload_json[i])));
+                if (len(rawPayload)) {
+                    try {
+                        payload = deserializeJSON(rawPayload, false);
+                        if (!isStruct(payload)) {
+                            payload = {};
+                        }
+                    } catch (any trackLogPayloadErr) {
+                        payload = {};
+                    }
+                }
+
+                location = buildFollowTrackLogLocation(payload, q.latitude[i], q.longitude[i]);
+                occurredUtc = (isNull(q.occurred_at_utc[i]) ? "" : formatUtcDate(q.occurred_at_utc[i]));
+                localLabel = (isNull(q.occurred_at_utc[i]) ? "" : formatVoyageUtcDisplayLabel(q.occurred_at_utc[i], arguments.timeZoneId));
+                if (!len(localLabel) AND !isNull(q.occurred_at_utc[i])) {
+                    localLabel = (isDate(q.occurred_at_utc[i]) ? dateTimeFormat(q.occurred_at_utc[i], "mmm d, yyyy h:nn tt") : trim(toString(q.occurred_at_utc[i])));
+                }
+                sourceVal = (isNull(q.source[i]) ? "" : trim(toString(q.source[i])));
+
+                entry = {
+                    "key"="checkin-" & i & "-" & reReplace(occurredUtc, "[^0-9A-Za-z]", "", "all"),
+                    "status"=(isNull(q.event_status[i]) ? "" : trim(toString(q.event_status[i]))),
+                    "statusLabel"=formatFollowTrackLogStatusLabel(q.event_status[i], payload),
+                    "occurredAtUtc"=occurredUtc,
+                    "occurredAtLocalLabel"=localLabel,
+                    "hasGps"=location.hasGps,
+                    "latitude"=location.latitude,
+                    "longitude"=location.longitude,
+                    "coordinateLabel"=location.coordinateLabel,
+                    "sourceLabel"=(sourceVal EQ "active_cruise_checkin" ? "Captain check-in" : "")
+                };
+                arrayAppend(out.entries, entry);
+                if (location.hasGps) {
+                    out.gpsCount = out.gpsCount + 1;
+                }
+            }
+
+            out.count = arrayLen(out.entries);
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildFollowTrackLogLocation" access="private" returntype="struct" output="false">
+        <cfargument name="payload" type="any" required="false" default="">
+        <cfargument name="latitude" type="any" required="false" default="">
+        <cfargument name="longitude" type="any" required="false" default="">
+        <cfscript>
+            var out = {"hasGps"=false, "latitude"="", "longitude"="", "coordinateLabel"=""};
+            var latVal = "";
+            var lngVal = "";
+            var location = {};
+
+            if (!isNull(arguments.latitude) AND !isNull(arguments.longitude) AND isNumeric(arguments.latitude) AND isNumeric(arguments.longitude)) {
+                latVal = val(arguments.latitude);
+                lngVal = val(arguments.longitude);
+            } else if (isStruct(arguments.payload)) {
+                if (structKeyExists(arguments.payload, "location") AND isStruct(arguments.payload["location"])) {
+                    location = arguments.payload["location"];
+                } else if (structKeyExists(arguments.payload, "LOCATION") AND isStruct(arguments.payload["LOCATION"])) {
+                    location = arguments.payload["LOCATION"];
+                }
+
+                if (isStruct(location)) {
+                    latVal = getFollowTrackLogStructNumber(location, ["latitude", "lat", "LATITUDE", "LAT"]);
+                    lngVal = getFollowTrackLogStructNumber(location, ["longitude", "lng", "lon", "LONGITUDE", "LNG", "LON"]);
+                }
+            }
+
+            if (
+                isNumeric(latVal)
+                AND isNumeric(lngVal)
+                AND abs(val(latVal)) LTE 90
+                AND abs(val(lngVal)) LTE 180
+            ) {
+                out.hasGps = true;
+                out.latitude = val(latVal);
+                out.longitude = val(lngVal);
+                out.coordinateLabel = numberFormat(out.latitude, "0.00000") & ", " & numberFormat(out.longitude, "0.00000");
+            }
+
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getFollowTrackLogStructNumber" access="private" returntype="any" output="false">
+        <cfargument name="source" type="struct" required="true">
+        <cfargument name="keys" type="array" required="true">
+        <cfscript>
+            var i = 0;
+            var key = "";
+            var value = "";
+
+            for (i = 1; i LTE arrayLen(arguments.keys); i++) {
+                key = arguments.keys[i];
+                if (structKeyExists(arguments.source, key)) {
+                    value = arguments.source[key];
+                    if (!isNull(value) AND isNumeric(value)) {
+                        return val(value);
+                    }
+                }
+            }
+
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatFollowTrackLogStatusLabel" access="private" returntype="string" output="false">
+        <cfargument name="status" type="any" required="false" default="">
+        <cfargument name="payload" type="any" required="false" default="">
+        <cfscript>
+            var statusVal = (isNull(arguments.status) ? "" : trim(toString(arguments.status)));
+            var payloadLabel = "";
+
+            if (isStruct(arguments.payload) AND structKeyExists(arguments.payload, "status_label")) {
+                payloadLabel = trim(toString(arguments.payload["status_label"]));
+                if (len(payloadLabel)) {
+                    return payloadLabel;
+                }
+            }
+
+            switch (uCase(statusVal)) {
+                case "ON_TRACK":
+                    return "On Track";
+                case "DELAYED":
+                    return "Delayed";
+                case "CHANGED_PLAN":
+                    return "Changed Plan";
+                case "NEED_ATTENTION":
+                    return "Needs Attention";
+                case "SECURE_FOR_NIGHT":
+                    return "Secure for the Night";
+                case "ARRIVED":
+                    return "Arrived";
+            }
+
+            return (len(statusVal) ? replace(statusVal, "_", " ", "all") : "Check-in");
         </cfscript>
     </cffunction>
 
@@ -7229,28 +7350,94 @@
         <cfargument name="value" type="any" required="false">
         <cfargument name="timeZoneId" type="string" required="false" default="">
         <cfscript>
-            var zoneIdText = trim(toString(arguments.timeZoneId));
-            var zoneId = "";
-            var localDateTime = "";
-            var zonedDateTime = "";
+            if (isNull(arguments.value) OR !isDate(arguments.value) OR !len(trim(toString(arguments.timeZoneId)))) {
+                return "";
+            }
+            return formatUtcDate(arguments.value);
+        </cfscript>
+    </cffunction>
 
-            if (isNull(arguments.value) OR !isDate(arguments.value) OR !len(zoneIdText)) {
+    <cffunction name="normalizeVoyageDisplayTimezone" access="private" returntype="string" output="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var tz = trim(toString(arguments.timeZoneId));
+            var tzKey = uCase(tz);
+
+            if (!len(tz)) {
                 return "";
             }
 
+            switch (tzKey) {
+                case "US/EASTERN":
+                    return "America/New_York";
+                case "US/CENTRAL":
+                    return "America/Chicago";
+                case "US/MOUNTAIN":
+                    return "America/Denver";
+                case "US/PACIFIC":
+                    return "America/Los_Angeles";
+                case "US/ALASKA":
+                    return "America/Anchorage";
+                case "US/HAWAII":
+                    return "Pacific/Honolulu";
+                case "+00:00":
+                case "UTC":
+                case "ETC/UTC":
+                case "GMT":
+                    return "UTC";
+            }
+
             try {
-                zoneId = createObject("java", "java.time.ZoneId").of(zoneIdText);
-                localDateTime = createObject("java", "java.time.LocalDateTime").of(
-                    javacast("int", year(arguments.value)),
-                    javacast("int", month(arguments.value)),
-                    javacast("int", day(arguments.value)),
-                    javacast("int", hour(arguments.value)),
-                    javacast("int", minute(arguments.value)),
-                    javacast("int", second(arguments.value))
-                );
-                zonedDateTime = createObject("java", "java.time.ZonedDateTime").of(localDateTime, zoneId);
-                return zonedDateTime.toInstant().toString();
-            } catch (any utcFormatErr) {
+                dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss", tz);
+                return tz;
+            } catch (any invalidVoyageDisplayTimezoneErr) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatVoyageUtcDisplayLabel" access="private" returntype="string" output="false">
+        <cfargument name="utcValue" type="any" required="false">
+        <cfargument name="timeZoneId" type="string" required="false" default="">
+        <cfscript>
+            var tz = normalizeVoyageDisplayTimezone(arguments.timeZoneId);
+            var raw = "";
+            var normalized = "";
+            var utcDt = "";
+
+            if (!len(tz) OR isNull(arguments.utcValue)) {
+                return "";
+            }
+
+            if (isDate(arguments.utcValue)) {
+                utcDt = arguments.utcValue;
+            } else {
+                raw = trim(toString(arguments.utcValue));
+                if (!len(raw)) {
+                    return "";
+                }
+                normalized = replace(raw, "T", " ", "one");
+                if (
+                    reFindNoCase("([+-][0-9]{2}:?[0-9]{2})$", normalized)
+                    AND !reFindNoCase("([+-]00:?00)$", normalized)
+                ) {
+                    return "";
+                }
+                normalized = reReplaceNoCase(normalized, "Z$", "", "one");
+                normalized = reReplaceNoCase(normalized, "([+-]00:?00)$", "", "one");
+                normalized = reReplace(normalized, "\.[0-9]+$", "", "one");
+                if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", normalized)) {
+                    normalized &= ":00";
+                }
+                if (!isDate(normalized)) {
+                    return "";
+                }
+                utcDt = parseDateTime(normalized);
+            }
+
+            try {
+                return dateTimeFormat(utcDt, "mmm d, yyyy h:nn tt", tz);
+            } catch (any voyageUtcDisplayLabelErr) {
                 return "";
             }
         </cfscript>
@@ -7264,6 +7451,30 @@
                 return trim(toString(arguments.value));
             }
             return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatRawUtcDate" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false">
+        <cfscript>
+            var raw = "";
+            if (isNull(arguments.value)) return "";
+
+            raw = trim(toString(arguments.value));
+            if (!len(raw)) return "";
+
+            raw = replace(raw, "T", " ", "one");
+            raw = reReplaceNoCase(raw, "Z$", "", "one");
+            raw = reReplaceNoCase(raw, "([+-]00:?00)$", "", "one");
+            raw = reReplace(raw, "\.[0-9]+$", "", "one");
+            if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", raw)) {
+                raw &= ":00";
+            }
+            if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", raw)) {
+                return "";
+            }
+
+            return replace(left(raw, 19), " ", "T", "one") & "Z";
         </cfscript>
     </cffunction>
 
@@ -7345,6 +7556,48 @@
                 return trim(toString(application.DSN));
             }
             return "fpw";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="requireOwnerPremiumFollowAccess" access="private" returntype="struct" output="false">
+        <cfargument name="ownerUserId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var gateResult = getMemberAccessGateService().requireTripOperationalAccess(
+                userId = arguments.ownerUserId,
+                floatPlanId = arguments.floatPlanId
+            );
+            if (gateResult.allowed) {
+                return { "SUCCESS" = true, "success" = true, "AUTH" = true };
+            }
+            return gateResult.response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="requireMemberPremiumAccess" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="errorCode" type="string" required="true">
+        <cfargument name="message" type="string" required="true">
+        <cfscript>
+            var gateResult = getMemberAccessGateService().requirePremium(
+                userId = arguments.userId,
+                errorCode = arguments.errorCode,
+                message = arguments.message
+            );
+            if (gateResult.allowed) {
+                return { "SUCCESS" = true, "success" = true, "AUTH" = true };
+            }
+            return gateResult.response;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init(resolveDatasource());
+            } catch (any e1) {
+                return createObject("component", "api.v1.MemberAccessGateService").init(resolveDatasource());
+            }
         </cfscript>
     </cffunction>
 
@@ -7438,6 +7691,26 @@
             }
             return false;
         </cfscript>
+    </cffunction>
+
+    <cffunction name="appendFpwPdfLog" access="private" returntype="void" output="false">
+        <cfargument name="type" type="string" required="true">
+        <cfargument name="text" type="string" required="true">
+        <cfscript>
+            var componentDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
+            var logDirectory = reReplace(componentDir, "/api/v1/?$", "/logs", "one");
+            var logFile = logDirectory & "/fpw_pdf.log";
+            var logLine = "FPW_PDF_LOG ts=#dateTimeFormat(now(), 'yyyy-mm-dd HH:nn:ss')# type=#trim(arguments.type)# message=#trim(arguments.text)#";
+        </cfscript>
+        <cftry>
+            <cfif NOT directoryExists(logDirectory)>
+                <cfdirectory action="create" directory="#logDirectory#">
+            </cfif>
+            <cffile action="append" file="#logFile#" output="#logLine#" addnewline="true" charset="utf-8">
+            <cfcatch type="any">
+                <cflog file="fpw-errors" type="error" text="FPW_PDF_LOG_FAILED message=#toString(cfcatch.message)# detail=#toString(cfcatch.detail)# originalType=#arguments.type# originalText=#left(arguments.text, 1000)#">
+            </cfcatch>
+        </cftry>
     </cffunction>
 
     <cffunction name="getBodyJson" access="private" returntype="struct" output="false">

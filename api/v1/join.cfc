@@ -44,6 +44,15 @@
             <cfif NOT structKeyExists(body, "password") AND structKeyExists(form, "password")>
                 <cfset body.password = form.password>
             </cfif>
+            <cfif NOT structKeyExists(body, "confirmPassword") AND structKeyExists(form, "confirmPassword")>
+                <cfset body.confirmPassword = form.confirmPassword>
+            </cfif>
+            <cfif NOT structKeyExists(body, "termsAccepted") AND structKeyExists(form, "termsAccepted")>
+                <cfset body.termsAccepted = form.termsAccepted>
+            </cfif>
+            <cfif NOT structKeyExists(body, "website") AND structKeyExists(form, "website")>
+                <cfset body.website = form.website>
+            </cfif>
 
             <cfset firstName = trim(body.firstName ?: body.fName ?: "")>
             <cfset lastName  = trim(body.lastName  ?: body.lName ?: "")>
@@ -53,7 +62,44 @@
             <cfset state     = trim(body.state     ?: "")>
             <cfset zip       = trim(body.zip       ?: "")>
             <cfset phone     = trim(body.phone     ?: "")>
+            <cfset website   = trim(body.website   ?: "")>
             <cfset password  = trim(body.password  ?: "")>
+            <cfset confirmPassword = "">
+            <cfif structKeyExists(body, "confirmPassword")>
+                <cfset confirmPassword = trim(body.confirmPassword)>
+            <cfelseif structKeyExists(body, "passwordConfirm")>
+                <cfset confirmPassword = trim(body.passwordConfirm)>
+            </cfif>
+            <cfset termsValue = false>
+            <cfif structKeyExists(body, "termsAccepted")>
+                <cfset termsValue = body.termsAccepted>
+            <cfelseif structKeyExists(body, "acceptTerms")>
+                <cfset termsValue = body.acceptTerms>
+            <cfelseif structKeyExists(body, "terms")>
+                <cfset termsValue = body.terms>
+            </cfif>
+            <cfset termsAccepted = isTruthy(termsValue)>
+
+            <cfif len(website)>
+                <cfset response = {
+                    SUCCESS = true,
+                    success = true,
+                    AUTH = false,
+                    auth = false,
+                    MESSAGE = "User created successfully."
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfset premiumSendCreditModelEnabled = (
+                structKeyExists(application, "premiumSendCreditModelEnabled")
+                AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+            )>
+            <cfset redirectUrl = premiumSendCreditModelEnabled
+                ? resolveFpwBasePath() & "/app/dashboard.cfm?onboarding=premium_send_credit"
+                : resolveFpwBasePath() & "/app/start-trial.cfm?offer=launch_trial">
 
             <!-- Validate required fields -->
             <cfif NOT len(firstName) OR NOT len(lastName) OR NOT len(email)>
@@ -66,6 +112,74 @@
                 <cfsetting enablecfoutputonly="false">
                 <cfabort>
             </cfif>
+
+            <cfif NOT reFindNoCase("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$", email)>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Enter a valid email address.",
+                    ERROR   = "INVALID_EMAIL"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT len(password)>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Password is required.",
+                    ERROR   = "PASSWORD_REQUIRED"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif len(password) LT 8>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Password must be at least 8 characters.",
+                    ERROR   = "PASSWORD_TOO_SHORT"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT len(confirmPassword) OR password NEQ confirmPassword>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Password and confirmation do not match.",
+                    ERROR   = "PASSWORD_MISMATCH"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif NOT termsAccepted>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Agreeing to the Terms of Service is required.",
+                    ERROR   = "TERMS_REQUIRED"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfset phoneValidation = normalizeOptionalUsPhone(phone)>
+            <cfif NOT phoneValidation.valid>
+                <cfset response = {
+                    SUCCESS = false,
+                    MESSAGE = "Please enter a valid US phone number or leave the phone field blank.",
+                    ERROR   = "INVALID_PHONE"
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+            <cfset phone = phoneValidation.value>
 
             <!-- Check for duplicate email -->
             <cfquery name="qExisting" datasource="fpw">
@@ -86,12 +200,6 @@
                 <cfoutput>#serializeJSON(response)#</cfoutput>
                 <cfsetting enablecfoutputonly="false">
                 <cfabort>
-            </cfif>
-
-            <cfset usingDefaultPassword = false>
-            <cfif NOT len(password)>
-                <cfset password = "changeIt">
-                <cfset usingDefaultPassword = true>
             </cfif>
 
             <cfset passwordHash = ucase(hash(password, "SHA-256", "UTF-8"))>
@@ -128,42 +236,150 @@
                 <cfabort>
             </cfif>
 
-            <cfset queryExecute(
-                userInsert.sql,
-                userInsert.params,
-                { datasource = "fpw" }
-            )>
-            <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
-            <cfset newUserId = val(newIdQ.newId[1])>
+            <cftransaction>
+                <cfset queryExecute(
+                    userInsert.sql,
+                    userInsert.params,
+                    { datasource = "fpw" }
+                )>
+                <cfset newIdQ = queryExecute("SELECT LAST_INSERT_ID() AS newId", {}, { datasource = "fpw" })>
+                <cfset newUserId = val(newIdQ.newId[1])>
+                <cfif newUserId LTE 0>
+                    <cfthrow type="FPW.Signup.UserInsertFailed" message="The new member id was not created.">
+                </cfif>
 
-            <!-- Optional address/phone insert -->
-            <cfif len(address) OR len(city) OR len(state) OR len(zip) OR len(phone)>
-                <cfset addrValues = {}>
-                <cfset addrValues.userid = newUserId>
-                <cfset addrValues.address = address>
-                <cfset addrValues.city = city>
-                <cfset addrValues.state = state>
-                <cfset addrValues.zip = zip>
-                <cfset addrValues.phone = phone>
-                <cfset addrValues.ishomeport = 0>
-                <cfset addrValues.created = nowStamp>
-                <cfset addrValues.lastupdate = nowStamp>
+                <!-- Optional address/phone insert -->
+                <cfif len(address) OR len(city) OR len(state) OR len(zip) OR len(phone)>
+                    <cfset addrValues = {}>
+                    <cfset addrValues.userid = newUserId>
+                    <cfset addrValues.address = address>
+                    <cfset addrValues.city = city>
+                    <cfset addrValues.state = state>
+                    <cfset addrValues.zip = zip>
+                    <cfset addrValues.phone = phone>
+                    <cfset addrValues.ishomeport = 0>
+                    <cfset addrValues.created = nowStamp>
+                    <cfset addrValues.lastupdate = nowStamp>
 
-                <cfset addrInsert = buildInsert("users_address", addrValues)>
-                <cfif addrInsert.ok>
+                    <cfset addrInsert = buildInsert("users_address", addrValues)>
+                    <cfif NOT addrInsert.ok>
+                        <cfthrow type="FPW.Signup.AddressInsertFailed" message="#addrInsert.message#">
+                    </cfif>
                     <cfset queryExecute(
                         addrInsert.sql,
                         addrInsert.params,
                         { datasource = "fpw" }
                     )>
                 </cfif>
+
+                <cfquery datasource="fpw">
+                    UPDATE users
+                    SET lastLogin = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#nowStamp#">
+                    WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#newUserId#">
+                </cfquery>
+
+                <cfif premiumSendCreditModelEnabled>
+                    <cftry>
+                        <cfset creditService = createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw")>
+                        <cfcatch>
+                            <cfset creditService = createObject("component", "api.v1.PremiumSendCreditService").init("fpw")>
+                        </cfcatch>
+                    </cftry>
+                    <cfset creditGrant = creditService.grantCreditInCurrentTransaction(
+                        userId = newUserId,
+                        source = "complimentary_signup",
+                        idempotencyKey = "complimentary_signup:user:" & newUserId
+                    )>
+                    <cfif NOT creditGrant.SUCCESS>
+                        <cfthrow
+                            type="FPW.Signup.PremiumSendCreditGrantFailed"
+                            message="#creditGrant.MESSAGE#"
+                            detail="#creditGrant.ERROR#">
+                    </cfif>
+                </cfif>
+            </cftransaction>
+
+            <cfset session.user = {
+                id = newUserId,
+                userId = newUserId,
+                USERID = newUserId,
+                email = email,
+                EMAIL = email,
+                firstName = firstName,
+                FIRSTNAME = firstName,
+                lastName = lastName,
+                LASTNAME = lastName,
+                mobilePhone = phone,
+                MOBILEPHONE = phone,
+                lastLogin = nowStamp,
+                LASTLOGIN = nowStamp
+            }>
+
+            <cftry>
+                <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                    userId = newUserId,
+                    eventName = "sign_up",
+                    entityType = "user",
+                    entityId = newUserId,
+                    eventSource = "member_signup",
+                    metadata = {
+                        signup_method = "password",
+                        account_tier = "basic",
+                        onboarding_model = premiumSendCreditModelEnabled ? "premium_send_credit" : "legacy_trial",
+                        complimentary_premium_send_credit = premiumSendCreditModelEnabled
+                    },
+                    idempotencyKey = "sign_up:user:" & newUserId,
+                    requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                )>
+                <cfcatch type="any">
+                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
+                </cfcatch>
+            </cftry>
+
+            <cfif premiumSendCreditModelEnabled>
+                <cftry>
+                    <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                        userId = newUserId,
+                        eventName = "complimentary_credit_granted",
+                        entityType = "user",
+                        entityId = newUserId,
+                        eventSource = "member_signup",
+                        metadata = { credit_source = "complimentary_signup" },
+                        idempotencyKey = "complimentary_credit_granted:user:" & newUserId,
+                        requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                    )>
+                    <cfcatch type="any">
+                        <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=complimentary_credit_granted">
+                    </cfcatch>
+                </cftry>
             </cfif>
+
+            <cftry>
+                <cfset createObject("component", "fpw.api.v1.email").init().sendWelcomeMemberEmail(
+                    userId = newUserId,
+                    toEmail = email,
+                    firstName = firstName
+                )>
+                <cfcatch type="any">
+                    <cflog
+                        file="fpw_email"
+                        type="error"
+                        text="join.cfc WELCOME_MEMBER_HOOK_FAILED | userId=#newUserId# | time=#now()#">
+                </cfcatch>
+            </cftry>
 
             <cfset response = {
                 SUCCESS = true,
+                success = true,
+                AUTH = true,
+                auth = true,
                 MESSAGE = "User created successfully.",
                 USERID  = newUserId,
-                EMAIL   = email
+                EMAIL   = email,
+                USER = session.user,
+                user = session.user,
+                REDIRECT_URL = redirectUrl,
+                redirectUrl = redirectUrl
             }>
 
             <cfoutput>#serializeJSON(response)#</cfoutput>
@@ -330,6 +546,73 @@
             <cfreturn "cf_sql_timestamp">
         </cfif>
         <cfreturn "cf_sql_varchar">
+    </cffunction>
+
+    <cffunction name="isTruthy" access="private" returntype="boolean" output="false">
+        <cfargument name="value" type="any" required="false" default="">
+        <cfif isBoolean(arguments.value)>
+            <cfreturn arguments.value>
+        </cfif>
+        <cfset var normalized = lcase(trim(toString(arguments.value)))>
+        <cfreturn listFindNoCase("true,1,yes,on", normalized) GT 0>
+    </cffunction>
+
+    <cffunction name="normalizeOptionalUsPhone" access="private" returntype="struct" output="false">
+        <cfargument name="phone" type="string" required="true">
+
+        <cfset var rawValue = trim(toString(arguments.phone))>
+        <cfset var digits = reReplace(rawValue, "[^0-9]", "", "all")>
+
+        <cfif NOT len(rawValue)>
+            <cfreturn { valid = true, value = "" }>
+        </cfif>
+        <cfif len(digits) EQ 11 AND left(digits, 1) EQ "1">
+            <cfset digits = right(digits, 10)>
+        </cfif>
+        <cfif len(digits) NEQ 10 OR NOT reFind("^[2-9][0-9]{2}[2-9][0-9]{6}$", digits)>
+            <cfreturn { valid = false, value = "" }>
+        </cfif>
+
+        <cfreturn { valid = true, value = formatUsPhoneDigits(digits) }>
+    </cffunction>
+
+    <cffunction name="formatUsPhoneDigits" access="private" returntype="string" output="false">
+        <cfargument name="digits" type="string" required="true">
+
+        <cfreturn "(" & left(arguments.digits, 3) & ") " & mid(arguments.digits, 4, 3) & "-" & right(arguments.digits, 4)>
+    </cffunction>
+
+    <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
+        <cfset var basePath = "">
+
+        <cfif structKeyExists(request, "fpwBase") AND NOT isNull(request.fpwBase)>
+            <cfset basePath = trim(toString(request.fpwBase))>
+        <cfelse>
+            <cfif structKeyExists(cgi, "script_name")>
+                <cfset basePath = trim(toString(cgi.script_name))>
+            <cfelseif structKeyExists(cgi, "SCRIPT_NAME")>
+                <cfset basePath = trim(toString(cgi.SCRIPT_NAME))>
+            </cfif>
+
+            <cfset basePath = reReplace(basePath, "[?##].*$", "")>
+            <cfset basePath = replace(basePath, "\", "/", "all")>
+            <cfset basePath = reReplaceNoCase(basePath, "/api/v1(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/(app|admin|assets|tests)(/.*)?$", "")>
+            <cfset basePath = reReplaceNoCase(basePath, "/[^/]*\.(cfm|cfc)$", "")>
+        </cfif>
+
+        <cfset basePath = reReplace(basePath, "/$", "")>
+        <cfif basePath EQ "/">
+            <cfset basePath = "">
+        </cfif>
+        <cfif len(basePath) AND left(basePath, 1) NEQ "/">
+            <cfset basePath = "/" & basePath>
+        </cfif>
+
+        <cfset request.fpwBase = basePath>
+        <cfset request.fpwApiBase = basePath & "/api/v1">
+
+        <cfreturn basePath>
     </cffunction>
 
 </cfcomponent>

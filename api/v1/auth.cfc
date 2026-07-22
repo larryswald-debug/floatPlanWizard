@@ -37,7 +37,7 @@
             <!-- LOGOUT                -->
             <!-- ===================== -->
             <cfif action EQ "logout">
-                <cfset structDelete( session, "user", false )>
+                <cfset sessionInvalidate()>
                 <cfset response = {
                     SUCCESS = true,
                     MESSAGE = "Logged out"
@@ -116,6 +116,7 @@
                 <cfset firstNameVal = qUser.fName ?: "">
                 <cfset lastNameVal  = qUser.lName ?: "">
 
+                <cfset sessionRotate()>
                 <cfset session.user = {
                     id          = qUser.userId,
                     userId      = qUser.userId,
@@ -136,6 +137,24 @@
                     lastLogin   = qUser.lastLogin,
                     LASTLOGIN   = qUser.lastLogin
                 }>
+
+                <cftry>
+                    <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                        userId = qUser.userId,
+                        eventName = "login",
+                        entityType = "user",
+                        entityId = qUser.userId,
+                        eventSource = "password_auth",
+                        metadata = {
+                            auth_method = "password"
+                        },
+                        idempotencyKey = "login:request:" & (structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : createUUID()),
+                        requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                    )>
+                <cfcatch type="any">
+                    <cflog file="fpw_product_events" type="error" text="auth.cfc PRODUCT_EVENT_CALL_FAILED | event=login">
+                </cfcatch>
+                </cftry>
 
                 <cfset response = {
                     SUCCESS = true,
@@ -169,3 +188,5 @@
     </cffunction>
 
 </cfcomponent>
+
+

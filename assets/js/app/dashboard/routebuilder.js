@@ -1996,6 +1996,11 @@
     return trimValue ? routeName.trim() : routeName;
   }
 
+  function syncMyRouteNameFromRouteName() {
+    if (!dom.routeNameEl || !dom.myRouteNameEl) return;
+    dom.myRouteNameEl.value = String(dom.routeNameEl.value || "");
+  }
+
   function clearRouteNameValidation() {
     if (!dom.routeNameEl || typeof dom.routeNameEl.setCustomValidity !== "function") return;
     dom.routeNameEl.setCustomValidity("");
@@ -2006,6 +2011,7 @@
     clearRouteNameValidation();
     if (dom.routeNameEl) {
       dom.routeNameEl.value = routeName;
+      syncMyRouteNameFromRouteName();
     }
     if (routeName) {
       return true;
@@ -3734,6 +3740,7 @@
 
     if (dom.routeNameEl && draft.route_name !== undefined && draft.route_name !== null) {
       dom.routeNameEl.value = String(draft.route_name || "");
+      syncMyRouteNameFromRouteName();
     }
     state.selectedVesselId = toInt(
       draft.selected_vessel_id !== undefined ? draft.selected_vessel_id :
@@ -4446,6 +4453,7 @@
         routeMeta.route_name !== undefined ? routeMeta.route_name :
           (routeMeta.ROUTE_NAME !== undefined ? routeMeta.ROUTE_NAME : "")
       ).trim();
+      syncMyRouteNameFromRouteName();
     }
     state.selectedVesselId = 0;
     if (dom.vesselSelectEl) {
@@ -5039,7 +5047,9 @@
 
       return ''
         + '<div class="fpw-routegen__legwrap" data-leg-order="' + String(order) + '">'
-        + '  <div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + ' ' + (isExpanded ? 'is-expanded' : '') + '" data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
+        + '  <div class="fpw-routegen__leg ' + (isSelected ? 'is-selected' : '') + ' ' + (isExpanded ? 'is-expanded' : '') + '"'
+        + (idx === 0 ? ' data-tour="route-cruise-timeline-leg"' : '')
+        + ' data-leg-order="' + String(order) + '" data-route-leg-id="' + String(routeLegId) + '" data-segment-id="' + String(segmentId) + '">'
         + '    <div class="fpw-routegen__legidx">' + String(order).padStart(2, "0") + '</div>'
         + '    <div class="fpw-routegen__legroute">'
         + '      <div class="fpw-routegen__legname">' + escapeHtml((startName || "Start") + " -> " + (endName || "End")) + flags + '</div>'
@@ -6271,6 +6281,14 @@
           utils.showDashboardAlert("Route generated successfully.", "success");
         }
 
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("route_created", {
+            route_source: isMyRoute ? "my_route" : "route_generator",
+            source: "route_builder",
+            leg_count: Array.isArray(state.previewLegs) ? state.previewLegs.length : 0
+          });
+        }
+
         notifyRoutesUpdated(routeCode);
         buildCruiseTimeline(
           state.activeRouteId,
@@ -6492,7 +6510,10 @@
       dom.templateSelectEl.value = "";
       dom.templateSelectEl.disabled = false;
     }
-    if (dom.routeNameEl) dom.routeNameEl.value = "";
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = "";
+      syncMyRouteNameFromRouteName();
+    }
     setRouteCodeBadge("Draft");
     clearRouteNameValidation();
     if (dom.vesselSelectEl) {
@@ -6730,7 +6751,10 @@
     state.manualOverrides.cruisingSpeed = false;
     state.suppressAutoSelectOnce = true;
     state.selectedVesselId = 0;
-    if (dom.routeNameEl) dom.routeNameEl.value = "";
+    if (dom.routeNameEl) {
+      dom.routeNameEl.value = "";
+      syncMyRouteNameFromRouteName();
+    }
     setRouteCodeBadge("Draft");
     clearRouteNameValidation();
 
@@ -6791,6 +6815,7 @@
     state.manualOverrides.cruisingSpeed = false;
     if (dom.routeNameEl) {
       dom.routeNameEl.value = String(baseline.route_name || "");
+      syncMyRouteNameFromRouteName();
     }
     state.selectedVesselId = toInt(
       baseline.selected_vessel_id !== undefined ? baseline.selected_vessel_id :
@@ -6996,6 +7021,13 @@
         0
       );
       setStatus("My Route created.");
+      if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+        window.FPWAnalytics.track("route_created", {
+          route_source: "my_route",
+          source: "route_builder",
+          leg_count: 0
+        });
+      }
       return loadMyRoutes({ routeId: createdRouteId > 0 ? createdRouteId : 0 });
     }).catch(function (err) {
       showError((err && err.message) ? err.message : "Unable to create My Route.");
@@ -7365,6 +7397,7 @@
       dom.routeNameEl.addEventListener("input", function () {
         clearRouteNameValidation();
         clearError();
+        syncMyRouteNameFromRouteName();
         setRouteCodeBadge(state.activeRouteCode);
         if (state.modalMode !== "editor") {
           saveDraft();
@@ -7372,6 +7405,7 @@
       });
       dom.routeNameEl.addEventListener("change", function () {
         clearRouteNameValidation();
+        syncMyRouteNameFromRouteName();
         setRouteCodeBadge(state.activeRouteCode);
         if (state.modalMode !== "editor") {
           saveDraft();

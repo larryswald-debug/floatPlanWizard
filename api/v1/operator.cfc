@@ -63,8 +63,15 @@
                 <cfset action = lcase(trim(body.action))>
             </cfif>
 
-            <cfif action EQ "save">
-                <cfset operator = {}>
+	            <cfif action EQ "save">
+	                <cfset memberGateResult = getMemberAccessGateService().requirePlanningAccess(userId)>
+	                <cfif NOT memberGateResult.allowed>
+	                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+	                    <cfsetting enablecfoutputonly="false">
+	                    <cfabort>
+	                </cfif>
+
+	                <cfset operator = {}>
                 <cfif structKeyExists(body, "operator")>
                     <cfset operator = body.operator>
                 <cfelseif structKeyExists(body, "OPERATOR")>
@@ -244,6 +251,15 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
-    </cffunction>
+	    </cffunction>
+
+	    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.MemberAccessGateService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
 
 </cfcomponent>
