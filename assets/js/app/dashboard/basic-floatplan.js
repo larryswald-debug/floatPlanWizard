@@ -32,6 +32,11 @@
   var basicMode = false;
   var panelContainer = null;
   var lastSentSummary = null;
+  var premiumCheckoutState = {
+    loaded: false,
+    loading: false,
+    oneTripCheckoutAvailable: false
+  };
   var draftState = {
     loaded: false,
     loading: false,
@@ -192,9 +197,36 @@
   function setUpgradeButtonsBusy(isBusy) {
     var buttons = document.querySelectorAll("[data-basic-premium-upgrade]");
     Array.prototype.forEach.call(buttons, function (button) {
-      button.disabled = !!isBusy;
-      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+      var isUnavailableOneTrip = button.getAttribute("data-basic-premium-upgrade") === "one_trip"
+        && !premiumCheckoutState.oneTripCheckoutAvailable;
+      button.disabled = !!isBusy || isUnavailableOneTrip;
+      button.setAttribute("aria-disabled", button.disabled ? "true" : "false");
     });
+  }
+
+  function loadPremiumCheckoutAccess() {
+    if (premiumCheckoutState.loaded || premiumCheckoutState.loading) return;
+    if (!window.Api || typeof window.Api.getCurrentMemberAccess !== "function") {
+      premiumCheckoutState.loaded = true;
+      return;
+    }
+    premiumCheckoutState.loading = true;
+    window.Api.getCurrentMemberAccess()
+      .then(function (payload) {
+        var access = payload && (payload.ACCESS || payload.access)
+          ? (payload.ACCESS || payload.access)
+          : (payload || {});
+        premiumCheckoutState.oneTripCheckoutAvailable = access.oneTripCheckoutAvailable === true
+          || access.ONETRIPCHECKOUTAVAILABLE === true;
+      })
+      .catch(function () {
+        premiumCheckoutState.oneTripCheckoutAvailable = false;
+      })
+      .finally(function () {
+        premiumCheckoutState.loaded = true;
+        premiumCheckoutState.loading = false;
+        if (panelContainer) renderPanel(panelContainer);
+      });
   }
 
   function getCheckoutUrl(payload) {
@@ -210,11 +242,21 @@
       showUpgradeMessage("Choose Buy One Trip, Monthly Membership, or Annual Membership.", "danger");
       return;
     }
+    if (intervalValue === "one_trip" && !premiumCheckoutState.oneTripCheckoutAvailable) {
+      showUpgradeMessage("Buy One Trip checkout is not available right now.", "danger");
+      return;
+    }
     if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
       showUpgradeMessage("Premium checkout is not available right now.", "danger");
       return;
     }
 
+    if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+      window.FPWAnalytics.track(
+        intervalValue === "one_trip" ? "buy_one_trip_clicked" : (intervalValue === "monthly" ? "monthly_selected" : "annual_selected"),
+        { source: "basic_send_modal" }
+      );
+    }
     setUpgradeButtonsBusy(true);
     if (trigger) {
       trigger.textContent = "Opening...";
@@ -461,7 +503,7 @@
         + (downloadUrl ? '    <a class="btn-secondary" href="' + escapeHtml(downloadUrl) + '" download>Download Float Plan PDF</a>' : '')
         + '    <button type="button" class="btn-secondary" data-basic-floatplan-close data-basic-floatplan-id="' + escapeHtml(draft.FLOATPLANID || "") + '">Close Basic Float Plan</button>'
         + '  </div>'
-        + '  <p class="fpw-basic-upgrade-note">Upgrade to Premium for saved routes, Active Cruise, Follow Page sharing, multi-day trips, and advanced monitoring.</p>'
+        + '  <p class="fpw-basic-upgrade-note">Choose Premium Save & Send for Active Cruise, Premium monitoring, private Trip/Follow access, and Premium PDF/email delivery.</p>'
         + '</div>';
     }
     return ""
@@ -506,7 +548,7 @@
       + '      <li>Private Trip/Follow access for that float plan</li>'
       + '    </ul>'
       + '    <div class="fpw-basic-draft-actions fpw-basic-upgrade-actions">'
-      + '      <button type="button" class="btn-primary" data-basic-premium-upgrade="one_trip">Buy One Trip</button>'
+      + '      <button type="button" class="btn-primary" data-basic-premium-upgrade="one_trip"' + (premiumCheckoutState.oneTripCheckoutAvailable ? '' : ' disabled aria-disabled="true"') + '>' + (premiumCheckoutState.oneTripCheckoutAvailable ? 'Buy One Trip' : 'Buy One Trip Unavailable') + '</button>'
       + '      <button type="button" class="btn-secondary" data-basic-premium-upgrade="monthly">Monthly Membership</button>'
       + '      <button type="button" class="btn-secondary" data-basic-premium-upgrade="yearly">Annual Membership</button>'
       + '    </div>'
@@ -516,6 +558,9 @@
       + (lastSentSummary ? buildSentPanelHtml(lastSentSummary) : "")
       + '</article>';
 
+    if (!premiumCheckoutState.loaded && !premiumCheckoutState.loading) {
+      loadPremiumCheckoutAccess();
+    }
     if (!draftState.loaded && !draftState.loading) {
       loadDraftsForPanel();
     }

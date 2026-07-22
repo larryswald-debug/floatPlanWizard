@@ -31,9 +31,9 @@
     </cfif>
 
     <cffunction name="onApplicationStart" access="public" returntype="boolean" output="false">
-         <!---  swithc for prod environment          
-        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config-prod.json")>--->
-        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")> 
+         <!---  swithc for prod environment
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")> --->
+        <cfset var stripeConfigPath = expandPath("/_fpw_private/stripe-config.json")>
         <cfset var stripeConfigService = new fpw.api.v1.StripeConfigService().init(stripeConfigPath)>
         <cfset var stripeApplicationSettings = stripeConfigService.getApplicationSettings()>
         <cfset var productEventFailureConfig = {}>
@@ -43,6 +43,9 @@
         <cfset application.monitorToken = stripeConfigService.getMonitorToken()>
         <cfset application.debugRequestTrace = false>
         <cfset application.settings = stripeApplicationSettings>
+        <cfset application.premiumSendCreditModelEnabled = stripeConfigService.getPremiumSendCreditModelEnabled()>
+        <cfset application.oneTripDisplayAmount = stripeConfigService.getOneTripDisplayAmount()>
+        <cfset application.oneTripCheckoutAvailable = application.premiumSendCreditModelEnabled AND len(stripeConfigService.getOneTripPriceId()) GT 0 AND len(application.oneTripDisplayAmount) GT 0>
         <cfset productEventFailureConfig = new fpw.includes.ProductEventService().init("fpw").validateForcedFailureConfiguration()>
         <cfset application.productEventsForceFailure = productEventFailureConfig.ENABLED>
 
@@ -351,11 +354,11 @@
         <cfset var cleanValue = toString(arguments.value)>
         <cfset cleanValue = reReplace(cleanValue, "[\r\n\t]+", " ", "all")>
         <cfset cleanValue = reReplaceNoCase(cleanValue, "Bearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [redacted]", "all")>
-        <cfset cleanValue = reReplace(cleanValue, "sk_live_[A-Za-z0-9_]+", "sk_live_[redacted]", "all")>
-        <cfset cleanValue = reReplace(cleanValue, "sk_test_[A-Za-z0-9_]+", "sk_test_[redacted]", "all")>
-        <cfset cleanValue = reReplace(cleanValue, "rk_live_[A-Za-z0-9_]+", "rk_live_[redacted]", "all")>
-        <cfset cleanValue = reReplace(cleanValue, "rk_test_[A-Za-z0-9_]+", "rk_test_[redacted]", "all")>
-        <cfset cleanValue = reReplace(cleanValue, "whsec_[A-Za-z0-9_]+", "whsec_[redacted]", "all")>
+        <cfset cleanValue = reReplace(cleanValue, "sk_live_[A-Za-z0-9_*.-]+", "sk_live_[redacted]", "all")>
+        <cfset cleanValue = reReplace(cleanValue, "sk_test_[A-Za-z0-9_*.-]+", "sk_test_[redacted]", "all")>
+        <cfset cleanValue = reReplace(cleanValue, "rk_live_[A-Za-z0-9_*.-]+", "rk_live_[redacted]", "all")>
+        <cfset cleanValue = reReplace(cleanValue, "rk_test_[A-Za-z0-9_*.-]+", "rk_test_[redacted]", "all")>
+        <cfset cleanValue = reReplace(cleanValue, "whsec_[A-Za-z0-9_*.-]+", "whsec_[redacted]", "all")>
 
         <cfreturn trim(cleanValue)>
     </cffunction>
@@ -399,8 +402,17 @@
     <cffunction name="isSensitiveLogKey" access="private" returntype="boolean" output="false">
         <cfargument name="key" type="string" required="true">
 
-        <cfset var normalizedKey = lCase(reReplace(trim(arguments.key), "[^A-Za-z0-9_]", "", "all"))>
-        <cfset var sensitiveKeys = "authorization,bearer,token,t,access_token,share_token,sharetoken,follower_token,followertoken,password,passwordconfirm,secret,client_secret,resetid,code,pairingcode,pairing_code,apikey,api_key">
+        <cfset var decodedKey = trim(arguments.key)>
+        <cfset var normalizedKey = "">
+        <cfset var sensitiveKeys = "authorization,bearer,token,t,access_token,share_token,sharetoken,follower_token,followertoken,fpw_return,password,passwordconfirm,secret,client_secret,resetid,code,pairingcode,pairing_code,apikey,api_key">
+
+        <cftry>
+            <cfset decodedKey = urlDecode(decodedKey, "utf-8")>
+            <cfcatch type="any">
+                <!--- Preserve the raw key when malformed encoding cannot be decoded. --->
+            </cfcatch>
+        </cftry>
+        <cfset normalizedKey = lCase(reReplace(decodedKey, "[^A-Za-z0-9_]", "", "all"))>
 
         <cfreturn listFindNoCase(sensitiveKeys, normalizedKey) GT 0
             OR find("token", normalizedKey) GT 0
@@ -409,11 +421,3 @@
     </cffunction>
 
 </cfcomponent>
-
-
-
-
-
-
-
-

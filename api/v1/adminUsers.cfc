@@ -311,6 +311,17 @@
             if (!result.success) {
                 return buildResponse(false, true, "Delete preview failed", {}, result.message);
             }
+            if (result.data.hardDeleteBlocked) {
+                return buildResponse(
+                    false,
+                    true,
+                    "Delete blocked.",
+                    result.data,
+                    "This member has retained Premium Send history and cannot be hard-deleted.",
+                    "",
+                    result.data.hardDeleteBlockCode
+                );
+            }
             return buildResponse(true, true, "Delete preview loaded.", result.data);
         </cfscript>
     </cffunction>
@@ -321,6 +332,17 @@
             var confirmation = trim(toString(readValue(arguments.body, "confirmation", "")));
             var preview = {};
             var target = {};
+            var qUserLock = queryNew("");
+            var qPlanLocks = queryNew("");
+            var protection = {
+                "hardDeleteBlocked" = false,
+                "premiumSendCreditCount" = 0,
+                "premiumSendReceiptCount" = 0,
+                "errorCode" = ""
+            };
+            var deleteBlocked = false;
+            var deleteBlockCode = "";
+            var deleteBlockMessage = "";
 
             if (confirmation NEQ "I UNDERSTAND THIS DELETES ONE FPW USER") {
                 return buildResponse(false, true, "Confirmation failed", {}, "Confirmation text does not match.");
@@ -330,11 +352,77 @@
             if (!preview.success) {
                 return buildResponse(false, true, "Delete failed", {}, preview.message);
             }
+            if (preview.data.hardDeleteBlocked) {
+                return buildResponse(
+                    false,
+                    true,
+                    "Delete blocked.",
+                    preview.data,
+                    "This member has retained Premium Send history and cannot be hard-deleted.",
+                    "",
+                    preview.data.hardDeleteBlockCode
+                );
+            }
 
             target = preview.data.target;
             transaction {
-                prepareDeleteTempTables(target.userId, target.email, target.hostekUserId);
-                runDeleteStatements(target);
+                qUserLock = queryExecute(
+                    "SELECT userId
+                       FROM users
+                      WHERE userId = :userId
+                      LIMIT 1
+                      FOR UPDATE",
+                    {
+                        userId = { value = target.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = getDatasource() }
+                );
+
+                if (qUserLock.recordCount EQ 0) {
+                    deleteBlocked = true;
+                    deleteBlockCode = "NOT_FOUND";
+                    deleteBlockMessage = "The delete target no longer exists.";
+                } else {
+                    prepareDeleteTempTables(target.userId, target.email, target.hostekUserId);
+                    qPlanLocks = queryExecute(
+                        "SELECT floatplanId
+                           FROM floatplans
+                          WHERE TRIM(CAST(userId AS CHAR)) = CAST(:userId AS CHAR)
+                          FOR UPDATE",
+                        {
+                            userId = { value = target.userId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = getDatasource() }
+                    );
+                    protection = loadPremiumSendDeleteProtection(target.userId);
+                    if (protection.hardDeleteBlocked) {
+                        deleteBlocked = true;
+                        deleteBlockCode = protection.errorCode;
+                        deleteBlockMessage = "This member has retained Premium Send history and cannot be hard-deleted.";
+                    } else {
+                        runDeleteStatements(target);
+                    }
+                }
+            }
+
+            if (deleteBlocked) {
+                return buildResponse(
+                    false,
+                    true,
+                    "Delete blocked.",
+                    {
+                        "target" = target,
+                        "counts" = preview.data.counts,
+                        "totalRows" = preview.data.totalRows,
+                        "hardDeleteBlocked" = true,
+                        "premiumSendCreditCount" = protection.premiumSendCreditCount,
+                        "premiumSendReceiptCount" = protection.premiumSendReceiptCount,
+                        "hardDeleteBlockCode" = deleteBlockCode
+                    },
+                    deleteBlockMessage,
+                    "",
+                    deleteBlockCode
+                );
             }
 
             return buildResponse(true, true, "User deleted.", {
@@ -353,6 +441,12 @@
             var qTarget = resolveDeleteTarget(userId, emailValue);
             var target = {};
             var counts = [];
+            var protection = {
+                "hardDeleteBlocked" = false,
+                "premiumSendCreditCount" = 0,
+                "premiumSendReceiptCount" = 0,
+                "errorCode" = ""
+            };
             var totalRows = 0;
             var i = 0;
 
@@ -371,6 +465,7 @@
             transaction {
                 prepareDeleteTempTables(target.userId, target.email, target.hostekUserId);
                 counts = loadDeleteCounts(target);
+                protection = loadPremiumSendDeleteProtection(target.userId);
             }
 
             for (i = 1; i LTE arrayLen(counts); i++) {
@@ -384,6 +479,10 @@
                     "target" = target,
                     "counts" = counts,
                     "totalRows" = totalRows,
+                    "hardDeleteBlocked" = protection.hardDeleteBlocked,
+                    "premiumSendCreditCount" = protection.premiumSendCreditCount,
+                    "premiumSendReceiptCount" = protection.premiumSendReceiptCount,
+                    "hardDeleteBlockCode" = protection.errorCode,
                     "confirmationRequired" = "I UNDERSTAND THIS DELETES ONE FPW USER"
                 }
             };
@@ -483,6 +582,63 @@
             execSql("CREATE TEMPORARY TABLE _fpw_delete_stripe_refs (stripe_customer_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL, stripe_subscription_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL, stripe_checkout_session_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL, stripe_payment_intent_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL, KEY idx_customer (stripe_customer_id), KEY idx_subscription (stripe_subscription_id), KEY idx_checkout_session (stripe_checkout_session_id), KEY idx_payment_intent (stripe_payment_intent_id)) ENGINE=MEMORY");
             execSql("INSERT INTO _fpw_delete_stripe_refs (stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id, stripe_payment_intent_id) SELECT stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id, stripe_payment_intent_id FROM member_entitlements WHERE user_id = :targetUserId", params);
             execSql("INSERT INTO _fpw_delete_stripe_refs (stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id, stripe_payment_intent_id) SELECT stripe_customer_id, stripe_subscription_id, stripe_checkout_session_id, NULL FROM fpw_promo_redemptions WHERE user_id = :targetUserId", params);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadPremiumSendDeleteProtection" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                "hardDeleteBlocked" = false,
+                "premiumSendCreditCount" = 0,
+                "premiumSendReceiptCount" = 0,
+                "errorCode" = ""
+            };
+            var qCredits = queryNew("");
+            var qReceipts = queryNew("");
+
+            if (tableExists("premium_send_credits")) {
+                qCredits = queryExecute(
+                    "SELECT COUNT(*) AS row_count
+                       FROM premium_send_credits
+                      WHERE user_id = :userId
+                         OR consumed_float_plan_id IN (
+                              SELECT floatplan_id
+                                FROM _fpw_delete_floatplans
+                         )",
+                    {
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = getDatasource() }
+                );
+                result.premiumSendCreditCount = qCredits.recordCount ? val(qCredits["row_count"][1]) : 0;
+            }
+
+            if (tableExists("premium_send_receipts")) {
+                qReceipts = queryExecute(
+                    "SELECT COUNT(*) AS row_count
+                       FROM premium_send_receipts
+                      WHERE user_id = :userId
+                         OR float_plan_id IN (
+                              SELECT floatplan_id
+                                FROM _fpw_delete_floatplans
+                         )",
+                    {
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = getDatasource() }
+                );
+                result.premiumSendReceiptCount = qReceipts.recordCount ? val(qReceipts["row_count"][1]) : 0;
+            }
+
+            result.hardDeleteBlocked = (
+                result.premiumSendCreditCount GT 0
+                OR result.premiumSendReceiptCount GT 0
+            );
+            if (result.hardDeleteBlocked) {
+                result.errorCode = "PREMIUM_SEND_HISTORY_DELETE_BLOCKED";
+            }
+            return result;
         </cfscript>
     </cffunction>
 
@@ -866,6 +1022,7 @@
         <cfargument name="data" type="struct" required="false" default="#structNew()#">
         <cfargument name="errorMessage" type="string" required="false" default="">
         <cfargument name="errorDetail" type="string" required="false" default="">
+        <cfargument name="errorCode" type="string" required="false" default="">
         <cfscript>
             return {
                 "SUCCESS" = arguments.success,
@@ -873,6 +1030,7 @@
                 "MESSAGE" = arguments.message,
                 "DATA" = arguments.data,
                 "ERROR" = {
+                    "CODE" = arguments.errorCode,
                     "MESSAGE" = arguments.errorMessage,
                     "DETAIL" = arguments.errorDetail
                 }
@@ -968,6 +1126,3 @@
     </cffunction>
 
 </cfcomponent>
-
-
-

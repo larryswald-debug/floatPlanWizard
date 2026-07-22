@@ -208,7 +208,77 @@
                         <cfset sendId = val(url.id)>
                     </cfif>
 
+                    <cfset var qOwnedSendEventPlan = queryNew("")>
+                    <cfif sendId GT 0>
+                        <cfset qOwnedSendEventPlan = queryExecute(
+                            "SELECT floatPlanId
+                               FROM floatplans
+                              WHERE floatPlanId = :floatPlanId
+                                AND userId = :userId
+                              LIMIT 1",
+                            {
+                                floatPlanId = { value = sendId, cfsqltype = "cf_sql_integer" },
+                                userId = { value = toString(userId), cfsqltype = "cf_sql_varchar" }
+                            },
+                            { datasource = "fpw" }
+                        )>
+                    </cfif>
+                    <cfif qOwnedSendEventPlan.recordCount EQ 1>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "premium_send_attempted",
+                                entityType = "float_plan",
+                                entityId = sendId,
+                                eventSource = "premium_save_send",
+                                metadata = {},
+                                idempotencyKey = "premium_send_attempted:request:" & (structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : createUUID()),
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                            <cfcatch type="any">
+                                <cflog file="fpw_product_events" type="error" text="floatplan.cfc PRODUCT_EVENT_CALL_FAILED | event=premium_send_attempted">
+                            </cfcatch>
+                        </cftry>
+                    </cfif>
+
                     <cfset var sendResult = sendFloatPlanToContacts(userId, sendId)>
+
+                    <cfif structKeyExists(sendResult, "IDEMPOTENT_REPLAY") AND sendResult.IDEMPOTENT_REPLAY>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "same_plan_retry_resolved",
+                                entityType = "float_plan",
+                                entityId = sendId,
+                                eventSource = "premium_save_send",
+                                metadata = {},
+                                idempotencyKey = "same_plan_retry_resolved:request:" & (structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : createUUID()),
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                            <cfcatch type="any">
+                                <cflog file="fpw_product_events" type="error" text="floatplan.cfc PRODUCT_EVENT_CALL_FAILED | event=same_plan_retry_resolved">
+                            </cfcatch>
+                        </cftry>
+                    <cfelseif NOT sendResult.SUCCESS
+                        AND structKeyExists(sendResult, "ERROR")
+                        AND sendResult.ERROR EQ "PREMIUM_SEND_ACCESS_REQUIRED">
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "premium_send_denied_no_access",
+                                entityType = "float_plan",
+                                entityId = sendId,
+                                eventSource = "premium_save_send",
+                                metadata = {},
+                                idempotencyKey = "premium_send_denied_no_access:request:" & (structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : createUUID()),
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                            <cfcatch type="any">
+                                <cflog file="fpw_product_events" type="error" text="floatplan.cfc PRODUCT_EVENT_CALL_FAILED | event=premium_send_denied_no_access">
+                            </cfcatch>
+                        </cftry>
+                    </cfif>
+
                     <cfset sendResult.AUTH = true>
                     <cfoutput>#serializeJSON(sendResult)#</cfoutput>
                 </cfcase>
@@ -224,6 +294,23 @@
                     </cfif>
 
                     <cfset var sendBasicResult = sendBasicFloatPlanToContacts(userId, sendBasicId)>
+                    <cfif sendBasicResult.SUCCESS>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "basic_send_completed",
+                                entityType = "float_plan",
+                                entityId = sendBasicId,
+                                eventSource = "basic_save_send",
+                                metadata = {},
+                                idempotencyKey = "basic_send_completed:float_plan:" & sendBasicId,
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                            <cfcatch type="any">
+                                <cflog file="fpw_product_events" type="error" text="floatplan.cfc PRODUCT_EVENT_CALL_FAILED | event=basic_send_completed">
+                            </cfcatch>
+                        </cftry>
+                    </cfif>
                     <cfset sendBasicResult.AUTH = true>
                     <cfoutput>#serializeJSON(sendBasicResult)#</cfoutput>
                 </cfcase>
@@ -5142,21 +5229,41 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var result = { SUCCESS = false };
+            var planExists = queryNew("");
+            var lockedUser = queryNew("");
+            var lockedPlan = queryNew("");
+            var premiumHistory = queryNew("");
+            var planStatus = "";
+            var routeInstanceId = 0;
+
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
                 return result;
             }
 
-            var planExists = queryExecute("
-                SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+            planExists = queryExecute("
+                SELECT
+                    floatplanId,
+                    route_instance_id,
+                    UPPER(TRIM(`status`)) AS statusValue,
+                    EXISTS (
+                        SELECT 1
+                          FROM premium_send_credits psc
+                         WHERE psc.consumed_float_plan_id = floatplans.floatplanId
+                    ) AS hasConsumedCredit,
+                    EXISTS (
+                        SELECT 1
+                          FROM premium_send_receipts psr
+                         WHERE psr.float_plan_id = floatplans.floatplanId
+                    ) AS hasPremiumSendReceipt
                   FROM floatplans
                  WHERE floatplanId = :planId
                    AND userId = :userId
                  LIMIT 1
             ", {
                 planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
             }, { datasource = "fpw" });
 
             if (planExists.recordCount EQ 0) {
@@ -5164,15 +5271,14 @@
                 result.MESSAGE = "Float plan not found.";
                 return result;
             }
+            if (val(planExists.hasConsumedCredit[1]) GT 0 OR val(planExists.hasPremiumSendReceipt[1]) GT 0) {
+                result.ERROR = "PREMIUM_SEND_HISTORY_DELETE_BLOCKED";
+                result.MESSAGE = "This float plan has retained Premium Send history and cannot be deleted.";
+                return result;
+            }
 
-            var planStatus = "";
-            var routeInstanceId = 0;
-            if (listFindNoCase(planExists.columnList, "statusValue") GT 0) {
-                planStatus = trim(toString(planExists["statusValue"][1]));
-            }
-            if (listFindNoCase(planExists.columnList, "route_instance_id") GT 0) {
-                routeInstanceId = isNull(planExists.route_instance_id[1]) ? 0 : val(planExists.route_instance_id[1]);
-            }
+            planStatus = trim(toString(planExists["statusValue"][1]));
+            routeInstanceId = isNull(planExists.route_instance_id[1]) ? 0 : val(planExists.route_instance_id[1]);
             if (routeInstanceId GT 0) {
                 result.ERROR = "ROUTE_GROUP_DELETE_REQUIRED";
                 result.MESSAGE = "Delete the parent route to remove a route-linked float plan.";
@@ -5185,11 +5291,68 @@
             }
 
             transaction {
-                purgeFloatPlansByIds(arguments.userId, [ arguments.floatPlanId ]);
+                lockedUser = queryExecute("
+                    SELECT userId
+                      FROM users
+                     WHERE userId = :userId
+                     LIMIT 1
+                     FOR UPDATE
+                ", {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                }, { datasource = "fpw" });
+
+                lockedPlan = queryExecute("
+                    SELECT floatplanId, route_instance_id, UPPER(TRIM(`status`)) AS statusValue
+                      FROM floatplans
+                     WHERE floatplanId = :planId
+                       AND userId = :userId
+                     LIMIT 1
+                     FOR UPDATE
+                ", {
+                    planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                }, { datasource = "fpw" });
+
+                if (lockedUser.recordCount EQ 0 OR lockedPlan.recordCount EQ 0) {
+                    result.ERROR = "NOT_FOUND";
+                    result.MESSAGE = "Float plan not found.";
+                } else {
+                    premiumHistory = queryExecute("
+                        SELECT
+                            EXISTS (
+                                SELECT 1
+                                  FROM premium_send_credits
+                                 WHERE consumed_float_plan_id = :planId
+                            ) AS hasConsumedCredit,
+                            EXISTS (
+                                SELECT 1
+                                  FROM premium_send_receipts
+                                 WHERE float_plan_id = :planId
+                            ) AS hasPremiumSendReceipt
+                    ", {
+                        planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                    }, { datasource = "fpw" });
+
+                    planStatus = trim(toString(lockedPlan["statusValue"][1]));
+                    routeInstanceId = isNull(lockedPlan.route_instance_id[1]) ? 0 : val(lockedPlan.route_instance_id[1]);
+
+                    if (val(premiumHistory.hasConsumedCredit[1]) GT 0 OR val(premiumHistory.hasPremiumSendReceipt[1]) GT 0) {
+                        result.ERROR = "PREMIUM_SEND_HISTORY_DELETE_BLOCKED";
+                        result.MESSAGE = "This float plan has retained Premium Send history and cannot be deleted.";
+                    } else if (routeInstanceId GT 0) {
+                        result.ERROR = "ROUTE_GROUP_DELETE_REQUIRED";
+                        result.MESSAGE = "Delete the parent route to remove a route-linked float plan.";
+                    } else if (listFindNoCase("DRAFT,CLOSED,CANCELLED,CANCELED", planStatus) EQ 0) {
+                        result.ERROR = "DELETE_BLOCKED";
+                        result.MESSAGE = "Only draft or closed float plans can be deleted.";
+                    } else {
+                        purgeFloatPlansByIds(arguments.userId, [ arguments.floatPlanId ]);
+                        result.SUCCESS = true;
+                        result.FLOATPLANID = arguments.floatPlanId;
+                    }
+                }
             }
 
-            result.SUCCESS = true;
-            result.FLOATPLANID = arguments.floatPlanId;
             return result;
         </cfscript>
     </cffunction>
@@ -6884,7 +7047,7 @@
                         :ownerUserId,
                         :slug,
                         :shareToken,
-                        'public',
+                        'invite',
                         1,
                         UTC_TIMESTAMP(),
                         UTC_TIMESTAMP()
@@ -8182,6 +8345,26 @@
                 #message#
             </cfmail>
         </cfloop>
+
+        <cftry>
+            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                userId = arguments.userId,
+                eventName = "premium_send_completed",
+                entityType = "float_plan",
+                entityId = arguments.floatPlanId,
+                eventSource = "premium_save_send",
+                metadata = {
+                    premium_authority = sendAccessSource EQ "general_premium"
+                        ? "general_premium"
+                        : lCase(trim(toString(selectedCredit.source)))
+                },
+                idempotencyKey = "premium_send_completed:float_plan:" & arguments.floatPlanId,
+                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+            )>
+            <cfcatch type="any">
+                <cflog file="fpw_product_events" type="error" text="floatplan.cfc PRODUCT_EVENT_CALL_FAILED | event=premium_send_completed">
+            </cfcatch>
+        </cftry>
 
         <cfscript>
             return result;

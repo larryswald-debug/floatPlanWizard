@@ -5657,7 +5657,7 @@
 
     function openCurrentFloatPlanPdf(planId, actionEl) {
       var id = normalizePlanId(planId);
-      if (id <= 0 || !window.Api || typeof window.Api.createFloatPlanPdf !== "function") {
+      if (id <= 0 || !window.Api || typeof window.Api.getFloatPlanPdfPreviewUrl !== "function") {
         if (utils && typeof utils.showAlertModal === "function") {
           utils.showAlertModal("Unable to generate float plan PDF.");
         } else {
@@ -5665,26 +5665,18 @@
         }
         return;
       }
-      setActionBusy(actionEl, true, "Preparing PDF...");
-      window.Api.createFloatPlanPdf(id)
-        .then(function (fileName) {
-          var pdfUrl = buildGeneratedFloatPlanPdfUrl(fileName);
-          if (!pdfUrl) {
-            throw { MESSAGE: "Unable to generate float plan PDF." };
-          }
-          triggerPdfDownload(pdfUrl);
-        })
-        .catch(function (err) {
-          var message = (err && err.MESSAGE) ? err.MESSAGE : "Unable to generate float plan PDF.";
-          if (utils && typeof utils.showAlertModal === "function") {
-            utils.showAlertModal(message);
-          } else {
-            window.alert(message);
-          }
-        })
-        .then(function () {
-          setActionBusy(actionEl, false);
-        });
+
+      var pdfUrl = window.Api.getFloatPlanPdfPreviewUrl(id);
+      if (!pdfUrl) {
+        if (utils && typeof utils.showAlertModal === "function") {
+          utils.showAlertModal("Unable to generate float plan PDF.");
+        } else {
+          window.alert("Unable to generate float plan PDF.");
+        }
+        return;
+      }
+
+      triggerPdfDownload(pdfUrl);
     }
 
     function normalizeFollowShareUrl(url) {

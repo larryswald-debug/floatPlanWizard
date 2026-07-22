@@ -221,6 +221,15 @@
     return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
   }
 
+  function truthyAccessValue(value) {
+    if (value === true || value === 1) return true;
+    return String(value || "").trim().toLowerCase() === "true" || String(value || "").trim() === "1";
+  }
+
+  function getPremiumSendCreditCount(access) {
+    return Math.max(0, parseInt(pick(access, ["premiumSendCreditCount", "PREMIUMSENDCREDITCOUNT"], 0), 10) || 0);
+  }
+
   function getPremiumSource(access) {
     return String(pick(access, ["premiumSource", "PREMIUMSOURCE", "source", "SOURCE"], "") || "").trim().toLowerCase();
   }
@@ -271,8 +280,9 @@
   function setBillingActionsBusy(isBusy) {
     var buttons = document.querySelectorAll("[data-membership-upgrade], #membershipManageBillingBtn");
     Array.prototype.forEach.call(buttons, function (button) {
-      button.disabled = !!isBusy;
-      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+      var configuredDisabled = button.getAttribute("data-config-disabled") === "true";
+      button.disabled = !!isBusy || configuredDisabled;
+      button.setAttribute("aria-disabled", button.disabled ? "true" : "false");
     });
   }
 
@@ -295,6 +305,23 @@
     var premiumSource = getPremiumSource(access);
     var premiumSources = getPremiumSources(access);
     var hasStripeBillingMapping = hasStripeBilling(access) || premiumSources.indexOf("stripe_subscription") !== -1;
+    var creditModelEnabled = truthyAccessValue(pick(access, ["premiumSendCreditModelEnabled", "PREMIUMSENDCREDITMODELENABLED"], false));
+    var creditCount = getPremiumSendCreditCount(access);
+    var hasExactTripAccess = truthyAccessValue(pick(access, ["canUseActiveCruise", "CANUSEACTIVECRUISE"], false))
+      && String(pick(access, ["activeTripOperationalAccessSource", "ACTIVETRIPOPERATIONALACCESSSOURCE"], "none")).toLowerCase() === "premium_send_credit";
+    var oneTripAvailable = truthyAccessValue(pick(access, ["oneTripCheckoutAvailable", "ONETRIPCHECKOUTAVAILABLE"], false));
+    var oneTripButton = document.querySelector('[data-membership-upgrade="one_trip"]');
+
+    setText("membershipPlanningAccess", truthyAccessValue(pick(access, ["canUsePlanningTools", "CANUSEPLANNINGTOOLS"], false)) ? "Included" : "Unavailable");
+    setText("membershipBasicSendAccess", truthyAccessValue(pick(access, ["canSendBasicFloatPlan", "CANSENDBASICFLOATPLAN"], false)) ? "Included" : "Unavailable");
+    setText("membershipCreditCount", String(creditCount));
+    setText("membershipExactTripAccess", hasExactTripAccess ? "Active for one committed trip" : "None active");
+    if (oneTripButton) {
+      oneTripButton.setAttribute("data-config-disabled", oneTripAvailable ? "false" : "true");
+      oneTripButton.disabled = !oneTripAvailable;
+      oneTripButton.setAttribute("aria-disabled", oneTripAvailable ? "false" : "true");
+      oneTripButton.textContent = oneTripAvailable ? "Buy One Trip" : "Buy One Trip Unavailable";
+    }
 
     if (upgradeActions) upgradeActions.classList.add("d-none");
     if (portalActions) portalActions.classList.add("d-none");
@@ -307,8 +334,14 @@
     }
 
     if (!hasPremium) {
-      setBillingStatus("Basic", "basic");
-      if (summary) summary.textContent = "Upgrade to Premium for saved routes, multi-day trips, Active Cruise, Follow Page sharing, and advanced monitoring.";
+      setBillingStatus(creditModelEnabled ? "Free Member" : "Basic", "basic");
+      if (summary) {
+        summary.textContent = creditModelEnabled
+          ? "Planning and Basic sending are included. " + (creditCount > 0
+            ? creditCount + " Premium Send Credit" + (creditCount === 1 ? " is" : "s are") + " available."
+            : "Buy one trip or choose Monthly or Annual for Premium Save & Send.")
+          : "Upgrade to Premium for Active Cruise, Follow Page sharing, Premium delivery, and advanced monitoring.";
+      }
       if (upgradeActions) upgradeActions.classList.remove("d-none");
       return;
     }
@@ -381,25 +414,148 @@
     }
   }
 
-  function isStripeCheckoutReturn() {
+  function getStripeCheckoutReturn() {
+    var result = { success: false, cancelled: false, oneTrip: false, floatPlanId: 0, returnNonce: "" };
+    var captured = window.FPW_ONE_TRIP_CHECKOUT_RETURN;
     var search = window.location.search || "";
-    if (!search) return false;
-
+    if (captured && typeof captured === "object") {
+      result.success = captured.success === true;
+      result.cancelled = captured.cancelled === true;
+      result.oneTrip = captured.oneTrip === true;
+      result.floatPlanId = parseInt(captured.floatPlanId || "0", 10) || 0;
+      result.returnNonce = /^[a-f0-9]{64}$/.test(String(captured.returnNonce || "").trim().toLowerCase())
+        ? String(captured.returnNonce).trim().toLowerCase()
+        : "";
+      return result;
+    }
+    if (!search) return result;
     try {
       var params = new URLSearchParams(search);
       var stripeValue = String(params.get("stripe") || "").trim().toLowerCase();
       var stripeCheckoutValue = String(params.get("stripe_checkout") || "").trim().toLowerCase();
       var checkoutValue = String(params.get("checkout") || "").trim().toLowerCase();
-      return stripeValue === "success" || stripeCheckoutValue === "success" || checkoutValue === "success";
+      result.success = stripeValue === "success" || stripeCheckoutValue === "success" || checkoutValue === "success";
+      result.cancelled = stripeValue === "cancel" || stripeCheckoutValue === "cancel" || checkoutValue === "cancel";
+      result.oneTrip = String(params.get("fpw_checkout") || "").trim().toLowerCase() === "one_trip";
+      result.floatPlanId = parseInt(params.get("floatPlanId") || "0", 10) || 0;
+      result.returnNonce = String(params.get("fpw_return") || "").trim().toLowerCase();
+      return result;
     } catch (err) {
-      return /(?:[?&](stripe|stripe_checkout|checkout)=success)(?:&|$)/i.test(search);
+      result.success = /(?:[?&](stripe|stripe_checkout|checkout)=success)(?:&|$)/i.test(search);
+      result.cancelled = /(?:[?&](stripe|stripe_checkout|checkout)=cancel)(?:&|$)/i.test(search);
+      result.oneTrip = /(?:[?&]fpw_checkout=one_trip)(?:&|$)/i.test(search);
+      var planMatch = search.match(/[?&]floatPlanId=([0-9]+)/i);
+      var nonceMatch = search.match(/[?&]fpw_return=([a-f0-9]{64})(?:&|$)/i);
+      result.floatPlanId = planMatch ? (parseInt(planMatch[1], 10) || 0) : 0;
+      result.returnNonce = nonceMatch ? String(nonceMatch[1]).toLowerCase() : "";
+      return result;
     }
+  }
+
+  function isStripeCheckoutReturn() {
+    var checkoutReturn = getStripeCheckoutReturn();
+    return checkoutReturn.success || checkoutReturn.cancelled;
+  }
+
+  function clearOneTripCheckoutReturnFromLocation() {
+    window.FPW_ONE_TRIP_CHECKOUT_RETURN = null;
+    if (!window.history || typeof window.history.replaceState !== "function" || typeof URLSearchParams === "undefined") return;
+    var params = new URLSearchParams(window.location.search || "");
+    ["stripe", "stripe_checkout", "checkout", "fpw_checkout", "floatPlanId", "fpw_return"].forEach(function (key) {
+      params.delete(key);
+    });
+    var query = params.toString();
+    window.history.replaceState({}, document.title, window.location.pathname + (query ? "?" + query : "") + (window.location.hash || ""));
   }
 
   function refreshMembershipAfterStripeReturn(initialAccess) {
     var delays = [1000, 2500, 5000, 8000];
+    var checkoutReturn = getStripeCheckoutReturn();
 
-    if (!isStripeCheckoutReturn()) return;
+    if (checkoutReturn.cancelled) {
+      if (checkoutReturn.oneTrip && checkoutReturn.floatPlanId > 0) {
+        var cancelDraftUrl = BASE_PATH + "/app/floatplan-wizard.cfm?floatPlanId=" + encodeURIComponent(checkoutReturn.floatPlanId) + "&fpw_checkout=one_trip&stripe_checkout=cancel";
+        clearOneTripCheckoutReturnFromLocation();
+        window.location.replace(cancelDraftUrl);
+        return;
+      }
+      clearOneTripCheckoutReturnFromLocation();
+      showBillingMessage(
+        checkoutReturn.oneTrip
+          ? "Checkout was canceled. No Premium Send Credit was purchased."
+          : "Checkout was canceled. No membership change was made.",
+        "info"
+      );
+      return;
+    }
+    if (!checkoutReturn.success) return;
+
+    if (checkoutReturn.oneTrip) {
+      if (!/^[a-f0-9]{64}$/.test(checkoutReturn.returnNonce)
+          || !window.Api
+          || typeof window.Api.confirmPremiumOneTripCheckout !== "function") {
+        showBillingMessage("Checkout completed, but this Premium Send Credit could not be matched for confirmation. Refresh shortly or contact support.", "info");
+        return;
+      }
+
+      showBillingMessage("Confirming your Premium Send Credit...", "info");
+
+      function confirmOneTrip(index) {
+        window.Api.confirmPremiumOneTripCheckout(checkoutReturn.returnNonce)
+          .then(function (confirmation) {
+            var resolved = confirmation && (confirmation.RESOLVED === true || confirmation.resolved === true);
+            var available = confirmation && (confirmation.AVAILABLE === true || confirmation.available === true);
+            var creditStatus = String((confirmation && (confirmation.STATUS || confirmation.status)) || "").trim().toUpperCase();
+            var confirmedPlanId = parseInt((confirmation && (confirmation.FLOATPLANID || confirmation.floatPlanId)) || "0", 10) || 0;
+
+            if (resolved) {
+              clearOneTripCheckoutReturnFromLocation();
+              if (confirmedPlanId > 0) {
+                window.location.href = BASE_PATH + "/app/floatplan-wizard.cfm?floatPlanId=" + encodeURIComponent(confirmedPlanId)
+                  + (available ? "&fpw_checkout=one_trip&stripe_checkout=success" : "");
+                return;
+              }
+              loadMembershipBilling();
+              showBillingMessage(
+                available
+                  ? "Your Premium Send Credit is available."
+                  : (creditStatus === "CONSUMED" ? "This purchased Premium Send Credit has already been applied." : "Your Premium Send Credit was confirmed."),
+                available ? "success" : "info"
+              );
+              return;
+            }
+            if (index >= delays.length) {
+              showBillingMessage("Checkout completed. Your Premium Send Credit is still being confirmed. Refresh shortly.", "info");
+              return;
+            }
+            loadMembershipBilling();
+            window.setTimeout(function () {
+              confirmOneTrip(index + 1);
+            }, delays[index]);
+          })
+          .catch(function (error) {
+            var code = getErrorCode(error).toUpperCase();
+            if (code === "INVALID_CHECKOUT_CONFIRMATION"
+                || code === "CHECKOUT_CONFIRMATION_EXPIRED"
+                || code === "CHECKOUT_CONFIRMATION_OWNER_MISMATCH") {
+              clearOneTripCheckoutReturnFromLocation();
+              showBillingMessage("This Premium Send Credit confirmation is no longer available. Refresh your membership status.", "info");
+              return;
+            }
+            if (index >= delays.length) {
+              showBillingMessage("Checkout completed. Your Premium Send Credit is still being confirmed. Refresh shortly.", "info");
+              return;
+            }
+            window.setTimeout(function () {
+              confirmOneTrip(index + 1);
+            }, delays[index]);
+          });
+      }
+
+      confirmOneTrip(0);
+      return;
+    }
+
     if (hasPremiumAccess(initialAccess)) {
       showBillingMessage("Premium access confirmed.", "success");
       return;
@@ -430,8 +586,8 @@
   async function startPremiumUpgrade(interval, trigger) {
     var originalText = trigger ? trigger.textContent : "";
     var intervalValue = String(interval || "").trim().toLowerCase();
-    if (intervalValue !== "monthly" && intervalValue !== "yearly") {
-      showBillingMessage("Choose monthly or yearly Premium billing.", "error");
+    if (intervalValue !== "one_trip" && intervalValue !== "monthly" && intervalValue !== "yearly") {
+      showBillingMessage("Choose Buy One Trip, Monthly, or Annual.", "error");
       return;
     }
     if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
@@ -444,6 +600,12 @@
     showBillingMessage("Opening secure Stripe Checkout...", "info");
 
     try {
+      if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+        window.FPWAnalytics.track(
+          intervalValue === "one_trip" ? "buy_one_trip_clicked" : (intervalValue === "monthly" ? "monthly_selected" : "annual_selected"),
+          { source: "account_page" }
+        );
+      }
       var data = await window.Api.createPremiumCheckoutSession(intervalValue);
       var checkoutUrl = getCheckoutUrl(data);
       if (!data || (data.SUCCESS !== true && data.success !== true) || !checkoutUrl) {
@@ -471,7 +633,7 @@
       }
     } finally {
       setBillingActionsBusy(false);
-      if (trigger) trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
+      if (trigger) trigger.textContent = originalText || (intervalValue === "one_trip" ? "Buy One Trip" : (intervalValue === "yearly" ? "Annual Membership" : "Monthly Membership"));
     }
   }
 
@@ -1088,4 +1250,3 @@
   });
 
 })(window, document);
-

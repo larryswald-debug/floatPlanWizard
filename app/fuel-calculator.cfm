@@ -10,6 +10,10 @@ if (!structKeyExists(request, "fpwBase")) {
   }
 }
 fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.user);
+fuelCalcCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  && listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+);
 </cfscript>
 
 <!doctype html>
@@ -378,11 +382,15 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
   <header class="topbar">
     <div class="promo-strip">
       <div class="shell promo-strip-inner">
-        <p class="promo-strip-copy">Join prelaunch &mdash; get <strong>2 months of Premium free</strong></p>
+        <p class="promo-strip-copy"><cfif fuelCalcCreditModelEnabled>Free membership &mdash; <strong>first complete Premium trip included</strong> for eligible new members<cfelse>Join prelaunch &mdash; get <strong>2 months of Premium free</strong></cfif></p>
       </div>
     </div>
     <div class="shell topbar-inner">
-      <a href="/preLaunch.cfm#top" class="brand" aria-label="FloatPlanWizard home">
+      <cfif fuelCalcCreditModelEnabled>
+        <a href="<cfoutput>#request.fpwBase#</cfoutput>/#top" class="brand" aria-label="FloatPlanWizard home">
+      <cfelse>
+        <a href="/preLaunch.cfm#top" class="brand" aria-label="FloatPlanWizard home">
+      </cfif>
         <div class="brand-mark"><i class="bi bi-compass-fill" aria-hidden="true"></i></div>
         <div class="brand-copy">
           <div class="brand-name">FloatPlanWizard</div>
@@ -390,12 +398,20 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
         </div>
       </a>
       <nav class="nav" aria-label="Primary">
-        <a href="/preLaunch.cfm#features">Features</a>
-        <a href="/preLaunch.cfm#great-loop">Great Loop</a>
-        <a href="/preLaunch.cfm#followers">Share the Trip</a>
-        <a href="/preLaunch.cfm#story">Why FPW</a>
-        <a href="/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
-        <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
+        <cfif fuelCalcCreditModelEnabled>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/#fpwHowItWorks">How It Works</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/#fpwFeatures">Features</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/pricing.cfm">Pricing</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm" class="btn btn-secondary">Start Free</a>
+        <cfelse>
+          <a href="/preLaunch.cfm#features">Features</a>
+          <a href="/preLaunch.cfm#great-loop">Great Loop</a>
+          <a href="/preLaunch.cfm#followers">Share the Trip</a>
+          <a href="/preLaunch.cfm#story">Why FPW</a>
+          <a href="/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+          <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
+        </cfif>
       </nav>
     </div>
   </header>

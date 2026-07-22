@@ -269,8 +269,71 @@ component output="false" {
       eventSources = [ "member_signup" ],
       metadata = {
         signup_method = [ "password" ],
-        account_tier = [ "basic" ]
+        account_tier = [ "basic" ],
+        onboarding_model = [ "legacy_trial", "premium_send_credit" ],
+        complimentary_premium_send_credit = [ "true", "false" ]
       }
+    };
+    definitions["complimentary_credit_granted"] = {
+      entityType = "user",
+      eventSources = [ "member_signup" ],
+      metadata = {
+        credit_source = [ "complimentary_signup" ]
+      }
+    };
+    definitions["premium_send_attempted"] = {
+      entityType = "float_plan",
+      eventSources = [ "premium_save_send" ],
+      metadata = {}
+    };
+    definitions["premium_send_completed"] = {
+      entityType = "float_plan",
+      eventSources = [ "premium_save_send" ],
+      metadata = {
+        premium_authority = [ "general_premium", "complimentary_signup", "stripe_one_trip", "promotion", "admin_grant" ]
+      }
+    };
+    definitions["premium_send_denied_no_access"] = {
+      entityType = "float_plan",
+      eventSources = [ "premium_save_send" ],
+      metadata = {}
+    };
+    definitions["basic_send_completed"] = {
+      entityType = "float_plan",
+      eventSources = [ "basic_save_send" ],
+      metadata = {}
+    };
+    definitions["buy_one_trip_clicked"] = {
+      entityType = "user",
+      eventSources = [ "billing_api" ],
+      metadata = {}
+    };
+    definitions["one_trip_checkout_created"] = {
+      entityType = "user",
+      eventSources = [ "billing_api" ],
+      metadata = {}
+    };
+    definitions["one_trip_credit_granted"] = {
+      entityType = "user",
+      eventSources = [ "stripe_webhook" ],
+      metadata = {
+        credit_source = [ "stripe_one_trip" ]
+      }
+    };
+    definitions["same_plan_retry_resolved"] = {
+      entityType = "float_plan",
+      eventSources = [ "premium_save_send" ],
+      metadata = {}
+    };
+    definitions["monthly_selected"] = {
+      entityType = "user",
+      eventSources = [ "billing_api" ],
+      metadata = {}
+    };
+    definitions["annual_selected"] = {
+      entityType = "user",
+      eventSources = [ "billing_api" ],
+      metadata = {}
     };
     definitions["login"] = {
       entityType = "user",
@@ -360,7 +423,7 @@ component output="false" {
         return failureResponse("DISALLOWED_METADATA_VALUE", "The metadata value is not allowed for this event.");
       }
 
-      if (normalizedKey EQ "is_first") {
+      if (listFindNoCase("is_first,complimentary_premium_send_credit", normalizedKey)) {
         sanitizedMetadata[normalizedKey] = normalizedValue EQ "true";
       } else {
         sanitizedMetadata[normalizedKey] = normalizedValue;

@@ -17,6 +17,10 @@
       <cfset var existingPremiumMessage = "">
       <cfset var serviceResult = {}>
       <cfset var response = {}>
+      <cfset var premiumSendCreditModelEnabled = (
+        structKeyExists(application, "premiumSendCreditModelEnabled")
+        AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+      )>
 
       <cfif NOT len(act) AND structKeyExists(url, "action")>
         <cfset act = lCase(trim(toString(url.action)))>
@@ -45,6 +49,13 @@
         <cfreturn>
       </cfif>
 
+      <cfif act EQ "startlaunchtrial" AND premiumSendCreditModelEnabled>
+        <cfheader statuscode="410">
+        <cfset response = buildErrorResponse(false, true, "LAUNCH_TRIAL_CUTOVER_ACTIVE", "The launch trial has ended. FPW membership is free, and eligible new members receive a complimentary Premium trip.")>
+        <cfoutput>#serializeJSON(response)#</cfoutput>
+        <cfreturn>
+      </cfif>
+
       <cfset promoService = createPromoCodeService()>
 
       <cfif act EQ "startlaunchtrial">
@@ -69,10 +80,17 @@
         <cfset serviceResult = promoService.startLaunchTrial(userId)>
       <cfelse>
         <cfset code = readPromoCode(body)>
-        <cfif act EQ "validate">
         <cfset serviceResult = promoService.validateCode(userId, code)>
-        <cfelse>
-        <cfset serviceResult = promoService.redeemCode(userId, code)>
+        <cfif premiumSendCreditModelEnabled
+            AND structKeyExists(serviceResult, "promoType")
+            AND lCase(trim(toString(serviceResult.promoType))) EQ "stripe_free_months">
+          <cfheader statuscode="410">
+          <cfset response = buildErrorResponse(false, true, "LAUNCH_TRIAL_CUTOVER_ACTIVE", "The launch trial has ended. FPW membership is free, and eligible new members receive a complimentary Premium trip.")>
+          <cfoutput>#serializeJSON(response)#</cfoutput>
+          <cfreturn>
+        </cfif>
+        <cfif act EQ "redeem">
+          <cfset serviceResult = promoService.redeemCode(userId, code)>
         </cfif>
       </cfif>
 

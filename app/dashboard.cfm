@@ -1060,7 +1060,7 @@
                                     {{ isSaving ? 'Sending...' : (hasCommittedPremiumSend ? 'Show Original Premium Send Result' : 'Premium Save &amp; Send') }}
                                 </button>
                                 <div v-else class="d-grid gap-2">
-                                    <button type="button" class="btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy">Buy One Trip</button>
+                                    <button type="button" class="btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy || !oneTripCheckoutAvailable">{{ oneTripCheckoutAvailable ? 'Buy One Trip' : 'Buy One Trip Unavailable' }}</button>
                                     <button type="button" class="btn-secondary" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
                                     <button type="button" class="btn-secondary" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
                                 </div>
@@ -1274,7 +1274,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-premium-send-credits"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-phase3-cutover"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
@@ -1285,13 +1285,13 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-premium-send-credits"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-phase3-cutover"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260526-cache-bump"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260721-premium-send-credits"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260722-phase3-cutover-pdf"></script>
 
 </body>
 </html>

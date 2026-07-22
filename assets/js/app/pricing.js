@@ -19,13 +19,24 @@
 
   function setButtonsBusy(buttons, busy) {
     buttons.forEach(function (button) {
-      button.disabled = busy;
+      button.disabled = busy || button.getAttribute("aria-disabled") === "true";
     });
   }
 
   function startCheckout(button, buttons) {
     var checkoutType = String(button.getAttribute("data-pricing-checkout") || "").trim().toLowerCase();
     var originalText = button.textContent;
+
+    if (button.disabled || button.getAttribute("aria-disabled") === "true") {
+      return;
+    }
+
+    if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+      window.FPWAnalytics.track(
+        checkoutType === "one_trip" ? "buy_one_trip_clicked" : (checkoutType === "monthly" ? "monthly_selected" : "annual_selected"),
+        { source: "pricing_page" }
+      );
+    }
 
     if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
       window.alert("Premium checkout is not available right now.");

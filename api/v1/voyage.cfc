@@ -3535,7 +3535,7 @@
                         :ownerUserId,
                         :slug,
                         :shareToken,
-                        'public',
+                        'invite',
                         1,
                         UTC_TIMESTAMP(),
                         UTC_TIMESTAMP()

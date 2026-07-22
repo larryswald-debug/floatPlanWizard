@@ -21,6 +21,8 @@
   <cffunction name="createCheckoutSession" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="interval" type="string" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+    <cfargument name="returnNonce" type="string" required="false" default="">
     <cfscript>
       var userIdValue = int(val(arguments.userId));
       var intervalValue = lCase(trim(arguments.interval));
@@ -52,7 +54,7 @@
       if (intervalValue EQ "three_day_pass") {
         requestPayload = buildStripeThreeDayPassRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
       } else if (intervalValue EQ "one_trip") {
-        requestPayload = buildStripeOneTripRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+        requestPayload = buildStripeOneTripRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl, arguments.floatPlanId, arguments.returnNonce);
       } else {
         requestPayload = buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
       }
@@ -405,16 +407,26 @@
     <cfargument name="priceId" type="string" required="true">
     <cfargument name="successUrl" type="string" required="true">
     <cfargument name="cancelUrl" type="string" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+    <cfargument name="returnNonce" type="string" required="false" default="">
     <cfscript>
       var userIdText = toString(int(val(arguments.userId)));
-      return {
+      var floatPlanIdValue = int(val(arguments.floatPlanId));
+      var returnNonceValue = lCase(trim(arguments.returnNonce));
+      var successUrlValue = appendReturnQuery(trim(arguments.successUrl), "fpw_checkout=one_trip&stripe_checkout=success");
+      var cancelUrlValue = appendReturnQuery(trim(arguments.cancelUrl), "fpw_checkout=one_trip&stripe_checkout=cancel");
+      if (reFind("^[a-f0-9]{64}$", returnNonceValue)) {
+        successUrlValue = appendReturnQuery(successUrlValue, "fpw_return=" & urlEncodedFormat(returnNonceValue));
+        cancelUrlValue = appendReturnQuery(cancelUrlValue, "fpw_return=" & urlEncodedFormat(returnNonceValue));
+      }
+      var payload = {
         "url" = "https://api.stripe.com/v1/checkout/sessions",
         "formFields" = {
           "mode" = "payment",
           "line_items[0][price]" = trim(arguments.priceId),
           "line_items[0][quantity]" = "1",
-          "success_url" = trim(arguments.successUrl),
-          "cancel_url" = trim(arguments.cancelUrl),
+          "success_url" = successUrlValue,
+          "cancel_url" = cancelUrlValue,
           "client_reference_id" = userIdText,
           "metadata[fpwUserId]" = userIdText,
           "metadata[fpwProduct]" = "one_trip",
@@ -424,6 +436,15 @@
           "payment_intent_data[metadata][fpwCreditSource]" = "stripe_one_trip"
         }
       };
+
+      if (floatPlanIdValue GT 0) {
+        payload.formFields["metadata[fpwFloatPlanId]"] = toString(floatPlanIdValue);
+        payload.formFields["payment_intent_data[metadata][fpwFloatPlanId]"] = toString(floatPlanIdValue);
+        payload.formFields["success_url"] = appendReturnQuery(payload.formFields["success_url"], "floatPlanId=" & urlEncodedFormat(toString(floatPlanIdValue)));
+        payload.formFields["cancel_url"] = appendReturnQuery(payload.formFields["cancel_url"], "floatPlanId=" & urlEncodedFormat(toString(floatPlanIdValue)));
+      }
+
+      return payload;
     </cfscript>
   </cffunction>
 
@@ -1171,6 +1192,19 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="appendReturnQuery" access="private" returntype="string" output="false">
+    <cfargument name="urlValue" type="string" required="true">
+    <cfargument name="queryValue" type="string" required="true">
+    <cfscript>
+      var cleanUrl = trim(arguments.urlValue);
+      var cleanQuery = trim(arguments.queryValue);
+      if (!len(cleanQuery)) {
+        return cleanUrl;
+      }
+      return cleanUrl & (find("?", cleanUrl) GT 0 ? "&" : "?") & cleanQuery;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="resolvePriceId" access="private" returntype="string" output="false">
     <cfargument name="interval" type="string" required="true">
     <cfscript>
@@ -1227,30 +1261,26 @@
       var stripeError = {};
       var debugParts = [];
       var debugMessage = "";
-      var rawBody = structKeyExists(arguments.stripeResult, "rawBody") ? trim(toString(arguments.stripeResult.rawBody)) : "";
       var stripeType = "";
       var stripeCode = "";
       var stripeParam = "";
       var stripeMessage = "";
       var fieldName = "";
 
-      arrayAppend(debugParts, "operation=" & arguments.operation);
+      arrayAppend(debugParts, "operation=" & sanitizeStripeDebugText(arguments.operation));
       arrayAppend(debugParts, "userId=" & int(val(arguments.userId)));
-      arrayAppend(debugParts, "priceId=" & sanitizeStripeDebugText(arguments.priceId));
-      if (structKeyExists(arguments.requestPayload, "url")) {
-        arguments.response["stripeRequestUrl"] = sanitizeStripeDebugText(toString(arguments.requestPayload.url));
-        arrayAppend(debugParts, "stripeRequestUrl=" & arguments.response["stripeRequestUrl"]);
+      if (len(trim(arguments.priceId))) {
+        arrayAppend(debugParts, "priceIdSha256=" & lCase(hash(trim(arguments.priceId), "SHA-256")));
       }
-      if (structKeyExists(arguments.requestPayload, "formFields") AND isStruct(arguments.requestPayload.formFields)) {
-        for (fieldName in arguments.requestPayload.formFields) {
-          if (listFindNoCase("mode,line_items[0][price],items[0][price],customer,success_url,cancel_url,client_reference_id,metadata[fpwUserId],metadata[fpwMemberId],metadata[fpwPromoType],metadata[fpwTrialDays],metadata[fpwProduct],metadata[fpwEntitlementSource],metadata[source],metadata[offer],trial_period_days,trial_settings[end_behavior][missing_payment_method],subscription_data[trial_period_days],subscription_data[trial_settings][end_behavior][missing_payment_method],payment_method_collection", fieldName)) {
-            arguments.response["stripeRequest_" & fieldName] = sanitizeStripeDebugText(toString(arguments.requestPayload.formFields[fieldName]));
-            arrayAppend(debugParts, fieldName & "=" & arguments.response["stripeRequest_" & fieldName]);
-          }
-        }
+      if (structKeyExists(arguments.requestPayload, "url")) {
+        arrayAppend(debugParts, "stripeRequestUrl=" & sanitizeStripeDebugText(toString(arguments.requestPayload.url)));
+      }
+      if (structKeyExists(arguments.requestPayload, "formFields")
+          AND isStruct(arguments.requestPayload.formFields)
+          AND structKeyExists(arguments.requestPayload.formFields, "mode")) {
+        arrayAppend(debugParts, "mode=" & sanitizeStripeDebugText(toString(arguments.requestPayload.formFields.mode)));
       }
       if (statusCode GT 0) {
-        arguments.response["stripeStatusCode"] = statusCode;
         arrayAppend(debugParts, "status=" & statusCode);
       }
 
@@ -1262,34 +1292,24 @@
         stripeMessage = readString(stripeError, "message");
 
         if (len(stripeType)) {
-          arguments.response["stripeErrorType"] = stripeType;
-          arrayAppend(debugParts, "type=" & stripeType);
+          arrayAppend(debugParts, "type=" & sanitizeStripeDebugText(stripeType));
         }
         if (len(stripeCode)) {
-          arguments.response["stripeErrorCode"] = stripeCode;
-          arrayAppend(debugParts, "code=" & stripeCode);
+          arrayAppend(debugParts, "code=" & sanitizeStripeDebugText(stripeCode));
         }
         if (len(stripeParam)) {
-          arguments.response["stripeErrorParam"] = stripeParam;
-          arrayAppend(debugParts, "param=" & stripeParam);
+          arrayAppend(debugParts, "param=" & sanitizeStripeDebugText(stripeParam));
         }
         if (len(stripeMessage)) {
-          arguments.response["stripeErrorMessage"] = sanitizeStripeDebugText(stripeMessage);
-          arrayAppend(debugParts, "message=" & arguments.response["stripeErrorMessage"]);
+          arrayAppend(debugParts, "message=" & sanitizeStripeDebugText(stripeMessage));
         }
       }
 
-      if (len(rawBody)) {
-        arguments.response["stripeRawBody"] = left(sanitizeStripeDebugText(rawBody), 1500);
-        arrayAppend(debugParts, "raw=" & arguments.response["stripeRawBody"]);
-      }
       if (!arrayLen(debugParts)) {
         arrayAppend(debugParts, "Stripe request failed before a status or parseable error body was available.");
       }
 
       debugMessage = arrayToList(debugParts, "; ");
-      arguments.response["debugMessage"] = debugMessage;
-      arguments.response["stripeDebugMessage"] = debugMessage;
       writeStripeCheckoutDebugLog(arguments.operation, arguments.userId, arguments.priceId, debugMessage);
     </cfscript>
   </cffunction>
@@ -1298,11 +1318,11 @@
     <cfargument name="value" type="string" required="true">
     <cfscript>
       var textValue = replace(replace(trim(arguments.value), chr(13), " ", "all"), chr(10), " ", "all");
-      textValue = reReplace(textValue, "sk_live_[A-Za-z0-9_]+", "sk_live_[redacted]", "all");
-      textValue = reReplace(textValue, "sk_test_[A-Za-z0-9_]+", "sk_test_[redacted]", "all");
-      textValue = reReplace(textValue, "rk_live_[A-Za-z0-9_]+", "rk_live_[redacted]", "all");
-      textValue = reReplace(textValue, "rk_test_[A-Za-z0-9_]+", "rk_test_[redacted]", "all");
-      textValue = reReplace(textValue, "whsec_[A-Za-z0-9_]+", "whsec_[redacted]", "all");
+      textValue = reReplace(textValue, "sk_live_[A-Za-z0-9_*.-]+", "sk_live_[redacted]", "all");
+      textValue = reReplace(textValue, "sk_test_[A-Za-z0-9_*.-]+", "sk_test_[redacted]", "all");
+      textValue = reReplace(textValue, "rk_live_[A-Za-z0-9_*.-]+", "rk_live_[redacted]", "all");
+      textValue = reReplace(textValue, "rk_test_[A-Za-z0-9_*.-]+", "rk_test_[redacted]", "all");
+      textValue = reReplace(textValue, "whsec_[A-Za-z0-9_*.-]+", "whsec_[redacted]", "all");
       textValue = reReplace(textValue, "cus_[A-Za-z0-9_]+", "cus_[redacted]", "all");
       textValue = reReplace(textValue, "sub_[A-Za-z0-9_]+", "sub_[redacted]", "all");
       textValue = reReplace(textValue, "bps_[A-Za-z0-9_]+", "bps_[redacted]", "all");

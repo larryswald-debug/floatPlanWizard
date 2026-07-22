@@ -11,6 +11,18 @@ if (structKeyExists(session, "user") AND isStruct(session.user)) {
   }
 }
 
+premiumSendCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+);
+
+if (premiumSendCreditModelEnabled) {
+  if (startTrialUserId LTE 0) {
+    location(url = request.fpwBase & "/app/join.cfm?offer=premium_trip", addToken = false);
+  }
+  location(url = request.fpwBase & "/app/dashboard.cfm?offer=premium_trip", addToken = false);
+}
+
 if (startTrialUserId LTE 0) {
   location(url = request.fpwBase & "/app/join.cfm?offer=launch_trial", addToken = false);
 }
@@ -845,7 +857,6 @@ if (startTrialUserId LTE 0) {
 
 </body>
 </html>
-
 
 
 

@@ -1,4 +1,13 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfset pricingCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+)>
+<cfset pricingOneTripDisplayAmount = structKeyExists(application, "oneTripDisplayAmount") ? trim(toString(application.oneTripDisplayAmount)) : "">
+<cfset pricingOneTripAvailable = (
+  structKeyExists(application, "oneTripCheckoutAvailable")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.oneTripCheckoutAvailable)))) GT 0
+)>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -35,6 +44,78 @@
 
 <cfinclude template="../includes/prelaunch_top_nav.cfm">
 
+<cfif pricingCreditModelEnabled>
+<main class="fpw-pricing-page">
+  <section class="pricing-hero">
+    <div class="pricing-hero-bg" aria-hidden="true"></div>
+    <div class="pricing-container pricing-hero-content">
+      <h1>Membership Is Free</h1>
+      <p class="pricing-subtitle">Plan routes, save boating information, keep multiple Drafts, and send Basic float plans at no cost. Eligible new members also receive their first complete Premium trip.</p>
+    </div>
+  </section>
+
+  <section class="pricing-container pricing-plans" aria-label="Membership and Premium trip options">
+    <article class="pricing-card pricing-card-free">
+      <h2>Free Membership</h2>
+      <div class="pricing-price">$0</div>
+      <p class="pricing-kicker">Planning and Basic sending</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>Full Route Builder and generated routes</li>
+        <li><span class="pricing-check"></span>Saved vessels, people, contacts, and waypoints</li>
+        <li><span class="pricing-check"></span>Multiple saved Draft float plans</li>
+        <li><span class="pricing-check"></span>Basic float-plan sending</li>
+        <li><span class="pricing-check"></span>One complimentary Premium trip for eligible new members</li>
+      </ul>
+      <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create Free Account</a>
+    </article>
+
+    <article class="pricing-card">
+      <h2>Buy One Trip</h2>
+      <div class="pricing-price"><cfif len(pricingOneTripDisplayAmount)><cfoutput>#encodeForHTML(pricingOneTripDisplayAmount)#</cfoutput><cfelse>Unavailable</cfif></div>
+      <p class="pricing-kicker pricing-pill">No subscription</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>One Premium Send Credit</li>
+        <li><span class="pricing-check"></span>Premium PDF and email delivery</li>
+        <li><span class="pricing-check"></span>Active Cruise and Premium monitoring</li>
+        <li><span class="pricing-check"></span>Private Trip/Follow access</li>
+        <li><span class="pricing-check"></span>Exact-plan operational access</li>
+      </ul>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="one_trip"<cfif NOT pricingOneTripAvailable> disabled aria-disabled="true"</cfif>><cfif pricingOneTripAvailable>Buy One Trip<cfelse>Buy One Trip Unavailable</cfif></button>
+      <cfif NOT pricingOneTripAvailable><p class="pricing-kicker">One-trip Checkout requires an approved Price and display amount.</p></cfif>
+    </article>
+
+    <article class="pricing-card">
+      <h2>Premium Monthly</h2>
+      <div class="pricing-price">$9.99 <span>/ month</span></div>
+      <p class="pricing-kicker">For frequent Premium trips</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>General Premium access</li>
+        <li><span class="pricing-check"></span>Premium Save &amp; Send without consuming credits</li>
+        <li><span class="pricing-check"></span>Active Cruise, monitoring, and Trip/Follow access</li>
+      </ul>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="monthly">Start Monthly Premium</button>
+    </article>
+
+    <article class="pricing-card pricing-card-featured">
+      <div class="pricing-badge">Best Value</div>
+      <h2>Premium Annual</h2>
+      <div class="pricing-price">$89 <span>/ year</span></div>
+      <p class="pricing-kicker">For Premium access all year</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>General Premium access</li>
+        <li><span class="pricing-check"></span>Premium Save &amp; Send without consuming credits</li>
+        <li><span class="pricing-check"></span>Active Cruise, monitoring, and Trip/Follow access</li>
+      </ul>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="yearly">Start Annual Premium</button>
+    </article>
+  </section>
+
+  <section class="pricing-container pricing-plan-note">
+    <strong>Planning and Basic sending remain free.</strong>
+    <span>A Premium Send Credit activates one complete Premium trip. Monthly and Annual provide general Premium access.</span>
+  </section>
+</main>
+<cfelse>
 <main class="fpw-pricing-page">
   <svg aria-hidden="true" class="fpw-pricing-icons" width="0" height="0" style="position:absolute">
     <symbol id="fpw-icon-users" viewBox="0 0 24 24">
@@ -279,14 +360,12 @@
     </article>
   </section>
 </main>
+</cfif>
 
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/pricing.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/pricing.js?v=20260721-phase3-cutover"></script>
 
 </body>
 </html>
-
-
-

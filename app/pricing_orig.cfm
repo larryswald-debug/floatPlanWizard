@@ -1,4 +1,12 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/fpw_base_path.cfm">
+<cfset pricingOrigCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+)>
+<cfif pricingOrigCreditModelEnabled>
+  <cflocation url="#request.fpwBase#/app/pricing.cfm" addtoken="false" statuscode="302">
+</cfif>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,7 +14,6 @@
   <title>Membership Plans</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/pricing.css?v=20260526-cache-bump">
 </head>

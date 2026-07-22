@@ -30,6 +30,9 @@
         "premiumSendCreditCount" = 0,
         "premiumSendAccessSource" = "none",
         "premiumSendAuthority" = "none",
+        "premiumSendCreditModelEnabled" = false,
+        "oneTripCheckoutAvailable" = false,
+        "oneTripDisplayAmount" = "",
         "canUseActiveCruise" = false,
         "canUseMonitoring" = false,
         "canUseTripPage" = false,
@@ -49,6 +52,9 @@
 
       access.authenticated = true;
       access.userId = val(arguments.userId);
+      access.premiumSendCreditModelEnabled = readApplicationBoolean("premiumSendCreditModelEnabled");
+      access.oneTripCheckoutAvailable = readApplicationBoolean("oneTripCheckoutAvailable");
+      access.oneTripDisplayAmount = readApplicationString("oneTripDisplayAmount");
       access.canUsePlanningTools = true;
       access.canSendBasicFloatPlan = true;
       access.premiumSendCreditCount = getPremiumSendCreditService().countAvailableCredits(arguments.userId);
@@ -502,6 +508,26 @@
       } catch (any e1) {
         return createObject("component", "api.v1.PremiumSendCreditService").init(variables.datasource);
       }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readApplicationBoolean" access="private" returntype="boolean" output="false">
+    <cfargument name="key" type="string" required="true">
+    <cfscript>
+      if (!isDefined("application") OR !structKeyExists(application, arguments.key) OR isNull(application[arguments.key])) {
+        return false;
+      }
+      return listFindNoCase("1,true,yes,on", lCase(trim(toString(application[arguments.key])))) GT 0;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readApplicationString" access="private" returntype="string" output="false">
+    <cfargument name="key" type="string" required="true">
+    <cfscript>
+      if (!isDefined("application") OR !structKeyExists(application, arguments.key) OR isNull(application[arguments.key])) {
+        return "";
+      }
+      return trim(toString(application[arguments.key]));
     </cfscript>
   </cffunction>
 

@@ -13,6 +13,10 @@ topNavFirstName = "";
 topNavLastName = "";
 topNavEmail = "";
 topNavHowHref = "";
+topNavCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+);
 
 if (structKeyExists(request, "fpwBase")) {
   topNavHasRequestBase = true;
@@ -222,7 +226,11 @@ topNavShowAppSubnav = topNavIsLoggedIn
       <div class="fpw-launch-strip">
         <div class="fpw-launch-inner">
           <span class="fpw-launch-icon" aria-hidden="true">#renderFpwNavIcon("launch", "fpw-launch-svg")#</span>
-          <span class="fpw-launch-copy"><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
+          <cfif topNavCreditModelEnabled>
+            <span class="fpw-launch-copy"><strong>Free Membership</strong> &mdash; Full planning and Basic sending included <span aria-hidden="true">&bull;</span> First complete Premium trip included for eligible new members</span>
+          <cfelse>
+            <span class="fpw-launch-copy"><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
+          </cfif>
           <a class="fpw-launch-link" href="#topNavBasePath#/app/join.cfm">Learn More <span aria-hidden="true">&rarr;</span></a>
         </div>
       </div>
@@ -663,7 +671,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
       window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
       window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
     </script>
-    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260721-premium-send-credits"></script>
+    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260722-phase3-cutover-pdf"></script>
     <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260526-cache-bump"></script>
     <script src="#topNavBasePath#/assets/js/app/core.js"></script>
   </cfif>

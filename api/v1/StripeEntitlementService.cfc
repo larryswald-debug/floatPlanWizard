@@ -122,6 +122,27 @@
           grantError.userId = userId;
           return grantError;
         }
+
+        try {
+          createObject("component", "fpw.includes.ProductEventService").init(variables.datasource).recordEvent(
+            userId = userId,
+            eventName = "one_trip_credit_granted",
+            entityType = "user",
+            entityId = userId,
+            eventSource = "stripe_webhook",
+            metadata = {
+              credit_source = "stripe_one_trip"
+            },
+            idempotencyKey = "one_trip_credit_granted:checkout_sha256:" & lCase(hash(checkoutSessionId, "SHA-256"))
+          );
+        } catch (any productEventError) {
+          writeLog(
+            file = "fpw_product_events",
+            type = "error",
+            text = "StripeEntitlementService.cfc PRODUCT_EVENT_CALL_FAILED | event=one_trip_credit_granted"
+          );
+        }
+
         return successResponse("One-trip Premium Send Credit granted.", userId, identifiers);
       }
 

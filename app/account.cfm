@@ -1,5 +1,13 @@
 <cfprocessingdirective pageencoding="utf-8">
 <cfinclude template="../includes/require_auth.cfm">
+<cfset accountCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+)>
+<cfset accountOneTripCheckoutAvailable = (
+  structKeyExists(application, "oneTripCheckoutAvailable")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.oneTripCheckoutAvailable)))) GT 0
+)>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,12 +15,44 @@
   <title>Account Settings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <script>
+    (function () {
+      if (typeof URLSearchParams === "undefined" || !window.history || typeof window.history.replaceState !== "function") return;
+      var params = new URLSearchParams(window.location.search || "");
+      var state = String(params.get("stripe_checkout") || params.get("stripe") || params.get("checkout") || "").trim().toLowerCase();
+      var product = String(params.get("fpw_checkout") || "").trim().toLowerCase();
+      var rawNonce = String(params.get("fpw_return") || "").trim().toLowerCase();
+      var rawPlanId = String(params.get("floatPlanId") || "").trim();
+      var hasCheckoutReturn = state === "success" || state === "cancel" || product === "one_trip" || rawNonce.length > 0;
+      var planId = /^[0-9]+$/.test(rawPlanId) ? (parseInt(rawPlanId, 10) || 0) : 0;
+
+      if (!hasCheckoutReturn) return;
+
+      window.FPW_ONE_TRIP_CHECKOUT_RETURN = {
+        success: state === "success",
+        cancelled: state === "cancel",
+        oneTrip: product === "one_trip",
+        floatPlanId: planId,
+        returnNonce: /^[a-f0-9]{64}$/.test(rawNonce) ? rawNonce : ""
+      };
+
+      ["stripe", "stripe_checkout", "checkout", "fpw_checkout", "floatPlanId", "fpw_return"].forEach(function (key) {
+        params.delete(key);
+      });
+      var query = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        document.title,
+        window.location.pathname + (query ? "?" + query : "") + (window.location.hash || "")
+      );
+    })();
+  </script>
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260526-cache-bump">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260526-cache-bump">
 </head>
 
-<body class="dashboard-body account-body">
+<body class="dashboard-body account-body" data-premium-send-credit-model="<cfoutput>#accountCreditModelEnabled ? 'true' : 'false'#</cfoutput>">
 
 <cfset request.fpwTopNavActive = "account">
 <cfinclude template="../includes/top_nav.cfm">
@@ -118,10 +158,29 @@
             <span class="membership-status-badge" id="membershipBillingStatus">Loading</span>
           </div>
 
-          <div class="membership-billing-actions d-none" id="membershipUpgradeActions">
-            <button class="btn btn-primary btn-sm" type="button" data-membership-upgrade="monthly">Upgrade Monthly</button>
-            <button class="btn btn-outline-primary btn-sm" type="button" data-membership-upgrade="yearly">Upgrade Yearly</button>
-          </div>
+          <cfif accountCreditModelEnabled>
+            <dl class="row small text-muted mb-3" id="membershipAccessDetails">
+              <dt class="col-sm-6">Planning tools</dt>
+              <dd class="col-sm-6" id="membershipPlanningAccess">Loading...</dd>
+              <dt class="col-sm-6">Basic sending</dt>
+              <dd class="col-sm-6" id="membershipBasicSendAccess">Loading...</dd>
+              <dt class="col-sm-6">Premium Send Credits</dt>
+              <dd class="col-sm-6" id="membershipCreditCount">Loading...</dd>
+              <dt class="col-sm-6">Exact active trip</dt>
+              <dd class="col-sm-6" id="membershipExactTripAccess">Loading...</dd>
+            </dl>
+
+            <div class="membership-billing-actions d-none" id="membershipUpgradeActions">
+              <button class="btn btn-primary btn-sm" type="button" data-membership-upgrade="one_trip" data-config-disabled="<cfoutput>#accountOneTripCheckoutAvailable ? 'false' : 'true'#</cfoutput>"<cfif NOT accountOneTripCheckoutAvailable> disabled aria-disabled="true"</cfif>><cfif accountOneTripCheckoutAvailable>Buy One Trip<cfelse>Buy One Trip Unavailable</cfif></button>
+              <button class="btn btn-outline-primary btn-sm" type="button" data-membership-upgrade="monthly">Monthly Membership</button>
+              <button class="btn btn-outline-primary btn-sm" type="button" data-membership-upgrade="yearly">Annual Membership</button>
+            </div>
+          <cfelse>
+            <div class="membership-billing-actions d-none" id="membershipUpgradeActions">
+              <button class="btn btn-primary btn-sm" type="button" data-membership-upgrade="monthly">Upgrade Monthly</button>
+              <button class="btn btn-outline-primary btn-sm" type="button" data-membership-upgrade="yearly">Upgrade Yearly</button>
+            </div>
+          </cfif>
 
           <div class="membership-billing-actions d-none" id="membershipPortalActions">
             <button class="btn btn-primary btn-sm" type="button" id="membershipManageBillingBtn">Manage Billing</button>
@@ -130,10 +189,10 @@
           <p class="small text-muted mt-3 mb-0" id="membershipBillingMessage" aria-live="polite"></p>
 
           <div class="membership-promo-panel mt-4" id="membershipPromoPanel">
-            <h3 class="h6 mb-1">Redeem Launch or Founder Code</h3>
-            <p class="small text-muted mb-3">Enter a Launch or Founder code. Promo codes opens a secure Stripe Checkout, and no credit card is required to start.</p>
+            <h3 class="h6 mb-1"><cfif accountCreditModelEnabled>Redeem Founder or Promotional Code<cfelse>Redeem Launch or Founder Code</cfif></h3>
+            <p class="small text-muted mb-3"><cfif accountCreditModelEnabled>Enter an eligible Founder or promotional code. Existing trial and promotional access remains supported.<cfelse>Enter a Launch or Founder code. Promo codes opens a secure Stripe Checkout, and no credit card is required to start.</cfif></p>
             <form id="promoCodeForm" novalidate>
-              <label class="visually-hidden" for="promoCodeInput">Launch or Founder code</label>
+              <label class="visually-hidden" for="promoCodeInput"><cfif accountCreditModelEnabled>Founder or promotional code<cfelse>Launch or Founder code</cfif></label>
               <div class="membership-promo-input-group">
                 <input type="text" class="form-control" id="promoCodeInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code">
                 <button class="btn btn-outline-primary btn-sm" id="promoCodeRedeemBtn" type="submit">Redeem Code</button>
@@ -213,7 +272,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260528-homeport-phone"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260721-phase3-cutover"></script>
 
 </body>
 </html>

@@ -623,6 +623,381 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("keeps the cutover flag off by default and accepts an explicit true config value", function() {
+        var token = lCase(replace(createUUID(), "-", "", "all"));
+        var disabledPath = getTempDirectory() & "fpw-phase3-disabled-" & token & ".json";
+        var enabledPath = getTempDirectory() & "fpw-phase3-enabled-" & token & ".json";
+        var baseConfig = {
+          "FPW_ENV" = "development",
+          "FPW_STRIPE_SECRET_KEY" = "sk_test_phase3_fake",
+          "FPW_STRIPE_WEBHOOK_SECRET" = "whsec_phase3_fake",
+          "FPW_STRIPE_PRICE_PREMIUM_MONTHLY" = "price_monthly_phase3_fake",
+          "FPW_STRIPE_PRICE_PREMIUM_YEARLY" = "price_yearly_phase3_fake",
+          "FPW_STRIPE_PRICE_THREE_DAY_PASS" = "price_pass_phase3_fake",
+          "FPW_STRIPE_SUCCESS_URL" = "https://fpw.test/app/account.cfm",
+          "FPW_STRIPE_CANCEL_URL" = "https://fpw.test/app/account.cfm",
+          "FPW_STRIPE_PORTAL_RETURN_URL" = "https://fpw.test/app/account.cfm",
+          "FPW_MONITOR_TOKEN" = "phase3-fake-monitor-token"
+        };
+        var enabledConfig = duplicate(baseConfig);
+        var disabledService = "";
+        var enabledService = "";
+        var disabledStatus = {};
+        var enabledStatus = {};
+        var enabledSettings = {};
+
+        enabledConfig["FPW_PREMIUM_SEND_CREDIT_MODEL_ENABLED"] = "true";
+        enabledConfig["FPW_STRIPE_PRICE_ONE_TRIP"] = "price_one_trip_phase3_fake";
+        enabledConfig["FPW_STRIPE_ONE_TRIP_DISPLAY_AMOUNT"] = "$4.99";
+
+        try {
+          fileWrite(disabledPath, serializeJSON(baseConfig), "utf-8");
+          fileWrite(enabledPath, serializeJSON(enabledConfig), "utf-8");
+
+          disabledService = createObject(
+            "component",
+            "fpw.api.v1.StripeConfigService"
+          ).init(disabledPath);
+          enabledService = createObject(
+            "component",
+            "fpw.api.v1.StripeConfigService"
+          ).init(enabledPath);
+
+          disabledStatus = disabledService.getConfigStatus();
+          enabledStatus = enabledService.getConfigStatus();
+          enabledSettings = enabledService.getApplicationSettings();
+
+          expect(disabledStatus.SUCCESS).toBeTrue();
+          expect(disabledService.getPremiumSendCreditModelEnabled()).toBeFalse();
+          expect(disabledStatus.premiumSendCreditModelEnabled).toBeFalse();
+          expect(disabledStatus.oneTripCheckoutAvailable).toBeFalse();
+
+          expect(enabledStatus.SUCCESS).toBeTrue();
+          expect(enabledService.getPremiumSendCreditModelEnabled()).toBeTrue();
+          expect(enabledStatus.premiumSendCreditModelEnabled).toBeTrue();
+          expect(enabledStatus.oneTripCheckoutAvailable).toBeTrue();
+          expect(enabledService.getOneTripDisplayAmount()).toBe("$4.99");
+          expect(enabledSettings.FPW_PREMIUM_SEND_CREDIT_MODEL_ENABLED).toBeTrue();
+        } finally {
+          if (fileExists(disabledPath)) {
+            fileDelete(disabledPath);
+          }
+          if (fileExists(enabledPath)) {
+            fileDelete(enabledPath);
+          }
+        }
+      });
+
+      it("exposes only safe cutover and one-trip capability fields through member access", function() {
+        var fixture = createFixture("phase3-access-contract");
+        var keys = [
+          "premiumSendCreditModelEnabled",
+          "oneTripCheckoutAvailable",
+          "oneTripDisplayAmount"
+        ];
+        var originals = {};
+        var keyName = "";
+        var disabledAccess = {};
+        var enabledAccess = {};
+
+        for (keyName in keys) {
+          if (structKeyExists(application, keyName)) {
+            originals[keyName] = application[keyName];
+          }
+        }
+
+        try {
+          for (keyName in keys) {
+            structDelete(application, keyName, false);
+          }
+
+          disabledAccess = variables.entitlementService.getCurrentAccess(fixture.userId);
+          expect(disabledAccess.premiumSendCreditModelEnabled).toBeFalse();
+          expect(disabledAccess.oneTripCheckoutAvailable).toBeFalse();
+          expect(disabledAccess.oneTripDisplayAmount).toBe("");
+
+          application.premiumSendCreditModelEnabled = true;
+          application.oneTripCheckoutAvailable = true;
+          application.oneTripDisplayAmount = "$4.99";
+
+          enabledAccess = variables.entitlementService.getCurrentAccess(fixture.userId);
+          expect(enabledAccess.premiumSendCreditModelEnabled).toBeTrue();
+          expect(enabledAccess.oneTripCheckoutAvailable).toBeTrue();
+          expect(enabledAccess.oneTripDisplayAmount).toBe("$4.99");
+          expect(structKeyExists(enabledAccess, "FPW_STRIPE_PRICE_ONE_TRIP")).toBeFalse();
+          expect(structKeyExists(enabledAccess, "FPW_STRIPE_SECRET_KEY")).toBeFalse();
+        } finally {
+          for (keyName in keys) {
+            if (structKeyExists(originals, keyName)) {
+              application[keyName] = originals[keyName];
+            } else {
+              structDelete(application, keyName, false);
+            }
+          }
+        }
+      });
+
+      it("builds one-trip Checkout metadata and return URLs through the injected fake transport", function() {
+        var captured = {};
+        var fakeTransport = {};
+        var fakeConfig = {
+          secretKey = "sk_test_phase3_fake",
+          oneTripPriceId = "price_one_trip_phase3_fake",
+          checkoutSuccessUrl = "https://fpw.test/app/account.cfm?existing=1",
+          checkoutCancelUrl = "https://fpw.test/app/account.cfm"
+        };
+        var checkoutService = "";
+        var result = {};
+        var payload = {};
+        var returnNonce = repeatString("a", 64);
+
+        fakeTransport.createCheckoutSession = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.payload = duplicate(arguments.requestPayload);
+          captured.secretKey = arguments.secretKey;
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cs_test_phase3_fake",
+              url = "https://checkout.stripe.test/cs_test_phase3_fake"
+            }
+          };
+        };
+
+        checkoutService = createObject(
+          "component",
+          "fpw.api.v1.StripeCheckoutService"
+        ).init(
+          datasource = variables.datasource,
+          configService = fakeConfig,
+          stripeTransport = fakeTransport
+        );
+        result = checkoutService.createCheckoutSession(
+          userId = 4242,
+          interval = "one_trip",
+          floatPlanId = 9876,
+          returnNonce = returnNonce
+        );
+        payload = captured.payload.formFields;
+
+        expect(result.SUCCESS).toBeTrue();
+        expect(result.stripeCheckoutSessionId).toBe("cs_test_phase3_fake");
+        expect(captured.secretKey).toBe("sk_test_phase3_fake");
+        expect(payload.mode).toBe("payment");
+        expect(payload["line_items[0][price]"]).toBe("price_one_trip_phase3_fake");
+        expect(payload["metadata[fpwProduct]"]).toBe("one_trip");
+        expect(payload["metadata[fpwCreditSource]"]).toBe("stripe_one_trip");
+        expect(payload["metadata[fpwFloatPlanId]"]).toBe("9876");
+        expect(payload["payment_intent_data[metadata][fpwFloatPlanId]"]).toBe("9876");
+        expect(payload.success_url).toBe(
+          "https://fpw.test/app/account.cfm?existing=1&fpw_checkout=one_trip&stripe_checkout=success&fpw_return=" & returnNonce & "&floatPlanId=9876"
+        );
+        expect(payload.cancel_url).toBe(
+          "https://fpw.test/app/account.cfm?fpw_checkout=one_trip&stripe_checkout=cancel&fpw_return=" & returnNonce & "&floatPlanId=9876"
+        );
+        expect(findNoCase("session_id", payload.success_url)).toBe(0);
+      });
+
+      it("keeps failed Stripe Checkout diagnostics out of the public service response", function() {
+        var fakeTransport = {};
+        var fakeConfig = {
+          secretKey = "sk_test_phase3_fake",
+          oneTripPriceId = "price_one_trip_phase3_fake",
+          checkoutSuccessUrl = "https://fpw.test/app/account.cfm",
+          checkoutCancelUrl = "https://fpw.test/app/account.cfm"
+        };
+        var checkoutService = "";
+        var result = {};
+
+        fakeTransport.createCheckoutSession = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          return {
+            SUCCESS = false,
+            statusCode = 400,
+            rawBody = serializeJSON({
+              error = {
+                type = "invalid_request_error",
+                code = "resource_missing",
+                param = "line_items[0][price]",
+                message = "No such price: price_one_trip_phase3_fake"
+              }
+            })
+          };
+        };
+
+        checkoutService = createObject(
+          "component",
+          "fpw.api.v1.StripeCheckoutService"
+        ).init(
+          datasource = variables.datasource,
+          configService = fakeConfig,
+          stripeTransport = fakeTransport
+        );
+        result = checkoutService.createCheckoutSession(
+          userId = 4242,
+          interval = "one_trip",
+          floatPlanId = 9876,
+          returnNonce = repeatString("b", 64)
+        );
+
+        expect(result.SUCCESS).toBeFalse();
+        expect(result.ERROR).toBe("STRIPE_CHECKOUT_FAILED");
+        expect(structKeyExists(result, "stripeRawBody")).toBeFalse();
+        expect(structKeyExists(result, "stripeDebugMessage")).toBeFalse();
+        expect(structKeyExists(result, "debugMessage")).toBeFalse();
+        expect(structKeyExists(result, "stripeRequest_line_items[0][price]")).toBeFalse();
+        expect(structKeyExists(result, "stripeRequest_success_url")).toBeFalse();
+        expect(structKeyExists(result, "stripeRequest_cancel_url")).toBeFalse();
+      });
+
+      it("creates operational Follow streams as token-required invite streams", function() {
+        var voyageSource = fileRead(expandPath("/fpw/api/v1/voyage.cfc"), "utf-8");
+        var floatplanSource = fileRead(expandPath("/fpw/api/v1/floatplan.cfc"), "utf-8");
+        var ownerStart = findNoCase('<cffunction name="ownerEnsureStream"', voyageSource);
+        var ownerEnd = findNoCase("</cffunction>", voyageSource, ownerStart);
+        var helperStart = findNoCase('<cffunction name="ensureVoyageStreamForFloatPlan"', floatplanSource);
+        var helperEnd = findNoCase("</cffunction>", floatplanSource, helperStart);
+        var ownerSource = mid(voyageSource, ownerStart, ownerEnd - ownerStart);
+        var helperSource = mid(floatplanSource, helperStart, helperEnd - helperStart);
+
+        expect(ownerStart).toBeGT(0);
+        expect(ownerEnd).toBeGT(ownerStart);
+        expect(helperStart).toBeGT(0);
+        expect(helperEnd).toBeGT(helperStart);
+        expect(findNoCase("'invite'", ownerSource)).toBeGT(0);
+        expect(findNoCase("'public'", ownerSource)).toBe(0);
+        expect(findNoCase("'invite'", helperSource)).toBeGT(0);
+        expect(findNoCase("'public'", helperSource)).toBe(0);
+      });
+
+      it("keeps one-trip return nonces and masked Stripe credentials inside the log-redaction contract", function() {
+        var applicationSource = fileRead(expandPath("/fpw/Application.cfc"), "utf-8");
+        var checkoutSource = fileRead(expandPath("/fpw/api/v1/StripeCheckoutService.cfc"), "utf-8");
+
+        expect(findNoCase("follower_token,followertoken,fpw_return,password", applicationSource)).toBeGT(0);
+        expect(findNoCase('urlDecode(decodedKey, "utf-8")', applicationSource)).toBeGT(0);
+        expect(find("sk_live_[A-Za-z0-9_*.-]+", applicationSource)).toBeGT(0);
+        expect(find("sk_test_[A-Za-z0-9_*.-]+", applicationSource)).toBeGT(0);
+        expect(find("rk_live_[A-Za-z0-9_*.-]+", applicationSource)).toBeGT(0);
+        expect(find("rk_test_[A-Za-z0-9_*.-]+", applicationSource)).toBeGT(0);
+        expect(find("whsec_[A-Za-z0-9_*.-]+", applicationSource)).toBeGT(0);
+        expect(find("sk_live_[A-Za-z0-9_*.-]+", checkoutSource)).toBeGT(0);
+        expect(find("sk_test_[A-Za-z0-9_*.-]+", checkoutSource)).toBeGT(0);
+        expect(find("rk_live_[A-Za-z0-9_*.-]+", checkoutSource)).toBeGT(0);
+        expect(find("rk_test_[A-Za-z0-9_*.-]+", checkoutSource)).toBeGT(0);
+        expect(find("whsec_[A-Za-z0-9_*.-]+", checkoutSource)).toBeGT(0);
+      });
+
+      it("recognizes the exact Phase 3 event dictionary and stores the signup credit flag as a boolean", function() {
+        var capturedLogs = [];
+        var eventService = createObject(
+          "component",
+          "fpw.includes.ProductEventService"
+        ).init(
+          variables.datasource,
+          { logEntries = capturedLogs }
+        );
+        var definitions = [
+          { name = "sign_up", entityType = "user", source = "member_signup" },
+          { name = "complimentary_credit_granted", entityType = "user", source = "member_signup" },
+          { name = "premium_send_attempted", entityType = "float_plan", source = "premium_save_send" },
+          { name = "premium_send_completed", entityType = "float_plan", source = "premium_save_send" },
+          { name = "premium_send_denied_no_access", entityType = "float_plan", source = "premium_save_send" },
+          { name = "basic_send_completed", entityType = "float_plan", source = "basic_save_send" },
+          { name = "buy_one_trip_clicked", entityType = "user", source = "billing_api" },
+          { name = "one_trip_checkout_created", entityType = "user", source = "billing_api" },
+          { name = "one_trip_credit_granted", entityType = "user", source = "stripe_webhook" },
+          { name = "same_plan_retry_resolved", entityType = "float_plan", source = "premium_save_send" },
+          { name = "monthly_selected", entityType = "user", source = "billing_api" },
+          { name = "annual_selected", entityType = "user", source = "billing_api" }
+        ];
+        var definition = {};
+        var validationResult = {};
+        var unknownResult = {};
+        var fixture = {};
+        var idempotencyKey = "";
+        var storedResult = {};
+        var qStored = queryNew("");
+        var storedMetadata = {};
+
+        for (definition in definitions) {
+          validationResult = eventService.recordEvent(
+            userId = 0,
+            eventName = definition.name,
+            entityType = definition.entityType,
+            entityId = 1,
+            eventSource = definition.source
+          );
+          expect(validationResult.SUCCESS).toBeFalse();
+          expect(validationResult.ERROR).toBe("INVALID_USER_ID");
+        }
+
+        unknownResult = eventService.recordEvent(
+          userId = 0,
+          eventName = "premium_send_credit_invented",
+          entityType = "user",
+          entityId = 1,
+          eventSource = "member_signup"
+        );
+        expect(unknownResult.SUCCESS).toBeFalse();
+        expect(unknownResult.ERROR).toBe("UNKNOWN_EVENT_NAME");
+
+        fixture = createFixture("phase3-event-boolean");
+        idempotencyKey = fixture.marker & ":signup-boolean";
+
+        try {
+          storedResult = eventService.recordEvent(
+            userId = fixture.userId,
+            eventName = "sign_up",
+            entityType = "user",
+            entityId = fixture.userId,
+            eventSource = "member_signup",
+            metadata = {
+              signup_method = "password",
+              account_tier = "basic",
+              onboarding_model = "premium_send_credit",
+              complimentary_premium_send_credit = "TRUE"
+            },
+            idempotencyKey = idempotencyKey
+          );
+          qStored = queryExecute(
+            "SELECT metadata_json
+             FROM product_events
+             WHERE idempotency_key = :idempotencyKey
+             LIMIT 1",
+            {
+              idempotencyKey = {
+                value = idempotencyKey,
+                cfsqltype = "cf_sql_varchar"
+              }
+            },
+            { datasource = variables.datasource }
+          );
+
+          expect(storedResult.SUCCESS).toBeTrue();
+          expect(qStored.recordCount).toBe(1);
+          storedMetadata = deserializeJSON(toString(qStored.metadata_json[1]), false);
+          expect(isBoolean(storedMetadata.complimentary_premium_send_credit)).toBeTrue();
+          expect(serializeJSON(storedMetadata.complimentary_premium_send_credit)).toBe("true");
+        } finally {
+          queryExecute(
+            "DELETE FROM product_events
+             WHERE idempotency_key = :idempotencyKey",
+            {
+              idempotencyKey = {
+                value = idempotencyKey,
+                cfsqltype = "cf_sql_varchar"
+              }
+            },
+            { datasource = variables.datasource }
+          );
+        }
+      });
+
     });
   }
 

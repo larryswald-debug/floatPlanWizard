@@ -155,8 +155,10 @@
       return request("/me.cfc?method=handle", { method: "GET" });
     },
 
-    createPremiumCheckoutSession: function (interval) {
+    createPremiumCheckoutSession: function (interval, floatPlanId) {
       var intervalValue = String(interval || "").trim().toLowerCase();
+      var planId = parseInt(floatPlanId, 10) || 0;
+      var body = { interval: intervalValue };
       if (intervalValue !== "monthly" && intervalValue !== "yearly" && intervalValue !== "three_day_pass" && intervalValue !== "one_trip") {
         return Promise.reject({
           SUCCESS: false,
@@ -167,9 +169,30 @@
           message: "Choose monthly, yearly, one-trip, or 3-Day Pass Premium billing."
         });
       }
+      if (intervalValue === "one_trip" && planId > 0) {
+        body.floatPlanId = planId;
+      }
       return request("/billing.cfc?method=handle&action=createcheckoutsession", {
         method: "POST",
-        body: { interval: intervalValue }
+        body: body
+      });
+    },
+
+    confirmPremiumOneTripCheckout: function (returnNonce) {
+      var nonce = String(returnNonce || "").trim().toLowerCase();
+      if (!/^[a-f0-9]{64}$/.test(nonce)) {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "INVALID_CHECKOUT_CONFIRMATION",
+          errorCode: "INVALID_CHECKOUT_CONFIRMATION",
+          MESSAGE: "One-trip checkout confirmation is invalid.",
+          message: "One-trip checkout confirmation is invalid."
+        });
+      }
+      return request("/billing.cfc?method=handle&action=confirmonetripcheckout", {
+        method: "POST",
+        body: { returnNonce: nonce }
       });
     },
 
@@ -495,25 +518,12 @@
       });
     },
 
-    createFloatPlanPdf: function (floatPlanId) {
-      var path = API_ROOT + "/api_assets/floatPlanUtils.cfc?method=createPDF&floatPlanId=" + encodeURIComponent(floatPlanId);
-      return fetch(path, {
-        method: "GET",
-        credentials: "include"
-      })
-        .then(function (res) {
-          return res.text().then(function (txt) {
-            var trimmed = (txt || "").trim();
-            if (!res.ok || !trimmed || trimmed.toLowerCase() === "false") {
-              throw {
-                MESSAGE: "Unable to generate float plan PDF.",
-                status: res.status || 500,
-                RAW: txt
-              };
-            }
-            return trimmed;
-          });
-        });
+    getFloatPlanPdfPreviewUrl: function (floatPlanId) {
+      var id = parseInt(floatPlanId, 10);
+      if (!(id > 0)) {
+        return "";
+      }
+      return API_BASE + "/floatplan.cfc?method=handle&action=previewpdf&id=" + encodeURIComponent(id);
     }
   };
 

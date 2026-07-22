@@ -452,6 +452,31 @@
     return numeric(params.get("id") || params.get("planId") || params.get("floatPlanId"));
   }
 
+  function getOneTripCheckoutReturn() {
+    var search = window.location.search || "";
+    var state = "";
+    var product = "";
+    if (!search) return "";
+    if (typeof URLSearchParams === "undefined") {
+      var stateMatch = search.match(/[?&]stripe_checkout=(success|cancel)(?:&|$)/i);
+      var productMatch = search.match(/[?&]fpw_checkout=one_trip(?:&|$)/i);
+      return stateMatch && productMatch ? String(stateMatch[1]).toLowerCase() : "";
+    }
+    var params = new URLSearchParams(search);
+    state = String(params.get("stripe_checkout") || "").trim().toLowerCase();
+    product = String(params.get("fpw_checkout") || "").trim().toLowerCase();
+    return product === "one_trip" && (state === "success" || state === "cancel") ? state : "";
+  }
+
+  function clearOneTripCheckoutReturnFromLocation() {
+    if (!window.history || typeof window.history.replaceState !== "function" || typeof URLSearchParams === "undefined") return;
+    var params = new URLSearchParams(window.location.search || "");
+    params.delete("stripe_checkout");
+    params.delete("fpw_checkout");
+    var query = params.toString();
+    window.history.replaceState({}, document.title, window.location.pathname + (query ? "?" + query : "") + (window.location.hash || ""));
+  }
+
   function sortByOrder(list, field) {
     return list.sort(function (a, b) {
       return numeric(a[field]) - numeric(b[field]);
@@ -765,7 +790,11 @@
       initialPlanId = getPlanIdFromQuery();
     }
     var totalSteps = numeric(options.totalSteps || 0) || 6;
-    var initialStep = numeric(options.startStep || 1);
+    var oneTripCheckoutReturn = getOneTripCheckoutReturn();
+    if (oneTripCheckoutReturn) {
+      clearOneTripCheckoutReturnFromLocation();
+    }
+    var initialStep = oneTripCheckoutReturn ? totalSteps : numeric(options.startStep || 1);
     if (initialStep < 1) {
       initialStep = 1;
     }
@@ -852,6 +881,10 @@
       canSendPremiumFloatPlan: function () {
         return this.hasCommittedPremiumSend
           || truthyAccessValue(memberAccessValue(this.memberAccess, "canSendPremiumFloatPlan", false));
+      },
+
+      oneTripCheckoutAvailable: function () {
+        return truthyAccessValue(memberAccessValue(this.memberAccess, "oneTripCheckoutAvailable", false));
       },
 
       premiumSendAvailabilityMessage: function () {
@@ -1663,6 +1696,11 @@
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
             self.isLoading = false;
             self.clearStatus();
+            if (oneTripCheckoutReturn === "success") {
+              self.setStatus("Checkout completed. Your Premium Send Credit is available; this Draft has not been sent.", true);
+            } else if (oneTripCheckoutReturn === "cancel") {
+              self.setStatus("Checkout was canceled. Your Draft is saved and has not been sent.", false);
+            }
             self.requestRouteReturnSuggestion();
             if (self.step === self.totalSteps) {
               self.loadPdfPreview();
@@ -1792,14 +1830,24 @@
           this.setStatus("Choose Buy One Trip, Monthly Membership, or Annual Membership.", false);
           return;
         }
+        if (selector === "one_trip" && !this.oneTripCheckoutAvailable) {
+          this.setStatus("Buy One Trip is not configured right now. Your Draft remains saved; Monthly and Annual remain available.", false);
+          return;
+        }
         if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
           this.setStatus("Premium checkout is not available right now.", false);
           return;
         }
 
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track(
+            selector === "one_trip" ? "buy_one_trip_clicked" : (selector === "monthly" ? "monthly_selected" : "annual_selected"),
+            { source: "premium_send_review" }
+          );
+        }
         this.checkoutBusy = true;
         this.setStatus("Opening secure Stripe Checkout...", true);
-        window.Api.createPremiumCheckoutSession(selector)
+        window.Api.createPremiumCheckoutSession(selector, selector === "one_trip" ? this.getPlanId() : 0)
           .then(function (response) {
             var checkoutUrl = response && (response.checkoutUrl || response.CHECKOUT_URL)
               ? String(response.checkoutUrl || response.CHECKOUT_URL)

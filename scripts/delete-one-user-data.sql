@@ -74,6 +74,11 @@ WHERE @fpw_delete_execute = 1
 
 START TRANSACTION;
 
+SELECT userId
+FROM users
+WHERE userId = @fpw_delete_target_user_id
+FOR UPDATE;
+
 DROP TEMPORARY TABLE IF EXISTS _fpw_delete_floatplans;
 CREATE TEMPORARY TABLE _fpw_delete_floatplans (
   floatplan_id INT NOT NULL PRIMARY KEY
@@ -83,6 +88,42 @@ INSERT IGNORE INTO _fpw_delete_floatplans (floatplan_id)
 SELECT floatPlanId
 FROM floatplans
 WHERE TRIM(CAST(userId AS CHAR)) = CAST(@fpw_delete_target_user_id AS CHAR);
+
+SELECT floatPlanId
+FROM floatplans
+WHERE floatPlanId IN (SELECT floatplan_id FROM _fpw_delete_floatplans)
+FOR UPDATE;
+
+SET @fpw_delete_premium_send_credit_count = (
+  SELECT COUNT(*)
+  FROM premium_send_credits
+  WHERE user_id = @fpw_delete_target_user_id
+     OR consumed_float_plan_id IN (SELECT floatplan_id FROM _fpw_delete_floatplans)
+);
+SET @fpw_delete_premium_send_receipt_count = (
+  SELECT COUNT(*)
+  FROM premium_send_receipts
+  WHERE user_id = @fpw_delete_target_user_id
+     OR float_plan_id IN (SELECT floatplan_id FROM _fpw_delete_floatplans)
+);
+SET @fpw_delete_premium_send_history_count =
+  @fpw_delete_premium_send_credit_count + @fpw_delete_premium_send_receipt_count;
+
+SELECT
+  'premium_send_history_guard' AS step,
+  IF(
+    @fpw_delete_premium_send_history_count > 0,
+    'PREMIUM_SEND_HISTORY_DELETE_BLOCKED',
+    'OK'
+  ) AS error_code,
+  @fpw_delete_premium_send_credit_count AS premium_send_credit_count,
+  @fpw_delete_premium_send_receipt_count AS premium_send_receipt_count;
+
+-- The supported wrapper does not use mysql --force. A duplicate guard key aborts
+-- before any DELETE when retained Premium Send history exists.
+INSERT INTO _fpw_delete_guard (id)
+SELECT 1
+WHERE @fpw_delete_premium_send_history_count > 0;
 
 DROP TEMPORARY TABLE IF EXISTS _fpw_delete_user_routes;
 CREATE TEMPORARY TABLE _fpw_delete_user_routes (

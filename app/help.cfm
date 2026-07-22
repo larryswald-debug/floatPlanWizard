@@ -1,4 +1,8 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfset helpCreditModelEnabled = (
+  structKeyExists(application, "premiumSendCreditModelEnabled")
+  AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+)>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,12 +70,12 @@
 
           <div class="fpw-help-grid">
             <article>
-              <h3>Free Basic trips</h3>
-              <p>Use a Basic Float Plan for a simple same-day trip. Basic trips are one-day plans without a saved route and include basic monitoring.</p>
+              <h3><cfif helpCreditModelEnabled>Free planning and Basic trips<cfelse>Free Basic trips</cfif></h3>
+              <p><cfif helpCreditModelEnabled>Free membership includes Route Builder, saved routes, boating details, multiple Drafts, and Basic float-plan sending. Use a Basic Float Plan for a simple same-day trip without a saved route.<cfelse>Use a Basic Float Plan for a simple same-day trip. Basic trips are one-day plans without a saved route and include basic monitoring.</cfif></p>
             </article>
             <article>
               <h3>Premium route trips</h3>
-              <p>Premium adds saved routes, Custom Route Generator, Active Cruise, Follow Page sharing, mobile check-ins, multi-day trips, and advanced monitoring.</p>
+              <p><cfif helpCreditModelEnabled>A Premium Send Credit or general Premium activates one complete Premium trip with Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access. Planning and saved routes remain free.<cfelse>Premium adds saved routes, Custom Route Generator, Active Cruise, Follow Page sharing, mobile check-ins, multi-day trips, and advanced monitoring.</cfif></p>
             </article>
           </div>
 
@@ -89,7 +93,7 @@
           <ol class="fpw-help-steps">
             <li>Sign in or create your account.</li>
             <li>Add the boat, captain, operator, trip contact, and passenger details needed for your plan.</li>
-            <li>Choose a Basic Float Plan for a simple same-day trip, or create a route if your membership includes route planning.</li>
+            <li><cfif helpCreditModelEnabled>Choose a Basic Float Plan for a simple same-day trip, or build a saved route and prepare a route-based Draft.<cfelse>Choose a Basic Float Plan for a simple same-day trip, or create a route if your membership includes route planning.</cfif></li>
             <li>Review the departure, destination, expected timing, contacts, and safety details before sending.</li>
             <li>Tell your contacts how you will communicate if your plan changes.</li>
             <li>Check current marine conditions before departure and keep using official weather sources.</li>
@@ -106,7 +110,7 @@
         <div class="fpw-help-card">
           <p class="fpw-help-section-label">Planning workspace</p>
           <h2>Dashboard</h2>
-          <p>The Dashboard is your main planning workspace. It is where you manage trip setup, review current trip status, create a Basic Float Plan, and work with routes when your membership includes route tools.</p>
+          <p><cfif helpCreditModelEnabled>The Dashboard is your main planning workspace. It is where you manage trip setup, review current trip status, create a Basic Float Plan, and work with saved routes and route tools included with free membership.<cfelse>The Dashboard is your main planning workspace. It is where you manage trip setup, review current trip status, create a Basic Float Plan, and work with routes when your membership includes route tools.</cfif></p>
 
           <div class="fpw-help-grid">
             <article>
@@ -115,11 +119,11 @@
             </article>
             <article>
               <h3>Routes and saved trips</h3>
-              <p>Premium route tools let you create and reuse boating routes, review legs, and prepare Custom Route Generator.</p>
+              <p><cfif helpCreditModelEnabled>Free membership includes tools to create and reuse boating routes, review legs, and prepare route-based Draft float plans.<cfelse>Premium route tools let you create and reuse boating routes, review legs, and prepare Custom Route Generator.</cfif></p>
             </article>
             <article>
               <h3>Basic Float Plan</h3>
-              <p>Basic members can create a one-day float plan for a simple trip without creating a saved route.</p>
+              <p><cfif helpCreditModelEnabled>Every member can create and send a Basic one-day float plan for a simple trip without creating a saved route.<cfelse>Basic members can create a one-day float plan for a simple trip without creating a saved route.</cfif></p>
             </article>
             <article>
               <h3>Before you send</h3>
@@ -309,11 +313,11 @@
           <div class="fpw-help-faq">
             <details>
               <summary>I do not see Active Cruise.</summary>
-              <p>Active Cruise is for Premium route-based trips. Make sure you are signed in, your membership includes Active Cruise, and your route-based float plan is active.</p>
+              <p><cfif helpCreditModelEnabled>Active Cruise is for an exact route-based plan activated through Premium Save &amp; Send or covered by general Premium. Make sure you are signed in and that float plan is active.<cfelse>Active Cruise is for Premium route-based trips. Make sure you are signed in, your membership includes Active Cruise, and your route-based float plan is active.</cfif></p>
             </details>
             <details>
               <summary>I do not see a Trip status page.</summary>
-              <p>Follow Page sharing is a Premium feature for route-based trips. Open your Dashboard and use the Follow sharing action when it is available for your active trip.</p>
+              <p><cfif helpCreditModelEnabled>Follow Page sharing is included for the exact route-based plan activated through Premium Save &amp; Send or covered by general Premium. Open your Dashboard and use the Follow sharing action for that active trip.<cfelse>Follow Page sharing is a Premium feature for route-based trips. Open your Dashboard and use the Follow sharing action when it is available for your active trip.</cfif></p>
             </details>
             <details>
               <summary>My contact did not get an email.</summary>

@@ -399,7 +399,7 @@
                         {{ isSaving ? 'Sending...' : (hasCommittedPremiumSend ? 'Show Original Premium Send Result' : 'Premium Save &amp; Send') }}
                     </button>
                     <div v-else class="d-grid gap-2">
-                        <button type="button" class="btn btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy">Buy One Trip</button>
+                        <button type="button" class="btn btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy || !oneTripCheckoutAvailable">{{ oneTripCheckoutAvailable ? 'Buy One Trip' : 'Buy One Trip Unavailable' }}</button>
                         <button type="button" class="btn btn-outline-primary" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
                         <button type="button" class="btn btn-outline-primary" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
                     </div>
@@ -428,7 +428,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-premium-send-credits"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-phase3-cutover"></script>
 
 </body>
 </html>

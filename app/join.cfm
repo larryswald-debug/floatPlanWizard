@@ -1,4 +1,8 @@
 <cfsetting enablecfoutputonly="false" showdebugoutput="false">
+<cfset joinCreditModelEnabled = (
+    structKeyExists(application, "premiumSendCreditModelEnabled")
+    AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+)>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,8 +75,13 @@
                     <div class="fpw-signup-benefit">
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
-                            <strong>Premium route tools included for your first month</strong>
-                            <span>Plan with waypoints, routes, Active Cruise pages, and a private Trip status page.</span>
+                            <cfif joinCreditModelEnabled>
+                                <strong>Your first complete Premium trip is included</strong>
+                                <span>Planning is free. Use one included trip for Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access.</span>
+                            <cfelse>
+                                <strong>Premium route tools included for your first month</strong>
+                                <span>Plan with waypoints, routes, Active Cruise pages, and a private Trip status page.</span>
+                            </cfif>
                         </div>
                     </div>
 
@@ -108,12 +117,21 @@
                 <div class="fpw-signup-user-icon" aria-hidden="true">👤</div>
                 <div>
                     <h2>Create your free FPW account</h2>
-                    <p>
-                        Start with one free month of Premium tools &mdash; no credit card required.
-                    </p>
-                    <p class="fpw-form-header-note">
-                        Your free month gives you access to custom route tools, Active Cruise pages, and a private Trip status page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.
-                    </p>
+                    <cfif joinCreditModelEnabled>
+                        <p>
+                            FPW membership is free. Plan routes, save your boating information, and send Basic float plans at no cost.
+                        </p>
+                        <p class="fpw-form-header-note">
+                            Your first complete Premium trip is included for eligible new members, with Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access. Additional Premium trips are available individually or through monthly and annual membership.
+                        </p>
+                    <cfelse>
+                        <p>
+                            Start with one free month of Premium tools &mdash; no credit card required.
+                        </p>
+                        <p class="fpw-form-header-note">
+                            Your free month gives you access to custom route tools, Active Cruise pages, and a private Trip status page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.
+                        </p>
+                    </cfif>
                 </div>
             </div>
 
@@ -264,7 +282,7 @@
                 <div>
                     <span aria-hidden="true">🔒</span>
                     <strong>No credit card required</strong>
-                    <small>Free trial after signup</small>
+                    <small><cfif joinCreditModelEnabled>Free membership after signup<cfelse>Free trial after signup</cfif></small>
                 </div>
                 <div>
                     <span aria-hidden="true">✓</span>

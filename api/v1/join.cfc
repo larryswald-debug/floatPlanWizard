@@ -93,7 +93,13 @@
                 <cfabort>
             </cfif>
 
-            <cfset redirectUrl = resolveFpwBasePath() & "/app/start-trial.cfm?offer=launch_trial">
+            <cfset premiumSendCreditModelEnabled = (
+                structKeyExists(application, "premiumSendCreditModelEnabled")
+                AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
+            )>
+            <cfset redirectUrl = premiumSendCreditModelEnabled
+                ? resolveFpwBasePath() & "/app/dashboard.cfm?onboarding=premium_send_credit"
+                : resolveFpwBasePath() & "/app/start-trial.cfm?offer=launch_trial">
 
             <!-- Validate required fields -->
             <cfif NOT len(firstName) OR NOT len(lastName) OR NOT len(email)>
@@ -272,44 +278,26 @@
                     WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#newUserId#">
                 </cfquery>
 
-                <cftry>
-                    <cfset creditService = createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw")>
-                    <cfcatch>
-                        <cfset creditService = createObject("component", "api.v1.PremiumSendCreditService").init("fpw")>
-                    </cfcatch>
-                </cftry>
-                <cfset creditGrant = creditService.grantCreditInCurrentTransaction(
-                    userId = newUserId,
-                    source = "complimentary_signup",
-                    idempotencyKey = "complimentary_signup:user:" & newUserId
-                )>
-                <cfif NOT creditGrant.SUCCESS>
-                    <cfthrow
-                        type="FPW.Signup.PremiumSendCreditGrantFailed"
-                        message="#creditGrant.MESSAGE#"
-                        detail="#creditGrant.ERROR#">
+                <cfif premiumSendCreditModelEnabled>
+                    <cftry>
+                        <cfset creditService = createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw")>
+                        <cfcatch>
+                            <cfset creditService = createObject("component", "api.v1.PremiumSendCreditService").init("fpw")>
+                        </cfcatch>
+                    </cftry>
+                    <cfset creditGrant = creditService.grantCreditInCurrentTransaction(
+                        userId = newUserId,
+                        source = "complimentary_signup",
+                        idempotencyKey = "complimentary_signup:user:" & newUserId
+                    )>
+                    <cfif NOT creditGrant.SUCCESS>
+                        <cfthrow
+                            type="FPW.Signup.PremiumSendCreditGrantFailed"
+                            message="#creditGrant.MESSAGE#"
+                            detail="#creditGrant.ERROR#">
+                    </cfif>
                 </cfif>
             </cftransaction>
-
-            <cftry>
-                <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
-                    userId = newUserId,
-                    eventName = "sign_up",
-                    entityType = "user",
-                    entityId = newUserId,
-                    eventSource = "member_signup",
-                    metadata = {
-                        signup_method = "password",
-                        account_tier = "basic",
-                        complimentary_premium_send_credit = true
-                    },
-                    idempotencyKey = "sign_up:user:" & newUserId,
-                    requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
-                )>
-                <cfcatch type="any">
-                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
-                </cfcatch>
-            </cftry>
 
             <cfset session.user = {
                 id = newUserId,
@@ -326,6 +314,45 @@
                 lastLogin = nowStamp,
                 LASTLOGIN = nowStamp
             }>
+
+            <cftry>
+                <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                    userId = newUserId,
+                    eventName = "sign_up",
+                    entityType = "user",
+                    entityId = newUserId,
+                    eventSource = "member_signup",
+                    metadata = {
+                        signup_method = "password",
+                        account_tier = "basic",
+                        onboarding_model = premiumSendCreditModelEnabled ? "premium_send_credit" : "legacy_trial",
+                        complimentary_premium_send_credit = premiumSendCreditModelEnabled
+                    },
+                    idempotencyKey = "sign_up:user:" & newUserId,
+                    requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                )>
+                <cfcatch type="any">
+                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
+                </cfcatch>
+            </cftry>
+
+            <cfif premiumSendCreditModelEnabled>
+                <cftry>
+                    <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                        userId = newUserId,
+                        eventName = "complimentary_credit_granted",
+                        entityType = "user",
+                        entityId = newUserId,
+                        eventSource = "member_signup",
+                        metadata = { credit_source = "complimentary_signup" },
+                        idempotencyKey = "complimentary_credit_granted:user:" & newUserId,
+                        requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                    )>
+                    <cfcatch type="any">
+                        <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=complimentary_credit_granted">
+                    </cfcatch>
+                </cftry>
+            </cfif>
 
             <cftry>
                 <cfset createObject("component", "fpw.api.v1.email").init().sendWelcomeMemberEmail(

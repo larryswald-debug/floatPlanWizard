@@ -63,6 +63,19 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getOneTripDisplayAmount" access="public" returntype="string" output="false">
+    <cfscript>
+      return getOptionalValue("FPW_STRIPE_ONE_TRIP_DISPLAY_AMOUNT");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getPremiumSendCreditModelEnabled" access="public" returntype="boolean" output="false">
+    <cfscript>
+      var value = lCase(getOptionalValue("FPW_PREMIUM_SEND_CREDIT_MODEL_ENABLED"));
+      return listFindNoCase("1,true,yes,on", value) GT 0;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getCheckoutSuccessUrl" access="public" returntype="string" output="false">
     <cfscript>
       return getRequiredValue("FPW_STRIPE_SUCCESS_URL");
@@ -113,6 +126,8 @@
         "FPW_STRIPE_PRICE_PREMIUM_YEARLY" = getPremiumYearlyPriceId(),
         "FPW_STRIPE_PRICE_THREE_DAY_PASS" = getThreeDayPassPriceId(),
         "FPW_STRIPE_PRICE_ONE_TRIP" = getOneTripPriceId(),
+        "FPW_STRIPE_ONE_TRIP_DISPLAY_AMOUNT" = getOneTripDisplayAmount(),
+        "FPW_PREMIUM_SEND_CREDIT_MODEL_ENABLED" = getPremiumSendCreditModelEnabled(),
         "FPW_STRIPE_SUCCESS_URL" = getCheckoutSuccessUrl(),
         "FPW_STRIPE_CANCEL_URL" = getCheckoutCancelUrl(),
         "FPW_STRIPE_PORTAL_RETURN_URL" = getBillingPortalReturnUrl(),
@@ -135,6 +150,9 @@
         "hasPremiumYearlyPriceId" = false,
         "hasThreeDayPassPriceId" = false,
         "hasOneTripPriceId" = false,
+        "hasOneTripDisplayAmount" = false,
+        "premiumSendCreditModelEnabled" = false,
+        "oneTripCheckoutAvailable" = false,
         "hasCheckoutSuccessUrl" = false,
         "hasCheckoutCancelUrl" = false,
         "hasBillingPortalReturnUrl" = false,
@@ -155,6 +173,9 @@
       response["hasPremiumYearlyPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_PREMIUM_YEARLY")) GT 0;
       response["hasThreeDayPassPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_THREE_DAY_PASS")) GT 0;
       response["hasOneTripPriceId"] = len(readValue(loadResult.config, "FPW_STRIPE_PRICE_ONE_TRIP")) GT 0;
+      response["hasOneTripDisplayAmount"] = len(readValue(loadResult.config, "FPW_STRIPE_ONE_TRIP_DISPLAY_AMOUNT")) GT 0;
+      response["premiumSendCreditModelEnabled"] = listFindNoCase("1,true,yes,on", lCase(readValue(loadResult.config, "FPW_PREMIUM_SEND_CREDIT_MODEL_ENABLED"))) GT 0;
+      response["oneTripCheckoutAvailable"] = response["premiumSendCreditModelEnabled"] AND response["hasOneTripPriceId"] AND response["hasOneTripDisplayAmount"];
       response["hasCheckoutSuccessUrl"] = len(readValue(loadResult.config, "FPW_STRIPE_SUCCESS_URL")) GT 0;
       response["hasCheckoutCancelUrl"] = len(readValue(loadResult.config, "FPW_STRIPE_CANCEL_URL")) GT 0;
       response["hasBillingPortalReturnUrl"] = len(readValue(loadResult.config, "FPW_STRIPE_PORTAL_RETURN_URL")) GT 0;
