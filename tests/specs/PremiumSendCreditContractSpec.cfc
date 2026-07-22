@@ -737,8 +737,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
-      it("builds one-trip Checkout metadata and return URLs through the injected fake transport", function() {
+      it("binds one-trip Checkout to the authenticated member Stripe Customer", function() {
         var captured = {};
+        var fixture = createFixture("one-trip-stripe-customer");
         var fakeTransport = {};
         var fakeConfig = {
           secretKey = "sk_test_phase3_fake",
@@ -748,13 +749,50 @@ component extends="testbox.system.BaseSpec" output="false" {
         };
         var checkoutService = "";
         var result = {};
+        var replayResult = {};
         var payload = {};
+        var qMapping = queryNew("");
         var returnNonce = repeatString("a", 64);
+
+        captured.customerCreateCalls = 0;
+        captured.customerUpdateCalls = 0;
+        captured.checkoutCalls = 0;
+
+        fakeTransport.createCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.customerCreateCalls++;
+          captured.customerCreatePayload = duplicate(arguments.requestPayload);
+          captured.customerCreateSecretKey = arguments.secretKey;
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_phase3_member_customer"
+            }
+          };
+        };
+
+        fakeTransport.updateCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.customerUpdateCalls++;
+          captured.customerUpdatePayload = duplicate(arguments.requestPayload);
+          captured.customerUpdateSecretKey = arguments.secretKey;
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_phase3_member_customer"
+            }
+          };
+        };
 
         fakeTransport.createCheckoutSession = function(
           required struct requestPayload,
           required string secretKey
         ) {
+          captured.checkoutCalls++;
           captured.payload = duplicate(arguments.requestPayload);
           captured.secretKey = arguments.secretKey;
           return {
@@ -775,7 +813,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           stripeTransport = fakeTransport
         );
         result = checkoutService.createCheckoutSession(
-          userId = 4242,
+          userId = fixture.userId,
           interval = "one_trip",
           floatPlanId = 9876,
           returnNonce = returnNonce
@@ -785,8 +823,18 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(result.SUCCESS).toBeTrue();
         expect(result.stripeCheckoutSessionId).toBe("cs_test_phase3_fake");
         expect(captured.secretKey).toBe("sk_test_phase3_fake");
+        expect(captured.customerCreateCalls).toBe(1);
+        expect(captured.customerUpdateCalls).toBe(0);
+        expect(captured.customerCreateSecretKey).toBe("sk_test_phase3_fake");
+        expect(captured.customerCreatePayload.formFields.email).toBe(fixture.email);
+        expect(captured.customerCreatePayload.formFields.name).toBe("Codex Premium Send Contract Test");
+        expect(captured.customerCreatePayload.formFields["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(captured.customerCreatePayload.formFields["metadata[source]"]).toBe("one_trip_checkout");
         expect(payload.mode).toBe("payment");
+        expect(payload.customer).toBe("cus_test_phase3_member_customer");
         expect(payload["line_items[0][price]"]).toBe("price_one_trip_phase3_fake");
+        expect(payload.client_reference_id).toBe(toString(fixture.userId));
+        expect(payload["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
         expect(payload["metadata[fpwProduct]"]).toBe("one_trip");
         expect(payload["metadata[fpwCreditSource]"]).toBe("stripe_one_trip");
         expect(payload["metadata[fpwFloatPlanId]"]).toBe("9876");
@@ -798,9 +846,40 @@ component extends="testbox.system.BaseSpec" output="false" {
           "https://fpw.test/app/account.cfm?fpw_checkout=one_trip&stripe_checkout=cancel&fpw_return=" & returnNonce & "&floatPlanId=9876"
         );
         expect(findNoCase("session_id", payload.success_url)).toBe(0);
+
+        qMapping = queryExecute(
+          "SELECT stripe_customer_id, email_snapshot, name_snapshot, source
+           FROM user_stripe_customers
+           WHERE user_id = :userId
+           LIMIT 1",
+          {
+            userId = { value = fixture.userId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = variables.datasource }
+        );
+        expect(qMapping.recordCount).toBe(1);
+        expect(qMapping.stripe_customer_id[1]).toBe("cus_test_phase3_member_customer");
+        expect(qMapping.email_snapshot[1]).toBe(fixture.email);
+        expect(qMapping.name_snapshot[1]).toBe("Codex Premium Send Contract Test");
+        expect(qMapping.source[1]).toBe("one_trip_checkout");
+
+        replayResult = checkoutService.createCheckoutSession(
+          userId = fixture.userId,
+          interval = "one_trip",
+          floatPlanId = 9876,
+          returnNonce = returnNonce
+        );
+        expect(replayResult.SUCCESS).toBeTrue();
+        expect(captured.customerCreateCalls).toBe(1);
+        expect(captured.customerUpdateCalls).toBe(1);
+        expect(captured.checkoutCalls).toBe(2);
+        expect(captured.customerUpdatePayload.url).toBe("https://api.stripe.com/v1/customers/cus_test_phase3_member_customer");
+        expect(captured.customerUpdatePayload.formFields.email).toBe(fixture.email);
+        expect(captured.payload.formFields.customer).toBe("cus_test_phase3_member_customer");
       });
 
       it("keeps failed Stripe Checkout diagnostics out of the public service response", function() {
+        var fixture = createFixture("failed-stripe-checkout");
         var fakeTransport = {};
         var fakeConfig = {
           secretKey = "sk_test_phase3_fake",
@@ -810,6 +889,18 @@ component extends="testbox.system.BaseSpec" output="false" {
         };
         var checkoutService = "";
         var result = {};
+
+        fakeTransport.createCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_phase3_failed_checkout"
+            }
+          };
+        };
 
         fakeTransport.createCheckoutSession = function(
           required struct requestPayload,
@@ -838,7 +929,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           stripeTransport = fakeTransport
         );
         result = checkoutService.createCheckoutSession(
-          userId = 4242,
+          userId = fixture.userId,
           interval = "one_trip",
           floatPlanId = 9876,
           returnNonce = repeatString("b", 64)
@@ -1232,6 +1323,16 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
     queryExecute(
       "DELETE FROM member_entitlements
+       WHERE user_id IN (
+         SELECT userId
+         FROM users
+         WHERE email LIKE :emailPattern
+       )",
+      params,
+      { datasource = variables.datasource }
+    );
+    queryExecute(
+      "DELETE FROM user_stripe_customers
        WHERE user_id IN (
          SELECT userId
          FROM users

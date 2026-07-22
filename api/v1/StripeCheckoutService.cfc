@@ -30,6 +30,9 @@
       var selectedPriceId = "";
       var successUrl = "";
       var cancelUrl = "";
+      var qUser = queryNew("");
+      var customerResult = {};
+      var stripeCustomerId = "";
       var requestPayload = {};
       var stripeResult = {};
       var stripePayload = {};
@@ -54,7 +57,24 @@
       if (intervalValue EQ "three_day_pass") {
         requestPayload = buildStripeThreeDayPassRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
       } else if (intervalValue EQ "one_trip") {
-        requestPayload = buildStripeOneTripRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl, arguments.floatPlanId, arguments.returnNonce);
+        qUser = loadStripeUser(userIdValue);
+        if (qUser.recordCount EQ 0) {
+          return errorResponse("USER_NOT_FOUND", "Account could not be loaded for Checkout.");
+        }
+        customerResult = ensureStripeCustomerForUser(userIdValue, qUser, secretKey, "one_trip_checkout");
+        if (!structKeyExists(customerResult, "SUCCESS") OR customerResult.SUCCESS NEQ true) {
+          return customerResult;
+        }
+        stripeCustomerId = trim(toString(customerResult.stripeCustomerId));
+        requestPayload = buildStripeOneTripRequestPayload(
+          userIdValue,
+          selectedPriceId,
+          successUrl,
+          cancelUrl,
+          arguments.floatPlanId,
+          arguments.returnNonce,
+          stripeCustomerId
+        );
       } else {
         requestPayload = buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
       }
@@ -409,6 +429,7 @@
     <cfargument name="cancelUrl" type="string" required="true">
     <cfargument name="floatPlanId" type="numeric" required="false" default="0">
     <cfargument name="returnNonce" type="string" required="false" default="">
+    <cfargument name="stripeCustomerId" type="string" required="true">
     <cfscript>
       var userIdText = toString(int(val(arguments.userId)));
       var floatPlanIdValue = int(val(arguments.floatPlanId));
@@ -423,6 +444,7 @@
         "url" = "https://api.stripe.com/v1/checkout/sessions",
         "formFields" = {
           "mode" = "payment",
+          "customer" = trim(arguments.stripeCustomerId),
           "line_items[0][price]" = trim(arguments.priceId),
           "line_items[0][quantity]" = "1",
           "success_url" = successUrlValue,
@@ -722,9 +744,12 @@
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="qUser" type="query" required="true">
     <cfargument name="secretKey" type="string" required="true">
+    <cfargument name="source" type="string" required="false" default="fpw_signup">
     <cfscript>
       var mappedCustomerId = loadMappedStripeCustomerIdForUser(arguments.userId);
       var fallbackCustomerId = "";
+      var sourceValue = len(trim(arguments.source)) ? trim(arguments.source) : "fpw_signup";
+      var migratedSourceValue = left(sourceValue & "_migrated", 80);
       var requestPayload = {};
       var stripeResult = {};
       var stripePayload = {};
@@ -732,23 +757,23 @@
       var response = {};
 
       if (len(mappedCustomerId)) {
-        requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers/" & encodeForURL(mappedCustomerId), "fpw_signup");
+        requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers/" & encodeForURL(mappedCustomerId), sourceValue);
         stripeResult = executeStripeCustomerUpdateRequest(requestPayload, arguments.secretKey);
         if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
           response = errorResponse("STRIPE_CUSTOMER_UPDATE_FAILED", "Stripe customer could not be updated for this account.");
           addStripeCheckoutDebug(response, stripeResult, requestPayload, "customer_update", arguments.userId, "");
           return response;
         }
-        storeUserStripeCustomerMapping(arguments.userId, mappedCustomerId, arguments.qUser, "fpw_signup");
+        storeUserStripeCustomerMapping(arguments.userId, mappedCustomerId, arguments.qUser, sourceValue);
         return stripeCustomerResponse(mappedCustomerId, false);
       }
 
       fallbackCustomerId = loadLegacyStripeCustomerIdForUser(arguments.userId);
       if (len(fallbackCustomerId)) {
-        if (!storeUserStripeCustomerMapping(arguments.userId, fallbackCustomerId, arguments.qUser, "fpw_signup_migrated")) {
+        if (!storeUserStripeCustomerMapping(arguments.userId, fallbackCustomerId, arguments.qUser, migratedSourceValue)) {
           return errorResponse("STRIPE_CUSTOMER_MAPPING_CONFLICT", "Stripe customer is already linked to a different account.");
         }
-        requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers/" & encodeForURL(fallbackCustomerId), "fpw_signup_migrated");
+        requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers/" & encodeForURL(fallbackCustomerId), migratedSourceValue);
         stripeResult = executeStripeCustomerUpdateRequest(requestPayload, arguments.secretKey);
         if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
           response = errorResponse("STRIPE_CUSTOMER_UPDATE_FAILED", "Stripe customer could not be updated for this account.");
@@ -758,7 +783,7 @@
         return stripeCustomerResponse(fallbackCustomerId, false);
       }
 
-      requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers", "fpw_signup");
+      requestPayload = buildStripeCustomerRequestPayload(arguments.userId, arguments.qUser, "https://api.stripe.com/v1/customers", sourceValue);
       stripeResult = executeStripeCustomerCreateRequest(requestPayload, arguments.secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
         response = errorResponse("STRIPE_CUSTOMER_CREATE_FAILED", "Stripe customer could not be created for this account.");
@@ -770,7 +795,7 @@
       if (!len(stripeCustomerId) OR left(stripeCustomerId, 4) NEQ "cus_") {
         return errorResponse("STRIPE_CUSTOMER_CREATE_FAILED", "Stripe customer response was incomplete.");
       }
-      if (!storeUserStripeCustomerMapping(arguments.userId, stripeCustomerId, arguments.qUser, "fpw_signup")) {
+      if (!storeUserStripeCustomerMapping(arguments.userId, stripeCustomerId, arguments.qUser, sourceValue)) {
         return errorResponse("STRIPE_CUSTOMER_MAPPING_CONFLICT", "Stripe customer is already linked to a different account.");
       }
       return stripeCustomerResponse(stripeCustomerId, true);

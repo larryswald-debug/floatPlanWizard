@@ -149,6 +149,15 @@
         )
       </cfquery>
       <cfquery datasource="fpw">
+        DELETE FROM user_stripe_customers
+        WHERE user_id IN (
+          SELECT userId
+          FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
         DELETE FROM floatplans
         WHERE userId IN (
           SELECT CAST(userId AS CHAR)
