@@ -955,6 +955,141 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(find("Annual Premium membership is active through Stripe.", accountSource)).toBeGT(0);
       });
 
+      it("binds Monthly and Annual Checkout to the authenticated member Stripe Customer", function() {
+        var captured = {};
+        var fixture = createFixture("subscription-stripe-customer");
+        var fakeTransport = {};
+        var fakeConfig = {
+          secretKey = "sk_test_phase3_fake",
+          premiumMonthlyPriceId = "price_monthly_phase3_fake",
+          premiumYearlyPriceId = "price_yearly_phase3_fake",
+          checkoutSuccessUrl = "https://fpw.test/app/account.cfm",
+          checkoutCancelUrl = "https://fpw.test/app/account.cfm"
+        };
+        var checkoutService = "";
+        var monthlyResult = {};
+        var yearlyResult = {};
+        var monthlyPayload = {};
+        var yearlyPayload = {};
+        var qMapping = queryNew("");
+
+        captured.customerCreateCalls = 0;
+        captured.customerUpdateCalls = 0;
+        captured.checkoutCalls = 0;
+        captured.checkoutPayloads = [];
+
+        fakeTransport.createCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.customerCreateCalls++;
+          captured.customerCreatePayload = duplicate(arguments.requestPayload);
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_subscription_member_customer"
+            }
+          };
+        };
+
+        fakeTransport.updateCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.customerUpdateCalls++;
+          captured.customerUpdatePayload = duplicate(arguments.requestPayload);
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_subscription_member_customer"
+            }
+          };
+        };
+
+        fakeTransport.createCheckoutSession = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.checkoutCalls++;
+          arrayAppend(captured.checkoutPayloads, duplicate(arguments.requestPayload));
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cs_test_subscription_" & captured.checkoutCalls,
+              url = "https://checkout.stripe.test/cs_test_subscription_" & captured.checkoutCalls
+            }
+          };
+        };
+
+        checkoutService = createObject(
+          "component",
+          "fpw.api.v1.StripeCheckoutService"
+        ).init(
+          datasource = variables.datasource,
+          configService = fakeConfig,
+          stripeTransport = fakeTransport
+        );
+
+        monthlyResult = checkoutService.createCheckoutSession(
+          userId = fixture.userId,
+          interval = "monthly"
+        );
+        yearlyResult = checkoutService.createCheckoutSession(
+          userId = fixture.userId,
+          interval = "yearly"
+        );
+        monthlyPayload = captured.checkoutPayloads[1].formFields;
+        yearlyPayload = captured.checkoutPayloads[2].formFields;
+
+        expect(monthlyResult.SUCCESS).toBeTrue();
+        expect(monthlyResult.stripeCheckoutSessionId).toBe("cs_test_subscription_1");
+        expect(yearlyResult.SUCCESS).toBeTrue();
+        expect(yearlyResult.stripeCheckoutSessionId).toBe("cs_test_subscription_2");
+        expect(captured.customerCreateCalls).toBe(1);
+        expect(captured.customerUpdateCalls).toBe(1);
+        expect(captured.checkoutCalls).toBe(2);
+        expect(captured.customerCreatePayload.formFields.email).toBe(fixture.email);
+        expect(captured.customerCreatePayload.formFields.name).toBe("Codex Premium Send Contract Test");
+        expect(captured.customerCreatePayload.formFields["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(captured.customerCreatePayload.formFields["metadata[source]"]).toBe("subscription_checkout");
+        expect(captured.customerUpdatePayload.url).toBe(
+          "https://api.stripe.com/v1/customers/cus_test_subscription_member_customer"
+        );
+        expect(captured.customerUpdatePayload.formFields.email).toBe(fixture.email);
+
+        expect(monthlyPayload.mode).toBe("subscription");
+        expect(monthlyPayload.customer).toBe("cus_test_subscription_member_customer");
+        expect(monthlyPayload["line_items[0][price]"]).toBe("price_monthly_phase3_fake");
+        expect(monthlyPayload.client_reference_id).toBe(toString(fixture.userId));
+        expect(monthlyPayload["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(monthlyPayload["subscription_data[metadata][fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(structKeyExists(monthlyPayload, "customer_email")).toBeFalse();
+
+        expect(yearlyPayload.mode).toBe("subscription");
+        expect(yearlyPayload.customer).toBe("cus_test_subscription_member_customer");
+        expect(yearlyPayload["line_items[0][price]"]).toBe("price_yearly_phase3_fake");
+        expect(yearlyPayload.client_reference_id).toBe(toString(fixture.userId));
+        expect(yearlyPayload["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(yearlyPayload["subscription_data[metadata][fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(structKeyExists(yearlyPayload, "customer_email")).toBeFalse();
+
+        qMapping = queryExecute(
+          "SELECT stripe_customer_id, email_snapshot, name_snapshot, source
+           FROM user_stripe_customers
+           WHERE user_id = :userId
+           LIMIT 1",
+          {
+            userId = { value = fixture.userId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = variables.datasource }
+        );
+        expect(qMapping.recordCount).toBe(1);
+        expect(qMapping.stripe_customer_id[1]).toBe("cus_test_subscription_member_customer");
+        expect(qMapping.email_snapshot[1]).toBe(fixture.email);
+        expect(qMapping.name_snapshot[1]).toBe("Codex Premium Send Contract Test");
+        expect(qMapping.source[1]).toBe("subscription_checkout");
+      });
+
       it("binds one-trip Checkout to the authenticated member Stripe Customer", function() {
         var captured = {};
         var fixture = createFixture("one-trip-stripe-customer");
