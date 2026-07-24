@@ -24,6 +24,7 @@
         "premiumEntitlementId" = 0,
         "premiumSources" = [],
         "hasStripeBilling" = false,
+        "stripeSubscriptionInterval" = "",
         "canUsePlanningTools" = false,
         "canSendBasicFloatPlan" = false,
         "canSendPremiumFloatPlan" = false,
@@ -45,6 +46,7 @@
       };
       var qPremium = queryNew("");
       var activeTripSummary = {};
+      var premiumStripePriceId = nullValue();
 
       if (arguments.userId LTE 0) {
         return access;
@@ -82,6 +84,12 @@
         access.premiumSource = normalizeEntitlementSource(qPremium.source[1]);
         access.premiumExpiresAt = queryValueOrNull(qPremium, "expires_at_utc", 1);
         access.premiumEntitlementId = val(qPremium.id[1]);
+        if (access.premiumSource EQ "stripe_subscription") {
+          premiumStripePriceId = queryValueOrNull(qPremium, "stripe_price_id", 1);
+          if (!isNull(premiumStripePriceId)) {
+            access.stripeSubscriptionInterval = resolveStripeSubscriptionInterval(premiumStripePriceId);
+          }
+        }
         access.canSendPremiumFloatPlan = true;
         access.premiumSendAccessSource = "general_premium";
         access.premiumSendAuthority = "general_premium";
@@ -257,7 +265,8 @@
             source,
             status,
             starts_at_utc,
-            expires_at_utc
+            expires_at_utc,
+            stripe_price_id
          FROM member_entitlements
          WHERE user_id = :userId
            AND entitlement_type = 'premium'
@@ -281,6 +290,32 @@
         },
         { datasource = variables.datasource }
       );
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveStripeSubscriptionInterval" access="private" returntype="string" output="false">
+    <cfargument name="stripePriceId" type="string" required="false" default="">
+    <cfscript>
+      var priceId = trim(arguments.stripePriceId);
+      var configService = "";
+      var monthlyPriceId = "";
+      var yearlyPriceId = "";
+
+      if (!len(priceId)) {
+        return "";
+      }
+
+      configService = new fpw.api.v1.StripeConfigService().init();
+      monthlyPriceId = trim(configService.getPremiumMonthlyPriceId());
+      yearlyPriceId = trim(configService.getPremiumYearlyPriceId());
+
+      if (len(monthlyPriceId) AND compare(priceId, monthlyPriceId) EQ 0) {
+        return "monthly";
+      }
+      if (len(yearlyPriceId) AND compare(priceId, yearlyPriceId) EQ 0) {
+        return "annual";
+      }
+      return "";
     </cfscript>
   </cffunction>
 
