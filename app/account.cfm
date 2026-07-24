@@ -272,7 +272,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260721-phase3-cutover"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260723-membership-type"></script>
 
 </body>
 </html>

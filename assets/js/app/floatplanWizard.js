@@ -532,7 +532,8 @@
   var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
   var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
   var NA_RESCUE_CENTER_ID = -1;
-  var NA_RESCUE_AUTHORITY_LABEL = "N/A - Not Applicable";
+  var NA_RESCUE_AUTHORITY_LABEL = "N/A - Call 911";
+  var NA_RESCUE_AUTHORITY_PHONE = "911";
 
   function normalizeRouteDefaults(source) {
     var defaults = {
@@ -1417,7 +1418,7 @@
 
         if (selectedId === NA_RESCUE_CENTER_ID) {
           this.fp.FLOATPLAN.RESCUE_AUTHORITY = NA_RESCUE_AUTHORITY_LABEL;
-          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "";
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = NA_RESCUE_AUTHORITY_PHONE;
         } else if (match) {
           this.fp.FLOATPLAN.RESCUE_AUTHORITY = match.rcName || "";
           this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = match.rcPhone || "";
@@ -1456,7 +1457,10 @@
         var storedCenterId = numeric(this.fp.FLOATPLAN.RESCUE_CENTERID);
         var matchId = 0;
 
-        if (storedCenterId === NA_RESCUE_CENTER_ID || (authority === NA_RESCUE_AUTHORITY_LABEL && !phone)) {
+        if (
+          storedCenterId === NA_RESCUE_CENTER_ID ||
+          (authority === NA_RESCUE_AUTHORITY_LABEL && phone === NA_RESCUE_AUTHORITY_PHONE)
+        ) {
           matchId = NA_RESCUE_CENTER_ID;
         } else if (storedCenterId !== 0) {
           for (var j = 0; j < this.rescueCenters.length; j++) {

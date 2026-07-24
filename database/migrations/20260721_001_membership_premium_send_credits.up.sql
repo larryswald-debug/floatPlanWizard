@@ -96,7 +96,8 @@ CREATE TABLE `premium_send_receipts` (
   `credit_id` BIGINT UNSIGNED NULL,
   `access_source` VARCHAR(32) NOT NULL,
   `recipient_count` INT UNSIGNED NOT NULL,
-  `original_response_json` JSON NOT NULL,
+  `original_response_json` LONGTEXT
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `committed_at_utc` DATETIME(6) NOT NULL,
   `created_at_utc` DATETIME(6) NOT NULL,
   PRIMARY KEY (`id`),
@@ -122,5 +123,7 @@ CREATE TABLE `premium_send_receipts` (
       (`access_source` = 'premium_send_credit' AND `credit_id` IS NOT NULL)
     ),
   CONSTRAINT `chk_premium_send_receipts_recipient_count`
-    CHECK (`recipient_count` > 0)
+    CHECK (`recipient_count` > 0),
+  CONSTRAINT `chk_premium_send_receipts_response_json`
+    CHECK (JSON_VALID(`original_response_json`))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -3,12 +3,16 @@ component extends="testbox.system.BaseSpec" output="false" {
   variables.datasource = "fpw";
   variables.fixtureEmailPrefix = "codex-premium-send-contract-";
 
+  function beforeAll() {
+    cleanupFixtures();
+  }
+
+  function afterAll() {
+    cleanupFixtures();
+  }
+
   function run() {
     describe("Premium Send Credit service and access contract", function() {
-
-      beforeAll(function() {
-        cleanupFixtures();
-      });
 
       beforeEach(function() {
         cleanupFixtures();
@@ -27,10 +31,6 @@ component extends="testbox.system.BaseSpec" output="false" {
       });
 
       afterEach(function() {
-        cleanupFixtures();
-      });
-
-      afterAll(function() {
         cleanupFixtures();
       });
 
@@ -737,6 +737,525 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("keeps subscription checkout inactive until a subscription lifecycle event activates Premium", function() {
+        var fixture = createFixture("subscription-activation");
+        var stripeService = createObject(
+          "component",
+          "fpw.api.v1.StripeEntitlementService"
+        ).init(variables.datasource);
+        var stripeCustomerId = "cus_test_subscription_" & fixture.userId;
+        var stripeSubscriptionId = "sub_test_subscription_" & fixture.userId;
+        var stripeCheckoutSessionId = "cs_test_subscription_" & fixture.userId;
+        var stripeConfigService = createObject(
+          "component",
+          "fpw.api.v1.StripeConfigService"
+        ).init();
+        var stripePriceId = stripeConfigService.getPremiumMonthlyPriceId();
+        var annualStripePriceId = stripeConfigService.getPremiumYearlyPriceId();
+        var checkoutResult = stripeService.processVerifiedEvent({
+          id = "evt_test_checkout_" & fixture.userId,
+          type = "checkout.session.completed",
+          data = {
+            object = {
+              id = stripeCheckoutSessionId,
+              mode = "subscription",
+              client_reference_id = toString(fixture.userId),
+              customer = stripeCustomerId,
+              subscription = stripeSubscriptionId,
+              payment_status = "paid",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              }
+            }
+          }
+        });
+        var pendingAccess = variables.entitlementService.getCurrentAccess(fixture.userId);
+        var qPending = queryExecute(
+          "SELECT
+             status,
+             stripe_subscription_status,
+             stripe_price_id,
+             (starts_at_utc = expires_at_utc) AS timestamps_match
+           FROM member_entitlements
+           WHERE user_id = :userId
+             AND source = 'stripe_subscription'
+             AND stripe_subscription_id = :stripeSubscriptionId
+           LIMIT 1",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            stripeSubscriptionId = {
+              value = stripeSubscriptionId,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+
+        expect(checkoutResult.SUCCESS).toBeTrue();
+        expect(qPending.recordCount).toBe(1);
+        expect(qPending.status[1]).toBe("inactive");
+        expect(qPending.stripe_subscription_status[1]).toBe("");
+        expect(qPending.stripe_price_id[1]).toBe("");
+        expect(val(qPending.timestamps_match[1])).toBe(1);
+        expect(pendingAccess.hasGeneralPremium).toBeFalse();
+
+        var subscriptionResult = stripeService.processVerifiedEvent({
+          id = "evt_test_subscription_" & fixture.userId,
+          type = "customer.subscription.created",
+          data = {
+            object = {
+              id = stripeSubscriptionId,
+              customer = stripeCustomerId,
+              status = "active",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              },
+              items = {
+                data = [
+                  {
+                    price = {
+                      id = stripePriceId
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        });
+        var activeAccess = variables.entitlementService.getCurrentAccess(fixture.userId);
+        var qActive = queryExecute(
+          "SELECT
+             status,
+             stripe_subscription_status,
+             stripe_price_id,
+             (expires_at_utc IS NULL) AS expiration_is_null
+           FROM member_entitlements
+           WHERE user_id = :userId
+             AND source = 'stripe_subscription'
+             AND stripe_subscription_id = :stripeSubscriptionId
+           LIMIT 1",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            stripeSubscriptionId = {
+              value = stripeSubscriptionId,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+        var qEvents = queryExecute(
+          "SELECT processing_status, COUNT(*) AS event_count
+           FROM stripe_webhook_events
+           WHERE user_id = :userId
+             AND stripe_event_id IN (:checkoutEventId, :subscriptionEventId)
+           GROUP BY processing_status",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            checkoutEventId = {
+              value = "evt_test_checkout_" & fixture.userId,
+              cfsqltype = "cf_sql_varchar"
+            },
+            subscriptionEventId = {
+              value = "evt_test_subscription_" & fixture.userId,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+
+        expect(subscriptionResult.SUCCESS).toBeTrue();
+        expect(qActive.recordCount).toBe(1);
+        expect(qActive.status[1]).toBe("active");
+        expect(qActive.stripe_subscription_status[1]).toBe("active");
+        expect(qActive.stripe_price_id[1]).toBe(stripePriceId);
+        expect(val(qActive.expiration_is_null[1])).toBe(1);
+        expect(activeAccess.hasPremium).toBeTrue();
+        expect(activeAccess.hasGeneralPremium).toBeTrue();
+        expect(activeAccess.premiumSource).toBe("stripe_subscription");
+        expect(activeAccess.stripeSubscriptionInterval).toBe("monthly");
+        expect(qEvents.recordCount).toBe(1);
+        expect(qEvents.processing_status[1]).toBe("processed");
+        expect(val(qEvents.event_count[1])).toBe(2);
+
+        var monthlyAdminDetail = createObject(
+          "component",
+          "fpw.api.v1.AdminMemberEntitlementService"
+        ).init(variables.datasource).getMemberDetail(fixture.userId);
+        expect(monthlyAdminDetail.SUCCESS).toBeTrue();
+        expect(monthlyAdminDetail.DATA.effectiveAccess.stripeSubscriptionInterval).toBe("monthly");
+        expect(monthlyAdminDetail.DATA.entitlements[1].stripeSubscriptionInterval).toBe("monthly");
+        expect(monthlyAdminDetail.DATA.entitlements[1].membershipTypeLabel).toBe("Monthly Membership");
+
+        var annualSubscriptionResult = stripeService.processVerifiedEvent({
+          id = "evt_test_subscription_annual_" & fixture.userId,
+          type = "customer.subscription.updated",
+          data = {
+            object = {
+              id = stripeSubscriptionId,
+              customer = stripeCustomerId,
+              status = "active",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              },
+              items = {
+                data = [
+                  {
+                    price = {
+                      id = annualStripePriceId
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        });
+        var annualAccess = variables.entitlementService.getCurrentAccess(fixture.userId);
+
+        expect(annualSubscriptionResult.SUCCESS).toBeTrue();
+        expect(annualAccess.stripeSubscriptionInterval).toBe("annual");
+
+        var annualAdminDetail = createObject(
+          "component",
+          "fpw.api.v1.AdminMemberEntitlementService"
+        ).init(variables.datasource).getMemberDetail(fixture.userId);
+        expect(annualAdminDetail.SUCCESS).toBeTrue();
+        expect(annualAdminDetail.DATA.effectiveAccess.stripeSubscriptionInterval).toBe("annual");
+        expect(annualAdminDetail.DATA.entitlements[1].stripeSubscriptionInterval).toBe("annual");
+        expect(annualAdminDetail.DATA.entitlements[1].membershipTypeLabel).toBe("Annual Membership");
+      });
+
+      it("keeps concurrent checkout and subscription events on one entitlement row", function() {
+        var fixture = createFixture("subscription-concurrency");
+        var stripeCustomerId = "cus_test_subscription_concurrency_" & fixture.userId;
+        var stripeSubscriptionId = "sub_test_subscription_concurrency_" & fixture.userId;
+        var stripeCheckoutSessionId = "cs_test_subscription_concurrency_" & fixture.userId;
+        var stripePriceId = createObject(
+          "component",
+          "fpw.api.v1.StripeConfigService"
+        ).init().getPremiumMonthlyPriceId();
+        var checkoutEvent = {
+          id = "evt_test_checkout_concurrency_" & fixture.userId,
+          type = "checkout.session.completed",
+          data = {
+            object = {
+              id = stripeCheckoutSessionId,
+              mode = "subscription",
+              client_reference_id = toString(fixture.userId),
+              customer = stripeCustomerId,
+              subscription = stripeSubscriptionId,
+              payment_status = "paid",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              }
+            }
+          }
+        };
+        var subscriptionEvent = {
+          id = "evt_test_subscription_concurrency_" & fixture.userId,
+          type = "customer.subscription.created",
+          data = {
+            object = {
+              id = stripeSubscriptionId,
+              customer = stripeCustomerId,
+              status = "active",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              },
+              items = {
+                data = [
+                  {
+                    price = {
+                      id = stripePriceId
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        };
+        var threadToken = replace(createUUID(), "-", "", "all");
+        var checkoutThreadName = "fpw_checkout_" & threadToken;
+        var subscriptionThreadName = "fpw_subscription_" & threadToken;
+        var qEntitlement = queryNew("");
+        var qEvents = queryNew("");
+        var access = {};
+
+        thread
+          name = checkoutThreadName
+          action = "run"
+          datasource = variables.datasource
+          eventJson = serializeJSON(checkoutEvent)
+        {
+          var service = createObject(
+            "component",
+            "fpw.api.v1.StripeEntitlementService"
+          ).init(attributes.datasource);
+          thread.result = service.processVerifiedEvent(
+            deserializeJSON(attributes.eventJson)
+          );
+        }
+
+        thread
+          name = subscriptionThreadName
+          action = "run"
+          datasource = variables.datasource
+          eventJson = serializeJSON(subscriptionEvent)
+        {
+          var service = createObject(
+            "component",
+            "fpw.api.v1.StripeEntitlementService"
+          ).init(attributes.datasource);
+          thread.result = service.processVerifiedEvent(
+            deserializeJSON(attributes.eventJson)
+          );
+        }
+
+        thread action = "join" name = checkoutThreadName;
+        thread action = "join" name = subscriptionThreadName;
+
+        expect(cfthread[checkoutThreadName].result.SUCCESS).toBeTrue();
+        expect(cfthread[subscriptionThreadName].result.SUCCESS).toBeTrue();
+
+        qEntitlement = queryExecute(
+          "SELECT
+             COUNT(*) AS entitlement_count,
+             MAX(status) AS entitlement_status,
+             MAX(stripe_subscription_status) AS subscription_status,
+             MAX(stripe_price_id) AS stripe_price_id,
+             MAX(stripe_checkout_session_id) AS stripe_checkout_session_id
+           FROM member_entitlements
+           WHERE user_id = :userId
+             AND source = 'stripe_subscription'
+             AND stripe_subscription_id = :stripeSubscriptionId",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            stripeSubscriptionId = {
+              value = stripeSubscriptionId,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+        qEvents = queryExecute(
+          "SELECT COUNT(*) AS event_count
+           FROM stripe_webhook_events
+           WHERE user_id = :userId
+             AND stripe_event_id IN (:checkoutEventId, :subscriptionEventId)
+             AND processing_status = 'processed'",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            checkoutEventId = {
+              value = checkoutEvent.id,
+              cfsqltype = "cf_sql_varchar"
+            },
+            subscriptionEventId = {
+              value = subscriptionEvent.id,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+        access = variables.entitlementService.getCurrentAccess(fixture.userId);
+
+        expect(val(qEntitlement.entitlement_count[1])).toBe(1);
+        expect(qEntitlement.entitlement_status[1]).toBe("active");
+        expect(qEntitlement.subscription_status[1]).toBe("active");
+        expect(qEntitlement.stripe_price_id[1]).toBe(stripePriceId);
+        expect(qEntitlement.stripe_checkout_session_id[1]).toBe(stripeCheckoutSessionId);
+        expect(val(qEvents.event_count[1])).toBe(2);
+        expect(access.stripeSubscriptionInterval).toBe("monthly");
+      });
+
+      it("keeps the development Stripe listener aligned with every handled lifecycle event", function() {
+        var listenerSource = fileRead(
+          expandPath("/fpw/scripts/start-stripe-listener-dev.sh"),
+          "utf-8"
+        );
+        var expectedEvents = [
+          "checkout.session.completed",
+          "checkout.session.async_payment_succeeded",
+          "customer.subscription.created",
+          "customer.subscription.updated",
+          "customer.subscription.paused",
+          "customer.subscription.resumed",
+          "customer.subscription.deleted",
+          "invoice.payment_succeeded",
+          "invoice.payment_failed"
+        ];
+        var eventType = "";
+
+        expect(find(
+          "http://localhost:8500/fpw/api/v1/stripeWebhook.cfc?method=handle",
+          listenerSource
+        )).toBeGT(0);
+        for (eventType in expectedEvents) {
+          expect(find(eventType, listenerSource)).toBeGT(0);
+        }
+      });
+
+      it("renders normalized Monthly and Annual membership types in the account summary", function() {
+        var accountSource = fileRead(
+          expandPath("/fpw/assets/js/app/account.js"),
+          "utf-8"
+        );
+
+        expect(find("stripeSubscriptionInterval", accountSource)).toBeGT(0);
+        expect(find("Monthly Member", accountSource)).toBeGT(0);
+        expect(find("Monthly Premium membership is active through Stripe.", accountSource)).toBeGT(0);
+        expect(find("Annual Member", accountSource)).toBeGT(0);
+        expect(find("Annual Premium membership is active through Stripe.", accountSource)).toBeGT(0);
+      });
+
+      it("binds Monthly and Annual Checkout to the authenticated member Stripe Customer", function() {
+        var captured = {};
+        var fixture = createFixture("subscription-stripe-customer");
+        var fakeTransport = {};
+        var fakeConfig = {
+          secretKey = "sk_test_phase3_fake",
+          premiumMonthlyPriceId = "price_monthly_phase3_fake",
+          premiumYearlyPriceId = "price_yearly_phase3_fake",
+          checkoutSuccessUrl = "https://fpw.test/app/account.cfm",
+          checkoutCancelUrl = "https://fpw.test/app/account.cfm"
+        };
+        var checkoutService = "";
+        var monthlyResult = {};
+        var yearlyResult = {};
+        var monthlyPayload = {};
+        var yearlyPayload = {};
+        var qMapping = queryNew("");
+
+        captured.customerCreateCalls = 0;
+        captured.customerUpdateCalls = 0;
+        captured.checkoutCalls = 0;
+        captured.checkoutPayloads = [];
+
+        fakeTransport.createCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.customerCreateCalls++;
+          captured.customerCreatePayload = duplicate(arguments.requestPayload);
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_subscription_member_customer"
+            }
+          };
+        };
+
+        fakeTransport.updateCustomer = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.customerUpdateCalls++;
+          captured.customerUpdatePayload = duplicate(arguments.requestPayload);
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cus_test_subscription_member_customer"
+            }
+          };
+        };
+
+        fakeTransport.createCheckoutSession = function(
+          required struct requestPayload,
+          required string secretKey
+        ) {
+          captured.checkoutCalls++;
+          arrayAppend(captured.checkoutPayloads, duplicate(arguments.requestPayload));
+          return {
+            SUCCESS = true,
+            body = {
+              id = "cs_test_subscription_" & captured.checkoutCalls,
+              url = "https://checkout.stripe.test/cs_test_subscription_" & captured.checkoutCalls
+            }
+          };
+        };
+
+        checkoutService = createObject(
+          "component",
+          "fpw.api.v1.StripeCheckoutService"
+        ).init(
+          datasource = variables.datasource,
+          configService = fakeConfig,
+          stripeTransport = fakeTransport
+        );
+
+        monthlyResult = checkoutService.createCheckoutSession(
+          userId = fixture.userId,
+          interval = "monthly"
+        );
+        yearlyResult = checkoutService.createCheckoutSession(
+          userId = fixture.userId,
+          interval = "yearly"
+        );
+        monthlyPayload = captured.checkoutPayloads[1].formFields;
+        yearlyPayload = captured.checkoutPayloads[2].formFields;
+
+        expect(monthlyResult.SUCCESS).toBeTrue();
+        expect(monthlyResult.stripeCheckoutSessionId).toBe("cs_test_subscription_1");
+        expect(yearlyResult.SUCCESS).toBeTrue();
+        expect(yearlyResult.stripeCheckoutSessionId).toBe("cs_test_subscription_2");
+        expect(captured.customerCreateCalls).toBe(1);
+        expect(captured.customerUpdateCalls).toBe(1);
+        expect(captured.checkoutCalls).toBe(2);
+        expect(captured.customerCreatePayload.formFields.email).toBe(fixture.email);
+        expect(captured.customerCreatePayload.formFields.name).toBe("Codex Premium Send Contract Test");
+        expect(captured.customerCreatePayload.formFields["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(captured.customerCreatePayload.formFields["metadata[source]"]).toBe("subscription_checkout");
+        expect(captured.customerUpdatePayload.url).toBe(
+          "https://api.stripe.com/v1/customers/cus_test_subscription_member_customer"
+        );
+        expect(captured.customerUpdatePayload.formFields.email).toBe(fixture.email);
+
+        expect(monthlyPayload.mode).toBe("subscription");
+        expect(monthlyPayload.customer).toBe("cus_test_subscription_member_customer");
+        expect(monthlyPayload["line_items[0][price]"]).toBe("price_monthly_phase3_fake");
+        expect(monthlyPayload.client_reference_id).toBe(toString(fixture.userId));
+        expect(monthlyPayload["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(monthlyPayload["subscription_data[metadata][fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(structKeyExists(monthlyPayload, "customer_email")).toBeFalse();
+
+        expect(yearlyPayload.mode).toBe("subscription");
+        expect(yearlyPayload.customer).toBe("cus_test_subscription_member_customer");
+        expect(yearlyPayload["line_items[0][price]"]).toBe("price_yearly_phase3_fake");
+        expect(yearlyPayload.client_reference_id).toBe(toString(fixture.userId));
+        expect(yearlyPayload["metadata[fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(yearlyPayload["subscription_data[metadata][fpwUserId]"]).toBe(toString(fixture.userId));
+        expect(structKeyExists(yearlyPayload, "customer_email")).toBeFalse();
+
+        qMapping = queryExecute(
+          "SELECT stripe_customer_id, email_snapshot, name_snapshot, source
+           FROM user_stripe_customers
+           WHERE user_id = :userId
+           LIMIT 1",
+          {
+            userId = { value = fixture.userId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = variables.datasource }
+        );
+        expect(qMapping.recordCount).toBe(1);
+        expect(qMapping.stripe_customer_id[1]).toBe("cus_test_subscription_member_customer");
+        expect(qMapping.email_snapshot[1]).toBe(fixture.email);
+        expect(qMapping.name_snapshot[1]).toBe("Codex Premium Send Contract Test");
+        expect(qMapping.source[1]).toBe("subscription_checkout");
+      });
+
       it("binds one-trip Checkout to the authenticated member Stripe Customer", function() {
         var captured = {};
         var fixture = createFixture("one-trip-stripe-customer");
@@ -1313,6 +1832,16 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
     queryExecute(
       "DELETE FROM premium_send_credits
+       WHERE user_id IN (
+         SELECT userId
+         FROM users
+         WHERE email LIKE :emailPattern
+       )",
+      params,
+      { datasource = variables.datasource }
+    );
+    queryExecute(
+      "DELETE FROM stripe_webhook_events
        WHERE user_id IN (
          SELECT userId
          FROM users

@@ -252,6 +252,15 @@
     return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
   }
 
+  function getStripeSubscriptionInterval(access) {
+    var value = String(pick(access, [
+      "stripeSubscriptionInterval",
+      "STRIPESUBSCRIPTIONINTERVAL"
+    ], "") || "").trim().toLowerCase();
+    if (value === "monthly" || value === "annual") return value;
+    return "";
+  }
+
   function setBillingStatus(label, statusKey) {
     var el = $("membershipBillingStatus");
     if (!el) return;
@@ -304,6 +313,7 @@
     var hasPremium = hasPremiumAccess(access);
     var premiumSource = getPremiumSource(access);
     var premiumSources = getPremiumSources(access);
+    var stripeSubscriptionInterval = getStripeSubscriptionInterval(access);
     var hasStripeBillingMapping = hasStripeBilling(access) || premiumSources.indexOf("stripe_subscription") !== -1;
     var creditModelEnabled = truthyAccessValue(pick(access, ["premiumSendCreditModelEnabled", "PREMIUMSENDCREDITMODELENABLED"], false));
     var creditCount = getPremiumSendCreditCount(access);
@@ -358,7 +368,15 @@
     }
 
     if (premiumSource === "stripe_subscription") {
-      if (summary) summary.textContent = "Premium access is active through a Stripe subscription.";
+      if (stripeSubscriptionInterval === "monthly") {
+        setBillingStatus("Monthly Member", "premium");
+        if (summary) summary.textContent = "Monthly Premium membership is active through Stripe.";
+      } else if (stripeSubscriptionInterval === "annual") {
+        setBillingStatus("Annual Member", "premium");
+        if (summary) summary.textContent = "Annual Premium membership is active through Stripe.";
+      } else {
+        if (summary) summary.textContent = "Premium access is active through a Stripe subscription.";
+      }
       if (portalActions) portalActions.classList.remove("d-none");
       return;
     }

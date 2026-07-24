@@ -76,7 +76,22 @@
           stripeCustomerId
         );
       } else {
-        requestPayload = buildStripeRequestPayload(userIdValue, selectedPriceId, successUrl, cancelUrl);
+        qUser = loadStripeUser(userIdValue);
+        if (qUser.recordCount EQ 0) {
+          return errorResponse("USER_NOT_FOUND", "Account could not be loaded for Checkout.");
+        }
+        customerResult = ensureStripeCustomerForUser(userIdValue, qUser, secretKey, "subscription_checkout");
+        if (!structKeyExists(customerResult, "SUCCESS") OR customerResult.SUCCESS NEQ true) {
+          return customerResult;
+        }
+        stripeCustomerId = trim(toString(customerResult.stripeCustomerId));
+        requestPayload = buildStripeRequestPayload(
+          userIdValue,
+          selectedPriceId,
+          successUrl,
+          cancelUrl,
+          stripeCustomerId
+        );
       }
       stripeResult = executeStripeCheckoutRequest(requestPayload, secretKey);
       if (!structKeyExists(stripeResult, "SUCCESS") OR stripeResult.SUCCESS NEQ true) {
@@ -378,11 +393,13 @@
     <cfargument name="priceId" type="string" required="true">
     <cfargument name="successUrl" type="string" required="true">
     <cfargument name="cancelUrl" type="string" required="true">
+    <cfargument name="stripeCustomerId" type="string" required="true">
     <cfscript>
       return {
         "url" = "https://api.stripe.com/v1/checkout/sessions",
         "formFields" = {
           "mode" = "subscription",
+          "customer" = trim(arguments.stripeCustomerId),
           "line_items[0][price]" = trim(arguments.priceId),
           "line_items[0][quantity]" = "1",
           "success_url" = trim(arguments.successUrl),

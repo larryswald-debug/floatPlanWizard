@@ -249,7 +249,7 @@
                         required
                     >
                         <option :value="0">Select a rescue authority</option>
-                        <option :value="NA_RESCUE_CENTER_ID">N/A - Not Applicable</option>
+                        <option :value="NA_RESCUE_CENTER_ID">N/A - Call 911</option>
                         <option v-for="center in rescueCenters" :key="'resc-'+center.recId" :value="center.recId">
                             {{ formatRescueCenterLabel(center) }}
                         </option>
@@ -428,7 +428,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260721-phase3-cutover"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260723-rescue-911"></script>
 
 </body>
 </html>

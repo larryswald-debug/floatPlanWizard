@@ -44,79 +44,6 @@
 
 <cfinclude template="../includes/prelaunch_top_nav.cfm">
 
-<cfif pricingCreditModelEnabled>
-<main class="fpw-pricing-page">
-  <section class="pricing-hero">
-    <div class="pricing-hero-bg" aria-hidden="true"></div>
-    <div class="pricing-container pricing-hero-content">
-      <h1>Membership Is Free</h1>
-      <p class="pricing-subtitle">Plan routes, save boating information, keep multiple Drafts, and send Basic float plans at no cost. Eligible new members also receive their first complete Premium trip.</p>
-    </div>
-  </section>
-
-  <section class="pricing-container pricing-plans" aria-label="Membership and Premium trip options">
-    <article class="pricing-card pricing-card-free">
-      <h2>Free Membership</h2>
-      <div class="pricing-price">$0</div>
-      <p class="pricing-kicker">Planning and Basic sending</p>
-      <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>Full Route Builder and generated routes</li>
-        <li><span class="pricing-check"></span>Saved vessels, people, contacts, and waypoints</li>
-        <li><span class="pricing-check"></span>Multiple saved Draft float plans</li>
-        <li><span class="pricing-check"></span>Basic float-plan sending</li>
-        <li><span class="pricing-check"></span>One complimentary Premium trip for eligible new members</li>
-      </ul>
-      <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create Free Account</a>
-    </article>
-
-    <article class="pricing-card">
-      <h2>Buy One Trip</h2>
-      <div class="pricing-price"><cfif len(pricingOneTripDisplayAmount)><cfoutput>#encodeForHTML(pricingOneTripDisplayAmount)#</cfoutput><cfelse>Unavailable</cfif></div>
-      <p class="pricing-kicker pricing-pill">No subscription</p>
-      <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>One Premium Send Credit</li>
-        <li><span class="pricing-check"></span>Premium PDF and email delivery</li>
-        <li><span class="pricing-check"></span>Active Cruise and Premium monitoring</li>
-        <li><span class="pricing-check"></span>Private Trip/Follow access</li>
-        <li><span class="pricing-check"></span>Exact-plan operational access</li>
-      </ul>
-      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="one_trip"<cfif NOT pricingOneTripAvailable> disabled aria-disabled="true"</cfif>><cfif pricingOneTripAvailable>Buy One Trip<cfelse>Buy One Trip Unavailable</cfif></button>
-      <cfif NOT pricingOneTripAvailable><p class="pricing-kicker">One-trip Checkout requires an approved Price and display amount.</p></cfif>
-    </article>
-
-    <article class="pricing-card">
-      <h2>Premium Monthly</h2>
-      <div class="pricing-price">$9.99 <span>/ month</span></div>
-      <p class="pricing-kicker">For frequent Premium trips</p>
-      <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>General Premium access</li>
-        <li><span class="pricing-check"></span>Premium Save &amp; Send without consuming credits</li>
-        <li><span class="pricing-check"></span>Active Cruise, monitoring, and Trip/Follow access</li>
-      </ul>
-      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="monthly">Start Monthly Premium</button>
-    </article>
-
-    <article class="pricing-card pricing-card-featured">
-      <div class="pricing-badge">Best Value</div>
-      <h2>Premium Annual</h2>
-      <div class="pricing-price">$89 <span>/ year</span></div>
-      <p class="pricing-kicker">For Premium access all year</p>
-      <ul class="pricing-feature-list">
-        <li><span class="pricing-check"></span>General Premium access</li>
-        <li><span class="pricing-check"></span>Premium Save &amp; Send without consuming credits</li>
-        <li><span class="pricing-check"></span>Active Cruise, monitoring, and Trip/Follow access</li>
-      </ul>
-      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="yearly">Start Annual Premium</button>
-    </article>
-  </section>
-
-  <section class="pricing-container pricing-plan-note">
-    <strong>Planning and Basic sending remain free.</strong>
-    <span>A Premium Send Credit activates one complete Premium trip. Monthly and Annual provide general Premium access.</span>
-  </section>
-</main>
-<cfelse>
-<main class="fpw-pricing-page">
   <svg aria-hidden="true" class="fpw-pricing-icons" width="0" height="0" style="position:absolute">
     <symbol id="fpw-icon-users" viewBox="0 0 24 24">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -194,6 +121,151 @@
     </symbol>
   </svg>
 
+<cfif pricingCreditModelEnabled>
+<main class="fpw-pricing-page">
+  <section class="pricing-hero">
+    <div class="pricing-hero-bg" aria-hidden="true"></div>
+    <div class="pricing-container pricing-hero-content">
+      <h1>Membership Is Free</h1>
+      <p class="pricing-subtitle">Plan routes, save boating information, keep multiple Drafts, and send Basic float plans at no cost. Eligible new members also receive their first complete Premium trip.</p>
+    </div>
+  </section>
+
+  <section class="pricing-container pricing-plans" aria-label="Membership and Premium trip options">
+    <article class="pricing-card pricing-card-free">
+      <h2>Free Membership</h2>
+      <div class="pricing-price">$0</div>
+      <p class="pricing-kicker">Planning and Basic sending</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>Full Route Builder and generated routes</li>
+        <li><span class="pricing-check"></span>Saved vessels, people, contacts, and waypoints</li>
+        <li><span class="pricing-check"></span>Multiple saved Draft float plans</li>
+        <li><span class="pricing-check"></span>Basic float-plan sending</li>
+        <li><span class="pricing-check"></span>One complimentary Premium trip for eligible new members</li>
+      </ul>
+      <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create Free Account</a>
+    </article>
+
+    <article class="pricing-card">
+      <h2>Buy One Trip</h2>
+      <div class="pricing-price"><cfif len(pricingOneTripDisplayAmount)><cfoutput>#encodeForHTML(pricingOneTripDisplayAmount)#</cfoutput><cfelse>Unavailable</cfif></div>
+      <p class="pricing-kicker pricing-pill">No subscription</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>One Premium Send Credit</li>
+        <li><span class="pricing-check"></span>Premium PDF and email delivery</li>
+        <li><span class="pricing-check"></span>Active Cruise and Premium monitoring</li>
+        <li><span class="pricing-check"></span>Private Trip/Follow access</li>
+        <li><span class="pricing-check"></span>Exact-plan operational access</li>
+      </ul>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="one_trip"<cfif NOT pricingOneTripAvailable> disabled aria-disabled="true"</cfif>><cfif pricingOneTripAvailable>Buy One Trip<cfelse>Buy One Trip Unavailable</cfif></button>
+      <cfif NOT pricingOneTripAvailable><p class="pricing-kicker">One-trip Checkout requires an approved Price and display amount.</p></cfif>
+    </article>
+
+    <article class="pricing-card">
+      <h2>Premium Monthly</h2>
+      <div class="pricing-price">$9.99 <span>/ month</span></div>
+      <p class="pricing-kicker">For frequent Premium trips</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>General Premium access</li>
+        <li><span class="pricing-check"></span>Premium Save &amp; Send without consuming credits</li>
+        <li><span class="pricing-check"></span>Active Cruise, monitoring, and Trip/Follow access</li>
+      </ul>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="monthly">Start Monthly Premium</button>
+    </article>
+
+    <article class="pricing-card pricing-card-featured">
+      <div class="pricing-badge">Best Value</div>
+      <h2>Premium Annual</h2>
+      <div class="pricing-price">$89 <span>/ year</span></div>
+      <p class="pricing-kicker">For Premium access all year</p>
+      <ul class="pricing-feature-list">
+        <li><span class="pricing-check"></span>General Premium access</li>
+        <li><span class="pricing-check"></span>Premium Save &amp; Send without consuming credits</li>
+        <li><span class="pricing-check"></span>Active Cruise, monitoring, and Trip/Follow access</li>
+      </ul>
+      <button class="pricing-btn pricing-btn-primary" type="button" data-pricing-checkout="yearly">Start Annual Premium</button>
+    </article>
+  </section>
+
+  <section class="pricing-container pricing-plan-note">
+    <strong>Planning and Basic sending remain free.</strong>
+    <span>A Premium Send Credit activates one complete Premium trip. Monthly and Annual provide general Premium access.</span>
+  </section>
+
+  <section class="pricing-container pricing-premium-strip">
+    <div class="premium-strip-title">All Premium trips include</div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-route"></use></svg><span>Route-based<br>float plans</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-waves"></use></svg><span>Active<br>Cruise</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-follow"></use></svg><span>Trip status page</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-phone"></use></svg><span>Mobile<br>check-ins</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-pin"></use></svg><span>GPS check-in</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-chart"></use></svg><span>NOAA<br>Nautical Charts</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-tools"></use></svg><span>Premium<br>route generator</span></div>
+    <div class="premium-strip-item"><svg><use href="#fpw-icon-pdf"></use></svg><span>PDF float plan</span></div>
+  </section>
+
+  <section class="pricing-container pricing-lower-grid">
+    <article class="pricing-panel pricing-premium-includes">
+      <h2>Premium trip includes</h2>
+      <ul>
+        <li><svg><use href="#fpw-icon-pdf"></use></svg>Premium PDF and email delivery</li>
+        <li><svg><use href="#fpw-icon-waves"></use></svg>Active Cruise trip dashboard</li>
+        <li><svg><use href="#fpw-icon-waves"></use></svg>Premium monitoring</li>
+        <li><svg><use href="#fpw-icon-follow"></use></svg>Private Trip/Follow access</li>
+        <li><svg><use href="#fpw-icon-phone"></use></svg>Companion app check-ins</li>
+        <li><svg><use href="#fpw-icon-pin"></use></svg>GPS coordinates on check-ins</li>
+        <li><svg><use href="#fpw-icon-route"></use></svg>Route progress and trip status</li>
+        <li><svg><use href="#fpw-icon-tools"></use></svg>Exact-plan operational access</li>
+      </ul>
+    </article>
+
+    <article class="pricing-panel pricing-comparison">
+      <h2>Free vs Premium trip</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Free</th>
+            <th>Premium</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Route Builder and generated routes</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Saved trip-planning details</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Multiple Draft float plans</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Basic Save and Send</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>Premium PDF and email</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Active Cruise</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Premium monitoring</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Private Trip/Follow</td><td class="no">×</td><td class="yes">✓</td></tr>
+          <tr><td>Exact-plan operational access</td><td class="no">×</td><td class="yes">✓</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="pricing-panel pricing-faq">
+      <h2>FAQ</h2>
+      <details open>
+        <summary>Does the complimentary trip include the same Premium features?</summary>
+        <p>Yes. Complimentary and purchased Premium Send Credits grant the same capabilities. Their source is used only for reporting, auditing, and payment reconciliation.</p>
+      </details>
+      <details>
+        <summary>When is a Premium Send Credit used?</summary>
+        <p>One credit is consumed only when Premium Save and Send successfully activates that exact float plan.</p>
+      </details>
+      <details>
+        <summary>Does Buy One Trip renew?</summary>
+        <p>No. Buy One Trip adds one Premium Send Credit and does not start a subscription.</p>
+      </details>
+      <details>
+        <summary>Can I keep planning for free?</summary>
+        <p>Yes. Route planning, saved Drafts, and Basic Save and Send remain available without Premium.</p>
+      </details>
+    </article>
+  </section>
+</main>
+<cfelse>
+<main class="fpw-pricing-page">
   <section class="pricing-hero">
     <div class="pricing-hero-bg" aria-hidden="true"></div>
     <div class="pricing-container pricing-hero-content">
