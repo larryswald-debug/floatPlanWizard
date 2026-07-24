@@ -42,6 +42,14 @@ The preflight does not create or modify application tables or application data. 
 
 The complete production sequencing, configuration, application reload, Stripe webhook, smoke-test, and rollback notes are in `docs/premium-send-credit-cutover.md`.
 
+For `20260724_001_stripe_subscription_entitlement_uniqueness`, run the `.up.sql`
+and `.verify.sql` files after `20260721_001_membership_premium_send_credits` has
+been applied. The forward migration refuses to add the unique Stripe
+subscription binding when duplicate non-null `stripe_subscription_id` values
+exist. Resolve and audit any duplicates before retrying; the migration never
+deletes or merges entitlement records. The guarded rollback removes only the
+exact named unique index and never changes entitlement data.
+
 ## Verification
 
 Verification files must identify the selected database, expected tables, columns, indexes, foreign keys, and CHECK constraints. Application validation must use disposable local records and remove them afterward.

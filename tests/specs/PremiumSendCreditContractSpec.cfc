@@ -886,6 +886,15 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(qEvents.processing_status[1]).toBe("processed");
         expect(val(qEvents.event_count[1])).toBe(2);
 
+        var monthlyAdminDetail = createObject(
+          "component",
+          "fpw.api.v1.AdminMemberEntitlementService"
+        ).init(variables.datasource).getMemberDetail(fixture.userId);
+        expect(monthlyAdminDetail.SUCCESS).toBeTrue();
+        expect(monthlyAdminDetail.DATA.effectiveAccess.stripeSubscriptionInterval).toBe("monthly");
+        expect(monthlyAdminDetail.DATA.entitlements[1].stripeSubscriptionInterval).toBe("monthly");
+        expect(monthlyAdminDetail.DATA.entitlements[1].membershipTypeLabel).toBe("Monthly Membership");
+
         var annualSubscriptionResult = stripeService.processVerifiedEvent({
           id = "evt_test_subscription_annual_" & fixture.userId,
           type = "customer.subscription.updated",
@@ -913,6 +922,163 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         expect(annualSubscriptionResult.SUCCESS).toBeTrue();
         expect(annualAccess.stripeSubscriptionInterval).toBe("annual");
+
+        var annualAdminDetail = createObject(
+          "component",
+          "fpw.api.v1.AdminMemberEntitlementService"
+        ).init(variables.datasource).getMemberDetail(fixture.userId);
+        expect(annualAdminDetail.SUCCESS).toBeTrue();
+        expect(annualAdminDetail.DATA.effectiveAccess.stripeSubscriptionInterval).toBe("annual");
+        expect(annualAdminDetail.DATA.entitlements[1].stripeSubscriptionInterval).toBe("annual");
+        expect(annualAdminDetail.DATA.entitlements[1].membershipTypeLabel).toBe("Annual Membership");
+      });
+
+      it("keeps concurrent checkout and subscription events on one entitlement row", function() {
+        var fixture = createFixture("subscription-concurrency");
+        var stripeCustomerId = "cus_test_subscription_concurrency_" & fixture.userId;
+        var stripeSubscriptionId = "sub_test_subscription_concurrency_" & fixture.userId;
+        var stripeCheckoutSessionId = "cs_test_subscription_concurrency_" & fixture.userId;
+        var stripePriceId = createObject(
+          "component",
+          "fpw.api.v1.StripeConfigService"
+        ).init().getPremiumMonthlyPriceId();
+        var checkoutEvent = {
+          id = "evt_test_checkout_concurrency_" & fixture.userId,
+          type = "checkout.session.completed",
+          data = {
+            object = {
+              id = stripeCheckoutSessionId,
+              mode = "subscription",
+              client_reference_id = toString(fixture.userId),
+              customer = stripeCustomerId,
+              subscription = stripeSubscriptionId,
+              payment_status = "paid",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              }
+            }
+          }
+        };
+        var subscriptionEvent = {
+          id = "evt_test_subscription_concurrency_" & fixture.userId,
+          type = "customer.subscription.created",
+          data = {
+            object = {
+              id = stripeSubscriptionId,
+              customer = stripeCustomerId,
+              status = "active",
+              metadata = {
+                fpwUserId = toString(fixture.userId)
+              },
+              items = {
+                data = [
+                  {
+                    price = {
+                      id = stripePriceId
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        };
+        var threadToken = replace(createUUID(), "-", "", "all");
+        var checkoutThreadName = "fpw_checkout_" & threadToken;
+        var subscriptionThreadName = "fpw_subscription_" & threadToken;
+        var qEntitlement = queryNew("");
+        var qEvents = queryNew("");
+        var access = {};
+
+        thread
+          name = checkoutThreadName
+          action = "run"
+          datasource = variables.datasource
+          eventJson = serializeJSON(checkoutEvent)
+        {
+          var service = createObject(
+            "component",
+            "fpw.api.v1.StripeEntitlementService"
+          ).init(attributes.datasource);
+          thread.result = service.processVerifiedEvent(
+            deserializeJSON(attributes.eventJson)
+          );
+        }
+
+        thread
+          name = subscriptionThreadName
+          action = "run"
+          datasource = variables.datasource
+          eventJson = serializeJSON(subscriptionEvent)
+        {
+          var service = createObject(
+            "component",
+            "fpw.api.v1.StripeEntitlementService"
+          ).init(attributes.datasource);
+          thread.result = service.processVerifiedEvent(
+            deserializeJSON(attributes.eventJson)
+          );
+        }
+
+        thread action = "join" name = checkoutThreadName;
+        thread action = "join" name = subscriptionThreadName;
+
+        expect(cfthread[checkoutThreadName].result.SUCCESS).toBeTrue();
+        expect(cfthread[subscriptionThreadName].result.SUCCESS).toBeTrue();
+
+        qEntitlement = queryExecute(
+          "SELECT
+             COUNT(*) AS entitlement_count,
+             MAX(status) AS entitlement_status,
+             MAX(stripe_subscription_status) AS subscription_status,
+             MAX(stripe_price_id) AS stripe_price_id,
+             MAX(stripe_checkout_session_id) AS stripe_checkout_session_id
+           FROM member_entitlements
+           WHERE user_id = :userId
+             AND source = 'stripe_subscription'
+             AND stripe_subscription_id = :stripeSubscriptionId",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            stripeSubscriptionId = {
+              value = stripeSubscriptionId,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+        qEvents = queryExecute(
+          "SELECT COUNT(*) AS event_count
+           FROM stripe_webhook_events
+           WHERE user_id = :userId
+             AND stripe_event_id IN (:checkoutEventId, :subscriptionEventId)
+             AND processing_status = 'processed'",
+          {
+            userId = {
+              value = fixture.userId,
+              cfsqltype = "cf_sql_integer"
+            },
+            checkoutEventId = {
+              value = checkoutEvent.id,
+              cfsqltype = "cf_sql_varchar"
+            },
+            subscriptionEventId = {
+              value = subscriptionEvent.id,
+              cfsqltype = "cf_sql_varchar"
+            }
+          },
+          { datasource = variables.datasource }
+        );
+        access = variables.entitlementService.getCurrentAccess(fixture.userId);
+
+        expect(val(qEntitlement.entitlement_count[1])).toBe(1);
+        expect(qEntitlement.entitlement_status[1]).toBe("active");
+        expect(qEntitlement.subscription_status[1]).toBe("active");
+        expect(qEntitlement.stripe_price_id[1]).toBe(stripePriceId);
+        expect(qEntitlement.stripe_checkout_session_id[1]).toBe(stripeCheckoutSessionId);
+        expect(val(qEvents.event_count[1])).toBe(2);
+        expect(access.stripeSubscriptionInterval).toBe("monthly");
       });
 
       it("keeps the development Stripe listener aligned with every handled lifecycle event", function() {

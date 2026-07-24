@@ -357,41 +357,55 @@
           { datasource = variables.datasource }
         );
       } else {
-        queryExecute(
-          "INSERT INTO member_entitlements (
-             user_id,
-             entitlement_type,
-             source,
-             status,
-             starts_at_utc,
-             expires_at_utc,
-             stripe_customer_id,
-             stripe_subscription_id,
-             stripe_checkout_session_id,
-             stripe_payment_intent_id,
-             stripe_price_id,
-             stripe_subscription_status,
-             created_utc,
-             updated_utc
-           ) VALUES (
-             :userId,
-             'premium',
-             'stripe_subscription',
-             :status,
-             UTC_TIMESTAMP(),
-             " & expiresSql & ",
-             :stripeCustomerId,
-             :stripeSubscriptionId,
-             :stripeCheckoutSessionId,
-             :stripePaymentIntentId,
-             :stripePriceId,
-             :subscriptionStatus,
-             UTC_TIMESTAMP(),
-             UTC_TIMESTAMP()
-           )",
-          buildEntitlementParams(arguments.userId, effectiveStatus, effectiveSubscriptionStatus, arguments.identifiers, 0),
-          { datasource = variables.datasource }
-        );
+        try {
+          queryExecute(
+            "INSERT INTO member_entitlements (
+               user_id,
+               entitlement_type,
+               source,
+               status,
+               starts_at_utc,
+               expires_at_utc,
+               stripe_customer_id,
+               stripe_subscription_id,
+               stripe_checkout_session_id,
+               stripe_payment_intent_id,
+               stripe_price_id,
+               stripe_subscription_status,
+               created_utc,
+               updated_utc
+             ) VALUES (
+               :userId,
+               'premium',
+               'stripe_subscription',
+               :status,
+               UTC_TIMESTAMP(),
+               " & expiresSql & ",
+               :stripeCustomerId,
+               :stripeSubscriptionId,
+               :stripeCheckoutSessionId,
+               :stripePaymentIntentId,
+               :stripePriceId,
+               :subscriptionStatus,
+               UTC_TIMESTAMP(),
+               UTC_TIMESTAMP()
+             )",
+            buildEntitlementParams(arguments.userId, effectiveStatus, effectiveSubscriptionStatus, arguments.identifiers, 0),
+            { datasource = variables.datasource }
+          );
+        } catch (database insertError) {
+          qExisting = findExistingEntitlement(arguments.identifiers, arguments.userId);
+          if (qExisting.recordCount EQ 0) {
+            rethrow;
+          }
+          upsertStripeEntitlement(
+            userId = arguments.userId,
+            entitlementStatus = arguments.entitlementStatus,
+            subscriptionStatus = arguments.subscriptionStatus,
+            identifiers = arguments.identifiers,
+            preserveActive = arguments.preserveActive
+          );
+        }
       }
     </cfscript>
   </cffunction>
@@ -407,10 +421,12 @@
           "SELECT id, status, stripe_subscription_status
            FROM member_entitlements
            WHERE source = 'stripe_subscription'
+             AND user_id = :userId
              AND stripe_subscription_id = :subscriptionId
            ORDER BY id DESC
            LIMIT 1",
           {
+            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
             subscriptionId = { value = subscriptionId, cfsqltype = "cf_sql_varchar" }
           },
           { datasource = variables.datasource }

@@ -614,6 +614,13 @@
     <cfscript>
       var sourceValue = valueOrEmpty(arguments.q, "source", arguments.row);
       var expiresValue = valueOrNull(arguments.q, "expires_at_utc", arguments.row);
+      var stripePriceIdValue = valueOrEmpty(arguments.q, "stripe_price_id", arguments.row);
+      var stripeSubscriptionIntervalValue = sourceValue EQ "stripe_subscription"
+        ? resolveStripeSubscriptionInterval(stripePriceIdValue)
+        : "";
+      var membershipTypeLabel = stripeSubscriptionIntervalValue EQ "monthly"
+        ? "Monthly Membership"
+        : (stripeSubscriptionIntervalValue EQ "annual" ? "Annual Membership" : "");
       return {
         "entitlementId" = val(arguments.q.id[arguments.row]),
         "userId" = val(arguments.q.user_id[arguments.row]),
@@ -639,7 +646,9 @@
         "stripeSubscriptionId" = valueOrEmpty(arguments.q, "stripe_subscription_id", arguments.row),
         "stripeCheckoutSessionId" = valueOrEmpty(arguments.q, "stripe_checkout_session_id", arguments.row),
         "stripePaymentIntentId" = valueOrEmpty(arguments.q, "stripe_payment_intent_id", arguments.row),
-        "stripePriceId" = valueOrEmpty(arguments.q, "stripe_price_id", arguments.row),
+        "stripePriceId" = stripePriceIdValue,
+        "stripeSubscriptionInterval" = stripeSubscriptionIntervalValue,
+        "membershipTypeLabel" = membershipTypeLabel,
         "stripeSubscriptionStatus" = valueOrEmpty(arguments.q, "stripe_subscription_status", arguments.row),
         "adminNotes" = valueOrEmpty(arguments.q, "admin_notes", arguments.row),
         "createdByUserId" = valueOrNull(arguments.q, "created_by_user_id", arguments.row),
@@ -650,6 +659,38 @@
         "createdAtUtc" = valueOrNull(arguments.q, "created_utc", arguments.row),
         "updatedAtUtc" = valueOrNull(arguments.q, "updated_utc", arguments.row)
       };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="resolveStripeSubscriptionInterval" access="private" returntype="string" output="false">
+    <cfargument name="stripePriceId" type="string" required="false" default="">
+    <cfscript>
+      var priceId = trim(arguments.stripePriceId);
+      var configService = "";
+      var monthlyPriceId = "";
+      var yearlyPriceId = "";
+
+      if (!len(priceId)) {
+        return "";
+      }
+
+      if (!structKeyExists(variables, "premiumStripePriceIds")) {
+        configService = new fpw.api.v1.StripeConfigService().init();
+        variables.premiumStripePriceIds = {
+          "monthly" = trim(configService.getPremiumMonthlyPriceId()),
+          "annual" = trim(configService.getPremiumYearlyPriceId())
+        };
+      }
+      monthlyPriceId = variables.premiumStripePriceIds.monthly;
+      yearlyPriceId = variables.premiumStripePriceIds.annual;
+
+      if (len(monthlyPriceId) AND compare(priceId, monthlyPriceId) EQ 0) {
+        return "monthly";
+      }
+      if (len(yearlyPriceId) AND compare(priceId, yearlyPriceId) EQ 0) {
+        return "annual";
+      }
+      return "";
     </cfscript>
   </cffunction>
 
@@ -781,8 +822,6 @@
   </cffunction>
 
 </cfcomponent>
-
-
 
 
 

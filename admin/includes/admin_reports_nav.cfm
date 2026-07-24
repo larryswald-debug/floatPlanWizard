@@ -1,5 +1,5 @@
 <cfscript>
-request.fpwAdminAssetVersion = "20260711-admin-csrf";
+request.fpwAdminAssetVersion = "20260724-membership-labels";
 adminNavBase = structKeyExists(request, "fpwBase") ? trim(toString(request.fpwBase)) : "";
 if (!structKeyExists(request, "fpwBase")) {
     if (structKeyExists(cgi, "SCRIPT_NAME")) {
@@ -134,5 +134,4 @@ adminReportPages = [
     });
   </script></cfoutput>
 </cfif>
-
 
