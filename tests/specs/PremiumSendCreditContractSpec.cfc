@@ -115,6 +115,63 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("summarizes credit sources without changing canonical credit rows", function() {
+        var fixture = createFixture("source-summary");
+        var complimentaryGrant = variables.creditService.grantCredit(
+          userId = fixture.userId,
+          source = "complimentary_signup",
+          idempotencyKey = fixture.marker & ":complimentary"
+        );
+        var paidGrant = variables.creditService.grantCredit(
+          userId = fixture.userId,
+          source = "stripe_one_trip",
+          idempotencyKey = fixture.marker & ":paid"
+        );
+        var consumed = {};
+        var qBefore = queryNew("");
+        var summary = {};
+        var access = {};
+        var qAfter = queryNew("");
+
+        expect(complimentaryGrant.SUCCESS).toBeTrue();
+        expect(paidGrant.SUCCESS).toBeTrue();
+
+        setPlanStatus(fixture.userId, fixture.planAId, "ACTIVE");
+        consumed = variables.creditService.consumeLockedCredit(
+          creditId = complimentaryGrant.creditId,
+          userId = fixture.userId,
+          floatPlanId = fixture.planAId
+        );
+        expect(consumed.SUCCESS).toBeTrue();
+
+        qBefore = loadCreditSummaryFingerprint(fixture.userId);
+        summary = variables.creditService.getCreditSourceSummary(fixture.userId);
+        access = variables.gateService.getCurrentAccess(fixture.userId);
+        qAfter = loadCreditSummaryFingerprint(fixture.userId);
+
+        expect(summary.totalAvailableCount).toBe(1);
+        expect(summary.complimentaryGranted).toBeTrue();
+        expect(summary.complimentaryAvailable).toBeFalse();
+        expect(summary.complimentaryConsumed).toBeTrue();
+        expect(summary.paidTripAvailable).toBeTrue();
+
+        expect(structKeyExists(access, "premiumSendCredits")).toBeTrue();
+        expect(access.premiumSendCredits.totalAvailableCount).toBe(1);
+        expect(access.premiumSendCredits.complimentaryGranted).toBeTrue();
+        expect(access.premiumSendCredits.complimentaryAvailable).toBeFalse();
+        expect(access.premiumSendCredits.complimentaryConsumed).toBeTrue();
+        expect(access.premiumSendCredits.paidTripAvailable).toBeTrue();
+        expect(access.premiumSendCreditCount).toBe(1);
+        expect(access.canSendPremiumFloatPlan).toBeTrue();
+
+        expect(val(qAfter.credit_count[1])).toBe(val(qBefore.credit_count[1]));
+        expect(val(qAfter.available_count[1])).toBe(val(qBefore.available_count[1]));
+        expect(val(qAfter.consumed_count[1])).toBe(val(qBefore.consumed_count[1]));
+        expect(toString(qAfter.max_updated_at[1])).toBe(
+          toString(qBefore.max_updated_at[1])
+        );
+      });
+
       it("keeps credit grants idempotent without reassigning the canonical row", function() {
         var owner = createFixture("idempotent-owner");
         var other = createFixture("idempotent-other");
@@ -1805,6 +1862,25 @@ component extends="testbox.system.BaseSpec" output="false" {
         creditId = {
           value = arguments.creditId,
           cfsqltype = "cf_sql_bigint"
+        }
+      },
+      { datasource = variables.datasource }
+    );
+  }
+
+  private query function loadCreditSummaryFingerprint(required numeric userId) {
+    return queryExecute(
+      "SELECT
+          COUNT(*) AS credit_count,
+          SUM(status = 'AVAILABLE') AS available_count,
+          SUM(status = 'CONSUMED') AS consumed_count,
+          DATE_FORMAT(MAX(updated_at_utc), '%Y-%m-%d %H:%i:%s.%f') AS max_updated_at
+       FROM premium_send_credits
+       WHERE user_id = :userId",
+      {
+        userId = {
+          value = arguments.userId,
+          cfsqltype = "cf_sql_integer"
         }
       },
       { datasource = variables.datasource }

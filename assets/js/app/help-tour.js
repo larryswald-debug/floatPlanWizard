@@ -3,10 +3,6 @@
 
   var tours = {};
   var activeTour = null;
-  var dashboardUserReady = false;
-  var dashboardActiveTripKnown = false;
-  var dashboardActiveTripId = 0;
-  var dashboardAutoTimer = 0;
 
   function storageGet(key) {
     try {
@@ -325,25 +321,6 @@
     return baseKey;
   }
 
-  function getDashboardActiveTripId() {
-    var state = window.FPW && window.FPW.DashboardState ? window.FPW.DashboardState : {};
-    return parsePositiveId(state.activeTripFloatPlanId);
-  }
-
-  function runDashboardAutoStart() {
-    if (!isDashboardPage()) return;
-    if (dashboardActiveTripId > 0 || getDashboardActiveTripId() > 0) return;
-    maybeAutoStart("dashboard");
-  }
-
-  function scheduleDashboardAutoStart(delayMs) {
-    if (!dashboardUserReady) return;
-    if (dashboardAutoTimer) {
-      window.clearTimeout(dashboardAutoTimer);
-    }
-    dashboardAutoTimer = window.setTimeout(runDashboardAutoStart, delayMs);
-  }
-
   function bindDashboardTourTriggers() {
     var triggers = document.querySelectorAll("[data-tour-start='dashboard']");
     Array.prototype.forEach.call(triggers, function (trigger) {
@@ -404,27 +381,6 @@
 
   document.addEventListener("show.bs.modal", function () {
     closeTour(false);
-  });
-
-  document.addEventListener("fpw:dashboard:user-ready", function () {
-    dashboardUserReady = true;
-    scheduleDashboardAutoStart(2600);
-  });
-
-  document.addEventListener("fpw:active-trip-updated", function (event) {
-    var detail = event && event.detail ? event.detail : {};
-    dashboardActiveTripKnown = true;
-    dashboardActiveTripId = parsePositiveId(detail.floatPlanId);
-    if (dashboardActiveTripId > 0) {
-      if (activeTour && activeTour.auto) {
-        closeTour(false);
-      }
-      if (dashboardAutoTimer) {
-        window.clearTimeout(dashboardAutoTimer);
-      }
-      return;
-    }
-    scheduleDashboardAutoStart(180);
   });
 
   document.addEventListener("DOMContentLoaded", function () {

@@ -6139,6 +6139,9 @@
     if (modules.routeBuilder && modules.routeBuilder.init) {
       modules.routeBuilder.init();
     }
+    if (modules.onboarding && modules.onboarding.init) {
+      modules.onboarding.init();
+    }
 
     document.addEventListener("fpw:floatplans-updated", function () {
       refreshDerivedSignalsFromState();
@@ -6163,6 +6166,11 @@
         populateUserInfo(user);
         state.currentUser = user;
         state.memberAccess = memberAccess;
+        if (modules.onboarding && typeof modules.onboarding.hydrate === "function") {
+          modules.onboarding.hydrate(data.ONBOARDING || data.onboarding, {
+            allowAutoOpen: true
+          });
+        }
         if (utils.resolveHomePortLatLng) {
           state.homePortLatLng = utils.resolveHomePortLatLng(user);
         }

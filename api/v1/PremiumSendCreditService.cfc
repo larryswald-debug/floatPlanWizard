@@ -141,6 +141,57 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getCreditSourceSummary" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var result = structNew("ordered-casesensitive");
+      var qSummary = queryNew("");
+      var complimentaryGrantedCount = 0;
+      var complimentaryAvailableCount = 0;
+      var complimentaryConsumedCount = 0;
+      var paidTripAvailableCount = 0;
+
+      result["totalAvailableCount"] = 0;
+      result["complimentaryGranted"] = false;
+      result["complimentaryAvailable"] = false;
+      result["complimentaryConsumed"] = false;
+      result["paidTripAvailable"] = false;
+
+      if (arguments.userId LTE 0) {
+        return result;
+      }
+
+      qSummary = queryExecute(
+        "SELECT
+            SUM(CASE WHEN status = 'AVAILABLE' THEN 1 ELSE 0 END) AS total_available_count,
+            SUM(CASE WHEN source = 'complimentary_signup' THEN 1 ELSE 0 END) AS complimentary_granted_count,
+            SUM(CASE WHEN source = 'complimentary_signup' AND status = 'AVAILABLE' THEN 1 ELSE 0 END) AS complimentary_available_count,
+            SUM(CASE WHEN source = 'complimentary_signup' AND status = 'CONSUMED' THEN 1 ELSE 0 END) AS complimentary_consumed_count,
+            SUM(CASE WHEN source = 'stripe_one_trip' AND status = 'AVAILABLE' THEN 1 ELSE 0 END) AS paid_trip_available_count
+         FROM premium_send_credits
+         WHERE user_id = :userId",
+        {
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+
+      if (qSummary.recordCount GT 0) {
+        result["totalAvailableCount"] = isNull(qSummary.total_available_count[1]) ? 0 : val(qSummary.total_available_count[1]);
+        complimentaryGrantedCount = isNull(qSummary.complimentary_granted_count[1]) ? 0 : val(qSummary.complimentary_granted_count[1]);
+        complimentaryAvailableCount = isNull(qSummary.complimentary_available_count[1]) ? 0 : val(qSummary.complimentary_available_count[1]);
+        complimentaryConsumedCount = isNull(qSummary.complimentary_consumed_count[1]) ? 0 : val(qSummary.complimentary_consumed_count[1]);
+        paidTripAvailableCount = isNull(qSummary.paid_trip_available_count[1]) ? 0 : val(qSummary.paid_trip_available_count[1]);
+      }
+
+      result["complimentaryGranted"] = complimentaryGrantedCount GT 0;
+      result["complimentaryAvailable"] = complimentaryAvailableCount GT 0;
+      result["complimentaryConsumed"] = complimentaryConsumedCount GT 0;
+      result["paidTripAvailable"] = paidTripAvailableCount GT 0;
+      return result;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="lockNextAvailableCredit" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfscript>

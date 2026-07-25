@@ -1412,7 +1412,7 @@
       </div>
       <div class="rg-topbar-right">
         <span id="routeGenRouteCode" class="rg-pill">Draft</span>
-        <button type="button" id="routeGenTourBtn" class="btn-secondary btn-sm rg-tour-btn" data-tour-start="route-generator">Guide Tour</button>
+        <button type="button" id="routeGenTourBtn" class="btn-secondary btn-sm rg-tour-btn" data-tour-start="route-generator">Guided Tour</button>
         <button type="button" id="routeGenCloseBtn" class="rg-close" aria-label="Close">&times;</button>
       </div>
     </div>
