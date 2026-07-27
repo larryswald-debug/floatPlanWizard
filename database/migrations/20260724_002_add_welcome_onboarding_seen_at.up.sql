@@ -31,7 +31,7 @@ BEGIN
       AND TABLE_NAME = 'users'
       AND COLUMN_NAME = 'userId'
       AND DATA_TYPE = 'int'
-      AND LOWER(COLUMN_TYPE) = 'int'
+      AND LOWER(COLUMN_TYPE) NOT LIKE '%unsigned%'
       AND IS_NULLABLE = 'NO'
       AND COLUMN_KEY = 'PRI'
       AND LOWER(EXTRA) = 'auto_increment';
@@ -105,7 +105,10 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND LOWER(COLUMN_TYPE) = 'datetime(6)'
   AND DATETIME_PRECISION = 6
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    COLUMN_DEFAULT IS NULL
+    OR UPPER(CAST(COLUMN_DEFAULT AS CHAR)) = 'NULL'
+  )
   AND EXTRA = '';
 
 SET @fpw_up_20260724_002_post_error = CASE

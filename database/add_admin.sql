@@ -4,7 +4,7 @@ SELECT
     u.userId, 'admin', 'manual_admin', NULL, 'active', UTC_TIMESTAMP(), NULL, NULL,
     'Manual administrator access grant'
 FROM FPW.users AS u
-WHERE u.userId = 67
+WHERE u.userId = 1
   AND NOT EXISTS (
       SELECT 1
       FROM FPW.member_entitlements AS me

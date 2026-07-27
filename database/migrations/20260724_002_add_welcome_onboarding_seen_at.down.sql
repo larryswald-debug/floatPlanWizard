@@ -36,7 +36,10 @@ BEGIN
       AND LOWER(COLUMN_TYPE) = 'datetime(6)'
       AND DATETIME_PRECISION = 6
       AND IS_NULLABLE = 'YES'
-      AND COLUMN_DEFAULT IS NULL
+      AND (
+        COLUMN_DEFAULT IS NULL
+        OR UPPER(CAST(COLUMN_DEFAULT AS CHAR)) = 'NULL'
+      )
       AND EXTRA = '';
 
     IF v_users_table_count <> 1 THEN

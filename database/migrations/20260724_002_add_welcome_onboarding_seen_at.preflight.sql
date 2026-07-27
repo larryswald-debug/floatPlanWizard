@@ -31,7 +31,7 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND TABLE_NAME = 'users'
   AND COLUMN_NAME = 'userId'
   AND DATA_TYPE = 'int'
-  AND LOWER(COLUMN_TYPE) = 'int'
+  AND LOWER(COLUMN_TYPE) NOT LIKE '%unsigned%'
   AND IS_NULLABLE = 'NO'
   AND COLUMN_KEY = 'PRI'
   AND LOWER(EXTRA) = 'auto_increment';

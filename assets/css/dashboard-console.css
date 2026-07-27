@@ -160,9 +160,45 @@ main.dashboard-main{
 }
 
 #dashboardAlert.alert-warning{
+  position: relative;
+  padding-right: 3.5rem;
   background-color: rgb(255, 230, 156);
   border-color: var(--warning);
   color: #241503;
+}
+
+#dashboardAlert .dashboard-alert-close{
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+}
+
+#dashboardAlert .dashboard-alert-close::before{
+  content: "×";
+  color: #000;
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+#dashboardAlert .dashboard-alert-close:hover{
+  background: rgba(36,21,3,0.1);
+}
+
+#dashboardAlert .dashboard-alert-close:focus-visible{
+  outline: 2px solid #241503;
+  outline-offset: 2px;
 }
 
 /* ---------- Grid of panels ---------- */
