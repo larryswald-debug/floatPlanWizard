@@ -25,6 +25,7 @@
 
   var dom = {};
   var modal = null;
+  var routeOpenPending = false;
 
   var state = {
     templates: [],
@@ -7363,9 +7364,7 @@
 
   function bindEvents() {
     if (dom.openBtn) {
-      dom.openBtn.addEventListener("click", function () {
-        openModal("generator", "", { freshStart: true });
-      });
+      dom.openBtn.addEventListener("click", requestOpenNewRouteBuilder);
     }
 
     if (dom.closeBtn) {
@@ -7676,6 +7675,52 @@
       });
       dom.modalEl.dataset.routegenEscBound = "true";
     }
+  }
+
+  function showRouteReadinessUnavailable() {
+    if (utils && typeof utils.showDashboardAlert === "function") {
+      utils.showDashboardAlert(
+        "Unable to verify route setup. Please try again before creating a route.",
+        "warning"
+      );
+    }
+  }
+
+  function setRouteOpenPending(isPending) {
+    routeOpenPending = isPending === true;
+    if (!dom.openBtn) return;
+    dom.openBtn.disabled = routeOpenPending;
+    dom.openBtn.setAttribute("aria-busy", routeOpenPending ? "true" : "false");
+  }
+
+  function requestOpenNewRouteBuilder() {
+    var onboarding = window.FPW
+      && window.FPW.DashboardModules
+      ? window.FPW.DashboardModules.onboarding
+      : null;
+
+    if (routeOpenPending) return;
+    if (
+      !onboarding
+      || typeof onboarding.validateRouteCreationReadiness !== "function"
+    ) {
+      showRouteReadinessUnavailable();
+      return;
+    }
+
+    setRouteOpenPending(true);
+    return onboarding.validateRouteCreationReadiness()
+      .then(function (isReady) {
+        if (isReady === true) {
+          openModal("generator", "", { freshStart: true });
+        }
+      })
+      .catch(function () {
+        showRouteReadinessUnavailable();
+      })
+      .finally(function () {
+        setRouteOpenPending(false);
+      });
   }
 
   function normalizeText(value) {

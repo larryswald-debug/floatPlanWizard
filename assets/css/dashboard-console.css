@@ -159,6 +159,12 @@ main.dashboard-main{
   color: var(--text);
 }
 
+#dashboardAlert.alert-warning{
+  background-color: rgb(255, 230, 156);
+  border-color: var(--warning);
+  color: #241503;
+}
+
 /* ---------- Grid of panels ---------- */
 .dashboard-grid{
   display: grid;
