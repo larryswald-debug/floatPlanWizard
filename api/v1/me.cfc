@@ -14,6 +14,7 @@
                 <cfset local.userId = 0>
                 <cfset local.homePort = {} >
                 <cfset local.access = {} >
+                <cfset local.onboarding = {} >
 
                 <cfif structKeyExists(local.user, "userId")>
                     <cfset local.userId = int(val(local.user.userId))>
@@ -68,6 +69,7 @@
 
                 <cfset local.access = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(local.userId)>
                 <cfset structDelete(local.access, "premiumEntitlementId", false)>
+                <cfset local.onboarding = new fpw.api.v1.OnboardingService().init("fpw").getState(local.userId, local.access)>
 
                 <cfset response = structNew("ordered-casesensitive")>
                 <cfset response["SUCCESS"] = true>
@@ -78,6 +80,8 @@
                 <cfset response["user"] = local.user>
                 <cfset response["ACCESS"] = local.access>
                 <cfset response["access"] = local.access>
+                <cfset response["ONBOARDING"] = local.onboarding>
+                <cfset response["onboarding"] = local.onboarding>
 
             <cfelse>
 

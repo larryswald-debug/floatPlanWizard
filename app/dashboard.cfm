@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260711-vessel-images">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260725-welcome-route-setup">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
@@ -91,9 +91,66 @@
                 <div class="fpw-planning-context-copy">
                     <div class="fpw-planning-context-label">TRIP SETUP READINESS</div>
                     <div class="fpw-planning-context-value">Review Setup</div>
-                    <div class="fpw-planning-context-meta">Use the setup tiles below.</div>
+                    <label class="fpw-onboarding-visibility-toggle" for="dashboardGettingStartedVisibilityToggle">
+                        <span class="fpw-onboarding-visibility-toggle-label">Getting Started</span>
+                        <span class="fpw-onboarding-visibility-toggle-control">
+                            <input type="checkbox" id="dashboardGettingStartedVisibilityToggle" role="switch" aria-controls="dashboardGettingStartedPanel" aria-busy="true" disabled>
+                            <span class="fpw-onboarding-visibility-toggle-track" aria-hidden="true">
+                                <span class="fpw-onboarding-visibility-toggle-thumb"></span>
+                            </span>
+                        </span>
+                    </label>
                 </div>
             </article>
+        </section>
+
+        <section class="dashboard-card panel-floatlike fpw-onboarding-checklist" id="dashboardGettingStartedPanel" aria-labelledby="dashboardGettingStartedTitle" aria-busy="true" hidden>
+            <div class="card-header">
+                <div class="card-title">
+                    <h2 id="dashboardGettingStartedTitle">Getting Started</h2>
+                    <p class="card-subtitle">Save the reusable details you will use when creating a route.</p>
+                </div>
+                <div class="card-actions">
+                    <button type="button" class="btn-secondary fpw-onboarding-utility-btn" id="dashboardWelcomeOpenBtn">View Welcome</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <ol class="fpw-onboarding-steps" id="dashboardGettingStartedSteps">
+                    <li class="fpw-onboarding-step" data-onboarding-step="vessel">
+                        <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
+                        <span class="fpw-onboarding-step-label">Add your vessel</span>
+                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
+                    </li>
+                    <li class="fpw-onboarding-step" data-onboarding-step="contact">
+                        <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
+                        <span class="fpw-onboarding-step-label">Add a shore contact</span>
+                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
+                    </li>
+                    <li class="fpw-onboarding-step" data-onboarding-step="passengers">
+                        <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
+                        <span class="fpw-onboarding-step-label">Add passengers</span>
+                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
+                    </li>
+                    <li class="fpw-onboarding-step" data-onboarding-step="operator">
+                        <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
+                        <span class="fpw-onboarding-step-label">Add an operator</span>
+                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
+                    </li>
+                    <li class="fpw-onboarding-step" data-onboarding-step="waypoints">
+                        <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
+                        <span class="fpw-onboarding-step-label">Add waypoints</span>
+                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>0 of 2 added</span>
+                    </li>
+                </ol>
+                <p class="card-subtitle">Add a starting waypoint—such as your home port—and at least one destination.</p>
+                <div class="fpw-onboarding-checklist-footer">
+                    <p class="fpw-onboarding-status" id="dashboardGettingStartedStatus" role="status" aria-live="polite"></p>
+                    <button type="button" class="btn-primary" id="dashboardGettingStartedContinueBtn">Continue Setup</button>
+                    <p class="fpw-onboarding-complete d-none" id="dashboardGettingStartedComplete" role="status">
+                        <span aria-hidden="true">✓</span> Getting Started complete
+                    </p>
+                </div>
+            </div>
         </section>
 
         <section class="dashboard-card panel-floatlike next-steps-panel fpw-dashboard-next-step" id="recommendedNextStepsPanel" aria-labelledby="recommendedNextStepsTitle">
@@ -287,6 +344,46 @@
 </div>
 
 <cfinclude template="../includes/footer.cfm">
+
+<div class="modal fade fpw-welcome-modal" id="welcomeOnboardingModal" tabindex="-1" aria-labelledby="welcomeOnboardingTitle" aria-describedby="welcomeOnboardingDescription" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable fpw-welcome-dialog">
+        <div class="modal-content dashboard-card">
+            <div class="modal-header card-header">
+                <div>
+                    <p class="fpw-welcome-kicker">Your first trip starts here</p>
+                    <h2 class="modal-title card-title" id="welcomeOnboardingTitle">Welcome to FloatPlanWizard</h2>
+                </div>
+                <button type="button" class="btn-close" id="welcomeOnboardingCloseBtn" aria-label="Close welcome"></button>
+            </div>
+            <div class="modal-body card-body">
+                <p class="fpw-welcome-introduction" id="welcomeOnboardingDescription">FPW helps you plan your trip, share the important details with someone ashore, and keep them informed until you return safely.</p>
+                <p class="fpw-welcome-access-message d-none" id="welcomeOnboardingAccessMessage"></p>
+
+                <section class="fpw-welcome-route-setup" aria-labelledby="fpwWelcomeRouteSetupTitle">
+                    <h3 id="fpwWelcomeRouteSetupTitle">Get Ready to Create Your First Route</h3>
+                    <p>Before creating a route and active float plan, save:</p>
+                    <ul class="fpw-welcome-requirements">
+                        <li><strong>1 vessel</strong></li>
+                        <li><strong>1 shore contact with a phone number</strong></li>
+                        <li><strong>1 operator</strong></li>
+                        <li><strong>At least 2 waypoints</strong></li>
+                        <li><strong>Passengers, when anyone else will be aboard</strong></li>
+                    </ul>
+                    <p class="fpw-welcome-helper">Two waypoints create one complete one-way leg: a starting point and a destination. A round trip requires at least two legs.</p>
+                    <p class="fpw-welcome-helper">Please get your shore contact’s permission before using their phone number.</p>
+                    <p class="fpw-welcome-helper">Passengers are optional, but strongly recommended when you are not cruising solo.</p>
+                </section>
+
+                <div class="alert alert-danger d-none fpw-welcome-error" id="welcomeOnboardingError" role="alert" aria-live="assertive"></div>
+            </div>
+            <div class="modal-footer card-footer fpw-welcome-actions">
+                <button type="button" class="btn-primary" id="welcomeOnboardingAddBoatBtn">Start by Adding My Vessel</button>
+                <button type="button" class="btn-secondary" id="welcomeOnboardingExploreBtn">Explore the Dashboard</button>
+                <button type="button" class="fpw-welcome-tour-btn" id="welcomeOnboardingTourBtn">Show Me Around</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
@@ -1288,10 +1385,11 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-phase3-cutover"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260725-readiness-toggle"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260722-phase3-cutover-pdf"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260724-onboarding"></script>
 
 </body>
 </html>

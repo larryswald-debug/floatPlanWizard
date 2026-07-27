@@ -29,6 +29,13 @@
         "canSendBasicFloatPlan" = false,
         "canSendPremiumFloatPlan" = false,
         "premiumSendCreditCount" = 0,
+        "premiumSendCredits" = {
+          "totalAvailableCount" = 0,
+          "complimentaryGranted" = false,
+          "complimentaryAvailable" = false,
+          "complimentaryConsumed" = false,
+          "paidTripAvailable" = false
+        },
         "premiumSendAccessSource" = "none",
         "premiumSendAuthority" = "none",
         "premiumSendCreditModelEnabled" = false,
@@ -47,6 +54,8 @@
       var qPremium = queryNew("");
       var activeTripSummary = {};
       var premiumStripePriceId = nullValue();
+      var premiumSendCreditService = {};
+      var premiumSendCreditSummary = {};
 
       if (arguments.userId LTE 0) {
         return access;
@@ -59,11 +68,14 @@
       access.oneTripDisplayAmount = readApplicationString("oneTripDisplayAmount");
       access.canUsePlanningTools = true;
       access.canSendBasicFloatPlan = true;
-      access.premiumSendCreditCount = getPremiumSendCreditService().countAvailableCredits(arguments.userId);
+      premiumSendCreditService = getPremiumSendCreditService();
+      access.premiumSendCreditCount = premiumSendCreditService.countAvailableCredits(arguments.userId);
+      premiumSendCreditSummary = premiumSendCreditService.getCreditSourceSummary(arguments.userId);
+      access.premiumSendCredits = premiumSendCreditSummary;
       access.canSendPremiumFloatPlan = access.premiumSendCreditCount GT 0;
       access.premiumSendAccessSource = access.canSendPremiumFloatPlan ? "premium_send_credit" : "none";
       access.premiumSendAuthority = access.premiumSendAccessSource;
-      activeTripSummary = getPremiumSendCreditService().getActiveTripOperationalSummary(arguments.userId);
+      activeTripSummary = premiumSendCreditService.getActiveTripOperationalSummary(arguments.userId);
       access.activeTripOperationalAmbiguous = activeTripSummary.ambiguous;
       if (activeTripSummary.hasActiveTripOperationalAccess) {
         access.canUseActiveCruise = true;

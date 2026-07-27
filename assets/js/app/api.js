@@ -155,6 +155,37 @@
       return request("/me.cfc?method=handle", { method: "GET" });
     },
 
+    getDashboardOnboardingState: function () {
+      return request("/onboarding.cfc?method=handle&action=state", { method: "GET" });
+    },
+
+    acknowledgeDashboardOnboarding: function () {
+      return request("/onboarding.cfc?method=handle", {
+        method: "POST",
+        body: { action: "acknowledge" }
+      });
+    },
+
+    setDashboardGettingStartedHidden: function (hidden) {
+      if (typeof hidden !== "boolean") {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "INVALID_HIDDEN_PREFERENCE",
+          errorCode: "INVALID_HIDDEN_PREFERENCE",
+          MESSAGE: "The hidden preference must be a boolean.",
+          message: "The hidden preference must be a boolean."
+        });
+      }
+      return request("/onboarding.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "set-getting-started-hidden",
+          hidden: hidden
+        }
+      });
+    },
+
     createPremiumCheckoutSession: function (interval, floatPlanId) {
       var intervalValue = String(interval || "").trim().toLowerCase();
       var planId = parseInt(floatPlanId, 10) || 0;

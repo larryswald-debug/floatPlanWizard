@@ -2763,7 +2763,7 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="getBasicOperationalCurrentPlan" access="private" returntype="struct" output="false">
+    <cffunction name="getBasicOperationalCurrentPlan" access="public" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="datasource" type="string" required="false" default="fpw">
         <cfscript>
@@ -3237,35 +3237,10 @@
             }
 
             if (useRouteInstanceId GT 0) {
-                qDraft = queryExecute(
-                    "SELECT
-                        fp.floatplanId,
-                        fp.floatPlanName,
-                        fp.route_instance_id,
-                        fp.route_day_number,
-                        UPPER(TRIM(fp.`status`)) AS statusValue,
-                        COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
-                        COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
-                     FROM floatplans fp
-                     INNER JOIN route_instances ri
-                        ON ri.id = fp.route_instance_id
-                       AND ri.user_id = :routeUserId
-                     LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
-                     WHERE fp.userId = :planUserId
-                       AND fp.route_instance_id = :routeInstanceId
-                       AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
-                       AND fp.activatedAt IS NULL
-                       AND fp.initialSentAt IS NULL
-                       AND fp.checkedInAt IS NULL
-                       AND fp.closedAt IS NULL
-                     ORDER BY fp.floatplanId DESC
-                     LIMIT 2",
-                    {
-                        planUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                        routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
-                        routeInstanceId = { value = useRouteInstanceId, cfsqltype = "cf_sql_integer" }
-                    },
-                    { datasource = "fpw" }
+                qDraft = loadCurrentPremiumDraftCandidates(
+                    userId = arguments.userId,
+                    routeInstanceId = useRouteInstanceId,
+                    includeAllRoutes = false
                 );
             }
 
@@ -3351,6 +3326,226 @@
             result.ROUTE_NAME = isNull(row.route_name[1]) ? "" : trim(toString(row.route_name[1]));
             result.IS_ROUTE_MATCH = (useRouteInstanceId GT 0 AND result.ROUTE_INSTANCE_ID EQ useRouteInstanceId);
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="resolveUniqueCurrentPremiumDraft" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = true,
+                success = true,
+                HAS_DRAFT = false,
+                AMBIGUOUS = false,
+                FLOATPLANID = 0,
+                PLAN_KIND = "premium",
+                MESSAGE = "No current Premium draft is available."
+            };
+            var qDraft = queryNew("");
+
+            if (arguments.userId LTE 0) {
+                result.SUCCESS = false;
+                result.success = false;
+                result.ERROR = "INVALID_USER_ID";
+                result.MESSAGE = "A valid user id is required.";
+                return result;
+            }
+
+            qDraft = loadCurrentPremiumDraftCandidates(
+                userId = arguments.userId,
+                routeInstanceId = 0,
+                includeAllRoutes = true
+            );
+
+            if (qDraft.recordCount GT 1) {
+                result.AMBIGUOUS = true;
+                result.ERROR = "MULTIPLE_CURRENT_DRAFT_GROUPS";
+                result.MESSAGE = "Multiple current Premium drafts are available. Select a route to continue.";
+                return result;
+            }
+
+            if (qDraft.recordCount EQ 1) {
+                result.HAS_DRAFT = true;
+                result.FLOATPLANID = val(qDraft.floatplanId[1]);
+                result.ROUTE_INSTANCE_ID = isNull(qDraft.route_instance_id[1]) ? 0 : val(qDraft.route_instance_id[1]);
+                result.MESSAGE = "OK";
+            }
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getFloatPlanScheduleCompletion" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                success = false,
+                FOUND = false,
+                COMPLETE = false,
+                FLOATPLANID = val(arguments.floatPlanId),
+                PLAN_KIND = "",
+                REASON = "not_found"
+            };
+            var qPlan = queryNew("");
+            var isBasic = false;
+            var departureTimezone = "";
+            var returnTimezone = "";
+            var departureUtc = "";
+            var returnUtc = "";
+            var hasLocations = false;
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+                result.ERROR = "INVALID_ARGUMENT";
+                result.REASON = "invalid_argument";
+                return result;
+            }
+
+            qPlan = queryExecute(
+                "SELECT
+                    fp.floatPlanId,
+                    fp.route_instance_id,
+                    fp.route_origin,
+                    fp.departing,
+                    fp.`returning`,
+                    fp.departureTime,
+                    fp.returnTime,
+                    fp.departureTimeUTC,
+                    fp.returnTimeUTC,
+                    (fp.departureTime IS NOT NULL) AS has_departure_time,
+                    (fp.returnTime IS NOT NULL) AS has_return_time,
+                    (fp.departureTimeUTC IS NOT NULL) AS has_departure_time_utc,
+                    (fp.returnTimeUTC IS NOT NULL) AS has_return_time_utc,
+                    COALESCE(NULLIF(TRIM(fp.departureTZ), ''), NULLIF(TRIM(fp.departTimezone), '')) AS departure_timezone,
+                    COALESCE(NULLIF(TRIM(fp.returnTZ), ''), NULLIF(TRIM(fp.returnTimezone), '')) AS return_timezone,
+                    fp.initialSentAt,
+                    (fp.initialSentAt IS NOT NULL) AS has_initial_send,
+                    bd.launch_location,
+                    bd.destination_location,
+                    (
+                      COALESCE(NULLIF(TRIM(fp.departing), ''), '') <> ''
+                      AND COALESCE(NULLIF(TRIM(fp.`returning`), ''), '') <> ''
+                    ) AS has_premium_locations,
+                    (
+                      COALESCE(NULLIF(TRIM(bd.launch_location), ''), '') <> ''
+                      AND COALESCE(NULLIF(TRIM(bd.destination_location), ''), '') <> ''
+                    ) AS has_basic_locations
+                 FROM floatplans fp
+                 LEFT JOIN floatplan_basic_details bd
+                   ON bd.floatplan_id = fp.floatPlanId
+                 WHERE fp.floatPlanId = :floatPlanId
+                   AND fp.userId = :userId
+                 LIMIT 1",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+
+            result.SUCCESS = true;
+            result.success = true;
+            if (qPlan.recordCount EQ 0) {
+                return result;
+            }
+
+            result.FOUND = true;
+            isBasic = (
+                lCase(trim(toString(qPlan.route_origin[1]))) EQ "basic_float_plan"
+            );
+            result.PLAN_KIND = isBasic ? "basic" : "premium";
+
+            if (val(qPlan.has_initial_send[1]) EQ 1) {
+                result.COMPLETE = true;
+                result.REASON = "sent";
+                return result;
+            }
+
+            departureTimezone = isNull(qPlan.departure_timezone[1]) ? "" : trim(toString(qPlan.departure_timezone[1]));
+            returnTimezone = isNull(qPlan.return_timezone[1]) ? "" : trim(toString(qPlan.return_timezone[1]));
+            if (
+                val(qPlan.has_departure_time[1]) NEQ 1
+                OR val(qPlan.has_return_time[1]) NEQ 1
+                OR val(qPlan.has_departure_time_utc[1]) NEQ 1
+                OR val(qPlan.has_return_time_utc[1]) NEQ 1
+                OR !isDate(qPlan.departureTime[1])
+                OR !isDate(qPlan.returnTime[1])
+                OR !isDate(qPlan.departureTimeUTC[1])
+                OR !isDate(qPlan.returnTimeUTC[1])
+                OR !len(departureTimezone)
+                OR !len(returnTimezone)
+            ) {
+                result.REASON = "missing_schedule_fields";
+                return result;
+            }
+
+            if (isBasic) {
+                hasLocations = val(qPlan.has_basic_locations[1]) EQ 1;
+            } else {
+                hasLocations = val(qPlan.has_premium_locations[1]) EQ 1;
+            }
+            if (!hasLocations) {
+                result.REASON = "missing_schedule_fields";
+                return result;
+            }
+
+            departureUtc = qPlan.departureTimeUTC[1];
+            returnUtc = qPlan.returnTimeUTC[1];
+            if (dateCompare(returnUtc, departureUtc) LTE 0) {
+                result.REASON = "invalid_time_order";
+                return result;
+            }
+            if (isBasic AND dateDiff("n", departureUtc, returnUtc) GT (24 * 60)) {
+                result.REASON = "basic_duration_limit";
+                return result;
+            }
+            if (dateCompare(returnUtc, dateConvert("local2utc", now())) LTE 0) {
+                result.REASON = "return_not_future";
+                return result;
+            }
+
+            result.COMPLETE = true;
+            result.REASON = "complete";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="loadCurrentPremiumDraftCandidates" access="private" returntype="query" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="false" default="0">
+        <cfargument name="includeAllRoutes" type="boolean" required="false" default="false">
+        <cfscript>
+            return queryExecute(
+                "SELECT
+                    fp.floatplanId,
+                    fp.floatPlanName,
+                    fp.route_instance_id,
+                    fp.route_day_number,
+                    UPPER(TRIM(fp.`status`)) AS statusValue,
+                    COALESCE(NULLIF(TRIM(ri.generated_route_code), ''), NULLIF(TRIM(lr.short_code), '')) AS route_code,
+                    COALESCE(NULLIF(TRIM(lr.name), ''), NULLIF(TRIM(ri.generated_route_code), ''), CONCAT('Route ##', ri.id)) AS route_name
+                 FROM floatplans fp
+                 INNER JOIN route_instances ri
+                    ON ri.id = fp.route_instance_id
+                   AND ri.user_id = :routeUserId
+                 LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
+                 WHERE fp.userId = :planUserId
+                   AND (:includeAllRoutes = 1 OR fp.route_instance_id = :routeInstanceId)
+                   AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
+                   AND fp.activatedAt IS NULL
+                   AND fp.initialSentAt IS NULL
+                   AND fp.checkedInAt IS NULL
+                   AND fp.closedAt IS NULL
+                 ORDER BY fp.floatplanId DESC
+                 LIMIT 2",
+                {
+                    planUserId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeUserId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" },
+                    includeAllRoutes = { value = arguments.includeAllRoutes ? 1 : 0, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = val(arguments.routeInstanceId), cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
         </cfscript>
     </cffunction>
 

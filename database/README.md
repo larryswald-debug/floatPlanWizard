@@ -50,6 +50,48 @@ exist. Resolve and audit any duplicates before retrying; the migration never
 deletes or merges entitlement records. The guarded rollback removes only the
 exact named unique index and never changes entitlement data.
 
+For `20260724_002_add_welcome_onboarding_seen_at`, run the `.preflight.sql`,
+`.up.sql`, and `.verify.sql` files in that order without the SQL client's
+`--force` option. The preflight is read-only and refuses to continue unless the
+selected database is exactly `FPW`, `users.userId` has the expected definition,
+and `users.welcomeOnboardingSeenAt` is absent. The forward migration captures
+the current maximum `userId` and existing-user count before adding
+`welcomeOnboardingSeenAt DATETIME(6) NULL DEFAULT NULL`. It backfills only users
+at or below that captured cutoff, leaving later accounts `NULL` and eligible
+for the welcome onboarding flow. Record the cutoff, count, and UTC timestamp
+reported by the forward migration.
+
+Rollback deletes all persisted welcome-acknowledgment timestamps. The down
+migration therefore refuses to run unless the operator sets this exact
+same-session confirmation immediately before sourcing the file:
+
+```sql
+SET @fpw_confirm_drop_welcome_onboarding_seen_at =
+  'DROP_WELCOME_ONBOARDING_SEEN_AT';
+SOURCE database/migrations/20260724_002_add_welcome_onboarding_seen_at.down.sql;
+```
+
+Prefer disabling the onboarding feature while leaving the compatible nullable
+column in place when schema rollback is not explicitly required.
+
+For `20260724_003_add_getting_started_hidden`, run the `.preflight.sql`,
+`.up.sql`, and `.verify.sql` files in that order before the application
+rollout, without the SQL client's `--force` option. The read-only preflight
+requires the exact `20260724_002` column definition and refuses to continue
+when `users.gettingStartedHidden` already exists. The forward migration adds
+`gettingStartedHidden TINYINT(1) NULL DEFAULT NULL` without a data backfill:
+`NULL` retains automatic visibility, `0` records an explicit Show choice, and
+`1` records an explicit Hide choice.
+
+Rollback deletes every persisted Getting Started visibility choice. The down
+migration therefore requires this exact same-session confirmation:
+
+```sql
+SET @fpw_confirm_drop_getting_started_hidden =
+  'DROP_GETTING_STARTED_HIDDEN';
+SOURCE database/migrations/20260724_003_add_getting_started_hidden.down.sql;
+```
+
 ## Verification
 
 Verification files must identify the selected database, expected tables, columns, indexes, foreign keys, and CHECK constraints. Application validation must use disposable local records and remove them afterward.
