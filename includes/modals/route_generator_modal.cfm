@@ -1505,6 +1505,14 @@
                   </div>
                 </section>
 
+                <!---
+                TEMPORARILY HIDDEN:
+                Default route-template UI removed from the public Route Generator experience.
+                Preserve this functionality for future reuse as an optional planning
+                template that members can import into their Route Library.
+                Do not delete without owner approval.
+                --->
+                <!---
                 <section class="rg-section">
                   <div class="rg-section-head">
                     <div class="rg-section-title">Template</div>
@@ -1559,6 +1567,10 @@
                     <div class="fpw-routegen__empty">No optional stops available for this template.</div>
                   </div>
                 </section>
+                --->
+
+                <!--- Custom routes still require a start date for preview, generation, and the Cruise Timeline. --->
+                <input id="routeGenStartDate" type="hidden" value="" aria-hidden="true">
               </div>
             </div>
           </section>
@@ -1570,7 +1582,11 @@
               <div>
                 <h2 id="routeGenPreviewHeading" class="rg-panel-title">Route Summary and Legs</h2>
               </div>
+              <!---
+              TEMPORARILY HIDDEN:
+              Template-only preview label retained for future Route Template Library reuse.
               <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span></div>
+              --->
             </div>
 
             <div class="rg-right-scroll">
@@ -1642,7 +1658,7 @@
                   </div>
 
                   <div id="routeGenLegList" class="rg-leg-list">
-                    <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
+                    <div class="fpw-routegen__empty">Create or load a My Route to see it in the Cruise Timeline.</div>
                   </div>
                 </div>
 
@@ -1819,7 +1835,7 @@
     </div>
 
     <div class="rg-bottom-bar">
-      <div id="routeGenHintLine" class="rg-hintline">Recommended flow: Preview -&gt; Generate Route -&gt; Build Float Plans from dashboard.</div>
+      <div id="routeGenHintLine" class="rg-hintline">Recommended flow: Create or select a My Route -&gt; add waypoint legs -&gt; Load -&gt; Save Route.</div>
       <div class="rg-actions">
         <button type="button" id="routeGenResetBtn" class="btn-secondary">Reset</button>
         <button type="button" id="routeGenCancelBtn" class="btn-secondary">Close</button>
