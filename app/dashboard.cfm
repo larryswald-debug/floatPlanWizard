@@ -356,7 +356,7 @@
                 <button type="button" class="btn-close" id="welcomeOnboardingCloseBtn" aria-label="Close welcome"></button>
             </div>
             <div class="modal-body card-body">
-                <p class="fpw-welcome-introduction" id="welcomeOnboardingDescription">FPW helps you plan your trip, share the important details with someone ashore, and keep them informed until you return safely.</p>
+                <p class="fpw-welcome-introduction" id="welcomeOnboardingDescription">FPW helps you plan your trip, share the important details with someone ashore, and keep them updated through supported check-ins and notices.</p>
                 <p class="fpw-welcome-access-message d-none" id="welcomeOnboardingAccessMessage"></p>
 
                 <section class="fpw-welcome-route-setup" aria-labelledby="fpwWelcomeRouteSetupTitle">
