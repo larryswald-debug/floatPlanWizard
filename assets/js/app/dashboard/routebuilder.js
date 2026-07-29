@@ -2040,7 +2040,7 @@
     if (dom.hintLineEl) {
       dom.hintLineEl.textContent = isEditor
         ? "Editing existing route: Preview updates, then Save Route to update this route."
-        : "Recommended flow: Preview -> Generate Route -> create a float plan from the dashboard when you're ready to start a trip.";
+        : "Recommended flow: Create or select a My Route -> add waypoint legs -> Load -> Save Route.";
     }
   }
 
@@ -2197,26 +2197,32 @@
     return {
       vessel_id: toInt(
         src.vessel_id !== undefined ? src.vessel_id :
-          (src.VESSEL_ID !== undefined ? src.VESSEL_ID : (src.vesselId !== undefined ? src.vesselId : 0)),
+          (src.VESSEL_ID !== undefined ? src.VESSEL_ID :
+            (src.vesselId !== undefined ? src.vesselId : (src.VESSELID !== undefined ? src.VESSELID : 0))),
         0
       ),
       vessel_name: String(
         src.vessel_name !== undefined ? src.vessel_name :
-          (src.VESSEL_NAME !== undefined ? src.VESSEL_NAME : (src.vesselName !== undefined ? src.vesselName : ""))
+          (src.VESSEL_NAME !== undefined ? src.VESSEL_NAME :
+            (src.vesselName !== undefined ? src.vesselName : (src.VESSELNAME !== undefined ? src.VESSELNAME : "")))
       ).trim(),
       is_default: coerceBool(
         src.is_default !== undefined ? src.is_default :
-          (src.IS_DEFAULT !== undefined ? src.IS_DEFAULT : (src.isDefaultVessel !== undefined ? src.isDefaultVessel : 0)),
+          (src.IS_DEFAULT !== undefined ? src.IS_DEFAULT :
+            (src.isDefaultVessel !== undefined ? src.isDefaultVessel : (src.ISDEFAULTVESSEL !== undefined ? src.ISDEFAULTVESSEL : 0))),
         false
       ),
       max_speed_kn: toPositiveNumber(
         src.max_speed_kn !== undefined ? src.max_speed_kn :
-          (src.MAX_SPEED_KN !== undefined ? src.MAX_SPEED_KN : 0),
+          (src.MAX_SPEED_KN !== undefined ? src.MAX_SPEED_KN :
+            (src.max_speed !== undefined ? src.max_speed : (src.MAX_SPEED !== undefined ? src.MAX_SPEED : 0))),
         0
       ),
       most_efficient_speed_kn: toPositiveNumber(
         src.most_efficient_speed_kn !== undefined ? src.most_efficient_speed_kn :
-          (src.MOST_EFFICIENT_SPEED_KN !== undefined ? src.MOST_EFFICIENT_SPEED_KN : 0),
+          (src.MOST_EFFICIENT_SPEED_KN !== undefined ? src.MOST_EFFICIENT_SPEED_KN :
+            (src.most_efficient_speed !== undefined ? src.most_efficient_speed :
+              (src.MOST_EFFICIENT_SPEED !== undefined ? src.MOST_EFFICIENT_SPEED : 0))),
         0
       ),
       gph_at_max_speed: toPositiveNumber(
@@ -3869,7 +3875,7 @@
     if (dom.expectedAvgGphEl) dom.expectedAvgGphEl.innerHTML = "-- <small>GPH</small>";
     if (dom.expectedAvgGphSubEl) dom.expectedAvgGphSubEl.textContent = "Current pace + weather burn";
     if (dom.legCountEl) dom.legCountEl.textContent = "0 legs";
-    if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>';
+    if (dom.legListEl) dom.legListEl.innerHTML = '<div class="fpw-routegen__empty">Create or load a My Route to see it in the Cruise Timeline.</div>';
     resetLegMapSelection();
   }
 
@@ -4342,6 +4348,13 @@
   }
 
   function loadTemplates() {
+    // The template UI is intentionally server-hidden for future Route Template Library reuse.
+    // Restore the CFML block to re-enable the existing template initialization path.
+    if (!dom.templateSelectEl) {
+      state.templates = [];
+      return Promise.resolve();
+    }
+
     return fetchJson(apiUrl("listRouteTemplates"), { credentials: "same-origin" })
       .then(function (payload) {
         if (!payload || payload.SUCCESS === false) {
@@ -4962,46 +4975,39 @@
   }
 
   function fetchGeneratorVesselDefaults() {
-    var fallbackTemplateCode = "";
     if (state.activeTemplateCode) {
       return fetchOptions();
     }
-    if (state.templates.length) {
-      fallbackTemplateCode = String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim();
-    }
-    if (!fallbackTemplateCode) return Promise.resolve();
 
-    setStatus("Loading route defaults...");
-    return fetchJson(apiUrl("routegen_getOptions"), {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({
-        template_code: fallbackTemplateCode,
-        direction: getDirectionValue()
-      })
-    })
+    if (!window.Api || typeof window.Api.getVessels !== "function") {
+      showError("Vessels API is unavailable.");
+      return Promise.resolve();
+    }
+
+    setStatus("Loading vessels...");
+    return window.Api.getVessels({ limit: 100 })
       .then(function (payload) {
         if (!payload || payload.SUCCESS === false) {
-          throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load route defaults.");
+          throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to load vessels.");
         }
-        var data = payload.DATA || {};
-        var defaultsData = (data.defaults && typeof data.defaults === "object")
-          ? data.defaults
-          : ((data.DEFAULTS && typeof data.DEFAULTS === "object") ? data.DEFAULTS : {});
-        var vesselsData = Array.isArray(data.vessels) ? data.vessels : (Array.isArray(data.VESSELS) ? data.VESSELS : []);
-        applyVesselDefaultsFromPayload(defaultsData);
+        var vesselsData = Array.isArray(payload.VESSELS)
+          ? payload.VESSELS
+          : (Array.isArray(payload.vessels) ? payload.vessels : []);
         applyAvailableVesselsFromPayload(vesselsData);
         syncSelectedVesselFromAvailableList();
         applyGeneratorVesselFieldDefaults();
-        setStatus("Route defaults loaded.");
+        setStatus("Vessels loaded.");
       })
       .catch(function (err) {
         if (err && err.code === "UNAUTHORIZED") {
           redirectToLogin();
           return;
         }
-        showError((err && err.message) ? err.message : "Unable to load route defaults.");
+        showError(
+          (err && (err.message || err.MESSAGE))
+            ? (err.message || err.MESSAGE)
+            : "Unable to load vessels."
+        );
       });
   }
 
@@ -6637,6 +6643,15 @@
               }
               return fetchOptions();
             });
+        }
+
+        if (!dom.templateSelectEl) {
+          setActiveTemplate("", {
+            restoreDraft: false,
+            rememberSelection: false,
+            allowEmpty: true
+          });
+          return fetchGeneratorVesselDefaults();
         }
 
         var preferred = "";
