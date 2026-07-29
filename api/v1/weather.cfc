@@ -74,9 +74,8 @@
                     AND structKeyExists(application, "monitorToken")
                     AND len(trim(toString(application.monitorToken)))
                     AND local.devBypassToken EQ trim(application.monitorToken)
-                    AND isNumeric(local.devBypassUserId)
-                    AND val(local.devBypassUserId) GT 0>
-                    <cfset local.userId = int(val(local.devBypassUserId))>
+                    AND reFind("^[1-9][0-9]*$", local.devBypassUserId)>
+                    <cfset local.userId = int(local.devBypassUserId)>
                 </cfif>
             </cfif>
 
@@ -146,9 +145,23 @@
                 </cfif>
 
                 <cfif structKeyExists(arguments, "floatPlanId") AND len(trim(arguments.floatPlanId))>
-                    <cfset local.fpId = int(val(arguments.floatPlanId))>
+                    <cfif reFind("^[1-9][0-9]*$", trim(arguments.floatPlanId))>
+                        <cfset local.fpId = int(trim(arguments.floatPlanId))>
+                    <cfelse>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = "Missing floatPlanId">
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
                 <cfelseif structKeyExists(arguments, "id") AND len(trim(arguments.id))>
-                    <cfset local.fpId = int(val(arguments.id))>
+                    <cfif reFind("^[1-9][0-9]*$", trim(arguments.id))>
+                        <cfset local.fpId = int(trim(arguments.id))>
+                    <cfelse>
+                        <cfset local.resp.SUCCESS = false>
+                        <cfset local.resp.MESSAGE = "Missing floatPlanId">
+                        <cfoutput>#serializeJSON(local.resp)#</cfoutput>
+                        <cfreturn>
+                    </cfif>
                 </cfif>
 
                 <cfif local.fpId LTE 0>
@@ -353,8 +366,8 @@
                         <cfreturn>
                     </cfif>
 
-                    <cfset local.fpId = int(val(local.searchFloatPlanRaw))>
-                    <cfif local.fpId LTE 0>
+                    <cfset local.fpRaw = trim(local.searchFloatPlanRaw)>
+                    <cfif NOT reFind("^[1-9][0-9]*$", local.fpRaw)>
                         <cfset local.resp.SUCCESS = false>
                         <cfset local.resp.MESSAGE = "Missing floatPlanId">
                         <cfset local.resp.ERROR = {
@@ -364,6 +377,7 @@
                         <cfset writeWeatherResponse(local.resp, local.useWeatherPageViewModel)>
                         <cfreturn>
                     </cfif>
+                    <cfset local.fpId = int(local.fpRaw)>
 
                     <cfset local.searchRequestEcho.floatPlanId = local.fpId>
                     <cfset local.data = getWeatherForFloatPlan(local.userId, local.fpId, local.marineMode, local.marineOnly, local.marineDetail)>
