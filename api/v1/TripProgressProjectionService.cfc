@@ -113,7 +113,9 @@
 
             if (canonicalEventsTableExists) {
                 qCanonicalEvents = queryExecute("
-                    SELECT id, event_type, event_status, occurred_at_utc, source, source_monitoring_id, source_post_id
+                    SELECT id, event_type, event_status,
+                           DATE_FORMAT(occurred_at_utc, '%Y-%m-%d %H:%i:%s') AS occurred_at_utc,
+                           source, source_monitoring_id, source_post_id
                     FROM floatplan_events
                     WHERE floatplan_id = :floatPlanId
                       AND voided_at_utc IS NULL
@@ -138,8 +140,12 @@
 
             if (canonicalSegmentsTableExists) {
                 qCanonicalSegments = queryExecute("
-                    SELECT id, route_instance_id, route_leg_order, local_timezone, segment_type, started_at_utc, ended_at_utc,
-                           expected_resume_at_utc, actual_resume_at_utc, source_start_event_id, source_end_event_id
+                    SELECT id, route_instance_id, route_leg_order, local_timezone, segment_type,
+                           DATE_FORMAT(started_at_utc, '%Y-%m-%d %H:%i:%s') AS started_at_utc,
+                           DATE_FORMAT(ended_at_utc, '%Y-%m-%d %H:%i:%s') AS ended_at_utc,
+                           DATE_FORMAT(expected_resume_at_utc, '%Y-%m-%d %H:%i:%s') AS expected_resume_at_utc,
+                           DATE_FORMAT(actual_resume_at_utc, '%Y-%m-%d %H:%i:%s') AS actual_resume_at_utc,
+                           source_start_event_id, source_end_event_id
                     FROM floatplan_activity_segments
                     WHERE floatplan_id = :floatPlanId
                     ORDER BY started_at_utc ASC, id ASC
@@ -254,11 +260,15 @@
         <cfargument name="options" type="any" required="false" default="">
         <cfscript>
             var out = {
-                "includeOperationalLockTime" = false
+                "includeOperationalLockTime" = false,
+                "allowDraftScheduledProjection" = false
             };
 
             if (isStruct(arguments.options) AND structKeyExists(arguments.options, "includeOperationalLockTime")) {
                 out.includeOperationalLockTime = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.includeOperationalLockTime))) GT 0);
+            }
+            if (isStruct(arguments.options) AND structKeyExists(arguments.options, "allowDraftScheduledProjection")) {
+                out.allowDraftScheduledProjection = (listFindNoCase("true,1,yes,y", trim(toString(arguments.options.allowDraftScheduledProjection))) GT 0);
             }
 
             return out;
@@ -270,10 +280,15 @@
         <cfscript>
             return queryExecute("
                 SELECT fp.floatPlanId, fp.userId, fp.status, fp.route_instance_id, fp.departureTZ, fp.departTimezone,
-                       fp.dailyStartLocalTime, fp.departureTime, fp.departureTimeUTC, fp.checkedInAt,
+                       fp.dailyStartLocalTime, fp.departureTime,
+                       DATE_FORMAT(fp.departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUTC,
+                       DATE_FORMAT(fp.checkedInAt, '%Y-%m-%d %H:%i:%s') AS checkedInAt,
                        fp.checkin_context, fp.overnight_pause_minutes_total, fp.manual_delay_minutes_total,
-                       fm.id AS monitoring_id, fm.monitor_state, fm.expected_checkin_at, fm.last_checkin_at,
-                       fm.last_checkin_status, fm.secure_for_night, fm.secure_for_night_until
+                       fm.id AS monitoring_id, fm.monitor_state,
+                       DATE_FORMAT(fm.expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at,
+                       DATE_FORMAT(fm.last_checkin_at, '%Y-%m-%d %H:%i:%s') AS last_checkin_at,
+                       fm.last_checkin_status, fm.secure_for_night,
+                       DATE_FORMAT(fm.secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until
                 FROM floatplans fp
                 LEFT JOIN floatplan_monitoring fm
                   ON fm.float_plan_id = fp.floatPlanId
@@ -289,7 +304,9 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             return queryExecute("
-                SELECT id, monitoring_id, event_type, event_at, checkin_status, actor_type, meta_json
+                SELECT id, monitoring_id, event_type,
+                       DATE_FORMAT(event_at, '%Y-%m-%d %H:%i:%s') AS event_at,
+                       checkin_status, actor_type, meta_json
                 FROM floatplan_monitor_events
                 WHERE float_plan_id = :floatPlanId
                 ORDER BY event_at ASC, id ASC
@@ -307,7 +324,11 @@
                 return queryNew("");
             }
             return queryExecute("
-                SELECT id, leg_order, UPPER(TRIM(status)) AS status_val, leg_started_at, completed_at, created_at, updated_at
+                SELECT id, leg_order, UPPER(TRIM(status)) AS status_val,
+                       DATE_FORMAT(leg_started_at, '%Y-%m-%d %H:%i:%s') AS leg_started_at,
+                       DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at,
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                       DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
                 FROM route_instance_leg_progress
                 WHERE route_instance_id = :routeInstanceId
                   AND user_id = :userId
@@ -441,6 +462,13 @@
                 }
 
                 if (eventType EQ "MONITORING_STARTED") {
+                    meta = parseJsonStruct(arguments.qEvents.meta_json[i]);
+                    if (
+                        structKeyExists(meta, "initialization_mode")
+                        AND compareNoCase(safeString(meta.initialization_mode), "scheduled_predeparture") EQ 0
+                    ) {
+                        continue;
+                    }
                     if (currentIndex EQ 0) {
                         arrayAppend(segments, newSegment("UNDERWAY", eventAt, "", "", "", arguments.timezone, arguments.routeInstanceId, arguments.userId, "legacy_diagnostic", arguments.qEvents.id[i], 0));
                         currentIndex = arrayLen(segments);
@@ -561,11 +589,18 @@
             var statusVal = "";
             var startedAt = "";
             var completedAt = "";
+            var finalLegOrder = 0;
 
             for (i = 1; i LTE arguments.qProgress.recordCount; i++) {
                 statusVal = safeString(arguments.qProgress.status_val[i]);
                 if (statusVal EQ "COMPLETED" AND safeNumber(arguments.qProgress.leg_order[i]) GT highestCompleted) {
                     highestCompleted = safeNumber(arguments.qProgress.leg_order[i]);
+                }
+            }
+
+            for (i = 1; i LTE arguments.qLegs.recordCount; i++) {
+                if (safeNumber(arguments.qLegs.leg_order[i]) GT finalLegOrder) {
+                    finalLegOrder = safeNumber(arguments.qLegs.leg_order[i]);
                 }
             }
 
@@ -588,8 +623,20 @@
             }
 
             if (activeOrder LTE 0) {
-                activeOrder = highestCompleted + 1;
-                row = { "status" = "NOT_STARTED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                if (finalLegOrder GT 0 AND highestCompleted GTE finalLegOrder) {
+                    activeOrder = finalLegOrder;
+                    row = { "status" = "COMPLETED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                    for (i = 1; i LTE arguments.qProgress.recordCount; i++) {
+                        if (safeNumber(arguments.qProgress.leg_order[i]) EQ finalLegOrder) {
+                            row.startedAtUtc = formatUtc(arguments.qProgress.leg_started_at[i]);
+                            row.completedAtUtc = formatUtc(arguments.qProgress.completed_at[i]);
+                            break;
+                        }
+                    }
+                } else {
+                    activeOrder = highestCompleted + 1;
+                    row = { "status" = "NOT_STARTED", "startedAtUtc" = "", "completedAtUtc" = "" };
+                }
             }
 
             legDetails = findLegDetails(arguments.qLegs, activeOrder);
@@ -646,7 +693,8 @@
             var completedNm = 0;
             var remainingNm = 0;
             var pct = 0;
-            var openSegments = getOpenSegments(arguments.segments);
+            var currentLegSegments = filterSegmentsForCurrentLeg(arguments.segments, arguments.currentLeg, arguments.out);
+            var openSegments = getOpenSegments(currentLegSegments);
             var openType = "";
             var isPaused = false;
             var expectedResumeAtUtc = "";
@@ -689,7 +737,7 @@
                 };
             }
             legStart = parseIsoUtc(arguments.currentLeg.startedAtUtc);
-            seconds = sumUnderwayOverlapSeconds(arguments.segments, legStart, arguments.asOfUtc);
+            seconds = sumUnderwayOverlapSeconds(currentLegSegments, legStart, arguments.asOfUtc);
             hours = seconds / 3600;
             if (arguments.progressSpeedKn GT 0) {
                 completedNm = min(safeNumber(arguments.currentLeg.distanceNm), hours * arguments.progressSpeedKn);
@@ -715,6 +763,52 @@
                 "statusDetail" = statusDetail,
                 "usesLatestCheckinAsAnchor" = false
             };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="filterSegmentsForCurrentLeg" access="private" returntype="array" output="false">
+        <cfargument name="segments" type="array" required="true">
+        <cfargument name="currentLeg" type="struct" required="true">
+        <cfargument name="out" type="struct" required="true">
+        <cfscript>
+            var filtered = [];
+            var hasRouteAwareSegments = false;
+            var currentLegOrder = (structKeyExists(arguments.currentLeg, "routeLegOrder") ? safeNumber(arguments.currentLeg.routeLegOrder) : 0);
+            var currentRouteInstanceId = (structKeyExists(arguments.out, "routeInstanceId") ? safeNumber(arguments.out.routeInstanceId) : 0);
+            var i = 0;
+            var segmentRouteInstanceId = 0;
+            var segmentLegOrder = 0;
+
+            for (i = 1; i LTE arrayLen(arguments.segments); i++) {
+                if (
+                    (structKeyExists(arguments.segments[i], "routeInstanceId") AND safeNumber(arguments.segments[i].routeInstanceId) GT 0)
+                    OR (structKeyExists(arguments.segments[i], "routeLegOrder") AND safeNumber(arguments.segments[i].routeLegOrder) GT 0)
+                ) {
+                    hasRouteAwareSegments = true;
+                    break;
+                }
+            }
+
+            if (!hasRouteAwareSegments OR currentLegOrder LTE 0) {
+                return arguments.segments;
+            }
+
+            for (i = 1; i LTE arrayLen(arguments.segments); i++) {
+                segmentRouteInstanceId = (structKeyExists(arguments.segments[i], "routeInstanceId") ? safeNumber(arguments.segments[i].routeInstanceId) : 0);
+                segmentLegOrder = (structKeyExists(arguments.segments[i], "routeLegOrder") ? safeNumber(arguments.segments[i].routeLegOrder) : 0);
+                if (
+                    segmentLegOrder EQ currentLegOrder
+                    AND (
+                        currentRouteInstanceId LTE 0
+                        OR segmentRouteInstanceId LTE 0
+                        OR segmentRouteInstanceId EQ currentRouteInstanceId
+                    )
+                ) {
+                    arrayAppend(filtered, arguments.segments[i]);
+                }
+            }
+
+            return filtered;
         </cfscript>
     </cffunction>
 
@@ -873,7 +967,7 @@
                     OR safeNumber(arguments.out.eventLedger.count) LTE 0
                     OR arrayLen(arguments.canonicalSegments) EQ 0
                 )
-                AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out)
+                AND canAttemptScheduledRouteTimeline(arguments.qPlan, arguments.qProgress, arguments.currentLeg, arguments.canonicalSegments, arguments.out, arguments.projectionOptions)
             ) {
                 return buildScheduledRouteTimelineProjection(arguments.qPlan, arguments.qLegs, arguments.qProgress, arguments.currentLeg, arguments.asOfUtc, arguments.speedKn, timeline, arguments.out, arguments.projectionOptions);
             }
@@ -1084,6 +1178,7 @@
         <cfargument name="currentLeg" type="struct" required="true">
         <cfargument name="canonicalSegments" type="array" required="true">
         <cfargument name="out" type="struct" required="true">
+        <cfargument name="projectionOptions" type="struct" required="true">
         <cfscript>
             var planStatus = "";
             var currentStatus = "";
@@ -1107,7 +1202,10 @@
             }
 
             planStatus = uCase(safeString(arguments.qPlan.status[1]));
-            if (!listFindNoCase("ACTIVE,SCHEDULED,PLANNED", planStatus)) {
+            if (
+                !listFindNoCase("ACTIVE,SCHEDULED,PLANNED", planStatus)
+                AND !(arguments.projectionOptions.allowDraftScheduledProjection AND planStatus EQ "DRAFT")
+            ) {
                 return false;
             }
             if (!structKeyExists(arguments.currentLeg, "routeLegOrder") OR safeNumber(arguments.currentLeg.routeLegOrder) LTE 0) {
@@ -1312,28 +1410,145 @@
         <cfargument name="asOfUtc" type="date" required="true">
         <cfargument name="timezone" type="string" required="true">
         <cfscript>
-            var qBounds = queryExecute("
-                SELECT
-                  DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)) AS local_date,
-                  CONVERT_TZ(DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)), :tz, 'UTC') AS day_start_utc,
-                  CONVERT_TZ(DATE_ADD(DATE(CONVERT_TZ(:asOfUtc, 'UTC', :tz)), INTERVAL 1 DAY), :tz, 'UTC') AS day_end_utc
-            ", {
-                asOfUtc = { value = arguments.asOfUtc, cfsqltype = "cf_sql_timestamp" },
-                tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-            }, { datasource = variables.datasource });
+            var tz = normalizeProjectionTimezone(arguments.timezone);
+            var localWall = "";
+            var localDate = "";
+            var dayStartLocal = "";
+            var dayEndLocal = "";
+            var dayStartLocalDt = "";
+            var dayStartUtc = "";
+            var dayEndUtc = "";
 
-            if (qBounds.recordCount GT 0 AND isDate(qBounds.day_start_utc[1]) AND isDate(qBounds.day_end_utc[1])) {
+            if (!len(tz)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            if (tz EQ "UTC") {
+                dayStartUtc = createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0);
                 return {
-                    "localDate" = dateFormat(qBounds.local_date[1], "yyyy-mm-dd"),
-                    "startUtc" = qBounds.day_start_utc[1],
-                    "endUtc" = qBounds.day_end_utc[1]
+                    "localDate" = dateFormat(dayStartUtc, "yyyy-mm-dd"),
+                    "startUtc" = dayStartUtc,
+                    "endUtc" = dateAdd("d", 1, dayStartUtc)
                 };
             }
 
+            localWall = formatProjectionUtcAsLocalWall(arguments.asOfUtc, tz);
+            if (!len(localWall)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            localDate = left(localWall, 10);
+            if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", localDate)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            dayStartLocal = localDate & " 00:00:00";
+            if (!isDate(dayStartLocal)) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
+            dayStartLocalDt = parseDateTime(dayStartLocal);
+            dayEndLocal = dateFormat(dateAdd("d", 1, dayStartLocalDt), "yyyy-mm-dd") & " 00:00:00";
+            dayStartUtc = convertProjectionLocalWallToUtc(dayStartLocal, tz);
+            dayEndUtc = convertProjectionLocalWallToUtc(dayEndLocal, tz);
+
+            if (!isDate(dayStartUtc) OR !isDate(dayEndUtc) OR dateCompare(dayEndUtc, dayStartUtc, "s") LTE 0) {
+                return projectionDayBoundsUnavailable(arguments.asOfUtc);
+            }
+
             return {
-                "localDate" = dateFormat(arguments.asOfUtc, "yyyy-mm-dd"),
-                "startUtc" = createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0),
-                "endUtc" = dateAdd("d", 1, createDateTime(year(arguments.asOfUtc), month(arguments.asOfUtc), day(arguments.asOfUtc), 0, 0, 0))
+                "localDate" = localDate,
+                "startUtc" = dayStartUtc,
+                "endUtc" = dayEndUtc
+            };
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeProjectionTimezone" access="private" returntype="string" output="false">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var tz = trim(arguments.timezone);
+            var tzKey = uCase(tz);
+
+            switch (tzKey) {
+                case "US/EASTERN":
+                    return "America/New_York";
+                case "US/CENTRAL":
+                    return "America/Chicago";
+                case "US/MOUNTAIN":
+                    return "America/Denver";
+                case "US/PACIFIC":
+                    return "America/Los_Angeles";
+                case "US/ALASKA":
+                    return "America/Anchorage";
+                case "US/HAWAII":
+                    return "Pacific/Honolulu";
+                case "+00:00":
+                case "UTC":
+                case "ETC/UTC":
+                case "GMT":
+                    return "UTC";
+            }
+
+            return tz;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatProjectionUtcAsLocalWall" access="private" returntype="string" output="false">
+        <cfargument name="utcValue" type="date" required="true">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            try {
+                return dateTimeFormat(arguments.utcValue, "yyyy-mm-dd HH:nn:ss", arguments.timezone);
+            } catch (any localFormatErr) {
+                return "";
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="convertProjectionLocalWallToUtc" access="private" returntype="any" output="false">
+        <cfargument name="localWall" type="string" required="true">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var normalizedWall = trim(arguments.localWall);
+            var localDt = "";
+            var offsetMinutes = -840;
+            var candidateUtc = "";
+            var roundTripWall = "";
+            var matches = [];
+
+            if (!len(normalizedWall) OR !isDate(normalizedWall)) {
+                return "";
+            }
+
+            if (arguments.timezone EQ "UTC") {
+                return parseDateTime(normalizedWall);
+            }
+
+            localDt = parseDateTime(normalizedWall);
+            for (offsetMinutes = -840; offsetMinutes LTE 840; offsetMinutes += 15) {
+                candidateUtc = dateAdd("n", -offsetMinutes, localDt);
+                roundTripWall = formatProjectionUtcAsLocalWall(candidateUtc, arguments.timezone);
+                if (roundTripWall EQ normalizedWall) {
+                    arrayAppend(matches, candidateUtc);
+                }
+            }
+
+            if (arrayLen(matches) EQ 1) {
+                return matches[1];
+            }
+
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="projectionDayBoundsUnavailable" access="private" returntype="struct" output="false">
+        <cfargument name="asOfUtc" type="date" required="true">
+        <cfscript>
+            return {
+                "localDate" = "",
+                "startUtc" = arguments.asOfUtc,
+                "endUtc" = arguments.asOfUtc
             };
         </cfscript>
     </cffunction>
@@ -1471,9 +1686,6 @@
             if (isDate(arguments.qPlan.departureTimeUTC[1])) {
                 return arguments.qPlan.departureTimeUTC[1];
             }
-            if (isDate(arguments.qPlan.departureTime[1])) {
-                return arguments.qPlan.departureTime[1];
-            }
             return "";
         </cfscript>
     </cffunction>
@@ -1486,9 +1698,6 @@
             }
             if (isDate(arguments.qPlan.departureTimeUTC[1])) {
                 return "floatplans.departureTimeUTC";
-            }
-            if (isDate(arguments.qPlan.departureTime[1])) {
-                return "floatplans.departureTime";
             }
             return "";
         </cfscript>
@@ -1795,10 +2004,11 @@
     <cffunction name="normalizeAsOf" access="private" returntype="date" output="false">
         <cfargument name="asOfUtc" type="any" required="false" default="">
         <cfscript>
-            if (isDate(arguments.asOfUtc)) {
-                return arguments.asOfUtc;
+            var parsed = parseUtcMachineValue(arguments.asOfUtc);
+            if (isDate(parsed)) {
+                return parsed;
             }
-            return now();
+            return getDbUtcNow();
         </cfscript>
     </cffunction>
 
@@ -1824,6 +2034,10 @@
     <cffunction name="formatUtc" access="private" returntype="string" output="false">
         <cfargument name="value" type="any" required="true">
         <cfscript>
+            var raw = normalizeUtcMachineString(arguments.value);
+            if (len(raw)) {
+                return replace(raw, " ", "T", "one") & "Z";
+            }
             if (!isDate(arguments.value)) {
                 return "";
             }
@@ -1834,14 +2048,60 @@
     <cffunction name="parseIsoUtc" access="private" returntype="date" output="false">
         <cfargument name="value" type="any" required="true">
         <cfscript>
-            var s = trim(toString(arguments.value));
-            if (isDate(arguments.value)) {
-                return arguments.value;
+            var parsed = parseUtcMachineValue(arguments.value);
+            if (isDate(parsed)) {
+                return parsed;
+            }
+            return getDbUtcNow();
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeUtcMachineString" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var s = "";
+            if (isNull(arguments.value)) {
+                return "";
+            }
+            s = trim(toString(arguments.value));
+            if (!len(s)) {
+                return "";
             }
             s = replace(s, "T", " ", "one");
             s = replace(s, "Z", "", "one");
-            if (isDate(s)) {
-                return parseDateTime(s);
+            if (len(s) GTE 19) {
+                s = left(s, 19);
+            }
+            if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", s)) {
+                return s;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="parseUtcMachineValue" access="private" returntype="any" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var raw = normalizeUtcMachineString(arguments.value);
+            if (len(raw) AND isDate(raw)) {
+                return parseDateTime(raw);
+            }
+            if (isDate(arguments.value)) {
+                return arguments.value;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getDbUtcNow" access="private" returntype="any" output="false">
+        <cfscript>
+            var qNow = queryExecute(
+                "SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s') AS utc_now",
+                {},
+                { datasource = variables.datasource }
+            );
+            if (qNow.recordCount GT 0 AND !isNull(qNow.utc_now[1]) AND isDate(qNow.utc_now[1])) {
+                return parseDateTime(qNow.utc_now[1]);
             }
             return now();
         </cfscript>
@@ -1937,3 +2197,7 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+

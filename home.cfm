@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FloatPlanWizard — Route Builder + Follower Pages for Great Loopers</title>
-  <meta name="description" content="Plan your route, share a follower page, and keep your crew/family in the loop. Great Loop templates included." />
+  <meta name="description" content="Plan your route, share a trip status page, and keep your crew/family in the loop. Great Loop templates included." />
+  <link rel="stylesheet" href="assets/css/layout.css?v=20260621-home-width">
 
   <style>
     :root{
@@ -44,7 +45,7 @@
     }
 
     a{ color:inherit; }
-    .container{ max-width:1200px; margin:0 auto; padding:0 18px; }
+    .container{ width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); max-width:none; margin:0 auto; padding:0; }
 
     /* Top nav */
     .topbar{
@@ -722,7 +723,7 @@
           <span class="logo" aria-hidden="true"></span>
           <span>
             <div class="brandTitle">FloatPlanWizard</div>
-            <div class="brandTag">Route builder, follower pages, and Great Loop templates — made simple.</div>
+            <div class="brandTag">Route builder, trip status pages, and Great Loop templates — made simple.</div>
           </span>
         </a>
 
@@ -747,18 +748,18 @@
     <div class="container">
       <div class="heroGrid">
         <div>
-          <div class="pill"><span class="dot"></span> Great Loop-ready routes • shareable follower pages • cockpit UI</div>
+          <div class="pill"><span class="dot"></span> Great Loop-ready routes • shareable trip status pages • cockpit UI</div>
 
           <h1 style="margin-top:14px;">
             Plan your route.
             <br/>
-            Share a follower page.
+            Share a trip status page.
             <br/>
             <span style="color:rgba(255,255,255,.84)">Cruise the Great Loop with confidence.</span>
           </h1>
 
           <p class="lead">
-            FloatPlanWizard is built for Great Loopers who want a clean Route Builder and a follower page their family can trust.
+            FloatPlanWizard is built for Great Loopers who want a clean Route Builder and a trip status page their family can trust.
             Start from the <b>Great Loop Template</b>, customize your legs and waypoints, then share a live, readable trip view — no login required for followers.
           </p>
 
@@ -831,7 +832,7 @@
 
           <div class="mockCard">
             <h4>
-              Share follower page
+              Share trip status page
               <span class="chip">No login</span>
             </h4>
             <div class="sub">
@@ -967,7 +968,7 @@
             <div class="icon">🔗</div>
             <div>One link to share</div>
           </div>
-          <p>Share a follower page with family and friends — without giving account access.</p>
+          <p>Share a trip status page with family and friends — without giving account access.</p>
           <ul>
             <li>Follower-safe public view</li>
             <li>Made for mobile</li>
@@ -1082,7 +1083,7 @@
           <p>A clean baseline you can customize — with a route and follower view that stays readable.</p>
           <ul>
             <li>Clear leg/timeline format</li>
-            <li>Shareable follower page built-in</li>
+            <li>Shareable trip status page built-in</li>
             <li>Easy to tweak as you cruise</li>
           </ul>
         </div>
@@ -1117,7 +1118,7 @@
         </div>
 
         <div class="glass compareCard">
-          <h4>2) Share the follower page</h4>
+          <h4>2) Share the trip status page</h4>
           <p>Send one link to family and friends. They can see the trip flow without needing an account.</p>
           <ul>
             <li>Cruise timeline legs</li>
@@ -1129,7 +1130,7 @@
 
       <div class="glass ctaBand" style="margin-top:16px;">
         <div>
-          <h3>Want the Great Loop Template + follower pages?</h3>
+          <h3>Want the Great Loop Template + trip status pages?</h3>
           <p>Join early access and help shape the next set of Looper-focused features.</p>
         </div>
         <div class="right">
@@ -1160,14 +1161,14 @@
           <summary>What’s the Great Loop Template?</summary>
           <p>
             A structured starting point for planning that avoids the blank page. It’s designed to be customized and then shared
-            via a follower page so family can understand the trip flow.
+            via a trip status page so family can understand the trip flow.
           </p>
         </details>
 
         <details>
-          <summary>What is a follower page?</summary>
+          <summary>What is a trip status page?</summary>
           <p>
-            A follower page is a shareable link that shows a readable cruise timeline (legs/days) and a simple trip status view.
+            A trip status page is a shareable link that shows a readable cruise timeline (legs/days) and a simple trip status view.
             Followers don’t need an account.
           </p>
         </details>
@@ -1175,7 +1176,7 @@
         <details>
           <summary>Do I still need a float plan?</summary>
           <p>
-            Yes — float plans are still important. FPW’s homepage emphasizes Route Builder + follower pages because they reduce friction and
+            Yes — float plans are still important. FPW’s homepage emphasizes Route Builder + trip status pages because they reduce friction and
             make the plan easier to use day-to-day, especially on the Loop.
           </p>
         </details>
@@ -1183,7 +1184,7 @@
         <details>
           <summary>How do I start?</summary>
           <p>
-            Join early access. You’ll get the Great Loop Template workflow, Route Builder, and follower pages first — and you can help decide what ships next.
+            Join early access. You’ll get the Great Loop Template workflow, Route Builder, and trip status pages first — and you can help decide what ships next.
           </p>
         </details>
 
@@ -1206,7 +1207,7 @@
             <div style="font-weight:1000; letter-spacing:.2px;">FloatPlanWizard</div>
           </div>
           <p class="small" style="margin-top:10px;">
-            Route Builder + follower pages built for Great Loopers — and anyone who wants shareable clarity during a trip.
+            Route Builder + trip status pages built for Great Loopers — and anyone who wants shareable clarity during a trip.
           </p>
           <div class="proof" style="margin-top:10px;">
             <span class="badge">🧭 Route Builder</span>
@@ -1292,7 +1293,7 @@
         desc.textContent = "The template is a structured starting point for Loop planning — legs + waypoints + follower-friendly timeline.";
       }else if(mode === "start"){
         title.textContent = "Start free";
-        desc.textContent = "Create your first route and generate a follower page link (early access).";
+        desc.textContent = "Create your first route and generate a trip status page link (early access).";
       }else{
         title.textContent = "Get early access";
         desc.textContent = "Join the Looper-first rollout. We’ll send 1–2 emails when new features ship.";
@@ -1343,3 +1344,5 @@
   </script>
 </body>
 </html>
+
+

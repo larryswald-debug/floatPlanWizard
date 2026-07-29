@@ -1,0 +1,4 @@
+generated_url_prefix=https://www.floatplanwizard.com/unsubscribe.cfm?t=[redacted]
+token_length=236
+raw_email_in_url=false
+token_sha256=52e7d1a0861f713464cf6d1e65efcde64f2bb56ffaecd21e3ed33f525b581a09

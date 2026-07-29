@@ -1,17 +1,11 @@
-<cfscript>
-if (!structKeyExists(request, "fpwBase")) {
-  request.fpwBase = getDirectoryFromPath(cgi.script_name);
-  request.fpwBase = reReplace(request.fpwBase, "/app/?$", "");
-  request.fpwBase = reReplace(request.fpwBase, "/$", "");
-  if (request.fpwBase == "/") {
-    request.fpwBase = "";
-  }
-}
-</cfscript>
+<cfinclude template="fpw_base_path.cfm">
+<cfinclude template="analytics_ga4.cfm">
+<cfinclude template="analytics_clarity.cfm">
+<cfinclude template="trustedsite.cfm">
 
 <cfoutput>
 <script>
   window.FPW_BASE = "#request.fpwBase#";
-  window.FPW_API_BASE = "#request.fpwBase#/api/v1";
+  window.FPW_API_BASE = "#request.fpwApiBase#";
 </script>
 </cfoutput>

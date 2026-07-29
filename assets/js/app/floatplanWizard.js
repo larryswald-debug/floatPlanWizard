@@ -3,7 +3,49 @@
 (function (window, document, Vue) {
   "use strict";
 
-  var BASE_PATH = window.FPW_BASE || "";
+  function normalizeBasePath(value) {
+    if (!value) return "";
+    var normalized = String(value).replace(/\/+$/, "");
+    if (normalized === "/") return "";
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    return normalized.charAt(0) === "/" ? normalized : "/" + normalized;
+  }
+
+  function getScriptBasePath(fileName) {
+    var script = document.currentScript;
+    if (!script || !script.getAttribute) return "";
+
+    var src = script.getAttribute("src") || "";
+    if (!src) return "";
+
+    var anchor = document.createElement("a");
+    anchor.href = src;
+
+    var scriptPath = anchor.pathname || src;
+    var marker = "/assets/js/app/" + fileName;
+    var markerIndex = scriptPath.toLowerCase().indexOf(marker.toLowerCase());
+
+    if (markerIndex === -1) return "";
+    return normalizeBasePath(scriptPath.slice(0, markerIndex));
+  }
+
+  function getLocationBasePath() {
+    var basePath = window.location.pathname || "";
+    basePath = basePath.replace(/[?#].*$/, "");
+    basePath = basePath.replace(/\/api\/v1(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/(app|admin|assets|tests)(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/[^/]*\.(cfm|cfc)$/i, "");
+    basePath = basePath.replace(/\/$/, "");
+    return normalizeBasePath(basePath);
+  }
+
+  var BASE_PATH = (function () {
+    if (Object.prototype.hasOwnProperty.call(window, "FPW_BASE")) {
+      return normalizeBasePath(window.FPW_BASE);
+    }
+
+    return getScriptBasePath("floatplanWizard.js") || getLocationBasePath();
+  })();
 
   if (!Vue) {
     console.error("Vue is required for the float plan wizard.");
@@ -15,7 +57,6 @@
   var wizardTemplateHtml = "";
 
   var DEFAULT_TIMEZONES = [
-    "UTC",
     "US/Eastern",
     "US/Central",
     "US/Mountain",
@@ -177,8 +218,7 @@
   }
 
   function getAppPrefix() {
-    var firstSegment = (window.location.pathname.split("/")[1] || "");
-    return firstSegment ? "/" + firstSegment : "";
+    return BASE_PATH;
   }
 
   function buildPdfPreviewUrl(fileName, cacheBust) {
@@ -206,9 +246,11 @@
       DEPARTING_FROM: "",
       DEPARTURE_TIME: "",
       DEPARTURE_TIMEZONE: "",
+      DEPARTURE_TIME_UTC: "",
       RETURNING_TO: "",
       RETURN_TIME: "",
       RETURN_TIMEZONE: "",
+      RETURN_TIME_UTC: "",
       FOOD_DAYS_PER_PERSON: "",
       WATER_DAYS_PER_PERSON: "",
       NOTES: "",
@@ -302,7 +344,7 @@
   function normalizePassengerSelection(entry) {
     if (!entry) return null;
     var id = numeric(entry.PASSENGERID || entry.passengerId || entry.PASSID || entry.passId);
-    if (!id) return null;
+    if (id <= 0) return null;
     return {
       PASSENGERID: id,
       HAS_PFD: entry.HAS_PFD !== undefined ? !!entry.HAS_PFD : true,
@@ -313,7 +355,7 @@
   function normalizeContactSelection(entry) {
     if (!entry) return null;
     var id = numeric(entry.CONTACTID || entry.contactId);
-    if (!id) return null;
+    if (id <= 0) return null;
     return {
       CONTACTID: id,
       SORT_ORDER: numeric(entry.SORT_ORDER || entry.sortOrder)
@@ -445,10 +487,10 @@
     return parts.join(" ").toLowerCase();
   }
 
-  var USER_TO_SET_SENTINEL_VALUE = "__USER_TO_SET__";
-  var USER_TO_SET_SENTINEL_ID = -1;
   var RESCUE_AUTHORITY_SELECTION_FIELD = "RESCUE_AUTHORITY_SELECTION";
   var RESCUE_AUTHORITY_SELECTION_MESSAGE = "Select a rescue authority.";
+  var NA_RESCUE_CENTER_ID = -1;
+  var NA_RESCUE_AUTHORITY_LABEL = "N/A - Not Applicable";
 
   function normalizeRouteDefaults(source) {
     var defaults = {
@@ -473,10 +515,6 @@
     defaults.LEG_COUNT = numeric(defaults.LEG_COUNT);
     defaults.WAYPOINT_SELECTIONS = toArray(defaults.WAYPOINT_SELECTIONS);
     return defaults;
-  }
-
-  function isUserToSetSentinel(value) {
-    return String(value == null ? "" : value).trim().toUpperCase() === USER_TO_SET_SENTINEL_VALUE;
   }
 
   var FLOATPLAN_VALIDATION_RULES = {
@@ -672,6 +710,17 @@
     return new Date(utcDate.getTime() - offset);
   }
 
+  function toClientUtcIso(value, timeZone) {
+    var parsed = parseDateTimeInTimeZone(value, timeZone);
+    return parsed && !isNaN(parsed.getTime()) ? parsed.toISOString() : "";
+  }
+
+  function applyClientUtcFields(plan) {
+    if (!plan) return;
+    plan.DEPARTURE_TIME_UTC = toClientUtcIso(plan.DEPARTURE_TIME, plan.DEPARTURE_TIMEZONE);
+    plan.RETURN_TIME_UTC = toClientUtcIso(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+  }
+
   var STEP_VALIDATION_CONSTRAINTS = {
     1: buildFloatplanConstraints(["NAME", "VESSELID", "OPERATORID"]),
     2: buildFloatplanConstraints([
@@ -735,6 +784,7 @@
         homePort: null,
         homePortTimezone: "",
         selectedRescueCenterId: 0,
+        NA_RESCUE_CENTER_ID: NA_RESCUE_CENTER_ID,
         rescueCenterSyncing: false,
         pdfPreviewUrl: "",
         pdfPreviewLoading: false,
@@ -747,7 +797,17 @@
         manifestSummaryOpen: true,
         waypointSearchQuery: "",
         mobileWaypointsSummaryOpen: true,
-        routeDefaults: normalizeRouteDefaults({})
+        routeDefaults: normalizeRouteDefaults({}),
+        routeReturnSuggestion: {
+          isLoading: false,
+          requestId: 0,
+          applying: false,
+          lastDepartureKey: "",
+          lastReturnTime: "",
+          lastReturnTimezone: "",
+          lastReturnUtc: "",
+          manualReturnEdited: false
+        }
       };
     },
 
@@ -893,6 +953,15 @@
       },
       "fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE": function () {
         this.syncRescueCenterSelection();
+      },
+      "fp.FLOATPLAN.DEPARTURE_TIME": function () {
+        this.requestRouteReturnSuggestion();
+      },
+      "fp.FLOATPLAN.DEPARTURE_TIMEZONE": function () {
+        this.requestRouteReturnSuggestion();
+      },
+      "fp.FLOATPLAN.RETURN_TIME": function (nextValue) {
+        this.handleReturnTimeChanged(nextValue);
       }
     },
 
@@ -941,7 +1010,14 @@
 
         if (stepNumber === 3 || stepNumber === 6) {
           var rescueSelectedId = numeric(this.selectedRescueCenterId);
-          var rescueIsValid = rescueSelectedId > 0 || this.isUserToSetRescueSelection();
+          var rescueIsNotApplicable = rescueSelectedId === NA_RESCUE_CENTER_ID;
+          var rescueIsValid = rescueSelectedId > 0 || rescueIsNotApplicable;
+          if (rescueIsNotApplicable && errors && errors.RESCUE_AUTHORITY_PHONE) {
+            delete errors.RESCUE_AUTHORITY_PHONE;
+            if (!Object.keys(errors).length) {
+              errors = null;
+            }
+          }
           if (!rescueIsValid) {
             if (!errors) errors = {};
             errors[RESCUE_AUTHORITY_SELECTION_FIELD] = [RESCUE_AUTHORITY_SELECTION_MESSAGE];
@@ -949,7 +1025,13 @@
         }
 
         if (needsContactValidation) {
-          var contactCount = (this.fp && this.fp.CONTACTS) ? this.fp.CONTACTS.length : 0;
+          var contactCount = 0;
+          var selectedContacts = (this.fp && Array.isArray(this.fp.CONTACTS)) ? this.fp.CONTACTS : [];
+          for (var contactIndex = 0; contactIndex < selectedContacts.length; contactIndex++) {
+            if (numeric(selectedContacts[contactIndex].CONTACTID) > 0) {
+              contactCount++;
+            }
+          }
           if (contactCount <= 0) {
             if (!errors) errors = {};
             errors.CONTACTS = ["Select at least one contact."];
@@ -973,6 +1055,20 @@
         this.clearStatus();
         this.$nextTick(this.focusFirstError);
         return false;
+      },
+
+      validateStepsThrough: function (targetStep) {
+        var lastStep = Math.min(numeric(targetStep), this.totalSteps);
+        for (var stepNumber = 1; stepNumber <= lastStep; stepNumber++) {
+          if (!this.validateStep(stepNumber)) {
+            if (this.step !== stepNumber) {
+              this.step = stepNumber;
+            }
+            this.$nextTick(this.focusFirstError);
+            return false;
+          }
+        }
+        return true;
       },
 
       clearFieldError: function (field) {
@@ -1008,23 +1104,6 @@
         return numeric(this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN.ROUTE_INSTANCE_ID : 0) > 0;
       },
 
-      isUserToSetRescueSelection: function () {
-        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
-        if (numeric(this.selectedRescueCenterId) === USER_TO_SET_SENTINEL_ID) {
-          return true;
-        }
-        if (isUserToSetSentinel(this.selectedRescueCenterId)) {
-          return true;
-        }
-        if (numeric(plan.RESCUE_CENTERID) === USER_TO_SET_SENTINEL_ID) {
-          return true;
-        }
-        if (isUserToSetSentinel(plan.RESCUE_CENTERID)) {
-          return true;
-        }
-        return isUserToSetSentinel(plan.RESCUE_AUTHORITY);
-      },
-
       applyRouteDefaults: function () {
         if (!this.isFromRoutePlan()) {
           return;
@@ -1044,12 +1123,6 @@
           }
         }
 
-        if (isEmptyValue(plan.DEPARTURE_TIME) && defaults.DEPARTURE_TIME_DEFAULT) {
-          plan.DEPARTURE_TIME = toDateTimeLocal(defaults.DEPARTURE_TIME_DEFAULT);
-        }
-        if (isEmptyValue(plan.RETURN_TIME) && defaults.RETURN_TIME_DEFAULT) {
-          plan.RETURN_TIME = toDateTimeLocal(defaults.RETURN_TIME_DEFAULT);
-        }
         if (isEmptyValue(plan.DEPARTING_FROM) && defaults.DEPARTING_FROM_DEFAULT) {
           plan.DEPARTING_FROM = defaults.DEPARTING_FROM_DEFAULT;
         }
@@ -1057,27 +1130,10 @@
           plan.RETURNING_TO = defaults.RETURNING_TO_DEFAULT;
         }
         if (isEmptyValue(plan.DEPARTURE_TIMEZONE)) {
-          plan.DEPARTURE_TIMEZONE = this.homePortTimezone || "UTC";
+          plan.DEPARTURE_TIMEZONE = this.homePortTimezone || "";
         }
         if (isEmptyValue(plan.RETURN_TIMEZONE)) {
-          plan.RETURN_TIMEZONE = this.homePortTimezone || "UTC";
-        }
-
-        if (numeric(plan.RESCUE_CENTERID) === 0) {
-          plan.RESCUE_CENTERID = USER_TO_SET_SENTINEL_ID;
-        }
-        if (isEmptyValue(plan.RESCUE_AUTHORITY) || String(plan.RESCUE_AUTHORITY).trim() === "User to Set") {
-          plan.RESCUE_AUTHORITY = USER_TO_SET_SENTINEL_VALUE;
-        }
-        if (isEmptyValue(plan.RESCUE_AUTHORITY_PHONE)) {
-          plan.RESCUE_AUTHORITY_PHONE = USER_TO_SET_SENTINEL_VALUE;
-        }
-
-        if (!Array.isArray(this.fp.CONTACTS) || !this.fp.CONTACTS.length) {
-          this.fp.CONTACTS = [{
-            CONTACTID: USER_TO_SET_SENTINEL_ID,
-            SORT_ORDER: 1
-          }];
+          plan.RETURN_TIMEZONE = this.homePortTimezone || "";
         }
 
         if ((!Array.isArray(this.fp.WAYPOINTS) || !this.fp.WAYPOINTS.length) && Array.isArray(defaults.WAYPOINT_SELECTIONS) && defaults.WAYPOINT_SELECTIONS.length) {
@@ -1088,6 +1144,116 @@
             "SORT_ORDER"
           );
         }
+      },
+
+      handleReturnTimeChanged: function (nextValue) {
+        var state = this.routeReturnSuggestion;
+        if (!state || state.applying) {
+          return;
+        }
+        var normalizedValue = toDateTimeLocal(nextValue);
+        if (!normalizedValue) {
+          state.manualReturnEdited = false;
+          state.lastReturnTime = "";
+          state.lastReturnTimezone = "";
+          state.lastReturnUtc = "";
+          this.requestRouteReturnSuggestion();
+          return;
+        }
+        if (state.lastReturnTime && normalizedValue === state.lastReturnTime) {
+          return;
+        }
+        state.manualReturnEdited = true;
+      },
+
+      handleDepartureTimingChanged: function (field) {
+        this.clearFieldError(field);
+        this.$nextTick(this.requestRouteReturnSuggestion);
+      },
+
+      handleReturnTimeInput: function () {
+        var self = this;
+        this.clearFieldError("RETURN_TIME");
+        this.$nextTick(function () {
+          self.handleReturnTimeChanged(self.fp.FLOATPLAN.RETURN_TIME);
+        });
+      },
+
+      requestRouteReturnSuggestion: function () {
+        var state = this.routeReturnSuggestion;
+        var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
+        if (!state || this.isLoading || !this.isFromRoutePlan()) {
+          return;
+        }
+        if (!window.Api || typeof window.Api.suggestFloatPlanReturnTime !== "function") {
+          return;
+        }
+
+        var planId = numeric(plan.FLOATPLANID || this.initialPlanId);
+        var departureTime = toDateTimeLocal(plan.DEPARTURE_TIME);
+        var departureTimezone = (plan.DEPARTURE_TIMEZONE || "").toString().trim();
+        if (!(planId > 0) || !departureTime || !departureTimezone) {
+          return;
+        }
+
+        var currentReturnTime = toDateTimeLocal(plan.RETURN_TIME);
+        if (currentReturnTime && (!state.lastReturnTime || currentReturnTime !== state.lastReturnTime)) {
+          return;
+        }
+        if (state.manualReturnEdited && currentReturnTime !== state.lastReturnTime) {
+          return;
+        }
+
+        var departureKey = [planId, departureTime, departureTimezone].join("|");
+        state.requestId += 1;
+        var requestId = state.requestId;
+        state.lastDepartureKey = departureKey;
+        state.isLoading = true;
+
+        window.Api.suggestFloatPlanReturnTime({
+          floatPlanId: planId,
+          DEPARTURE_TIME: departureTime,
+          DEPARTURE_TIMEZONE: departureTimezone
+        })
+          .then(function (data) {
+            if (requestId !== state.requestId) {
+              return;
+            }
+            var suggestedReturnTime = toDateTimeLocal(data && data.SUGGESTED_RETURN_TIME);
+            if (!suggestedReturnTime) {
+              return;
+            }
+            var latestReturnTime = toDateTimeLocal(plan.RETURN_TIME);
+            if (latestReturnTime && (!state.lastReturnTime || latestReturnTime !== state.lastReturnTime)) {
+              return;
+            }
+            if (state.manualReturnEdited && latestReturnTime !== state.lastReturnTime) {
+              return;
+            }
+
+            var suggestedTimezone = (data.SUGGESTED_RETURN_TIMEZONE || departureTimezone || "").toString().trim();
+            state.applying = true;
+            try {
+              plan.RETURN_TIME = suggestedReturnTime;
+              if (suggestedTimezone && (isEmptyValue(plan.RETURN_TIMEZONE) || plan.RETURN_TIMEZONE === state.lastReturnTimezone)) {
+                plan.RETURN_TIMEZONE = suggestedTimezone;
+              }
+              state.lastReturnTime = suggestedReturnTime;
+              state.lastReturnTimezone = suggestedTimezone;
+              state.lastReturnUtc = (data.SUGGESTED_RETURN_TIME_UTC || "").toString();
+              state.manualReturnEdited = false;
+            } finally {
+              state.applying = false;
+            }
+          })
+          .catch(function () {
+            // Return-time suggestions are optional; existing validation still requires explicit timing before save/send.
+          })
+          .finally(function () {
+            if (requestId === state.requestId) {
+              state.isLoading = false;
+            }
+          });
       },
 
       nextStep: function () {
@@ -1151,9 +1317,6 @@
         var selectedId = numeric(
           selectedRaw
         );
-        if (selectedId === 0 && isUserToSetSentinel(selectedRaw)) {
-          selectedId = USER_TO_SET_SENTINEL_ID;
-        }
         this.selectedRescueCenterId = selectedId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = selectedId;
         var match = null;
@@ -1164,9 +1327,9 @@
           }
         }
 
-        if (selectedId === USER_TO_SET_SENTINEL_ID) {
-          this.fp.FLOATPLAN.RESCUE_AUTHORITY = USER_TO_SET_SENTINEL_VALUE;
-          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = USER_TO_SET_SENTINEL_VALUE;
+        if (selectedId === NA_RESCUE_CENTER_ID) {
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY = NA_RESCUE_AUTHORITY_LABEL;
+          this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = "";
         } else if (match) {
           this.fp.FLOATPLAN.RESCUE_AUTHORITY = match.rcName || "";
           this.fp.FLOATPLAN.RESCUE_AUTHORITY_PHONE = match.rcPhone || "";
@@ -1183,13 +1346,6 @@
       formatRescueCenterLabel: function (center) {
         if (!center) {
           return "";
-        }
-        if (
-          numeric(center.recId) === USER_TO_SET_SENTINEL_ID ||
-          isUserToSetSentinel(center.recId) ||
-          isUserToSetSentinel(center.rcName)
-        ) {
-          return "User to Set";
         }
         var name = (center.rcName || "").trim();
         if (!name) {
@@ -1212,7 +1368,9 @@
         var storedCenterId = numeric(this.fp.FLOATPLAN.RESCUE_CENTERID);
         var matchId = 0;
 
-        if (storedCenterId !== 0) {
+        if (storedCenterId === NA_RESCUE_CENTER_ID || (authority === NA_RESCUE_AUTHORITY_LABEL && !phone)) {
+          matchId = NA_RESCUE_CENTER_ID;
+        } else if (storedCenterId !== 0) {
           for (var j = 0; j < this.rescueCenters.length; j++) {
             if (numeric(this.rescueCenters[j].recId) === storedCenterId) {
               matchId = storedCenterId;
@@ -1241,7 +1399,7 @@
 
         this.selectedRescueCenterId = matchId;
         this.fp.FLOATPLAN.RESCUE_CENTERID = matchId;
-        if (matchId > 0 || this.isUserToSetRescueSelection()) {
+        if (matchId > 0 || matchId === NA_RESCUE_CENTER_ID) {
           this.clearFieldError(RESCUE_AUTHORITY_SELECTION_FIELD);
         }
         this.rescueCenterSyncing = false;
@@ -1308,6 +1466,7 @@
 
       isContactSelected: function (id) {
         var target = numeric(id);
+        if (target <= 0) return false;
         return this.fp.CONTACTS.some(function (item) {
           return numeric(item.CONTACTID) === target;
         });
@@ -1315,10 +1474,11 @@
 
       toggleContact: function (contact) {
         var id = contact ? numeric(contact.CONTACTID) : 0;
-        if (!id) return;
+        if (id <= 0) return;
         for (var i = 0; i < this.fp.CONTACTS.length; i++) {
           if (numeric(this.fp.CONTACTS[i].CONTACTID) === id) {
             this.fp.CONTACTS.splice(i, 1);
+            this.clearFieldError("CONTACTS");
             return;
           }
         }
@@ -1326,6 +1486,7 @@
           CONTACTID: id,
           SORT_ORDER: this.fp.CONTACTS.length + 1
         });
+        this.clearFieldError("CONTACTS");
       },
 
       isWaypointSelected: function (id) {
@@ -1414,6 +1575,7 @@
             self.initialPlanId = numeric(self.fp.FLOATPLAN.FLOATPLANID) || self.initialPlanId;
             self.isLoading = false;
             self.clearStatus();
+            self.requestRouteReturnSuggestion();
             if (self.step === self.totalSteps) {
               self.loadPdfPreview();
             }
@@ -1476,12 +1638,6 @@
           "SORT_ORDER"
         );
         this.fp.CONTACTS = savedContacts;
-        if (!this.fp.CONTACTS.length && this.isFromRoutePlan()) {
-          this.fp.CONTACTS = [{
-            CONTACTID: USER_TO_SET_SENTINEL_ID,
-            SORT_ORDER: 1
-          }];
-        }
         this.fp.WAYPOINTS = savedWaypoints;
         if (
           !this.fp.WAYPOINTS.length
@@ -1507,9 +1663,10 @@
           return;
         }
 
-        if (!this.validateStep(this.totalSteps)) {
+        if (!this.validateStepsThrough(this.step)) {
           return;
         }
+        applyClientUtcFields(this.fp.FLOATPLAN);
 
         this.isSaving = true;
         this.setStatus("Saving your float plan…", true);
@@ -1555,6 +1712,7 @@
           this.setStatus("Select at least one contact to send this float plan.", false);
           return;
         }
+        applyClientUtcFields(this.fp.FLOATPLAN);
 
         this.isSaving = true;
         this.setStatus("Saving and sending your float plan...", true);
@@ -1572,6 +1730,12 @@
         .then(function (response) {
           self.setStatus(response && response.MESSAGE ? response.MESSAGE : "Float plan sent to selected contacts.", true);
           self.isSaving = false;
+          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track("active_cruise_started", {
+              plan_type: "premium_route",
+              source: "float_plan_wizard"
+            });
+          }
           if (self.step === self.totalSteps) {
             self.loadPdfPreview();
           }
@@ -1738,4 +1902,5 @@
     initWizard({ mountEl: autoMountEl });
   }
 })(window, document, window.Vue);
+
 

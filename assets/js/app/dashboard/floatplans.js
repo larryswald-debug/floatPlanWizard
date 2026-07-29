@@ -518,6 +518,12 @@
         if (!data.SUCCESS) {
           throw data;
         }
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("check_in_submitted", {
+            check_in_type: "manual",
+            source: "dashboard_floatplans"
+          });
+        }
         if (hasStandaloneFloatPlansPanel()) {
           loadFloatPlans(FLOAT_PLAN_LIMIT);
         }
@@ -652,4 +658,3 @@
     cancelFloatPlan: cancelFloatPlan
   };
 })(window, document);
-

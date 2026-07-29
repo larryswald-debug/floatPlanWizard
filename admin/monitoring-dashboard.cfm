@@ -4,7 +4,7 @@
 userStruct = (structKeyExists(session, "user") AND isStruct(session.user)) ? session.user : {};
 isLoggedIn = structCount(userStruct) GT 0;
 isAdmin = false;
-adminWhitelist = "admin@floatplanwizard.com,lswald@yahoo.com";
+// Authorization is enforced centrally by Application.cfc.
 roleValue = "";
 emailValue = "";
 appDsn = (structKeyExists(application, "dsn") AND len(trim(toString(application.dsn)))) ? trim(toString(application.dsn)) : "";
@@ -57,7 +57,7 @@ function buildFollowUrl(any slugValue, any shareTokenValue) {
     var shareTokenTxt = textValue(arguments.shareTokenValue);
     var url = "";
     if (!len(slugTxt)) return "";
-    url = "/fpw/app/follow.cfm?slug=" & urlEncodedFormat(slugTxt);
+    url = request.fpwBase & "/app/follow.cfm?slug=" & urlEncodedFormat(slugTxt);
     if (len(shareTokenTxt)) {
         url &= "&t=" & urlEncodedFormat(shareTokenTxt);
     }
@@ -67,7 +67,7 @@ function buildFollowUrl(any slugValue, any shareTokenValue) {
 function buildActiveCruiseUrl(any floatPlanIdValue) {
     var planId = asInt(arguments.floatPlanIdValue, 0);
     if (planId LTE 0) return "";
-    return "/fpw/app/active-cruise.cfm?floatPlanId=" & planId;
+    return request.fpwBase & "/app/active-cruise.cfm?floatPlanId=" & planId;
 }
 
 function buildTripLabel(any floatPlanNameValue, any floatPlanIdValue) {
@@ -78,35 +78,7 @@ function buildTripLabel(any floatPlanNameValue, any floatPlanIdValue) {
     return "&mdash;";
 }
 
-if (isLoggedIn) {
-    if (structKeyExists(userStruct, "isAdmin") AND boolLike(userStruct.isAdmin, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "ISADMIN") AND boolLike(userStruct.ISADMIN, false)) {
-        isAdmin = true;
-    } else if (structKeyExists(userStruct, "is_admin") AND boolLike(userStruct.is_admin, false)) {
-        isAdmin = true;
-    } else {
-        if (structKeyExists(userStruct, "role")) {
-            roleValue = lCase(trim(toString(userStruct.role)));
-        } else if (structKeyExists(userStruct, "ROLE")) {
-            roleValue = lCase(trim(toString(userStruct.ROLE)));
-        }
-        if (roleValue EQ "admin") {
-            isAdmin = true;
-        } else {
-            if (structKeyExists(userStruct, "email")) {
-                emailValue = lCase(trim(toString(userStruct.email)));
-            } else if (structKeyExists(userStruct, "EMAIL")) {
-                emailValue = lCase(trim(toString(userStruct.EMAIL)));
-            }
-            if (len(emailValue) AND listFindNoCase(adminWhitelist, emailValue)) {
-                isAdmin = true;
-            }
-        }
-    }
-}
-
-isAuthorized = isLoggedIn AND isAdmin;
+isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpwAdminAuthorization.authorized;
 
 if (structKeyExists(form, "actionType")) {
     actionType = lCase(trim(toString(form.actionType)));
@@ -446,6 +418,7 @@ if (isAuthorized AND len(appDsn)) {
     }
 }
 </cfscript>
+<cfinclude template="../includes/fpw_base_path.cfm">
 
 <!doctype html>
 <html lang="en">
@@ -668,4 +641,7 @@ if (isAuthorized AND len(appDsn)) {
   </div>
 </body>
 </html>
+
+
+
 

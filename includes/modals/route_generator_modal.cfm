@@ -1,3 +1,4 @@
+<cfprocessingdirective pageencoding="utf-8">
 <div id="fpwRouteGen" class="fpw-routegen">
   <style>
     #fpwRouteGen {
@@ -1411,6 +1412,7 @@
       </div>
       <div class="rg-topbar-right">
         <span id="routeGenRouteCode" class="rg-pill">Draft</span>
+        <button type="button" id="routeGenTourBtn" class="btn-secondary btn-sm rg-tour-btn" data-tour-start="route-generator">Guide Tour</button>
         <button type="button" id="routeGenCloseBtn" class="rg-close" aria-label="Close">&times;</button>
       </div>
     </div>
@@ -1439,9 +1441,67 @@
                   <div class="rg-section-head">
                     <div class="rg-section-title">Route Name</div>
                   </div>
-                  <div class="rg-field">
+                  <div class="rg-field" data-tour="route-name">
                     <label for="routeGenRouteName">Route Name</label>
                     <input id="routeGenRouteName" type="text" class="form-control form-control-sm" required aria-required="true">
+                  </div>
+                </section>
+
+                <section class="rg-section">
+                  <div class="rg-section-head">
+                    <div class="rg-section-title">My Routes &amp; Waypoint Builder</div>
+                    <div class="rg-section-note">Compact custom-route tools</div>
+                  </div>
+
+                  <div class="rg-myroutes-grid">
+                    <div class="rg-field">
+                      <label for="routeGenMyRouteName">Create Route</label>
+                      <div class="rg-inline-actions">
+                        <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
+                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm" data-tour="route-create">Create</button>
+                      </div>
+                    </div>
+
+                    <div class="rg-field">
+                      <label for="routeGenMyRouteSelect">My Routes</label>
+                      <div class="rg-inline-actions">
+                        <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
+                          <option value="">Select route</option>
+                        </select>
+                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm" data-tour="route-load">Load</button>
+                        <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
+                      </div>
+                    </div>
+
+                    <div class="rg-field" data-tour="route-start-waypoint">
+                      <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
+                      <div class="rg-inline-actions">
+                        <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
+                          <option value="">Select start waypoint</option>
+                        </select>
+                        <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
+                      </div>
+                    </div>
+
+                    <div class="rg-field" data-tour="route-add-leg-waypoint">
+                      <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
+                      <div class="rg-inline-actions">
+                        <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
+                          <option value="">Select end waypoint</option>
+                        </select>
+                        <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="routeGenMyRouteStartMeta" class="rg-hint mt-2">Set a route start waypoint, then add legs by choosing each next waypoint.</div>
+
+                  <div class="rg-field mt-2">
+                    <label for="routeGenMyRouteLegList">Leg Sequence</label>
+                    <div class="rg-hint">Create or select a My Route to manage legs.</div>
+                  </div>
+                  <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
+                    <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
                   </div>
                 </section>
 
@@ -1497,64 +1557,6 @@
                   </div>
                   <div id="routeGenOptionalStops" class="fpw-routegen__stops">
                     <div class="fpw-routegen__empty">No optional stops available for this template.</div>
-                  </div>
-                </section>
-
-                <section class="rg-section">
-                  <div class="rg-section-head">
-                    <div class="rg-section-title">My Routes &amp; Waypoint Builder</div>
-                    <div class="rg-section-note">Compact custom-route tools</div>
-                  </div>
-
-                  <div class="rg-myroutes-grid">
-                    <div class="rg-field">
-                      <label for="routeGenMyRouteSelect">My Routes</label>
-                      <div class="rg-inline-actions">
-                        <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
-                          <option value="">Select route</option>
-                        </select>
-                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm">Load</button>
-                        <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
-                      </div>
-                    </div>
-
-                    <div class="rg-field">
-                      <label for="routeGenMyRouteName">Create Route</label>
-                      <div class="rg-inline-actions">
-                        <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
-                        <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm">Create</button>
-                      </div>
-                    </div>
-
-                    <div class="rg-field">
-                      <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
-                      <div class="rg-inline-actions">
-                        <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
-                          <option value="">Select start waypoint</option>
-                        </select>
-                        <button type="button" id="routeGenMyRouteSetStartBtn" class="btn-secondary btn-sm">Set Start</button>
-                      </div>
-                    </div>
-
-                    <div class="rg-field">
-                      <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
-                      <div class="rg-inline-actions">
-                        <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
-                          <option value="">Select end waypoint</option>
-                        </select>
-                        <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div id="routeGenMyRouteStartMeta" class="rg-hint mt-2">Set a route start waypoint, then add legs by choosing each next waypoint.</div>
-
-                  <div class="rg-field mt-2">
-                    <label for="routeGenMyRouteLegList">Leg Sequence</label>
-                    <div class="rg-hint">Create or select a My Route to manage legs.</div>
-                  </div>
-                  <div id="routeGenMyRouteLegList" class="fpw-routegen__myroutelegs">
-                    <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
                   </div>
                 </section>
               </div>

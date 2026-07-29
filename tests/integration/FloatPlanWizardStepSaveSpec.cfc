@@ -175,10 +175,12 @@ component extends="testbox.system.BaseSpec" output="false" {
           step2.FLOATPLAN.FLOATPLANID = planId;
           step2.FLOATPLAN.departingFrom = "Test Dock";
           step2.FLOATPLAN.departureTime = dtString( departDt );
-          step2.FLOATPLAN.departureTimezone = "America/New_York";
+          step2.FLOATPLAN.departureTimezone = "UTC";
+          step2.FLOATPLAN.departureTimeUtc = dtString( departDt );
           step2.FLOATPLAN.returningTo = "Test Dock";
           step2.FLOATPLAN.returnTime = dtString( returnDt );
-          step2.FLOATPLAN.returnTimezone = "America/New_York";
+          step2.FLOATPLAN.returnTimezone = "UTC";
+          step2.FLOATPLAN.returnTimeUtc = dtString( returnDt );
           var res2 = apiPostJson( variables.ctx.saveUrl, step2 );
           expect( pickBool( res2, "SUCCESS" ) ).toBeTrue( "Step 2 save failed: #serializeJSON(res2)#" );
           expect( extractId( res2 ) ).toBe( planId );
@@ -209,6 +211,84 @@ component extends="testbox.system.BaseSpec" output="false" {
           var res6 = apiPostJson( variables.ctx.saveUrl, step6 );
           expect( pickBool( res6, "SUCCESS" ) ).toBeTrue( "Step 6 save failed: #serializeJSON(res6)#" );
           expect( extractId( res6 ) ).toBe( planId );
+        } finally {
+          cleanupCurrentRouteGroup();
+        }
+      } );
+
+      it( "does not promote route generator date defaults into route-backed float plan timing", function() {
+        cleanupCurrentRouteGroup();
+        if ( !variables.ctx.sessionReady ) {
+          skip( "Session scope not enabled for this runner. Use /fpw/tests/runner.cfm for integration tests." );
+        }
+        if ( variables.ctx.vesselId LTE 0 ) {
+          skip( "No vessel available for test user. Provide testVesselId." );
+        }
+        if ( variables.ctx.operatorId LTE 0 ) {
+          variables.ctx.operatorId = ensureOperator();
+        }
+
+        try {
+          var routeStartDate = "2026-06-01";
+          var selectedDepartureLocal = "2026-06-03 09:30:00";
+          var selectedDepartureUtc = "2026-06-03 13:30:00";
+          var selectedReturnLocal = "2026-06-03 17:30:00";
+          var selectedReturnUtc = "2026-06-03 21:30:00";
+          var routeDraft = createRouteLinkedDraftPlan( "Route Date Timing Authority", routeStartDate );
+          var bootstrap = apiGetJson( variables.ctx.bootstrapUrl & "&id=" & routeDraft.planId );
+          var plan = structKeyExists( bootstrap, "FLOATPLAN" ) && isStruct( bootstrap.FLOATPLAN ) ? bootstrap.FLOATPLAN : {};
+          var routeDefaults = structKeyExists( bootstrap, "ROUTE_DEFAULTS" ) && isStruct( bootstrap.ROUTE_DEFAULTS ) ? bootstrap.ROUTE_DEFAULTS : {};
+
+          expect( find( routeStartDate, trim( toString( routeDefaults.DEPARTURE_TIME_DEFAULT ?: "" ) ) ) ).toBeGT( 0, serializeJSON( bootstrap ) );
+          expect( len( trim( toString( routeDefaults.RETURN_TIME_DEFAULT ?: "" ) ) ) ).toBeGT( 0, serializeJSON( bootstrap ) );
+          expect( trim( toString( plan.DEPARTURE_TIME ?: "" ) ) ).toBe( "" );
+          expect( trim( toString( plan.RETURN_TIME ?: "" ) ) ).toBe( "" );
+
+          var saveRes = apiPostJson( variables.ctx.saveUrl, {
+            action = "save",
+            FLOATPLAN = {
+              floatPlanId = routeDraft.planId,
+              FLOATPLANID = routeDraft.planId,
+              floatPlanName = "Route Date Timing Authority",
+              vesselId = variables.ctx.vesselId,
+              operatorId = variables.ctx.operatorId,
+              departingFrom = "Captain Selected Departure",
+              departureTime = selectedDepartureLocal,
+              departureTimezone = "US/Eastern",
+              departureTimeUtc = selectedDepartureUtc,
+              returningTo = "Captain Selected Return",
+              returnTime = selectedReturnLocal,
+              returnTimezone = "US/Eastern",
+              returnTimeUtc = selectedReturnUtc,
+              routeInstanceId = routeDraft.routeInstanceId,
+              ROUTE_INSTANCE_ID = routeDraft.routeInstanceId,
+              routeDayNumber = routeDraft.routeDayNumber,
+              ROUTE_DAY_NUMBER = routeDraft.routeDayNumber
+            }
+          } );
+          expect( pickBool( saveRes, "SUCCESS" ) ).toBeTrue( "Save failed: #serializeJSON(saveRes)#" );
+
+          var qSaved = queryExecute(
+            "SELECT DATE_FORMAT(departureTime, '%Y-%m-%d %H:%i:%s') AS departure_local,
+                    DATE_FORMAT(departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departure_utc,
+                    DATE_FORMAT(returnTime, '%Y-%m-%d %H:%i:%s') AS return_local,
+                    DATE_FORMAT(returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS return_utc
+               FROM floatplans
+              WHERE floatplanId = :floatPlanId
+              LIMIT 1",
+            {
+              floatPlanId = { value = routeDraft.planId, cfsqltype = "cf_sql_integer" }
+            },
+            { datasource = "fpw" }
+          );
+
+          expect( qSaved.recordCount ).toBe( 1 );
+          expect( qSaved.departure_local[ 1 ] ).toBe( selectedDepartureLocal );
+          expect( qSaved.departure_utc[ 1 ] ).toBe( selectedDepartureUtc );
+          expect( qSaved.return_local[ 1 ] ).toBe( selectedReturnLocal );
+          expect( qSaved.return_utc[ 1 ] ).toBe( selectedReturnUtc );
+          expect( qSaved.departure_local[ 1 ] ).notToBe( routeStartDate & " 12:00:00" );
+          expect( qSaved.return_local[ 1 ] ).notToBe( routeStartDate & " 12:00:00" );
         } finally {
           cleanupCurrentRouteGroup();
         }
@@ -274,7 +354,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     return variables.ctx.operatorId;
   }
 
-  private struct function createRouteLinkedDraftPlan( required string planName ) {
+  private struct function createRouteLinkedDraftPlan( required string planName, string routeStartDate = "" ) {
     var optionsRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_getoptions", {
       direction = "CCW"
     } );
@@ -297,13 +377,16 @@ component extends="testbox.system.BaseSpec" output="false" {
     expect( len( templateCode ) ).toBeGT( 0, serializeJSON( optionsRes ) );
     expect( arrayLen( startOptions ) ).toBeGT( 0, serializeJSON( optionsRes ) );
     expect( arrayLen( endOptions ) ).toBeGT( 0, serializeJSON( optionsRes ) );
+    var routeStartDateVal = len( trim( arguments.routeStartDate ) )
+      ? trim( arguments.routeStartDate )
+      : dateFormat( now(), "yyyy-mm-dd" );
 
     var generateRes = apiPostJson( variables.ctx.routeBuilderActionBase & "routegen_generate", {
       route_name = arguments.planName & " Route",
       template_code = templateCode,
       start_segment_id = startOptions[ 1 ].segment_id,
       end_segment_id = endOptions[ arrayLen( endOptions ) ].segment_id,
-      start_date = dateFormat( now(), "yyyy-mm-dd" ),
+      start_date = routeStartDateVal,
       direction = "CCW"
     } );
     expect( pickBool( generateRes, "SUCCESS" ) ).toBeTrue( serializeJSON( generateRes ) );

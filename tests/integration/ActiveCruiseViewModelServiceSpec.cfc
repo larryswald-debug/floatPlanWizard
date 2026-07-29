@@ -9,14 +9,23 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.viewModelService = new fpw.api.v1.ActiveCruiseViewModelService().init("fpw");
     variables.projectionService = new fpw.api.v1.TripProgressProjectionService().init("fpw");
     variables.activityWriterService = new fpw.api.v1.TripActivityWriterService().init("fpw");
+    variables.entitlements = new fpw.api.v1.MemberEntitlementService().init("fpw");
     variables.voyageService = new fpw.api.v1.voyage();
     variables.hadOriginalTestUserId = structKeyExists(url, "testUserId");
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
+    variables.activeCruisePremiumEntitlement = variables.entitlements.createAdminCompEntitlement(variables.sessionApiUser.userId);
   }
 
   function afterAll() {
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = variables.sessionApiUser.userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     cleanupSessionApiUser();
     if (variables.hadOriginalTestUserId) {
       url.testUserId = variables.originalTestUserId;
@@ -53,7 +62,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(model.actions.startNextLeg.enabled).toBeFalse(serializeJSON(model.actions.startNextLeg));
           expect(model.actions.startNextLeg.reason).toBe("Start Next Leg is available after the current leg is completed.");
           expect(findStatusOption(model, "On Track").enabled).toBeTrue();
-          expect(findStatusOption(model, "Assistance Needed").enabled).toBeTrue();
+          expect(findStatusOption(model, "Assistance Needed").enabled).toBeFalse(serializeJSON(model.checkIn.allowedStatusOptions));
+          expect(findStatusOption(model, "Assistance Needed").validationError).toBe("PRE_DEPARTURE_ASSISTANCE_REQUIRES_START");
           expect(findStatusOption(model, "Delayed").enabled).toBeFalse(serializeJSON(model.checkIn.allowedStatusOptions));
           expect(findStatusOption(model, "Delayed").validationError).toBe("PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME");
           expect(len(findStatusOption(model, "Delayed").disabledReason)).toBeGT(0);
@@ -67,7 +77,191 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
-      it("adds persisted lock details to scheduled route timeline legs", function() {
+      it("exposes route-generator fuel labels for the Active Cruise V2 current leg panel", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "fuel-summary");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var model = {};
+        var fuel = {};
+        var firstLeg = {};
+        var secondLeg = {};
+        var firstLegFuel = {};
+        var secondLegFuel = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          seedRouteInputsForPaceTest(asset.floatPlanId, {
+            "pace" = "BALANCED",
+            "cruising_speed" = 20,
+            "vessel_most_efficient_speed_kn" = 8,
+            "fuel_burn_gph" = 10,
+            "reserve_pct" = 33,
+            "fuel_price_per_gal" = 6.25,
+            "idle_burn_gph" = 1.5,
+            "idle_hours_total" = 2,
+            "underway_hours_per_day" = 6.5,
+            "weather_factor_pct" = 0
+          });
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(structKeyExists(model.currentLeg, "fuel")).toBeTrue(serializeJSON(model.currentLeg));
+          fuel = model.currentLeg.fuel;
+
+          expect(fuel.authority).toBe("routeBuilder.routegenEstimateFuelForDistance", serializeJSON(fuel));
+          expect(fuel.isAvailable).toBeTrue(serializeJSON(fuel));
+          expect(fuel.totalFuelGallons).toBeGT(0, serializeJSON(fuel));
+          expect(fuel.fuelWithReserveGallons).toBeGT(fuel.totalFuelGallons, serializeJSON(fuel));
+          expect(fuel.legFuelNeededGallons).toBeGT(0, serializeJSON(fuel));
+          expect(roundTo2Numeric(fuel.fuelPricePerGallon)).toBe(6.25, serializeJSON(fuel));
+          expect(fuel.fuelCost).toBeGT(0, serializeJSON(fuel));
+          expect(find("gal", fuel.legFuelNeededLabel)).toBeGT(0, serializeJSON(fuel));
+          expect(find("$", fuel.fuelPriceLabel)).toBe(1, serializeJSON(fuel));
+          expect(find("$", fuel.fuelCostLabel)).toBe(1, serializeJSON(fuel));
+
+          expect(model.routeTimeline.available).toBeTrue(serializeJSON(model.routeTimeline));
+          expect(arrayLen(model.routeTimeline.legs)).toBeGT(1, serializeJSON(model.routeTimeline));
+          firstLeg = model.routeTimeline.legs[1];
+          secondLeg = model.routeTimeline.legs[2];
+          expect(roundTo2Numeric(firstLeg.distanceNm)).notToBe(roundTo2Numeric(secondLeg.distanceNm), serializeJSON(model.routeTimeline.legs));
+          expect(structKeyExists(firstLeg, "fuel")).toBeTrue(serializeJSON(firstLeg));
+          expect(structKeyExists(secondLeg, "fuel")).toBeTrue(serializeJSON(secondLeg));
+          firstLegFuel = firstLeg.fuel;
+          secondLegFuel = secondLeg.fuel;
+          expect(firstLegFuel.authority).toBe("routeBuilder.routegenEstimateFuelForDistance", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.isAvailable).toBeTrue(serializeJSON(firstLegFuel));
+          expect(secondLegFuel.isAvailable).toBeTrue(serializeJSON(secondLegFuel));
+          expect(firstLegFuel.totalFuelLabel).toBe(secondLegFuel.totalFuelLabel, serializeJSON(model.routeTimeline.legs));
+          expect(firstLegFuel.fuelWithReserveLabel).toBe(secondLegFuel.fuelWithReserveLabel, serializeJSON(model.routeTimeline.legs));
+          expect(firstLegFuel.legFuelNeededLabel).notToBe(secondLegFuel.legFuelNeededLabel, serializeJSON(model.routeTimeline.legs));
+          expect(find("gal", firstLegFuel.legFuelNeededLabel)).toBeGT(0, serializeJSON(firstLegFuel));
+          expect(find("gal", secondLegFuel.legFuelNeededLabel)).toBeGT(0, serializeJSON(secondLegFuel));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("marks selected-leg fuel labels unavailable when route fuel inputs are missing", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "fuel-missing");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var model = {};
+        var firstLegFuel = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          seedRouteInputsForPaceTest(asset.floatPlanId, {});
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.routeTimeline.available).toBeTrue(serializeJSON(model.routeTimeline));
+          expect(arrayLen(model.routeTimeline.legs)).toBeGT(0, serializeJSON(model.routeTimeline));
+          expect(structKeyExists(model.routeTimeline.legs[1], "fuel")).toBeTrue(serializeJSON(model.routeTimeline.legs[1]));
+          firstLegFuel = model.routeTimeline.legs[1].fuel;
+          expect(firstLegFuel.isAvailable).toBeFalse(serializeJSON(firstLegFuel));
+          expect(firstLegFuel.totalFuelLabel).toBe("Not available", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.legFuelNeededLabel).toBe("Not available", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.fuelWithReserveLabel).toBe("Not available", serializeJSON(firstLegFuel));
+          expect(firstLegFuel.unavailableReason).toBe("Route generator fuel inputs are unavailable.", serializeJSON(firstLegFuel));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("syncs saved My Route fuel price into the active operational snapshot", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "fuel-price-sync");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var activeRouteInstanceId = 0;
+        var activeBeforeInputs = {};
+        var activeAfterInputs = {};
+        var activeClearedInputs = {};
+        var sourceAfterInputs = {};
+        var shapeBefore = {};
+        var shapeAfter = {};
+        var progressBefore = [];
+        var progressAfter = [];
+        var editContext = {};
+        var updatePayload = {};
+        var updateResult = {};
+        var syncResult = {};
+        var model = {};
+        var fuel = {};
+        var clearedModel = {};
+        var clearedFuel = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedMyRouteTripWithOperationalCopy(sessionApi, prefix, localCreated);
+          activeRouteInstanceId = loadRouteInstanceIdForFloatPlan(asset.floatPlanId);
+          activeBeforeInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          shapeBefore = loadRouteInstanceShapeCounts(activeRouteInstanceId);
+          progressBefore = loadRouteProgressSnapshotForRouteInstance(activeRouteInstanceId);
+
+          expect(activeRouteInstanceId).toBeGT(0);
+          expect(activeRouteInstanceId).notToBe(asset.sourceRouteInstanceId);
+          expect(val(activeBeforeInputs.route_id)).toBe(asset.userRouteId, serializeJSON(activeBeforeInputs));
+          expect(val(activeBeforeInputs.active_trip_floatplan_id)).toBe(asset.floatPlanId, serializeJSON(activeBeforeInputs));
+          expect(trim(toString(structKeyExists(activeBeforeInputs, "fuel_price_per_gal") ? activeBeforeInputs.fuel_price_per_gal : ""))).toBe("", serializeJSON(activeBeforeInputs));
+
+          editContext = sessionApi.routeBuilder("routegen_geteditcontext", { "route_code" = asset.sourceRouteCode });
+          ensureSuccess(editContext, "load source My Route edit context");
+          updatePayload = duplicate(editContext.DATA.inputs);
+          updatePayload.route_code = asset.sourceRouteCode;
+          updatePayload.route_name = trim(toString(editContext.DATA.route.route_name));
+          updatePayload.fuel_price_per_gal = 6.99;
+
+          updateResult = sessionApi.routeBuilder("routegen_update", updatePayload);
+          ensureSuccess(updateResult, "routegen My Route fuel price update");
+          syncResult = updateResult.DATA.active_fuel_price_sync;
+          expect(syncResult.success).toBeTrue(serializeJSON(syncResult));
+          expect(syncResult.updated_count).toBe(1, serializeJSON(syncResult));
+          expect(syncResult.updated_route_instance_ids[1]).toBe(activeRouteInstanceId, serializeJSON(syncResult));
+
+          sourceAfterInputs = loadRouteInputsForRouteInstance(asset.sourceRouteInstanceId);
+          activeAfterInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          shapeAfter = loadRouteInstanceShapeCounts(activeRouteInstanceId);
+          progressAfter = loadRouteProgressSnapshotForRouteInstance(activeRouteInstanceId);
+
+          expect(roundTo2Numeric(sourceAfterInputs.fuel_price_per_gal)).toBe(6.99, serializeJSON(sourceAfterInputs));
+          expect(roundTo2Numeric(activeAfterInputs.fuel_price_per_gal)).toBe(6.99, serializeJSON(activeAfterInputs));
+          expect(activeAfterInputs.active_trip_pace).toBe(activeBeforeInputs.active_trip_pace, serializeJSON(activeAfterInputs));
+          expect(roundTo2Numeric(activeAfterInputs.active_trip_effective_speed_kn)).toBe(roundTo2Numeric(activeBeforeInputs.active_trip_effective_speed_kn), serializeJSON(activeAfterInputs));
+          expect(activeAfterInputs.active_trip_speed_source).toBe(activeBeforeInputs.active_trip_speed_source, serializeJSON(activeAfterInputs));
+          expect(serializeJSON(shapeAfter)).toBe(serializeJSON(shapeBefore), serializeJSON(shapeAfter));
+          expect(serializeJSON(progressAfter)).toBe(serializeJSON(progressBefore), serializeJSON(progressAfter));
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          fuel = model.currentLeg.fuel;
+          expect(fuel.isAvailable).toBeTrue(serializeJSON(fuel));
+          expect(roundTo2Numeric(fuel.fuelPricePerGallon)).toBe(6.99, serializeJSON(fuel));
+          expect(fuel.fuelCost).toBeGT(0, serializeJSON(fuel));
+          expect(find("$", fuel.fuelPriceLabel)).toBe(1, serializeJSON(fuel));
+          expect(find("$", fuel.fuelCostLabel)).toBe(1, serializeJSON(fuel));
+
+          updatePayload.fuel_price_per_gal = "";
+          updateResult = sessionApi.routeBuilder("routegen_update", updatePayload);
+          ensureSuccess(updateResult, "routegen My Route fuel price clear");
+          activeClearedInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          expect(trim(toString(structKeyExists(activeClearedInputs, "fuel_price_per_gal") ? activeClearedInputs.fuel_price_per_gal : ""))).toBe("", serializeJSON(activeClearedInputs));
+          clearedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(clearedModel.success).toBeTrue(serializeJSON(clearedModel));
+          clearedFuel = clearedModel.currentLeg.fuel;
+          expect(clearedFuel.fuelPricePerGallon).toBe(0, serializeJSON(clearedFuel));
+          expect(clearedFuel.fuelPriceLabel).toBe("Not provided", serializeJSON(clearedFuel));
+          expect(clearedFuel.fuelCostLabel).toBe("Not available", serializeJSON(clearedFuel));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("keeps persisted lock details visible without adding operational lock time to scheduled route timeline legs", function() {
         var prefix = variables.naming.buildPrefix("active-cruise-v2", "lock-detail");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
@@ -106,12 +300,14 @@ component extends="testbox.system.BaseSpec" output="false" {
           cruiseSeconds = round((firstLeg.distanceNm / model.routeTimeline.effectiveSpeedKn) * 3600);
           lockSeconds = round(firstLeg.lockSummary.operationalLockTimeMinutes * 60);
           projectedSeconds = dateDiff("s", parseUtcForTest(firstLeg.departureUtc), parseUtcForTest(firstLeg.etaUtc));
-          expect(projectedSeconds).toBe(cruiseSeconds + lockSeconds, serializeJSON(firstLeg));
-          expect(firstLeg.estimatedDurationSeconds).toBe(cruiseSeconds + lockSeconds, serializeJSON(firstLeg));
+          expect(lockSeconds).toBeGT(0, serializeJSON(firstLeg.lockSummary));
+          expect(projectedSeconds).toBe(cruiseSeconds, serializeJSON(firstLeg));
+          expect(firstLeg.estimatedDurationSeconds).toBe(cruiseSeconds, serializeJSON(firstLeg));
           expect(firstLeg.remainingDurationSeconds).toBe(firstLeg.estimatedDurationSeconds, serializeJSON(firstLeg));
           expect(len(firstLeg.estimatedDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
           expect(len(firstLeg.remainingDurationLabel)).toBeGT(0, serializeJSON(firstLeg));
-          expect(firstLeg.arrivalSource).toBe("scheduled_projection_plus_operational_lock_time", serializeJSON(firstLeg));
+          expect(firstLeg.durationAuthority).toBe("scheduled_projection", serializeJSON(firstLeg));
+          expect(firstLeg.arrivalSource).toBe("scheduled_projection", serializeJSON(firstLeg));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -192,6 +388,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         var relaxedFutureLeg = {};
         var activeCruiseHero = {};
         var followBootstrap = {};
+        var crossSurfaceProjectionStartedAt = "";
+        var crossSurfaceProjectionToleranceSeconds = 0;
         var balancedResult = {};
         var balancedProjection = {};
         var aggressiveResult = {};
@@ -247,6 +445,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(roundTo2Numeric(relaxedInputs.active_trip_effective_speed_kn)).toBe(5);
           expect(roundTo2Numeric(relaxedInputs.active_trip_weather_adjusted_speed_kn)).toBe(3.75);
 
+          crossSurfaceProjectionStartedAt = now();
           relaxedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           expect(relaxedModel.success).toBeTrue(serializeJSON(relaxedModel));
           expect(relaxedModel.pace.currentValue).toBe("RELAXED", serializeJSON(relaxedModel.pace));
@@ -268,8 +467,11 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(dateDiff("n", parseUtcForTest(baselineProjection.routeTimeline.summary.finalArrivalUtc), parseUtcForTest(relaxedModel.routeTimeline.summary.finalArrivalUtc))).toBeGT(0);
           activeCruiseHero = loadActiveCruiseHeroForTest(asset.floatPlanId);
           followBootstrap = loadFollowBootstrapForTest(sessionApi, asset.floatPlanId);
-          expect(activeCruiseHero.heroEtaUtc).toBe(relaxedModel.currentLeg.etaUtc, serializeJSON(activeCruiseHero));
-          expect(followBootstrap.topCards.eta_utc ?: "").toBe(relaxedModel.currentLeg.etaUtc, serializeJSON(followBootstrap.topCards ?: {}));
+          crossSurfaceProjectionToleranceSeconds = max(1, dateDiff("s", crossSurfaceProjectionStartedAt, now()) + 1);
+          expect(len(activeCruiseHero.heroEtaUtc ?: "")).toBeGT(0, serializeJSON(activeCruiseHero));
+          expect(len(followBootstrap.topCards.eta_utc ?: "")).toBeGT(0, serializeJSON(followBootstrap.topCards ?: {}));
+          expect(abs(dateDiff("s", parseUtcForTest(activeCruiseHero.heroEtaUtc), parseUtcForTest(relaxedModel.currentLeg.etaUtc)))).toBeLTE(crossSurfaceProjectionToleranceSeconds, serializeJSON(activeCruiseHero));
+          expect(abs(dateDiff("s", parseUtcForTest(followBootstrap.topCards.eta_utc), parseUtcForTest(relaxedModel.currentLeg.etaUtc)))).toBeLTE(crossSurfaceProjectionToleranceSeconds, serializeJSON(followBootstrap.topCards ?: {}));
 
           balancedResult = postActiveCruisePaceWithApi(sessionApi, asset.floatPlanId, "BALANCED");
           expect(isSuccessPayload(balancedResult)).toBeTrue(serializeJSON(balancedResult));
@@ -303,6 +505,72 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
+      it("preserves active-trip pace overrides when route updates rewrite route inputs", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "pace-route-update");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var seedInputs = {};
+        var paceResult = {};
+        var beforeInputs = {};
+        var editContext = {};
+        var updatePayload = {};
+        var updateResult = {};
+        var afterInputs = {};
+        var model = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          seedInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          seedInputs.pace = "RELAXED";
+          seedInputs.cruising_speed = 20;
+          seedInputs.vessel_most_efficient_speed_kn = 8;
+          seedInputs.weather_factor_pct = 0;
+          seedInputs.fuel_burn_gph = 10;
+          seedInputs.reserve_pct = 33;
+          seedInputs.underway_hours_per_day = 6.5;
+          seedRouteInputsForPaceTest(asset.floatPlanId, seedInputs);
+
+          paceResult = postActiveCruisePaceWithApi(sessionApi, asset.floatPlanId, "BALANCED");
+          expect(isSuccessPayload(paceResult)).toBeTrue(serializeJSON(paceResult));
+          beforeInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          expect(beforeInputs.pace).toBe("RELAXED", serializeJSON(beforeInputs));
+          expect(beforeInputs.active_trip_pace).toBe("BALANCED", serializeJSON(beforeInputs));
+          expect(val(beforeInputs.active_trip_floatplan_id)).toBe(asset.floatPlanId, serializeJSON(beforeInputs));
+          expect(roundTo2Numeric(beforeInputs.active_trip_effective_speed_kn)).toBe(8, serializeJSON(beforeInputs));
+
+          editContext = sessionApi.routeBuilder("routegen_geteditcontext", { "route_code" = asset.routeCode });
+          ensureSuccess(editContext, "load route edit context");
+          updatePayload = duplicate(editContext.DATA.inputs);
+          updatePayload.route_code = asset.routeCode;
+          updatePayload.route_name = trim(toString(editContext.DATA.route.route_name));
+          updatePayload.weather_factor_pct = 42;
+
+          updateResult = sessionApi.routeBuilder("routegen_update", updatePayload);
+          ensureSuccess(updateResult, "routegen weather factor update");
+
+          afterInputs = loadRouteInputsForFloatPlan(asset.floatPlanId);
+          expect(roundTo2Numeric(afterInputs.weather_factor_pct)).toBe(42, serializeJSON(afterInputs));
+          expect(afterInputs.pace).toBe("RELAXED", serializeJSON(afterInputs));
+          expect(afterInputs.active_trip_pace).toBe("BALANCED", serializeJSON(afterInputs));
+          expect(val(afterInputs.active_trip_floatplan_id)).toBe(asset.floatPlanId, serializeJSON(afterInputs));
+          expect(roundTo2Numeric(afterInputs.active_trip_effective_speed_kn)).toBe(roundTo2Numeric(beforeInputs.active_trip_effective_speed_kn), serializeJSON(afterInputs));
+          expect(afterInputs.active_trip_speed_source).toBe(beforeInputs.active_trip_speed_source, serializeJSON(afterInputs));
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.pace.currentValue).toBe("BALANCED", serializeJSON(model.pace));
+          expect(model.pace.currentLabel).toBe("Efficient Speed", serializeJSON(model.pace));
+          expect(model.pace.isActiveTripOverride).toBeTrue(serializeJSON(model.pace));
+          expect(roundTo2Numeric(model.pace.weatherFactorPct)).toBe(42, serializeJSON(model.pace));
+          expect(roundTo2Numeric(model.pace.weatherAdjustedSpeedKn)).toBe(4.64, serializeJSON(model.pace));
+          expect(roundTo2Numeric(model.routeTimeline.effectiveSpeedKn)).toBe(4.64, serializeJSON(model.routeTimeline));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
       it("returns underway after an early On Track check-in starts canonical trip activity", function() {
         var prefix = variables.naming.buildPrefix("active-cruise-v2", "early-ontrack");
         var sessionApi = buildSessionApiSupport();
@@ -311,17 +579,25 @@ component extends="testbox.system.BaseSpec" output="false" {
         var checkinResult = {};
         var model = {};
         var noteText = "V2 check-in history note";
+        var displayUtc = "2026-05-21 02:35:59";
+        var timelineCheckin = {};
+        var publicAuthority = {};
+        var followBootstrap = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", noteText);
+          setActiveCruiseDisplayTimestampForTest(asset.floatPlanId, displayUtc);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
+          followBootstrap = loadFollowBootstrapForTest(sessionApi, asset.floatPlanId);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
           expect(model.success).toBeTrue(serializeJSON(model));
           expect(model.tripState).toBe("underway", serializeJSON(model.hero));
           expect(model.motionState).toBe("underway", serializeJSON(model));
+          expect(model.floatPlan.timezone).toBe("US/Eastern", serializeJSON(model.floatPlan));
           expect(model.hero.status).notToBe("Scheduled");
           expect(model.displayAuthority.primary).toBe("canonical_projection");
           expect(model.routeTimeline.authority).toBe("canonical_projection");
@@ -330,7 +606,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(len(model.actions.checkIn.endpoint)).toBeGT(0);
           expect(model.actions.checkIn.payload.floatPlanId).toBe(asset.floatPlanId);
           expect(model.actions.completeLeg.enabled).toBeTrue(serializeJSON(model.actions.completeLeg));
-          expect(model.actions.completeLeg.payload.routeLegOrder).toBe(model.currentLeg.order);
+          expect(model.actions.completeLeg.payload.expectedLegOrder).toBe(model.currentLeg.order);
           expect(model.actions.startNextLeg.enabled).toBeFalse(serializeJSON(model.actions.startNextLeg));
           expect(model.actions.startNextLeg.reason).toBe("A route leg is already underway.");
           expect(findStatusOption(model, "Secure for the Night").enabled).toBeTrue(serializeJSON(model.checkIn.allowedStatusOptions));
@@ -343,8 +619,66 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(model.checkInHistory.items[1].storageAuthority).toBe("floatplan_events", serializeJSON(model.checkInHistory.items[1]));
           expect(model.privateTimeline.available).toBeTrue(serializeJSON(model.privateTimeline));
           expect(model.privateTimeline.storageAuthority).toBe("floatplan_events", serializeJSON(model.privateTimeline));
-          expect(findTimelineItem(model, "CHECKIN_RECEIVED").note).toBe(noteText, serializeJSON(model.privateTimeline));
+          timelineCheckin = findTimelineItem(model, "CHECKIN_RECEIVED");
+          expect(timelineCheckin.note).toBe(noteText, serializeJSON(model.privateTimeline));
+          expect(model.monitoring.lastCheckinAtUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(model.monitoring));
+          expect(timelineCheckin.occurredAtUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(timelineCheckin));
+          expect(findNoCase("10:35 PM", timelineCheckin.occurredLocalLabel)).toBeGT(0, serializeJSON(timelineCheckin));
+          expect(findNoCase("2:35 AM", timelineCheckin.occurredLocalLabel)).toBe(0, serializeJSON(timelineCheckin));
+          expect(publicAuthority.monitoring.lastCheckinUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("10:35 PM", publicAuthority.monitoring.lastCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("2:35 AM", publicAuthority.monitoring.lastCheckinLocalLabel)).toBe(0, serializeJSON(publicAuthority.monitoring));
+          expect(followBootstrap.publicAuthority.monitoring.lastCheckinUtc).toBe("2026-05-21T02:35:59Z", serializeJSON(followBootstrap.publicAuthority.monitoring));
+          expect(followBootstrap.topCards.last_checkin).toBe(publicAuthority.monitoring.lastCheckinLocalLabel, serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.topCards.last_checkin_utc).toBe(publicAuthority.monitoring.lastCheckinUtc, serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.sidebar.last_checkin).toBe(publicAuthority.monitoring.lastCheckinLocalLabel, serializeJSON(followBootstrap.sidebar));
+          expect(followBootstrap.sidebar.last_checkin_utc).toBe(publicAuthority.monitoring.lastCheckinUtc, serializeJSON(followBootstrap.sidebar));
+          expect(followBootstrap.topCards.status).toBe(publicAuthority.monitoring.publicHealthLabel, serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.stream.status).toBe(publicAuthority.monitoring.publicHealthLabel, serializeJSON(followBootstrap.stream));
+          expect(len(publicAuthority.timing.etaUtc ?: "")).toBeGT(0, serializeJSON(publicAuthority.timing));
+          expect(followBootstrap.topCards.eta_utc ?: "").toBe(publicAuthority.timing.etaUtc ?: "", serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.topCards.eta ?: "").toBe(publicAuthority.timing.etaLocalLabel ?: "", serializeJSON(followBootstrap.topCards));
+          expect(roundTo2Numeric(followBootstrap.publicAuthority.progress.legProgressPercent)).toBe(roundTo2Numeric(model.currentLeg.percentComplete), serializeJSON(followBootstrap.publicAuthority.progress));
+          expect(roundTo2Numeric(followBootstrap.publicAuthority.progress.routeProgressPercent)).toBe(roundTo2Numeric(publicAuthority.progress.routeProgressPercent), serializeJSON(followBootstrap.publicAuthority.progress));
+          expect(roundTo2Numeric(model.currentLeg.percentComplete)).toBeLTE(5, serializeJSON(model.currentLeg));
           expect(hasLegacyRoutePlanAuthority(model)).toBeFalse(serializeJSON(model.displayAuthority));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("keeps escalated public Follow status ahead of secure-for-night last check-in", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "follow-escalated-secure");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var startMonitoringResult = {};
+        var publicAuthority = {};
+        var followBootstrap = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          startMonitoringResult = startActiveRouteMonitoringWithStartProof(asset.floatPlanId);
+          expect(startMonitoringResult.SUCCESS).toBeTrue(serializeJSON(startMonitoringResult));
+
+          markMonitoringSecureForNight(asset.floatPlanId);
+          setMonitoringState(asset.floatPlanId, "ESCALATED");
+
+          publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
+          followBootstrap = loadFollowBootstrapForTest(sessionApi, asset.floatPlanId);
+
+          expect(publicAuthority.monitoring.state).toBe("ESCALATED", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.lastCheckinStatus).toBe("SECURE_FOR_NIGHT", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.secureForNight).toBeTrue(serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.publicHealthLabel).toBe("Escalated", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.publicHealthVariant).toBe("danger", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.tripState.label).toBe("Escalated", serializeJSON(publicAuthority.tripState));
+          expect(followBootstrap.publicAuthority.monitoring.publicHealthLabel).toBe("Escalated", serializeJSON(followBootstrap.publicAuthority.monitoring));
+          expect(followBootstrap.publicAuthority.monitoring.publicHealthVariant).toBe("danger", serializeJSON(followBootstrap.publicAuthority.monitoring));
+          expect(followBootstrap.topCards.status).toBe("Escalated", serializeJSON(followBootstrap.topCards));
+          expect(followBootstrap.stream.status).toBe("Escalated", serializeJSON(followBootstrap.stream));
+          expect(followBootstrap.topCards.voyage_progress_status_variant).toBe("danger", serializeJSON(followBootstrap.topCards));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -581,20 +915,44 @@ component extends="testbox.system.BaseSpec" output="false" {
         var completeResult = {};
         var model = {};
         var completeRoutePayload = {};
+        var openSegmentBeforeComplete = {};
+        var closedSegment = {};
+        var firstLegState = {};
+        var secondLegState = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track");
           startedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          openSegmentBeforeComplete = findOpenActivitySegment(asset.floatPlanId);
           completeResult = postCompleteLegWithApi(sessionApi, asset.floatPlanId, startedModel.currentLeg.order);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          closedSegment = findLatestActivitySegmentForLeg(asset.floatPlanId, startedModel.currentLeg.order, "UNDERWAY");
+          firstLegState = loadRouteProgressLegState(asset.floatPlanId, startedModel.currentLeg.order);
+          secondLegState = loadRouteProgressLegState(asset.floatPlanId, startedModel.currentLeg.order + 1);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
+          expect(openSegmentBeforeComplete.found).toBeTrue(serializeJSON(openSegmentBeforeComplete));
+          expect(openSegmentBeforeComplete.segmentType).toBe("UNDERWAY", serializeJSON(openSegmentBeforeComplete));
+          expect(openSegmentBeforeComplete.routeLegOrder).toBe(startedModel.currentLeg.order, serializeJSON(openSegmentBeforeComplete));
           expect(isSuccessPayload(completeResult)).toBeTrue(serializeJSON(completeResult));
           expect(completeResult.COMPLETED ?: false).toBeTrue(serializeJSON(completeResult));
+          expect(firstLegState.status).toBe("COMPLETED", serializeJSON(firstLegState));
+          expect(firstLegState.completedAtPresent).toBeTrue(serializeJSON(firstLegState));
+          expect(secondLegState.status).toBe("NOT_STARTED", serializeJSON(secondLegState));
+          expect(secondLegState.startedAtPresent).toBeFalse(serializeJSON(secondLegState));
+          expect(closedSegment.found).toBeTrue(serializeJSON(closedSegment));
+          expect(closedSegment.endedAtPresent).toBeTrue(serializeJSON(closedSegment));
+          expect(findOpenActivitySegmentType(asset.floatPlanId)).toBe("");
           expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.motionState).toBe("awaiting_next_leg", serializeJSON(model));
+          expect(model.tripState).toBe("awaiting_next_leg", serializeJSON(model));
+          expect(model.hero.status).toBe("Awaiting Next Leg", serializeJSON(model.hero));
+          expect(model.hero.statusDetail).toBe("Trip progress is paused until Start Next Leg is selected.", serializeJSON(model.hero));
           expect(model.routeTimeline.available).toBeTrue(serializeJSON(model.routeTimeline));
+          expect(model.actions.completeLeg.enabled).toBeFalse(serializeJSON(model.actions.completeLeg));
+          expect(model.actions.completeLeg.reason).toBe("Complete Current Leg is available after the cruise is underway.", serializeJSON(model.actions.completeLeg));
           expect(model.actions.startNextLeg.enabled).toBeTrue(serializeJSON(model.actions.startNextLeg));
           expect(findNoCase("action=startnextleg", model.actions.startNextLeg.endpoint)).toBeGT(0, serializeJSON(model.actions.startNextLeg));
           expect(model.actions.startNextLeg.payload.floatPlanId).toBe(asset.floatPlanId);
@@ -625,6 +983,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         var model = {};
         var startedPayload = {};
         var startedTimeline = {};
+        var openSegmentAfterComplete = {};
+        var openSegmentAfterStart = {};
+        var completedSegment = {};
+        var secondLegState = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -632,13 +994,24 @@ component extends="testbox.system.BaseSpec" output="false" {
           checkinResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", "merged timeline check-in");
           startedModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           completeResult = postCompleteLegWithApi(sessionApi, asset.floatPlanId, startedModel.currentLeg.order);
+          openSegmentAfterComplete = findOpenActivitySegment(asset.floatPlanId);
+          completedSegment = findLatestActivitySegmentForLeg(asset.floatPlanId, startedModel.currentLeg.order, "UNDERWAY");
           startResult = postStartNextLegWithApi(sessionApi, asset.floatPlanId);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          openSegmentAfterStart = findOpenActivitySegment(asset.floatPlanId);
+          secondLegState = loadRouteProgressLegState(asset.floatPlanId, startResult.LEG_ORDER);
 
           expect(isSuccessPayload(checkinResult)).toBeTrue(serializeJSON(checkinResult));
           expect(isSuccessPayload(completeResult)).toBeTrue(serializeJSON(completeResult));
+          expect(openSegmentAfterComplete.found).toBeFalse(serializeJSON(openSegmentAfterComplete));
+          expect(completedSegment.endedAtPresent).toBeTrue(serializeJSON(completedSegment));
           expect(isSuccessPayload(startResult)).toBeTrue(serializeJSON(startResult));
           expect(startResult.STARTED ?: false).toBeTrue(serializeJSON(startResult));
+          expect(secondLegState.status).toBe("STARTED", serializeJSON(secondLegState));
+          expect(secondLegState.startedAtPresent).toBeTrue(serializeJSON(secondLegState));
+          expect(openSegmentAfterStart.found).toBeTrue(serializeJSON(openSegmentAfterStart));
+          expect(openSegmentAfterStart.segmentType).toBe("UNDERWAY", serializeJSON(openSegmentAfterStart));
+          expect(openSegmentAfterStart.routeLegOrder).toBe(startResult.LEG_ORDER, serializeJSON(openSegmentAfterStart));
           expect(countRouteActionEvents(asset.floatPlanId, "ROUTE_LEG_STARTED")).toBe(1);
           startedPayload = findRouteActionEventPayload(asset.floatPlanId, "ROUTE_LEG_STARTED");
           expect(startedPayload.leg_order).toBe(startResult.LEG_ORDER, serializeJSON(startedPayload));
@@ -680,19 +1053,35 @@ component extends="testbox.system.BaseSpec" output="false" {
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
         var asset = {};
+        var preCloseModel = {};
         var closeResult = {};
         var closePayload = {};
+        var closeState = {};
+        var progressCounts = {};
         var model = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          expect(startActiveRouteMonitoringWithStartProof(asset.floatPlanId).SUCCESS).toBeTrue();
           markAllLegsCompleted(asset.floatPlanId);
-          closeResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "Arrived");
+          preCloseModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          closeResult = sessionApi.postJson(preCloseModel.actions.closeFloatPlan.endpoint, preCloseModel.actions.closeFloatPlan.payload);
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          closeState = loadFinalCloseState(asset.floatPlanId);
+          progressCounts = loadRouteProgressCounts(asset.floatPlanId);
 
+          expect(preCloseModel.success).toBeTrue(serializeJSON(preCloseModel));
+          expect(preCloseModel.actions.closeFloatPlan.enabled).toBeTrue(serializeJSON(preCloseModel.actions.closeFloatPlan));
+          expect(findNoCase("action=checkin", preCloseModel.actions.closeFloatPlan.endpoint)).toBeGT(0, serializeJSON(preCloseModel.actions.closeFloatPlan));
+          expect(preCloseModel.actions.closeFloatPlan.payload.status).toBe("Arrived", serializeJSON(preCloseModel.actions.closeFloatPlan.payload));
           expect(isSuccessPayload(closeResult)).toBeTrue(serializeJSON(closeResult));
           expect(closeResult.STATUS ?: "").toBe("CLOSED", serializeJSON(closeResult));
+          expect(closeState.status).toBe("CLOSED", serializeJSON(closeState));
+          expect(closeState.closed_at_present).toBeTrue(serializeJSON(closeState));
+          expect(closeState.monitor_state).toBe("CLOSED", serializeJSON(closeState));
+          expect(closeState.monitor_closed_at_present).toBeTrue(serializeJSON(closeState));
+          expect(progressCounts.completed_rows).toBe(progressCounts.progress_row_count, serializeJSON(progressCounts));
           expect(countRouteActionEvents(asset.floatPlanId, "FLOATPLAN_CLOSED")).toBe(1);
           closePayload = findRouteActionEventPayload(asset.floatPlanId, "FLOATPLAN_CLOSED");
           expect(closePayload.action_label).toBe("Close Float Plan", serializeJSON(closePayload));
@@ -719,6 +1108,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          expect(startActiveRouteMonitoringWithStartProof(asset.floatPlanId).SUCCESS).toBeTrue();
           model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
 
           expect(model.success).toBeTrue(serializeJSON(model));
@@ -844,6 +1234,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         var modelAfter = {};
         var invalidResult = {};
         var validResult = {};
+        var onTrackResult = {};
+        var secureResult = {};
+        var monitoringRaw = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -860,14 +1253,68 @@ component extends="testbox.system.BaseSpec" output="false" {
           validResult = postActiveCruiseDailyStartWithApi(sessionApi, asset.floatPlanId, "09:30");
           expect(isSuccessPayload(validResult)).toBeTrue(serializeJSON(validResult));
           expect(normalizeDailyStartForTest(validResult.DAILYSTARTLOCALTIME ?: "")).toBe("09:30", serializeJSON(validResult));
-          expect(normalizeDailyStartForTest(loadDailyStartLocalTimeForFloatPlan(asset.floatPlanId))).toBe("09:30");
+          expect(loadDailyStartLocalTimeForFloatPlan(asset.floatPlanId)).toBe("09:30:00");
 
           modelAfter = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
           expect(modelAfter.success).toBeTrue(serializeJSON(modelAfter));
           expect(normalizeDailyStartForTest(modelAfter.monitoring.dailyStartLocalTime)).toBe("09:30", serializeJSON(modelAfter.monitoring));
+          expect(findNoCase("9:30", modelAfter.monitoring.dailyStartLabel)).toBeGT(0, serializeJSON(modelAfter.monitoring));
           expect(normalizeDailyStartForTest(modelAfter.actions.timing.updateDailyStart.payload.dailyStartLocalTime)).toBe("09:30", serializeJSON(modelAfter.actions.timing.updateDailyStart));
           expect(modelAfter.actions.timing.addDelay.endpoint).toBe(modelBefore.actions.timing.addDelay.endpoint, serializeJSON(modelAfter.actions.timing.addDelay));
           expect(modelAfter.actions.timing.clearDelay.endpoint).toBe(modelBefore.actions.timing.clearDelay.endpoint, serializeJSON(modelAfter.actions.timing.clearDelay));
+
+          onTrackResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "On Track", "daily start storage proof");
+          expect(isSuccessPayload(onTrackResult)).toBeTrue(serializeJSON(onTrackResult));
+          secureResult = postActiveCruiseCheckinWithApi(sessionApi, asset.floatPlanId, "Secure for the Night", "daily start secure proof");
+          expect(isSuccessPayload(secureResult)).toBeTrue(serializeJSON(secureResult));
+          monitoringRaw = loadActiveCruiseMonitoringRawTimestamps(asset.floatPlanId);
+          expect(monitoringRaw.daily_start_local_time_raw).toBe("09:30:00", serializeJSON(monitoringRaw));
+          expect(isSqlDateTimeForActiveCruiseTest(monitoringRaw.expected_checkin_at_raw)).toBeTrue(serializeJSON(monitoringRaw));
+          expect(monitoringRaw.secure_for_night_until_raw).toBe(monitoringRaw.expected_checkin_at_raw, serializeJSON(monitoringRaw));
+          expect(monitoringRaw.next_monitor_eval_at_raw).toBe(monitoringRaw.expected_checkin_at_raw, serializeJSON(monitoringRaw));
+          expect(minutesBetweenSqlForActiveCruiseTest(monitoringRaw.expected_checkin_at_raw, monitoringRaw.grace_expires_at_raw)).toBe(60, serializeJSON(monitoringRaw));
+        } finally {
+          cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
+        }
+      });
+
+      it("renders Secure for Night expected checkpoint labels from raw UTC storage", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "secure-expected-raw-utc");
+        var sessionApi = buildSessionApiSupport();
+        var localCreated = newCreatedTracker();
+        var asset = {};
+        var sendResult = {};
+        var startMonitoringResult = {};
+        var model = {};
+        var publicAuthority = {};
+
+        try {
+          url.testUserId = variables.sessionApiUser.userId;
+          asset = createRouteLinkedDraftForApi(sessionApi, prefix, localCreated);
+          attachContactToPlan(sessionApi, asset.floatPlanId, prefix, localCreated);
+          setPlanSchedule(asset.floatPlanId, "2027-05-20 19:00:00", "2027-05-21 17:00:00", "US/Eastern");
+          sendResult = sendFloatPlanWithApi(sessionApi, asset.floatPlanId);
+          expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+          startMonitoringResult = startActiveRouteMonitoringWithStartProof(asset.floatPlanId);
+          expect(startMonitoringResult.SUCCESS).toBeTrue(serializeJSON(startMonitoringResult));
+          expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+
+          markMonitoringSecureForNightAtUtc(asset.floatPlanId, "2027-05-21 13:30:00");
+
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          publicAuthority = variables.viewModelService.getPublicFollowAuthority(variables.sessionApiUser.userId, asset.floatPlanId);
+
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.monitoring.expectedCheckinAtUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(model.monitoring));
+          expect(model.monitoring.secureForNightUntilUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(model.monitoring));
+          expect(findNoCase("9:30 AM", model.monitoring.expectedCheckinLocalLabel)).toBeGT(0, serializeJSON(model.monitoring));
+          expect(findNoCase("1:30 PM", model.monitoring.expectedCheckinLocalLabel)).toBe(0, serializeJSON(model.monitoring));
+
+          expect(publicAuthority.monitoring.nextExpectedCheckinUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
+          expect(publicAuthority.monitoring.secureUntilUtc).toBe("2027-05-21T13:30:00Z", serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("9:30 AM", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("US/Eastern", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBeGT(0, serializeJSON(publicAuthority.monitoring));
+          expect(findNoCase("1:30 PM", publicAuthority.monitoring.nextExpectedCheckinLocalLabel)).toBe(0, serializeJSON(publicAuthority.monitoring));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -924,40 +1371,31 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       });
 
-      it("overlays late missed and escalated monitoring states without changing scheduled motion", function() {
-        var prefix = variables.naming.buildPrefix("active-cruise-v2", "safety-overlay");
+      it("renders scheduled trips without monitoring rows as scheduled-not-started", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "scheduled-no-monitoring");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
         var asset = {};
-        var stateCase = {};
         var model = {};
-        var stateCases = [
-          { monitorState = "LATE", tripState = "late" },
-          { monitorState = "MISSED", tripState = "missed" },
-          { monitorState = "ESCALATED", tripState = "escalated" }
-        ];
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
           asset = createActivatedScheduledTrip(sessionApi, prefix, localCreated);
+          model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
 
-          for (stateCase in stateCases) {
-            setMonitoringState(asset.floatPlanId, stateCase.monitorState);
-            model = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
-
-            expect(model.success).toBeTrue(serializeJSON(model));
-            expect(model.tripState).toBe(stateCase.tripState, serializeJSON(model));
-            expect(model.safetyState).toBe(stateCase.tripState, serializeJSON(model));
-            expect(model.motionState).toBe("scheduled", serializeJSON(model));
-            expect(model.displayAuthority.monitoring).toBe("floatplan_monitoring");
-          }
+          expect(model.success).toBeTrue(serializeJSON(model));
+          expect(model.tripState).toBe("scheduled", serializeJSON(model));
+          expect(model.safetyState).toBe("normal", serializeJSON(model));
+          expect(model.motionState).toBe("scheduled", serializeJSON(model));
+          expect(model.displayAuthority.monitoring).toBe("scheduled_not_started");
+          expect(hasWarning(model, "ACTIVE_CRUISE_MONITORING_UNAVAILABLE")).toBeFalse(serializeJSON(model.warnings));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
       });
 
-      it("represents Assistance Needed as a safety overlay without starting route progress", function() {
-        var prefix = variables.naming.buildPrefix("active-cruise-v2", "assistance");
+      it("does not represent Assistance Needed before monitoring has started", function() {
+        var prefix = variables.naming.buildPrefix("active-cruise-v2", "assistance-no-monitoring");
         var sessionApi = buildSessionApiSupport();
         var localCreated = newCreatedTracker();
         var asset = {};
@@ -972,9 +1410,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           progressCounts = loadRouteProgressCounts(asset.floatPlanId);
 
           expect(model.success).toBeTrue(serializeJSON(model));
-          expect(model.tripState).toBe("assistance_needed", serializeJSON(model));
-          expect(model.safetyState).toBe("assistance_needed");
+          expect(model.tripState).toBe("scheduled", serializeJSON(model));
+          expect(model.safetyState).toBe("normal");
           expect(model.motionState).toBe("scheduled");
+          expect(model.displayAuthority.monitoring).toBe("scheduled_not_started");
           expect(progressCounts.started_rows).toBe(0);
           expect(progressCounts.completed_rows).toBe(0);
         } finally {
@@ -989,6 +1428,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var asset = {};
         var arrivedModel = {};
         var closedModel = {};
+        var cancelledModel = {};
 
         try {
           url.testUserId = variables.sessionApiUser.userId;
@@ -1003,9 +1443,19 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(arrivedModel.motionState).toBe("arrived", serializeJSON(arrivedModel));
           expect(arrivedModel.actions.startNextLeg.enabled).toBeFalse(serializeJSON(arrivedModel.actions.startNextLeg));
           expect(len(arrivedModel.actions.startNextLeg.reason)).toBeGT(0);
+          expect(arrivedModel.currentLeg.order).toBeLTE(arrivedModel.route.totalLegs, serializeJSON(arrivedModel.currentLeg));
+          expect(arrivedModel.currentLeg.order).toBe(arrivedModel.route.totalLegs, serializeJSON(arrivedModel.currentLeg));
+          expect(arrivedModel.actions.closeFloatPlan.enabled).toBeTrue(serializeJSON(arrivedModel.actions.closeFloatPlan));
+          expect(findNoCase("action=checkin", arrivedModel.actions.closeFloatPlan.endpoint)).toBeGT(0, serializeJSON(arrivedModel.actions.closeFloatPlan));
+          expect(arrivedModel.actions.closeFloatPlan.payload.status).toBe("Arrived", serializeJSON(arrivedModel.actions.closeFloatPlan.payload));
           expect(closedModel.success).toBeTrue(serializeJSON(closedModel));
           expect(closedModel.tripState).toBe("closed", serializeJSON(closedModel));
           expect(closedModel.motionState).toBe("closed", serializeJSON(closedModel));
+          expect(closedModel.actions.closeFloatPlan.enabled).toBeFalse(serializeJSON(closedModel.actions.closeFloatPlan));
+          markPlanCancelled(asset.floatPlanId);
+          cancelledModel = variables.viewModelService.getActiveCruiseViewModel(variables.sessionApiUser.userId, asset.floatPlanId);
+          expect(cancelledModel.success).toBeTrue(serializeJSON(cancelledModel));
+          expect(cancelledModel.actions.closeFloatPlan.enabled).toBeFalse(serializeJSON(cancelledModel.actions.closeFloatPlan));
         } finally {
           cleanupRouteLinkedAssetsForApi(sessionApi, localCreated);
         }
@@ -1071,7 +1521,59 @@ component extends="testbox.system.BaseSpec" output="false" {
     setPlanSchedule(asset.floatPlanId, futureDeparture, futureReturn, "UTC");
     sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
     expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
-    expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+    expect(countMonitoringRows(asset.floatPlanId)).toBe(0);
+    return asset;
+  }
+
+  private struct function createActivatedMyRouteTripWithOperationalCopy(required any apiSupport, required string prefix, required struct created) {
+    var asset = createMyRouteLinkedDraftForApi(arguments.apiSupport, arguments.prefix, arguments.created);
+    var firstDeparture = dateTimeFormat(dateAdd("h", 3, now()), "yyyy-mm-dd HH:nn:ss");
+    var firstReturn = dateTimeFormat(dateAdd("h", 9, now()), "yyyy-mm-dd HH:nn:ss");
+    var secondDeparture = dateTimeFormat(dateAdd("h", 4, now()), "yyyy-mm-dd HH:nn:ss");
+    var secondReturn = dateTimeFormat(dateAdd("h", 10, now()), "yyyy-mm-dd HH:nn:ss");
+    var sendResult = {};
+    var cancelResult = {};
+    var rebuildPayload = {};
+    var paceResult = {};
+    var activeRouteInstanceId = 0;
+    var activeRouteCode = "";
+
+    attachContactToPlan(arguments.apiSupport, asset.floatPlanId, arguments.prefix, arguments.created);
+    setPlanSchedule(asset.floatPlanId, firstDeparture, firstReturn, "UTC");
+    sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
+    expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+
+    cancelResult = cancelFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
+    expect(isSuccessPayload(cancelResult)).toBeTrue(serializeJSON(cancelResult));
+
+    rebuildPayload = arguments.apiSupport.routeBuilder("buildFloatPlansFromRoute", {
+      routeCode = asset.sourceRouteCode,
+      mode = "DAILY",
+      vesselId = asset.vesselId,
+      rebuild = 1
+    });
+    ensureSuccess(rebuildPayload, "rebuild My Route-linked float plan");
+    asset.floatPlanId = val(rebuildPayload.FLOATPLAN_IDS[1] ?: 0);
+    expect(asset.floatPlanId).toBeGT(0, serializeJSON(rebuildPayload));
+    arrayAppend(arguments.created.floatPlanIds, asset.floatPlanId);
+
+    attachContactToPlan(arguments.apiSupport, asset.floatPlanId, arguments.prefix, arguments.created);
+    setPlanSchedule(asset.floatPlanId, secondDeparture, secondReturn, "UTC");
+    sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
+    expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
+
+    paceResult = arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=updateactivepace", {
+      floatPlanId = asset.floatPlanId,
+      pace = "BALANCED"
+    });
+    ensureSuccess(paceResult, "set active trip pace metadata");
+
+    activeRouteInstanceId = loadRouteInstanceIdForFloatPlan(asset.floatPlanId);
+    activeRouteCode = loadRouteCodeForRouteInstance(activeRouteInstanceId);
+    if (len(activeRouteCode) AND activeRouteCode NEQ asset.sourceRouteCode) {
+      arrayAppend(arguments.created.routeCodes, activeRouteCode);
+    }
+
     return asset;
   }
 
@@ -1085,7 +1587,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     setPlanSchedule(asset.floatPlanId, futureDeparture, futureReturn, "UTC");
     sendResult = sendFloatPlanWithApi(arguments.apiSupport, asset.floatPlanId);
     expect(isSuccessPayload(sendResult)).toBeTrue(serializeJSON(sendResult));
-    expect(countMonitoringRows(asset.floatPlanId)).toBe(1);
+    expect(countMonitoringRows(asset.floatPlanId)).toBe(0);
     return asset;
   }
 
@@ -1098,7 +1600,7 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function newCreatedTracker() {
-    return { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [] };
+    return { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [], userRouteIds = [], waypointIds = [] };
   }
 
   private struct function createSessionApiUser() {
@@ -1110,7 +1612,9 @@ component extends="testbox.system.BaseSpec" output="false" {
       firstName = "FPW",
       lastName = "ActiveCruiseV2",
       email = uniqueEmail,
-      password = "changeIt"
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
     }, false);
 
     expect(payload.SUCCESS).toBeTrue(serializeJSON(payload));
@@ -1135,6 +1639,32 @@ component extends="testbox.system.BaseSpec" output="false" {
       return;
     }
 
+    queryExecute(
+      "DELETE FROM premium_trip_entitlement_events
+       WHERE premium_trip_entitlement_id IN (
+         SELECT premium_trip_entitlement_id
+         FROM member_premium_trip_entitlements
+         WHERE user_id = :userId
+       )",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM premium_trip_creation_sessions WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM member_premium_trip_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
@@ -1204,6 +1734,95 @@ component extends="testbox.system.BaseSpec" output="false" {
     return {
       vesselId = vesselId,
       routeCode = routeCode,
+      floatPlanId = floatPlanId
+    };
+  }
+
+  private struct function createMyRouteLinkedDraftForApi(required any apiSupport, required string prefix, required struct created) {
+    var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init(arguments.apiSupport);
+    cleanupSupport.cleanupCurrentRouteFloatPlanGroup();
+
+    var vesselPayload = arguments.apiSupport.saveVessel({
+      vesselId = 0,
+      vesselName = variables.naming.buildName(arguments.prefix, "AC V2 My Route Vessel"),
+      type = "Cruiser",
+      length = 34,
+      color = "White"
+    });
+    var vesselId = val(vesselPayload.VESSELID ?: 0);
+    var startWaypointId = createWaypointForActiveCruiseTest(arguments.apiSupport, arguments.prefix, arguments.created, "Start", "27.950575", "-82.457178");
+    var endWaypointId = createWaypointForActiveCruiseTest(arguments.apiSupport, arguments.prefix, arguments.created, "End", "27.771889", "-82.638611");
+    var createRoutePayload = {};
+    var userRouteId = 0;
+    var generate = {};
+    var sourceRouteCode = "";
+    var sourceRouteInstanceId = 0;
+    var buildPayload = {};
+    var floatPlanId = 0;
+
+    ensureSuccess(vesselPayload, "save My Route vessel");
+    expect(vesselId).toBeGT(0, serializeJSON(vesselPayload));
+    arrayAppend(arguments.created.vesselIds, vesselId);
+
+    createRoutePayload = arguments.apiSupport.routeBuilder("createUserRoute", {
+      route_name = variables.naming.buildName(arguments.prefix, "AC V2 My Route")
+    });
+    ensureSuccess(createRoutePayload, "create My Route");
+    userRouteId = val(createRoutePayload.DATA.route_id ?: 0);
+    expect(userRouteId).toBeGT(0, serializeJSON(createRoutePayload));
+    arrayAppend(arguments.created.userRouteIds, userRouteId);
+
+    ensureSuccess(arguments.apiSupport.routeBuilder("setUserRouteStartWaypoint", {
+      route_id = userRouteId,
+      start_waypoint_id = startWaypointId
+    }), "set My Route start waypoint");
+    ensureSuccess(arguments.apiSupport.routeBuilder("addWaypointLegToUserRoute", {
+      route_id = userRouteId,
+      end_waypoint_id = endWaypointId
+    }), "add My Route waypoint leg");
+
+    generate = arguments.apiSupport.routeBuilder("routegen_generate", {
+      route_name = variables.naming.buildName(arguments.prefix, "AC V2 Source My Route"),
+      route_type = "my_route",
+      route_id = userRouteId,
+      start_date = "2026-04-09",
+      pace = "BALANCED",
+      cruising_speed = 12,
+      vessel_max_speed_kn = 12,
+      vessel_most_efficient_speed_kn = 5,
+      vessel_gph_at_most_efficient_speed = 1,
+      fuel_burn_gph = 4,
+      fuel_burn_gph_input = 4,
+      fuel_burn_basis = "MAX_SPEED",
+      reserve_pct = 33,
+      fuel_price_per_gal = "",
+      weather_factor_pct = 0,
+      underway_hours_per_day = 6.5,
+      selected_vessel_id = vesselId
+    });
+    ensureSuccess(generate, "generate My Route route instance");
+    sourceRouteCode = trim(toString(generate.ROUTE_CODE ?: generate.DATA.route_code ?: ""));
+    sourceRouteInstanceId = val(generate.ROUTE_INSTANCE_ID ?: generate.DATA.route_instance_id ?: 0);
+    expect(len(sourceRouteCode)).toBeGT(0, serializeJSON(generate));
+    expect(sourceRouteInstanceId).toBeGT(0, serializeJSON(generate));
+    arrayAppend(arguments.created.routeCodes, sourceRouteCode);
+
+    buildPayload = arguments.apiSupport.routeBuilder("buildFloatPlansFromRoute", {
+      routeCode = sourceRouteCode,
+      mode = "DAILY",
+      vesselId = vesselId,
+      rebuild = 0
+    });
+    ensureSuccess(buildPayload, "build My Route-linked float plans");
+    floatPlanId = val(buildPayload.FLOATPLAN_IDS[1] ?: 0);
+    expect(floatPlanId).toBeGT(0, serializeJSON(buildPayload));
+    arrayAppend(arguments.created.floatPlanIds, floatPlanId);
+
+    return {
+      vesselId = vesselId,
+      userRouteId = userRouteId,
+      sourceRouteCode = sourceRouteCode,
+      sourceRouteInstanceId = sourceRouteInstanceId,
       floatPlanId = floatPlanId
     };
   }
@@ -1289,6 +1908,29 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private numeric function createWaypointForActiveCruiseTest(
+    required any apiSupport,
+    required string prefix,
+    required struct created,
+    required string label,
+    required string latitude,
+    required string longitude
+  ) {
+    var waypointName = left(variables.naming.buildName(arguments.prefix, "AC V2 " & arguments.label), 45);
+    var payload = arguments.apiSupport.saveWaypoint({
+      waypointId = 0,
+      name = waypointName,
+      latitude = arguments.latitude,
+      longitude = arguments.longitude,
+      notes = arguments.label & " waypoint"
+    });
+    var waypointId = val(payload.WAYPOINTID ?: 0);
+    ensureSuccess(payload, "save " & arguments.label & " waypoint");
+    expect(waypointId).toBeGT(0, serializeJSON(payload));
+    arrayAppend(arguments.created.waypointIds, waypointId);
+    return waypointId;
   }
 
   private struct function loadFirstRouteMapOverrideContext(required numeric floatPlanId) {
@@ -1398,12 +2040,16 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string returnUtc,
     required string timeZoneId
   ) {
+    var departureUtcValue = localWallClockToUtcSql(arguments.departureUtc, arguments.timeZoneId);
+    var returnUtcValue = localWallClockToUtcSql(arguments.returnUtc, arguments.timeZoneId);
     queryExecute(
       "UPDATE floatplans
-       SET departureTime = CONVERT_TZ(:departureUtc, :timeZoneId, 'UTC'),
+       SET departureTime = :departureLocal,
+           departureTimeUTC = :departureUtc,
            departTimezone = :timeZoneId,
            departureTZ = :timeZoneId,
-           returnTime = CONVERT_TZ(:returnUtc, :timeZoneId, 'UTC'),
+           returnTime = :returnLocal,
+           returnTimeUTC = :returnUtc,
            returnTimezone = :timeZoneId,
            returnTZ = :timeZoneId,
            dailyStartLocalTime = '08:00:00',
@@ -1415,8 +2061,10 @@ component extends="testbox.system.BaseSpec" output="false" {
            `status` = 'DRAFT'
        WHERE floatplanId = :floatPlanId",
       {
-        departureUtc = { value = arguments.departureUtc, cfsqltype = "cf_sql_timestamp" },
-        returnUtc = { value = arguments.returnUtc, cfsqltype = "cf_sql_timestamp" },
+        departureLocal = { value = normalizeSqlDateTimeString(arguments.departureUtc), cfsqltype = "cf_sql_varchar" },
+        departureUtc = { value = departureUtcValue, cfsqltype = "cf_sql_varchar" },
+        returnLocal = { value = normalizeSqlDateTimeString(arguments.returnUtc), cfsqltype = "cf_sql_varchar" },
+        returnUtc = { value = returnUtcValue, cfsqltype = "cf_sql_varchar" },
         timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
@@ -1425,8 +2073,51 @@ component extends="testbox.system.BaseSpec" output="false" {
     deleteMonitoringRows(arguments.floatPlanId);
   }
 
+  private string function localWallClockToUtcSql(required string localDateTime, required string timeZoneId) {
+    var localText = normalizeSqlDateTimeString(arguments.localDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+    if (!len(localText) OR !len(zoneText)) {
+      return "";
+    }
+    if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
+      return localText;
+    }
+    var formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+    var parsed = createObject("java", "java.time.LocalDateTime").parse(localText, formatter);
+    var zoneId = createObject("java", "java.time.ZoneId").of(zoneText);
+    return utcIsoToSql(toString(parsed.atZone(zoneId).toInstant()));
+  }
+
+  private string function utcIsoToSql(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
+  }
+
+  private string function normalizeSqlDateTimeString(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
+  }
+
   private struct function sendFloatPlanWithApi(required any apiSupport, required numeric floatPlanId) {
     return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=send", {
+      floatPlanId = arguments.floatPlanId
+    });
+  }
+
+  private struct function cancelFloatPlanWithApi(required any apiSupport, required numeric floatPlanId) {
+    return arguments.apiSupport.postJson("/api/v1/floatplan.cfc?method=handle&action=cancel", {
       floatPlanId = arguments.floatPlanId
     });
   }
@@ -1468,7 +2159,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private string function loadDailyStartLocalTimeForFloatPlan(required numeric floatPlanId) {
     var qDailyStart = queryExecute(
-      "SELECT dailyStartLocalTime
+      "SELECT TIME_FORMAT(dailyStartLocalTime, '%H:%i:%s') AS dailyStartLocalTime
        FROM floatplans
        WHERE floatPlanId = :floatPlanId
        LIMIT 1",
@@ -1481,6 +2172,52 @@ component extends="testbox.system.BaseSpec" output="false" {
       return "";
     }
     return normalizeDailyStartForTest(qDailyStart.dailyStartLocalTime[1]);
+  }
+
+  private struct function loadActiveCruiseMonitoringRawTimestamps(required numeric floatPlanId) {
+    var qRow = queryExecute(
+      "SELECT
+          TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS daily_start_local_time_raw,
+          DATE_FORMAT(fm.expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at_raw,
+          DATE_FORMAT(fm.secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until_raw,
+          DATE_FORMAT(fm.next_monitor_eval_at, '%Y-%m-%d %H:%i:%s') AS next_monitor_eval_at_raw,
+          DATE_FORMAT(fm.grace_expires_at, '%Y-%m-%d %H:%i:%s') AS grace_expires_at_raw
+       FROM floatplan_monitoring fm
+       INNER JOIN floatplans fp ON fp.floatPlanId = fm.float_plan_id
+       WHERE fm.float_plan_id = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect(qRow.recordCount).toBe(1);
+    return {
+      daily_start_local_time_raw = isNull(qRow.daily_start_local_time_raw[1]) ? "" : trim(toString(qRow.daily_start_local_time_raw[1])),
+      expected_checkin_at_raw = isNull(qRow.expected_checkin_at_raw[1]) ? "" : trim(toString(qRow.expected_checkin_at_raw[1])),
+      secure_for_night_until_raw = isNull(qRow.secure_for_night_until_raw[1]) ? "" : trim(toString(qRow.secure_for_night_until_raw[1])),
+      next_monitor_eval_at_raw = isNull(qRow.next_monitor_eval_at_raw[1]) ? "" : trim(toString(qRow.next_monitor_eval_at_raw[1])),
+      grace_expires_at_raw = isNull(qRow.grace_expires_at_raw[1]) ? "" : trim(toString(qRow.grace_expires_at_raw[1]))
+    };
+  }
+
+  private boolean function isSqlDateTimeForActiveCruiseTest(required string value) {
+    return reFind("^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", trim(arguments.value)) EQ 1;
+  }
+
+  private numeric function minutesBetweenSqlForActiveCruiseTest(required string startAt, required string endAt) {
+    var qDiff = queryExecute(
+      "SELECT TIMESTAMPDIFF(MINUTE, CAST(:startAt AS DATETIME), CAST(:endAt AS DATETIME)) AS minutes_diff",
+      {
+        startAt = { value = arguments.startAt, cfsqltype = "cf_sql_varchar" },
+        endAt = { value = arguments.endAt, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qDiff.recordCount EQ 0 OR isNull(qDiff.minutes_diff[1])) {
+      return -99999;
+    }
+    return val(qDiff.minutes_diff[1]);
   }
 
   private string function normalizeDailyStartForTest(required any value) {
@@ -1530,6 +2267,71 @@ component extends="testbox.system.BaseSpec" output="false" {
       return {};
     }
     return deserializeJSON(qInputs.routegen_inputs_json[1]);
+  }
+
+  private struct function loadRouteInputsForRouteInstance(required numeric routeInstanceId) {
+    var qInputs = queryExecute(
+      "SELECT routegen_inputs_json
+       FROM route_instances
+       WHERE id = :routeInstanceId
+       LIMIT 1",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qInputs.recordCount EQ 0 OR isNull(qInputs.routegen_inputs_json[1]) OR !len(trim(toString(qInputs.routegen_inputs_json[1])))) {
+      return {};
+    }
+    return deserializeJSON(qInputs.routegen_inputs_json[1]);
+  }
+
+  private struct function loadRouteInstanceShapeCounts(required numeric routeInstanceId) {
+    var qShape = queryExecute(
+      "SELECT
+          (SELECT COUNT(*) FROM route_instance_sections WHERE route_instance_id = :routeInstanceId) AS section_count,
+          (SELECT COUNT(*) FROM route_instance_legs WHERE route_instance_id = :routeInstanceId) AS leg_count,
+          (SELECT COUNT(*) FROM route_instance_leg_progress WHERE route_instance_id = :routeInstanceId) AS progress_count,
+          COALESCE((SELECT ROUND(SUM(base_dist_nm), 2) FROM route_instance_legs WHERE route_instance_id = :routeInstanceId), 0) AS total_nm",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect(qShape.recordCount).toBe(1);
+    return {
+      section_count = val(qShape.section_count[1]),
+      leg_count = val(qShape.leg_count[1]),
+      progress_count = val(qShape.progress_count[1]),
+      total_nm = roundTo2Numeric(qShape.total_nm[1])
+    };
+  }
+
+  private array function loadRouteProgressSnapshotForRouteInstance(required numeric routeInstanceId) {
+    var qProgress = queryExecute(
+      "SELECT
+          leg_order,
+          COALESCE(NULLIF(TRIM(status), ''), '') AS status,
+          DATE_FORMAT(leg_started_at, '%Y-%m-%d %H:%i:%s') AS leg_started_at_raw,
+          DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at_raw
+       FROM route_instance_leg_progress
+       WHERE route_instance_id = :routeInstanceId
+       ORDER BY leg_order ASC, id ASC",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    var rows = [];
+    for (var i = 1; i LTE qProgress.recordCount; i++) {
+      arrayAppend(rows, {
+        leg_order = val(qProgress.leg_order[i]),
+        status = trim(toString(qProgress.status[i])),
+        leg_started_at = (isNull(qProgress.leg_started_at_raw[i]) ? "" : trim(toString(qProgress.leg_started_at_raw[i]))),
+        completed_at = (isNull(qProgress.completed_at_raw[i]) ? "" : trim(toString(qProgress.completed_at_raw[i])))
+      });
+    }
+    return rows;
   }
 
   private struct function loadActiveCruiseHeroForTest(required numeric floatPlanId) {
@@ -1591,6 +2393,23 @@ component extends="testbox.system.BaseSpec" output="false" {
     return val(qRoute.route_instance_id[1]);
   }
 
+  private string function loadRouteCodeForRouteInstance(required numeric routeInstanceId) {
+    var qRoute = queryExecute(
+      "SELECT generated_route_code
+       FROM route_instances
+       WHERE id = :routeInstanceId
+       LIMIT 1",
+      {
+        routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qRoute.recordCount EQ 0 OR isNull(qRoute.generated_route_code[1])) {
+      return "";
+    }
+    return trim(toString(qRoute.generated_route_code[1]));
+  }
+
   private struct function recordCanonicalCheckin(
     required numeric floatPlanId,
     required string statusValue,
@@ -1618,6 +2437,53 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 
+  private void function setActiveCruiseDisplayTimestampForTest(required numeric floatPlanId, required string utcValue) {
+    queryExecute(
+      "UPDATE floatplans
+       SET departureTZ = 'US/Eastern',
+           departTimezone = 'US/Eastern',
+           returnTZ = 'US/Eastern',
+           returnTimezone = 'US/Eastern'
+       WHERE floatPlanId = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET last_checkin_at = :utcValue
+       WHERE float_plan_id = :floatPlanId",
+      {
+        utcValue = { value = arguments.utcValue, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE floatplan_events
+       SET occurred_at_utc = :utcValue
+       WHERE id = (
+         SELECT id
+         FROM (
+           SELECT id
+           FROM floatplan_events
+           WHERE floatplan_id = :floatPlanId
+             AND event_type = 'CHECKIN_RECEIVED'
+             AND source = 'active_cruise_checkin'
+             AND voided_at_utc IS NULL
+           ORDER BY id DESC
+           LIMIT 1
+         ) latest_checkin_event
+       )",
+      {
+        utcValue = { value = arguments.utcValue, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
   private void function markFirstLegStarted(required numeric floatPlanId) {
     queryExecute(
       "UPDATE route_instance_leg_progress rilp
@@ -1633,6 +2499,20 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private struct function startActiveRouteMonitoringWithStartProof(required numeric floatPlanId) {
+    var qClock = queryExecute(
+      "SELECT UTC_TIMESTAMP() AS started_at",
+      {},
+      { datasource = "fpw" }
+    );
+    var startedAt = qClock.started_at[1];
+
+    markFirstLegStarted(arguments.floatPlanId);
+    return new fpw.api.v1.monitor().init("fpw").startMonitoringForFloatPlan(arguments.floatPlanId, "active_route", {
+      baseAt = startedAt
+    });
   }
 
   private void function setActiveLegStartedAtForPaceTest(required numeric floatPlanId, required any startedAtUtc) {
@@ -1675,6 +2555,26 @@ component extends="testbox.system.BaseSpec" output="false" {
            last_checkin_at = COALESCE(last_checkin_at, UTC_TIMESTAMP())
        WHERE float_plan_id = :floatPlanId",
       {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function markMonitoringSecureForNightAtUtc(required numeric floatPlanId, required string secureUntilUtc) {
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET secure_for_night = 1,
+           expected_checkin_at = :secureUntilUtc,
+           secure_for_night_until = :secureUntilUtc,
+           next_monitor_eval_at = :secureUntilUtc,
+           grace_expires_at = DATE_ADD(CAST(:secureUntilUtcForGrace AS DATETIME), INTERVAL grace_window_minutes MINUTE),
+           last_checkin_status = 'SECURE_FOR_NIGHT',
+           last_checkin_at = '2026-05-21 02:35:59'
+       WHERE float_plan_id = :floatPlanId",
+      {
+        secureUntilUtc = { value = arguments.secureUntilUtc, cfsqltype = "cf_sql_varchar" },
+        secureUntilUtcForGrace = { value = arguments.secureUntilUtc, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }
@@ -1750,6 +2650,29 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 
+  private void function markPlanCancelled(required numeric floatPlanId) {
+    queryExecute(
+      "UPDATE floatplans
+       SET status = 'CANCELLED',
+           closedAt = UTC_TIMESTAMP()
+       WHERE floatPlanId = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET monitor_state = 'CLOSED',
+           closed_at = UTC_TIMESTAMP()
+       WHERE float_plan_id = :floatPlanId",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
   private void function deleteRouteLegRows(required numeric floatPlanId) {
     queryExecute(
       "DELETE ril
@@ -1802,8 +2725,25 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private string function findOpenActivitySegmentType(required numeric floatPlanId) {
+    var segment = findOpenActivitySegment(arguments.floatPlanId);
+    if (!segment.found) {
+      return "";
+    }
+    return segment.segmentType;
+  }
+
+  private struct function findOpenActivitySegment(required numeric floatPlanId) {
+    var out = {
+      "found" = false,
+      "segmentType" = "",
+      "routeInstanceId" = 0,
+      "routeLegOrder" = 0,
+      "endedAtPresent" = false,
+      "sourceStartEventId" = 0,
+      "sourceEndEventId" = 0
+    };
     var qSegment = queryExecute(
-      "SELECT segment_type
+      "SELECT segment_type, route_instance_id, route_leg_order, ended_at_utc, source_start_event_id, source_end_event_id
 	       FROM floatplan_activity_segments
 	       WHERE floatplan_id = :floatPlanId
 	         AND ended_at_utc IS NULL
@@ -1815,9 +2755,88 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = "fpw" }
     );
     if (qSegment.recordCount EQ 0) {
-      return "";
+      return out;
     }
-    return uCase(trim(toString(qSegment.segment_type[1])));
+    out.found = true;
+    out.segmentType = uCase(trim(toString(qSegment.segment_type[1])));
+    out.routeInstanceId = val(qSegment.route_instance_id[1]);
+    out.routeLegOrder = val(qSegment.route_leg_order[1]);
+    out.endedAtPresent = isDate(qSegment.ended_at_utc[1]);
+    out.sourceStartEventId = val(qSegment.source_start_event_id[1]);
+    out.sourceEndEventId = val(qSegment.source_end_event_id[1]);
+    return out;
+  }
+
+  private struct function findLatestActivitySegmentForLeg(required numeric floatPlanId, required numeric legOrder, required string segmentType) {
+    var out = {
+      "found" = false,
+      "segmentType" = "",
+      "routeInstanceId" = 0,
+      "routeLegOrder" = 0,
+      "startedAtPresent" = false,
+      "endedAtPresent" = false,
+      "sourceStartEventId" = 0,
+      "sourceEndEventId" = 0
+    };
+    var qSegment = queryExecute(
+      "SELECT segment_type, route_instance_id, route_leg_order, started_at_utc, ended_at_utc, source_start_event_id, source_end_event_id
+	       FROM floatplan_activity_segments
+	       WHERE floatplan_id = :floatPlanId
+	         AND route_leg_order = :legOrder
+	         AND segment_type = :segmentType
+	       ORDER BY started_at_utc DESC, id DESC
+	       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" },
+        segmentType = { value = uCase(trim(arguments.segmentType)), cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qSegment.recordCount EQ 0) {
+      return out;
+    }
+    out.found = true;
+    out.segmentType = uCase(trim(toString(qSegment.segment_type[1])));
+    out.routeInstanceId = val(qSegment.route_instance_id[1]);
+    out.routeLegOrder = val(qSegment.route_leg_order[1]);
+    out.startedAtPresent = isDate(qSegment.started_at_utc[1]);
+    out.endedAtPresent = isDate(qSegment.ended_at_utc[1]);
+    out.sourceStartEventId = val(qSegment.source_start_event_id[1]);
+    out.sourceEndEventId = val(qSegment.source_end_event_id[1]);
+    return out;
+  }
+
+  private struct function loadRouteProgressLegState(required numeric floatPlanId, required numeric legOrder) {
+    var out = {
+      "found" = false,
+      "status" = "",
+      "startedAtPresent" = false,
+      "completedAtPresent" = false
+    };
+    var qProgress = queryExecute(
+      "SELECT rilp.status, rilp.leg_started_at, rilp.completed_at
+       FROM route_instance_leg_progress rilp
+       INNER JOIN floatplans fp
+          ON fp.route_instance_id = rilp.route_instance_id
+         AND fp.userId = rilp.user_id
+       WHERE fp.floatPlanId = :floatPlanId
+         AND rilp.leg_order = :legOrder
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+        legOrder = { value = arguments.legOrder, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qProgress.recordCount EQ 0) {
+      return out;
+    }
+    out.found = true;
+    out.status = uCase(trim(toString(qProgress.status[1])));
+    out.startedAtPresent = isDate(qProgress.leg_started_at[1]);
+    out.completedAtPresent = isDate(qProgress.completed_at[1]);
+    return out;
   }
 
   private struct function findCheckinEventPayload(required numeric floatPlanId, required string statusValue) {
@@ -1897,6 +2916,33 @@ component extends="testbox.system.BaseSpec" output="false" {
     return val(qRows.row_count[1]);
   }
 
+  private struct function loadFinalCloseState(required numeric floatPlanId) {
+    var qState = queryExecute(
+      "SELECT
+          UPPER(TRIM(COALESCE(fp.status, ''))) AS status_value,
+          fp.closedAt AS fp_closed_at,
+          UPPER(TRIM(COALESCE(m.monitor_state, ''))) AS monitor_state_value,
+          m.closed_at AS monitor_closed_at
+       FROM floatplans fp
+       LEFT JOIN floatplan_monitoring m
+         ON m.float_plan_id = fp.floatPlanId
+       WHERE fp.floatPlanId = :floatPlanId
+       ORDER BY m.id DESC
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect(qState.recordCount).toBe(1);
+    return {
+      status = trim(toString(qState.status_value[1])),
+      closed_at_present = isDate(qState.fp_closed_at[1]),
+      monitor_state = trim(toString(qState.monitor_state_value[1])),
+      monitor_closed_at_present = isDate(qState.monitor_closed_at[1])
+    };
+  }
+
   private void function deleteMonitoringRows(required numeric floatPlanId) {
     queryExecute(
       "DELETE FROM floatplan_alert_history WHERE floatPlanId = :floatPlanId",
@@ -1938,6 +2984,27 @@ component extends="testbox.system.BaseSpec" output="false" {
       } catch (any ignoredRouteCleanup) {}
       forceDeleteRouteInstanceRecords(arguments.created.routeCodes[j]);
     }
+    if (structKeyExists(arguments.created, "userRouteIds")) {
+      for (var u = arrayLen(arguments.created.userRouteIds); u GTE 1; u--) {
+        try {
+          cleanupSupport.cleanupUserRoute(arguments.created.userRouteIds[u]);
+        } catch (any ignoredUserRouteCleanup) {}
+        queryExecute(
+          "DELETE FROM user_route_legs WHERE user_route_id = :userRouteId",
+          {
+            userRouteId = { value = arguments.created.userRouteIds[u], cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
+        queryExecute(
+          "DELETE FROM user_routes WHERE id = :userRouteId",
+          {
+            userRouteId = { value = arguments.created.userRouteIds[u], cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = "fpw" }
+        );
+      }
+    }
     for (var c = arrayLen(arguments.created.contactIds); c GTE 1; c--) {
       try {
         cleanupSupport.cleanupContact(arguments.created.contactIds[c]);
@@ -1955,6 +3022,13 @@ component extends="testbox.system.BaseSpec" output="false" {
       try {
         cleanupSupport.cleanupVessel(arguments.created.vesselIds[k]);
       } catch (any ignoredVesselCleanup) {}
+    }
+    if (structKeyExists(arguments.created, "waypointIds")) {
+      for (var w = arrayLen(arguments.created.waypointIds); w GTE 1; w--) {
+        try {
+          cleanupSupport.cleanupWaypoint(arguments.created.waypointIds[w]);
+        } catch (any ignoredWaypointCleanup) {}
+      }
     }
   }
 

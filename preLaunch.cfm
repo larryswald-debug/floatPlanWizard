@@ -329,6 +329,7 @@ if (isEarlyAccessPost) {
   
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/layout.css?v=20260620-page-width">
   <style>
     :root {
       --bg: #07131c;
@@ -349,7 +350,7 @@ if (isEarlyAccessPost) {
       --radius-xl: 28px;
       --radius-lg: 20px;
       --radius-md: 14px;
-      --max: 1200px;
+      --max: var(--fpw-page-max, 1200px);
       --promo-strip-offset: 36px;
     }
 
@@ -371,7 +372,7 @@ if (isEarlyAccessPost) {
     img { max-width: 100%; display: block; }
 
     .shell {
-      width: min(calc(100% - 32px), var(--max));
+      width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       margin: 0 auto;
     }
 
@@ -1744,7 +1745,7 @@ if (isEarlyAccessPost) {
     }
 
     @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 20px), var(--max)); }
+      .shell { width: min(var(--max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
       .topbar-inner { align-items: flex-start; flex-direction: column; }
       .nav { width: 100%; justify-content: flex-start; }
       .hero { padding-top: 26px; }
@@ -1778,355 +1779,812 @@ if (isEarlyAccessPost) {
       }
     }
   </style>
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-JJCH1QE0LH"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-JJCH1QE0LH');
-</script>
+<cfinclude template="includes/analytics_ga4.cfm">
+<cfinclude template="includes/analytics_clarity.cfm">
 </head>
-<body id="top">
-  <header class="topbar">
-    <div class="promo-strip">
-      <div class="shell promo-strip-inner">
-        <p class="promo-strip-copy">Join prelaunch &mdash; get <strong>2 months of Premium free</strong></p>
-      </div>
+
+<!--
+  FloatPlanWizard Go-Live Homepage Markup
+  Purpose:
+  - Convert the existing prelaunch homepage into a live membership/signup homepage.
+  - Preserve the current section flow and dark command-center design language.
+  - Keep visuals mostly UI/cards/vector-style, not photography-heavy.
+
+  Assumptions for Codex:
+  - Replace href values with the real app routes if they differ.
+  - Reuse existing site shell, typography, colors, buttons, and card classes where possible.
+  - This is markup only; map these classes to existing/prelaunch CSS or add scoped CSS as needed.
+-->
+
+<div class="fpw-live-home">
+
+  <!-- Top launch/member offer bar -->
+  <div class="fpw-top-offer" role="region" aria-label="Launch offer">
+    <div class="fpw-container fpw-top-offer__inner">
+      <span class="fpw-top-offer__eyebrow">FloatPlanWizard is live</span>
+      <span class="fpw-top-offer__text">Start free today. Optional Premium tools are available for longer voyages and advanced monitoring.</span>
+      <a class="fpw-top-offer__link" href="/pricing.cfm">View Memberships</a>
     </div>
-    <div class="shell topbar-inner">
-      <a href="#top" class="brand" aria-label="FloatPlanWizard home">
-        <div class="brand-mark"><i class="bi bi-compass-fill" aria-hidden="true"></i></div>
-        <div class="brand-copy">
-          <div class="brand-name">FloatPlanWizard</div>
-          <div class="brand-tag">Built for serious recreational boaters</div>
-        </div>
+  </div>
+
+  <!-- Header / Navigation -->
+  <header class="fpw-header">
+    <div class="fpw-container fpw-header__inner">
+
+      <a class="fpw-brand" href="/" aria-label="FloatPlanWizard home">
+        <span class="fpw-brand__mark" aria-hidden="true">☼</span>
+        <span class="fpw-brand__text">
+          <strong>FloatPlanWizard</strong>
+          <small>Built for serious recreational boaters</small>
+        </span>
       </a>
-      <nav class="nav" aria-label="Primary">
-        <a href="/#features">Features</a>
-        <a href="/#great-loop">Great Loop</a>
-        <a href="/#followers">Share the Trip</a>
-        <a href="#story">Why FPW</a>
-        <a href="/boat-fuel-calculator/boat-fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
-        <a href="/#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
+
+      <nav class="fpw-nav" aria-label="Primary navigation">
+        <a href="/features.cfm">Features</a>
+        <a href="/great-loop.cfm">Great Loop</a>
+        <a href="/active-cruise.cfm">Active Cruise</a>
+        <a href="/companion-app.cfm">Companion App</a>
+        <a href="/pricing.cfm">Pricing</a>
+        <a href="/how-it-works.cfm">How It Works</a>
       </nav>
+
+      <div class="fpw-header__actions">
+        <a class="fpw-btn fpw-btn--primary fpw-btn--small" href="/signup.cfm">Start Free</a>
+        <a class="fpw-btn fpw-btn--ghost fpw-btn--small" href="/login.cfm">Sign In</a>
+        <button class="fpw-menu-btn" type="button" aria-label="Open menu">
+          <span aria-hidden="true">⋮⋮</span>
+        </button>
+      </div>
+
     </div>
   </header>
 
-  <main>
-    <section class="hero">
-      <div class="shell hero-grid">
-        <div class="panel hero-copy">
-          <div class="eyebrow"><i class="bi bi-stars" aria-hidden="true"></i>Set Sail with FloatPlanWizard - Launching this spring</div>
-          <h1><span class="gradient-text">Plan smarter.</span><br />Cruise prepared.<br />Keep everyone informed.</h1>
-          <ul class="lead lead-bullets">
-            <li>Create clear float plans with key trip and emergency details.</li>
-            <li>Plan route legs, timing, fuel stops, and contingencies confidently.</li>
-            <li>Keep family and friends informed with private trip updates.</li>
-            <li>Automatic overdue alerts help contacts act quickly if needed.</li>
+  <main id="mainContent">
+
+    <!-- Hero Section -->
+    <section class="fpw-hero" aria-labelledby="fpwHeroTitle">
+      <div class="fpw-container fpw-hero__grid">
+
+        <div class="fpw-hero__copy">
+
+          <div class="fpw-status-pill">
+            <span class="fpw-status-pill__dot" aria-hidden="true"></span>
+            <span>FloatPlanWizard is live</span>
+          </div>
+
+          <h1 id="fpwHeroTitle">
+            Plan <span>smarter.</span><br>
+            Cruise prepared.<br>
+            Keep everyone informed.
+          </h1>
+
+          <p class="fpw-hero__lead">
+            Create organized float plans, build routes, monitor active trips, and share voyage progress with family and friends from one boating-focused platform.
+          </p>
+
+          <ul class="fpw-hero__bullets">
+            <li>Create clear float plans with vessel, route, timing, passenger, and emergency details.</li>
+            <li>Plan route legs, fuel stops, timing, overnight stops, and contingencies confidently.</li>
+            <li>Keep trusted contacts informed with private shared trip pages and progress updates.</li>
+            <li>Use active cruise monitoring, check-ins, and overdue alert workflows when underway.</li>
           </ul>
 
-          <div class="hero-points">
-            <div class="hero-point">
-              <b><i class="bi bi-life-preserver"></i>Float Plans</b>
-              <span>USCG-style float plans with automated monitoring. Critical information for emergencies.</span>
+          <div class="fpw-hero__cards" aria-label="Core FloatPlanWizard capabilities">
+            <article class="fpw-mini-card">
+              <div class="fpw-mini-card__icon" aria-hidden="true">◉</div>
+              <h2>Float Plans</h2>
+              <p>USCG-style float plans with organized trip details and monitoring-ready structure.</p>
+            </article>
+
+            <article class="fpw-mini-card">
+              <div class="fpw-mini-card__icon" aria-hidden="true">⌘</div>
+              <h2>Route Builder</h2>
+              <p>Plan legs, pace, stops, timing, and fuel with tools built for real cruising.</p>
+            </article>
+
+            <article class="fpw-mini-card">
+              <div class="fpw-mini-card__icon" aria-hidden="true">≋</div>
+              <h2>Share the Trip</h2>
+              <p>Let family and friends follow the plan, stops, and updates without scattered texts.</p>
+            </article>
+          </div>
+
+          <div class="fpw-hero__cta">
+            <a class="fpw-btn fpw-btn--primary" href="/signup.cfm">Start Free</a>
+            <a class="fpw-btn fpw-btn--secondary" href="/how-it-works.cfm">
+              <span aria-hidden="true">▷</span>
+              See How It Works
+            </a>
+            <a class="fpw-btn fpw-btn--text" href="/great-loop.cfm">Explore Great Loop Features</a>
+          </div>
+
+          <div class="fpw-trust-row" aria-label="Signup notes">
+            <span><i aria-hidden="true">✓</i> Free plan available</span>
+            <span><i aria-hidden="true">✓</i> No credit card required</span>
+            <span><i aria-hidden="true">✓</i> Built by boaters</span>
+          </div>
+
+        </div>
+
+        <!-- Hero Command Center Mockup -->
+        <div class="fpw-command-shell" aria-label="Voyage command center preview">
+
+          <div class="fpw-command-window">
+            <div class="fpw-command-window__top">
+              <div class="fpw-window-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <strong>Voyage Command Center</strong>
+              <span class="fpw-live-indicator">
+                All Systems Go
+                <i aria-hidden="true"></i>
+              </span>
             </div>
-            <div class="hero-point">
-              <b><i class="bi bi-diagram-3"></i>Route Builder</b>
-              <span>Plan legs, pace, stops, timing, and fuel with tools built for real cruising.</span>
+
+            <div class="fpw-command-grid">
+
+              <article class="fpw-command-card fpw-command-card--wide">
+                <div class="fpw-card-kicker">Active Voyage</div>
+                <h2>Tarpon Springs → Steinhatchee</h2>
+                <div class="fpw-progress" aria-label="Voyage progress">
+                  <span style="width: 37%;"></span>
+                </div>
+                <div class="fpw-card-meta">
+                  <span>Leg 2 of 4</span>
+                  <strong>37% Complete</strong>
+                </div>
+              </article>
+
+              <article class="fpw-command-card fpw-command-card--status">
+                <div class="fpw-card-kicker">Monitoring Status</div>
+                <strong class="fpw-status-value">Monitoring Active</strong>
+                <span>Next check-in due in</span>
+                <b>1h 45m</b>
+                <div class="fpw-radar" aria-hidden="true">
+                  <span></span>
+                </div>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Last Check-In</div>
+                <strong>14 min ago</strong>
+                <span>Today 9:16 AM</span>
+                <em>On Track</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Next Check-In</div>
+                <strong>Today 11:00 AM</strong>
+                <span>In 1h 45m</span>
+                <em>Expected</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Secure for Night</div>
+                <strong>Yes</strong>
+                <span>Until tomorrow</span>
+                <em>8:00 AM</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Current Delay</div>
+                <strong>15 min</strong>
+                <span>Total applied</span>
+                <em>Manual</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Weather Window</div>
+                <strong>Favorable</strong>
+                <span>Light winds ahead</span>
+                <em>Checked</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Fuel Range</div>
+                <strong>325 NM</strong>
+                <span>Good</span>
+                <em>On Plan</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Share the Trip</div>
+                <strong>3 Followers</strong>
+                <span>Updates active</span>
+                <em>Private</em>
+              </article>
+
+              <article class="fpw-command-card">
+                <div class="fpw-card-kicker">Companion App</div>
+                <strong>Connected</strong>
+                <span>GPS check-ins</span>
+                <em>Ready</em>
+              </article>
+
             </div>
-            <div class="hero-point">
-              <b><i class="bi bi-broadcast-pin"></i>Share the Trip</b>
-              <span>Let family and friends stay connected during day trips, weekends, or longer voyages.</span>
+
+            <div class="fpw-command-footer">
+              <span>Voyage Status</span>
+              <strong>On Plan</strong>
+              <span>Last Updated: 9:16 AM</span>
+              <span>All systems normal</span>
             </div>
           </div>
 
-          <div class="hero-cta">
-            <a href="#notify" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join the Early Notification List</a>
-            <a href="#great-loop" class="btn btn-secondary"><i class="bi bi-signpost-2"></i>Explore Great Loop Features</a>
-          </div>
-          <div class="micro">Built for Great Loopers and all serious recreational boaters.</div>
         </div>
 
-        <div class="panel hero-visual" aria-hidden="true">
-          <div class="mockup">
-            <div class="mockup-top">
-              <div class="dots"><span></span><span></span><span></span></div>
-              <div>Voyage Command Center</div>
-            </div>
-            <div class="mockup-body">
-              <div class="stack">
-                <div class="card">
-                  <h3>Upcoming Voyage</h3>
-                  <p>Organize the trip, route, departure timing, monitoring, and shared trip page access before leaving the dock.</p>
-                  <div class="route-lines">
-                    <div class="route-line"><i></i><div>Tarpon Springs Departure</div><small>08:00</small></div>
-                    <div class="route-line"><i></i><div>Fuel / Weather Check</div><small>10:30</small></div>
-                    <div class="route-line"><i></i><div>Overnight Anchorage</div><small>17:15</small></div>
-                    <div class="route-line"><i></i><div>Morning Leg Resume</div><small>07:00</small></div>
-                  </div>
-                </div>
-                <div class="card follower-view-card">
-                  <h3>Share the Trip</h3>
-                  <p>Private shared trip page for family and friends to see planned route, key stops, and progress updates.</p>
-                  <div class="follower-view-stats">
-                    <div class="stat"><strong>24/7</strong><span>peace of mind</span></div>
-                    <div class="stat"><strong>Loop</strong><span>friendly tools</span></div>
-                    <div class="stat"><strong>1 link</strong><span>easy to share</span></div>
-                  </div>
-                </div>
-              </div>
-              <div class="stack">
-                <div class="gauge">
-                  <div class="ring">
-                    <div>
-                      <strong>82%</strong>
-                      <span>voyage readiness</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="card">
-                  <h3>Route Builder Snapshot</h3>
-                  <p>Visual planning tools for pace, route timing, trip structure, and long-distance cruise organization.</p>
-                  <div class="signal-box">
-                    <div class="signal"><b>Float Plan Status</b><span class="pill pill-ready">On Time</span></div>
-                    <div class="signal"><b>Stream Enabled</b><span class="pill pill-track">Tracking</span></div>
-                    <div class="signal"><b>Current Route</b><span class="pill pill-loop">Great Loop</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="shell">
-        <div id="notify" class="panel waitlist-card">
-          <div class="waitlist-grid">
-            <div class="waitlist-copy">
-              <div class="waitlist-copy-body">
-                <div class="waitlist-eyebrow"><span class="waitlist-eyebrow-dot" aria-hidden="true"></span>Going Live Spring 2026</div>
-                <h2>Be first to know when FloatPlanWizard goes live.</h2>
-                <p class="waitlist-primary">
-                  Join the pre-launch list for going-live updates, early access news, and launch announcements built for serious recreational boaters and Great Loop cruisers.
-                </p>
-                <p class="waitlist-secondary">
-                  From marina Wi-Fi and cellular to increasingly common Starlink-connected cruising, FloatPlanWizard is designed for modern boaters who want family and friends better informed while underway.
-                </p>
-                <p class="waitlist-secondary">
-                  Signing up for launch notifications is free and requires no credit card. FloatPlanWizard will offer a free version at launch, with optional paid memberships available for advanced tools and features.
-                </p>
-              </div>
-              <div class="waitlist-proof" aria-label="Launch benefits">
-                <span class="waitlist-proof-pill"><i class="bi bi-eye waitlist-proof-icon" aria-hidden="true"></i><span>Better float-plan visibility</span></span>
-                <span class="waitlist-proof-pill"><i class="bi bi-geo-alt waitlist-proof-icon" aria-hidden="true"></i><span>Live trip updates</span></span>
-                <span class="waitlist-proof-pill"><i class="bi bi-router waitlist-proof-icon" aria-hidden="true"></i><span>Built for connected cruisers</span></span>
-              </div>
-            </div>
-            <aside class="waitlist-signup-panel signup-panel" aria-label="Launch signup panel">
-              <div class="signup-form-state">
-                <div class="section-kicker">Launch Notification</div>
-                <h3>Get notified the moment FPW opens.</h3>
-                <p>Designed for modern cruisers, including Great Loop boaters who rely on cellular and increasingly satellite connectivity like Starlink to stay connected underway.</p>
-                <form class="signup" id="waitlistForm" novalidate>
-                  <label class="sr-only" for="emailInput" style="position:absolute;left:-9999px;">Email address</label>
-                  <input id="emailInput" name="email" type="email" placeholder="Enter your email address" autocomplete="email" required />
-                  <button class="btn btn-primary" type="submit"><i class="bi bi-bell"></i>Notify Me of Launch</button>
-                </form>
-                <div class="status">No spam. Just launch updates and early access news.</div>
-                <div class="signup-feedback" id="signupStatus"></div>
-                <div class="waitlist-signup-tags" aria-label="Connectivity profile">
-                  <span class="waitlist-signup-tag">Great Loop Ready</span>
-                  <span class="waitlist-signup-tag">Cell + Starlink</span>
-                </div>
-              </div>
-              <div class="signup-success-state" id="signupSuccessPrimary" aria-live="polite">
-                <h4>You're on the list</h4>
-                <p>Thanks for joining early access. You'll receive FloatPlanWizard launch updates and early access news.</p>
-                <div class="bonus">As a thank-you for signing up early, you'll receive 2 months of premium membership free - no strings attached.</div>
-                <div class="subtle">Watch your inbox for launch updates.</div>
-              </div>
-            </aside>
-          </div>
-        </div>
       </div>
     </section>
 
-    <section id="features" class="section">
-      <div class="shell">
-        <div class="section-head"></div>
+    <!-- Membership / Signup Section -->
+    <section class="fpw-membership" aria-labelledby="fpwMembershipTitle">
+      <div class="fpw-container">
 
-        <div class="features">
-          <article class="feature">
-            <div class="feature-icon"><i class="bi bi-life-preserver" aria-hidden="true"></i></div>
+        <div class="fpw-section-header fpw-section-header--split">
+          <div>
+            <span class="fpw-section-kicker">Memberships are open</span>
+            <h2 id="fpwMembershipTitle">Simple membership. Powerful boating tools.</h2>
+            <p>Start free, then upgrade when you need advanced monitoring, Great Loop planning, companion workflows, and expanded cruise tools.</p>
+          </div>
+          <p class="fpw-section-note">No credit card required for the free plan.</p>
+        </div>
+
+        <div class="fpw-membership__grid">
+
+          <article class="fpw-plan-card fpw-plan-card--free">
+            <div class="fpw-plan-card__top">
+              <div class="fpw-plan-card__icon" aria-hidden="true">♙</div>
+              <div>
+                <h3>Free</h3>
+                <p>Everything you need to get started.</p>
+              </div>
+            </div>
+
+            <ul class="fpw-check-list">
+              <li>1 active route</li>
+              <li>1 float plan</li>
+              <li>Basic trip sharing</li>
+              <li>Route planning tools</li>
+              <li>Check-ins and monitoring basics</li>
+              <li>Email support</li>
+            </ul>
+
+            <div class="fpw-plan-card__price">
+              <strong>$0</strong>
+              <span>/ month</span>
+            </div>
+
+            <a class="fpw-btn fpw-btn--primary fpw-btn--full" href="/signup.cfm">Start Free</a>
+          </article>
+
+          <article class="fpw-plan-card fpw-plan-card--premium">
+            <div class="fpw-plan-card__top">
+              <div class="fpw-plan-card__icon" aria-hidden="true">♛</div>
+              <div>
+                <h3>Premium</h3>
+                <p>Advanced tools for serious cruisers.</p>
+              </div>
+            </div>
+
+            <ul class="fpw-check-list">
+              <li>Unlimited routes and float plans</li>
+              <li>Advanced monitoring and alerts</li>
+              <li>Companion app features</li>
+              <li>Great Loop planning tools</li>
+              <li>Weather and fuel planning</li>
+              <li>Priority support</li>
+            </ul>
+
+            <div class="fpw-plan-card__price">
+              <strong><!-- Replace with live price -->Premium</strong>
+              <span>membership</span>
+            </div>
+
+            <a class="fpw-btn fpw-btn--accent fpw-btn--full" href="/pricing.cfm">Upgrade to Premium</a>
+          </article>
+
+          <aside class="fpw-member-fit-card" aria-labelledby="fpwMemberFitTitle">
+            <h3 id="fpwMemberFitTitle">Built for boaters who:</h3>
+
+            <ul class="fpw-icon-list">
+              <li>
+                <span aria-hidden="true">≋</span>
+                <p>Cruise the ICW, inland rivers, coastal waters, or the Great Loop.</p>
+              </li>
+              <li>
+                <span aria-hidden="true">⚓</span>
+                <p>Plan day trips, overnights, weekend runs, and longer passages.</p>
+              </li>
+              <li>
+                <span aria-hidden="true">⌬</span>
+                <p>Want fuel, timing, route, stop, and check-in details organized before departure.</p>
+              </li>
+              <li>
+                <span aria-hidden="true">👥</span>
+                <p>Want family and friends to understand the trip without constant texting.</p>
+              </li>
+              <li>
+                <span aria-hidden="true">♢</span>
+                <p>Value preparation, safety, communication, and peace of mind.</p>
+              </li>
+            </ul>
+          </aside>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Feature Grid -->
+    <section class="fpw-features" aria-labelledby="fpwFeaturesTitle">
+      <div class="fpw-container">
+
+        <div class="fpw-section-header">
+          <span class="fpw-section-kicker">Everything you need for a better voyage</span>
+          <h2 id="fpwFeaturesTitle">Plan the trip. Monitor the voyage. Share the journey.</h2>
+          <p>FloatPlanWizard combines route organization, float plans, trip monitoring, and private trip sharing in one connected workflow.</p>
+        </div>
+
+        <div class="fpw-feature-grid">
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">◉</div>
             <h3>Smart Float Plans</h3>
-            <p>Create organized float plans with vessel details, route info, timing, contacts, and trip structure in one place.</p>
+            <p>Create organized float plans with vessel information, contacts, timing, route details, passengers, and emergency context.</p>
           </article>
-          <article class="feature">
-            <div class="feature-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">⌘</div>
             <h3>Route Builder</h3>
-            <p>Build trip legs, organize stops, map out the journey, and prepare for longer cruising days with more clarity.</p>
+            <p>Build route legs, organize stops, estimate timing, plan fuel needs, and visualize your trip before leaving the dock.</p>
           </article>
-          <article class="feature">
-            <div class="feature-icon"><i class="bi bi-people" aria-hidden="true"></i></div>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">◎</div>
+            <h3>Active Cruise Monitoring</h3>
+            <p>Use check-ins, delays, secure-for-night status, monitoring checkpoints, and trip status updates while underway.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">👥</div>
             <h3>Share the Trip</h3>
-            <p>Give family and friends a private shared trip page where they can understand the trip and feel more connected.</p>
+            <p>Give family and friends a private shared trip page with the planned route, key stops, and progress updates.</p>
           </article>
-          <article class="feature">
-            <div class="feature-icon"><i class="bi bi-water" aria-hidden="true"></i></div>
-            <h3>Voyage Organization</h3>
-            <p>Built for day trips, overnights, weekend cruising, and ambitious journeys where planning and communication matter.</p>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">▯</div>
+            <h3>Companion App</h3>
+            <p>Check in from the boat, send GPS-aware updates, secure for the night, and keep monitoring data current.</p>
           </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">⌬</div>
+            <h3>Great Loop Tools</h3>
+            <p>Use planning tools for long-distance route segments, lock timing, fuel range, overnight stops, and shared progress.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">☼</div>
+            <h3>Weather-Aware Timing</h3>
+            <p>Plan departure timing around weather windows, fronts, wind, seas, and day-to-day cruising conditions.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">▣</div>
+            <h3>Fuel Planning</h3>
+            <p>Estimate distance, fuel range, refill timing, stop spacing, and leg-by-leg fuel confidence before departure.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">⚓</div>
+            <h3>Lock & Leg Organization</h3>
+            <p>Keep lock sequences, wait windows, bridges, marinas, anchorages, and route notes organized by leg.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">☾</div>
+            <h3>Overnight & Resume</h3>
+            <p>Secure for the night, preserve trip context, and resume next-day monitoring without rebuilding the voyage.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">✓</div>
+            <h3>Check-Ins & Status Updates</h3>
+            <p>Record on-track status, delays, assistance-needed signals, and other updates during the active trip.</p>
+          </article>
+
+          <article class="fpw-feature-card">
+            <div class="fpw-feature-card__icon" aria-hidden="true">✉</div>
+            <h3>Contacts & Emergency Details</h3>
+            <p>Keep trusted contacts, vessel details, itinerary context, and important trip information together.</p>
+          </article>
+
         </div>
+
       </div>
     </section>
 
-    <section id="great-loop" class="section">
-      <div class="shell grid-2">
-        <div class="panel loop-card">
-          <h2 style="margin:0;font-size:clamp(1.9rem,3vw,3rem);letter-spacing:-0.045em;line-height:1.04;">Designed with Great Loop cruisers in mind.</h2>
-          <p style="margin:16px 0 0;color:var(--muted);line-height:1.75;font-size:1.02rem;">
-            FloatPlanWizard is for all recreational boaters, but Great Loopers are a perfect fit. Long-distance cruising demands more preparation, better trip organization, and an easier way to keep family and friends informed throughout the voyage.
-          </p>
-          <div class="list">
-            <div class="list-item">
-              <div class="num">1</div>
-              <div><strong>Great Loop route templates</strong><span>Start faster with planning tools geared toward one of boating's most iconic journeys.</span></div>
-            </div>
-            <div class="list-item">
-              <div class="num">2</div>
-              <div><strong>Leg-by-leg organization</strong><span>Break large voyages into manageable segments with clearer structure and timing.</span></div>
-            </div>
-            <div class="list-item">
-              <div class="num">3</div>
-              <div><strong>Family peace of mind</strong><span>A shared trip page makes it easier for loved ones to stay connected over a multi-stop trip.</span></div>
-            </div>
-            <div class="list-item">
-              <div class="num">4</div>
-              <div><strong>Built for repeat use</strong><span>Perfect for boaters planning seasonal loops, regional expeditions, or major cruising goals.</span></div>
-            </div>
-          </div>
-        </div>
+    <!-- Great Loop Section -->
+    <section class="fpw-great-loop" aria-labelledby="fpwGreatLoopTitle">
+      <div class="fpw-container fpw-great-loop__grid">
 
-        <div class="panel map-card">
-          <div class="map-frame"></div>
-          <ul class="loop-feature-list" aria-label="Great Loop feature highlights">
-            <li class="loop-feature-item">
-              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-signpost-2"></i></span>
-              <span><strong>Route Leg Clarity:</strong> Keep each segment organized from ICW to inland rivers.</span>
-            </li>
-            <li class="loop-feature-item">
-              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-door-open"></i></span>
-              <span><strong>Lock Readiness:</strong> Plan lock sequences and wait windows.</span>
-            </li>
-            <li class="loop-feature-item">
-              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-fuel-pump"></i></span>
-              <span><strong>Fuel Range Confidence:</strong> Track distance-to-fuel and refill timing by leg.</span>
-            </li>
-            <li class="loop-feature-item">
-              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-cloud-sun"></i></span>
-              <span><strong>Weather-Aware Timing:</strong> Adjust departure around fronts, wind, and seas.</span>
-            </li>
-            <li class="loop-feature-item">
-              <span class="loop-feature-item-icon" aria-hidden="true"><i class="bi bi-broadcast-pin"></i></span>
-              <span><strong>Shared Live Progress:</strong> Give family clear trip status with private trip updates.</span>
-            </li>
+        <div class="fpw-great-loop__copy">
+          <span class="fpw-section-kicker">Built for the journey</span>
+          <h2 id="fpwGreatLoopTitle">Great Loop ready.</h2>
+          <p>
+            From the Gulf to the Great Lakes and back again, FloatPlanWizard gives Loopers a structured way to plan route segments, organize stops, track fuel confidence, and keep family informed.
+          </p>
+
+          <ul class="fpw-check-list fpw-check-list--large">
+            <li>Great Loop route templates</li>
+            <li>Leg-by-leg planning with clarity</li>
+            <li>Lock sequencing and wait-window notes</li>
+            <li>Fuel planning and range tracking</li>
+            <li>Overnight stops and secure-for-night workflows</li>
+            <li>Shared progress with crew, family, and friends</li>
           </ul>
+
+          <a class="fpw-btn fpw-btn--secondary" href="/great-loop.cfm">Explore Great Loop Features</a>
         </div>
+
+        <div class="fpw-loop-panel" aria-label="Great Loop route preview">
+
+          <div class="fpw-loop-map" aria-hidden="true">
+            <svg viewBox="0 0 720 420" role="img" aria-label="Stylized Great Loop route map">
+              <rect x="0" y="0" width="720" height="420" rx="24"></rect>
+
+              <path class="fpw-map-land" d="M80 70 C150 35 245 30 330 55 C420 82 510 72 610 95 C665 110 700 155 690 220 C678 300 595 350 510 355 C420 360 350 338 270 370 C190 402 95 365 60 300 C25 230 30 115 80 70 Z"></path>
+
+              <path class="fpw-map-route" d="M370 65
+                C355 100 352 132 385 155
+                C430 188 515 160 560 185
+                C610 215 590 285 535 305
+                C470 330 430 350 410 380
+                C385 340 335 325 285 318
+                C215 308 160 268 160 220
+                C160 168 215 142 255 115
+                C300 84 330 72 370 65"></path>
+
+              <g class="fpw-map-pins">
+                <circle cx="370" cy="65" r="7"></circle>
+                <circle cx="560" cy="185" r="7"></circle>
+                <circle cx="410" cy="380" r="7"></circle>
+                <circle cx="160" cy="220" r="7"></circle>
+              </g>
+
+              <text x="390" y="80">Great Lakes</text>
+              <text x="570" y="182">Atlantic</text>
+              <text x="340" y="392">Gulf</text>
+              <text x="115" y="220">Inland Rivers</text>
+            </svg>
+          </div>
+
+          <div class="fpw-loop-stats">
+            <article>
+              <strong>~6,000 NM</strong>
+              <span>Total loop distance</span>
+            </article>
+            <article>
+              <strong>15+</strong>
+              <span>States & provinces</span>
+            </article>
+            <article>
+              <strong>200+</strong>
+              <span>Possible stops</span>
+            </article>
+            <article>
+              <strong>1 epic journey</strong>
+              <span>Organized in FPW</span>
+            </article>
+          </div>
+
+          <div class="fpw-loop-feature-list">
+            <p><strong>Route Leg Clarity:</strong> Keep each segment organized from ICW to inland rivers.</p>
+            <p><strong>Lock Readiness:</strong> Plan lock sequences and wait windows.</p>
+            <p><strong>Fuel Range Confidence:</strong> Track distance-to-fuel and refill timing by leg.</p>
+            <p><strong>Weather-Aware Timing:</strong> Adjust departure around fronts, wind, and seas.</p>
+            <p><strong>Shared Live Progress:</strong> Give family clear trip status with private updates.</p>
+          </div>
+
+        </div>
+
       </div>
     </section>
 
-    <section id="followers" class="section">
-      <div class="shell grid-2">
-        <div class="panel follower-card">
-          <div class="section-kicker">Keep Your Family Informed</div>
-          <h2 style="margin:0;font-size:clamp(1.9rem,3vw,3rem);letter-spacing:-0.045em;line-height:1.05;">A better way to share the trip with family and friends.</h2>
-          <p style="margin:16px 0 0;color:var(--muted);line-height:1.75;font-size:1.02rem;">
-            One of FloatPlanWizard's strongest selling points is simple: it helps the people back home feel informed. That matters whether you are on a day cruise, a weekend run, or a long-distance Great Loop segment.
+    <!-- Companion App + Share Trip Split Section -->
+    <section class="fpw-live-tools" aria-labelledby="fpwLiveToolsTitle">
+      <div class="fpw-container">
+
+        <div class="fpw-section-header">
+          <span class="fpw-section-kicker">Connected while underway</span>
+          <h2 id="fpwLiveToolsTitle">Simple check-ins from the boat. Clear updates back home.</h2>
+        </div>
+
+        <div class="fpw-live-tools__grid">
+
+          <article class="fpw-companion-panel">
+            <div class="fpw-phone-preview" aria-hidden="true">
+              <div class="fpw-phone-preview__screen">
+                <span class="fpw-phone-preview__top">FPW Companion</span>
+                <div class="fpw-phone-preview__check">✓</div>
+                <strong>Check-In Successful</strong>
+                <span>Today 9:16 AM</span>
+                <div class="fpw-phone-preview__row">
+                  <span>Status</span>
+                  <strong>On Track</strong>
+                </div>
+                <div class="fpw-phone-preview__row">
+                  <span>Location</span>
+                  <strong>GPS Sent</strong>
+                </div>
+                <button type="button">Secure for Night</button>
+              </div>
+            </div>
+
+            <div>
+              <span class="fpw-section-kicker">Companion App</span>
+              <h3>One-tap trip updates from the boat.</h3>
+              <p>Designed for real cruising conditions where marina Wi-Fi, cellular, and satellite connectivity can vary.</p>
+
+              <ul class="fpw-check-list">
+                <li>One-tap check-ins</li>
+                <li>GPS location and timestamp updates</li>
+                <li>Secure-for-night updates</li>
+                <li>Delay or change-plan updates</li>
+                <li>Works with weak-connectivity workflows</li>
+              </ul>
+
+              <a class="fpw-btn fpw-btn--secondary" href="/companion-app.cfm">Learn More</a>
+            </div>
+          </article>
+
+          <article class="fpw-share-panel">
+            <div>
+              <span class="fpw-section-kicker">Share the Trip</span>
+              <h3>Bring everyone along without constant texting.</h3>
+              <p>A private shared trip page helps family, friends, and trusted contacts understand the route, plan, stops, and latest status.</p>
+
+              <ul class="fpw-check-list">
+                <li>Private trip page</li>
+                <li>Real-time progress updates</li>
+                <li>Planned route and key stops</li>
+                <li>Check-in history</li>
+                <li>Secure and private access</li>
+                <li>No app required for followers</li>
+              </ul>
+            </div>
+
+            <div class="fpw-shared-trip-card" aria-label="Shared trip page preview">
+              <div class="fpw-shared-trip-card__top">
+                <span aria-hidden="true">👥</span>
+                <div>
+                  <strong>Following: Summer Loop 2026</strong>
+                  <small>Tarpon Springs → Chicago</small>
+                </div>
+              </div>
+
+              <div class="fpw-progress" aria-label="Shared trip progress">
+                <span style="width: 37%;"></span>
+              </div>
+
+              <div class="fpw-shared-trip-card__body">
+                <p><strong>Latest Update</strong></p>
+                <p>On the way to Steinhatchee. All systems go.</p>
+                <span>14 min ago</span>
+              </div>
+
+              <a class="fpw-btn fpw-btn--secondary fpw-btn--full" href="/share-the-trip.cfm">View Trip Page Example</a>
+            </div>
+          </article>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Preserve Share / Family Informed Section -->
+    <section class="fpw-family" aria-labelledby="fpwFamilyTitle">
+      <div class="fpw-container fpw-family__grid">
+
+        <div class="fpw-family__copy">
+          <span class="fpw-section-kicker">Keep your family informed</span>
+          <h2 id="fpwFamilyTitle">A better way to share the trip with family and friends.</h2>
+          <p>
+            One of FloatPlanWizard’s strongest selling points is simple: it helps the people back home feel informed. That matters whether you are on a day cruise, a weekend run, or a long-distance Great Loop segment.
           </p>
-          <div class="quotes">
-            <div class="quote">"I just want an easy way to see where the trip is headed and what the plan is."<strong>Family perspective</strong></div>
-            <div class="quote">"The route makes sense, the stops are clear, and I'm not guessing what's happening."<strong>Shared trip page benefit</strong></div>
-            <div class="quote">"This feels more organized than texting updates one at a time."<strong>What the product promises</strong></div>
+
+          <div class="fpw-quote-grid">
+            <figure class="fpw-quote-card">
+              <blockquote>“I just want an easy way to see where the trip is headed and what the plan is.”</blockquote>
+              <figcaption>Family perspective</figcaption>
+            </figure>
+
+            <figure class="fpw-quote-card">
+              <blockquote>“The route makes sense, the stops are clear, and I’m not guessing what’s happening.”</blockquote>
+              <figcaption>Shared trip page benefit</figcaption>
+            </figure>
+
+            <figure class="fpw-quote-card">
+              <blockquote>“This feels more organized than texting updates one at a time.”</blockquote>
+              <figcaption>What the product promises</figcaption>
+            </figure>
           </div>
         </div>
 
-        <div class="panel follower-card">
-          <div class="section-kicker">What they see</div>
-          <div class="list" style="margin-top:0;">
-            <div class="list-item">
-              <div class="num">A</div>
-              <div><strong>Planned route and key stops</strong><span>Clear trip structure instead of scattered updates.</span></div>
-            </div>
-            <div class="list-item">
-              <div class="num">B</div>
-              <div><strong>Trip context at a glance</strong><span>Departure, destination, and important voyage information in one place.</span></div>
-            </div>
-            <div class="list-item">
-              <div class="num">C</div>
-              <div><strong>Better confidence for loved ones</strong><span>A simple shareable experience designed to reduce uncertainty during the trip.</span></div>
-            </div>
-            <div class="list-item">
-              <div class="num">D</div>
-              <div><strong>Ideal for longer journeys</strong><span>Especially valuable for Loopers and serious cruisers covering a lot of water.</span></div>
-            </div>
-          </div>
-          <div class="hero-cta" style="margin-top:22px;">
-            <a href="#notify" class="btn btn-primary"><i class="bi bi-envelope-paper"></i>Join the Pre-Launch List</a>
-          </div>
+        <aside class="fpw-family__details" aria-labelledby="fpwFamilyDetailsTitle">
+          <span class="fpw-section-kicker">What they see</span>
+          <h3 id="fpwFamilyDetailsTitle">Trip clarity at a glance.</h3>
+
+          <ol class="fpw-letter-list">
+            <li>
+              <span>A</span>
+              <div>
+                <strong>Planned route and key stops</strong>
+                <p>Clear trip structure instead of scattered updates.</p>
+              </div>
+            </li>
+            <li>
+              <span>B</span>
+              <div>
+                <strong>Trip context at a glance</strong>
+                <p>Departure, destination, timing, and important voyage information in one place.</p>
+              </div>
+            </li>
+            <li>
+              <span>C</span>
+              <div>
+                <strong>Better confidence for loved ones</strong>
+                <p>A simple shareable experience designed to reduce uncertainty during the trip.</p>
+              </div>
+            </li>
+            <li>
+              <span>D</span>
+              <div>
+                <strong>Ideal for longer journeys</strong>
+                <p>Especially valuable for Loopers and serious cruisers covering a lot of water.</p>
+              </div>
+            </li>
+          </ol>
+
+          <a class="fpw-btn fpw-btn--primary" href="/signup.cfm">Create Free Account</a>
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- Built by Boaters CTA Section -->
+    <section class="fpw-founder-cta" aria-labelledby="fpwFounderTitle">
+      <div class="fpw-container fpw-founder-cta__grid">
+
+        <div>
+          <span class="fpw-section-kicker">Built by boaters for boaters</span>
+          <h2 id="fpwFounderTitle">Built for the planning that happens before leaving the dock.</h2>
+          <p>
+            FloatPlanWizard was built by a boater who understands how much preparation matters. The goal is simple: give recreational boaters a better way to organize trips, share plans, monitor active cruises, and keep family and friends informed with confidence.
+          </p>
+          <p>
+            Whether you are planning a day run, an overnight anchorage, a weekend cruise, or a Great Loop segment, FPW helps keep the important details in one place.
+          </p>
+        </div>
+
+        <aside class="fpw-final-signup-card" aria-labelledby="fpwFinalSignupTitle">
+          <span class="fpw-section-kicker">Start today</span>
+          <h3 id="fpwFinalSignupTitle">Create your free account.</h3>
+          <p>No credit card required. Upgrade anytime for Premium cruise planning and monitoring tools.</p>
+
+          <form class="fpw-inline-signup" action="/signup.cfm" method="get">
+            <label class="fpw-sr-only" for="fpwFinalEmail">Email address</label>
+            <input id="fpwFinalEmail" name="email" type="email" placeholder="Email address" autocomplete="email">
+            <button class="fpw-btn fpw-btn--primary" type="submit">Start Free</button>
+          </form>
+
+          <ul class="fpw-final-signup-card__notes">
+            <li>Free plan available</li>
+            <li>Secure and private</li>
+            <li>Built for serious recreational boaters</li>
+          </ul>
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- Final Homepage CTA Band -->
+    <section class="fpw-bottom-cta" aria-labelledby="fpwBottomCtaTitle">
+      <div class="fpw-container fpw-bottom-cta__inner">
+        <div>
+          <h2 id="fpwBottomCtaTitle">Start planning your next adventure today.</h2>
+          <p>Join boaters who want a clearer way to plan, monitor, and share their trips.</p>
+        </div>
+
+        <div class="fpw-bottom-cta__actions">
+          <a class="fpw-btn fpw-btn--primary" href="/signup.cfm">Create Free Account</a>
+          <a class="fpw-btn fpw-btn--secondary" href="/features.cfm">Explore Features</a>
+        </div>
+
+        <div class="fpw-bottom-cta__badges">
+          <span><i aria-hidden="true">♢</i> Secure & Private</span>
+          <span><i aria-hidden="true">☼</i> Built for Boaters</span>
         </div>
       </div>
     </section>
 
-    <section id="story" class="section">
-      <div class="shell">
-        <div class="panel story-card">
-          <div class="story-layout">
-            <div class="story-content">
-              <h2>Built by Boaters for Boaters</h2>
-              <p class="story-founder">
-                FloatPlanWizard was built by a boater who understands how much preparation matters before leaving the dock. The goal is simple: give recreational boaters a better way to organize trips, share plans, and keep family and friends informed with confidence.
-              </p>
-              <p class="story-notify">
-                Join the early notification list to be among the first to know when FloatPlanWizard opens to the public.
-              </p>
-            </div>
-            <div class="story-signup signup-panel">
-              <div class="signup-form-state">
-                <div class="story-launch-callout">Going Live - Spring 2026</div>
-                <form class="signup story-signup-form" id="waitlistFormBottom" novalidate>
-                  <input id="emailInputBottom" name="email" type="email" placeholder="Email for going-live updates" autocomplete="email" required />
-                  <button class="btn btn-primary" type="submit"><i class="bi bi-bell"></i>Notify Me of Launch</button>
-                </form>
-                <div class="story-trust-line">No credit card required. Free version available at launch.</div>
-                <div class="status story-signup-status">No spam. Just launch updates and early access news.</div>
-                <div class="signup-feedback story-signup-status" id="signupStatusBottom"></div>
-              </div>
-              <div class="signup-success-state" id="signupSuccessBottom" aria-live="polite">
-                <h4>You're on the list</h4>
-                <p>Thanks for joining early access. You'll receive FloatPlanWizard launch updates and early access news.</p>
-                <div class="bonus">As a thank-you for signing up early, you'll receive 2 months of premium membership free - no strings attached.</div>
-                <div class="subtle">Watch your inbox for launch updates.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   </main>
 
-  <footer>
-    <div class="shell">
-      <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
-        <div class="footer-links">
-          <span>Launching Spring 2026</span>
-          <span>Built for Great Loopers and serious recreational boaters</span>
+  <!-- Footer -->
+  <footer class="fpw-footer">
+    <div class="fpw-container fpw-footer__grid">
+
+      <div class="fpw-footer__brand">
+        <a class="fpw-brand" href="/" aria-label="FloatPlanWizard home">
+          <span class="fpw-brand__mark" aria-hidden="true">☼</span>
+          <span class="fpw-brand__text">
+            <strong>FloatPlanWizard</strong>
+          </span>
+        </a>
+        <p>Plan the voyage. Share the journey. Keep everyone informed.</p>
+      </div>
+
+      <nav class="fpw-footer__nav" aria-label="Product links">
+        <h3>Product</h3>
+        <a href="/features.cfm">Features</a>
+        <a href="/companion-app.cfm">Companion App</a>
+        <a href="/pricing.cfm">Pricing</a>
+        <a href="/how-it-works.cfm">How It Works</a>
+      </nav>
+
+      <nav class="fpw-footer__nav" aria-label="Resources links">
+        <h3>Resources</h3>
+        <a href="/help.cfm">Help Center</a>
+        <a href="/blog.cfm">Blog</a>
+        <a href="/great-loop.cfm">Great Loop Guide</a>
+        <a href="/faq.cfm">FAQ</a>
+      </nav>
+
+      <nav class="fpw-footer__nav" aria-label="Company links">
+        <h3>Company</h3>
+        <a href="/about.cfm">About Us</a>
+        <a href="/contact.cfm">Contact</a>
+        <a href="/privacy.cfm">Privacy Policy</a>
+        <a href="/terms.cfm">Terms of Service</a>
+      </nav>
+
+      <div class="fpw-footer__signup">
+        <h3>Stay Connected</h3>
+        <p>Get trip, planning, and boating-product updates.</p>
+
+        <form class="fpw-footer-form" action="/subscribe.cfm" method="post">
+          <label class="fpw-sr-only" for="fpwFooterEmail">Email address</label>
+          <input id="fpwFooterEmail" name="email" type="email" placeholder="Enter your email" autocomplete="email">
+          <button class="fpw-btn fpw-btn--primary fpw-btn--small" type="submit">Subscribe</button>
+        </form>
+
+        <div class="fpw-social-links" aria-label="Social links">
+          <a href="#" aria-label="Facebook">f</a>
+          <a href="#" aria-label="Instagram">◎</a>
+          <a href="#" aria-label="YouTube">▶</a>
         </div>
       </div>
+
+    </div>
+
+    <div class="fpw-container fpw-footer__bottom">
+      <p>© 2026 FloatPlanWizard. All rights reserved.</p>
+      <p>Built for Great Loopers and serious recreational boaters.</p>
     </div>
   </footer>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
 
   <script>
     (function () {
@@ -2363,4 +2821,3 @@ if (isEarlyAccessPost) {
   </script>
 </body>
 </html>
-

@@ -25,12 +25,27 @@
       var tripState = "unknown_error";
       var progressSummary = {};
       var explicitStartProof = false;
+      var memberGateResult = {};
 
       model.generatedAtUtc = formatUtc(now());
 
       if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
         model.message = "userId and floatPlanId are required.";
         addWarning(model, "ACTIVE_CRUISE_VIEW_MODEL_INVALID_INPUT", model.message, "view_model");
+        finalizeAuthorityWarnings(model);
+        return model;
+      }
+
+      memberGateResult = getMemberAccessGateService().requirePremiumForTrip(
+        userId = arguments.userId,
+        canonicalTripId = arguments.floatPlanId,
+        errorCode = "BASIC_ACTIVE_CRUISE_RESTRICTED",
+        message = "Premium access for this trip is required to use Active Cruise."
+      );
+      if (!memberGateResult.allowed) {
+        model.message = memberGateResult.response.MESSAGE;
+        model.errorCode = memberGateResult.response.ERROR.CODE;
+        addWarning(model, memberGateResult.response.ERROR.CODE, memberGateResult.response.MESSAGE, "member_entitlements");
         finalizeAuthorityWarnings(model);
         return model;
       }
@@ -67,15 +82,17 @@
 
       projection = loadProjection(arguments.floatPlanId, model);
       routeTimeline = extractRouteTimeline(projection);
+      routeTimeline = enrichRouteTimelineFuel(qPlan, routeTimeline);
       routeTimelineAvailable = structKeyExists(routeTimeline, "available") AND routeTimeline.available EQ true;
       routeTimelineAuthority = (structKeyExists(routeTimeline, "authority") ? safeString(routeTimeline.authority) : "unavailable");
 
       model.routeTimeline = routeTimeline;
       model.currentLeg = buildCurrentLegSection(qPlan, projection, routeTimeline);
+      model.currentLeg.fuel = buildCurrentLegFuelSection(qPlan, routeTimeline, model.currentLeg);
       model.weather = buildWeatherSection(qPlan, model.map, model.currentLeg);
       model.pace = buildPaceSection(qPlan, projection, routeTimeline);
 
-      explicitStartProof = hasExplicitStartProof(projection, progressSummary);
+      explicitStartProof = hasExplicitStartProof(qPlan, projection, progressSummary);
       motionState = deriveMotionState(qPlan, qMonitoring, projection, routeTimeline, progressSummary, explicitStartProof);
       safetyState = deriveSafetyState(qMonitoring);
       tripState = deriveTripState(motionState, safetyState);
@@ -107,6 +124,8 @@
 
       if (model.monitoring.available) {
         model.displayAuthority.monitoring = "floatplan_monitoring";
+      } else if (motionState EQ "scheduled" AND !explicitStartProof) {
+        model.displayAuthority.monitoring = "scheduled_not_started";
       } else {
         model.displayAuthority.monitoring = "unavailable";
         addWarning(model, "ACTIVE_CRUISE_MONITORING_UNAVAILABLE", "Monitoring row is unavailable for this route-backed active float plan.", "floatplan_monitoring");
@@ -151,8 +170,21 @@
       var timezone = "UTC";
       var publicHealth = {};
       var currentLegLabel = "";
+      var memberGateResult = {};
 
       if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+        return out;
+      }
+
+      memberGateResult = getMemberAccessGateService().requirePremiumForTrip(
+        userId = arguments.userId,
+        canonicalTripId = arguments.floatPlanId,
+        errorCode = "BASIC_FOLLOW_RESTRICTED",
+        message = "Premium access for this trip is required to share a Follow Page."
+      );
+      if (!memberGateResult.allowed) {
+        out.errorCode = memberGateResult.response.ERROR.CODE;
+        out.message = memberGateResult.response.MESSAGE;
         return out;
       }
 
@@ -189,7 +221,7 @@
         : {}
       );
 
-      explicitStartProof = hasExplicitStartProof(projection, progressSummary);
+      explicitStartProof = hasExplicitStartProof(qPlan, projection, progressSummary);
       motionState = deriveMotionState(qPlan, qMonitoring, projection, routeTimeline, progressSummary, explicitStartProof);
       safetyState = deriveSafetyState(qMonitoring);
       tripState = deriveTripState(motionState, safetyState);
@@ -326,6 +358,16 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.MemberAccessGateService").init(variables.datasource);
+      } catch (any e1) {
+        return createObject("component", "api.v1.MemberAccessGateService").init(variables.datasource);
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="loadPlanContext" access="private" returntype="query" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
@@ -341,18 +383,22 @@
           fp.departing,
           fp.departureLat,
           fp.departureLon,
-          fp.returning,
+          fp.`returning`,
           fp.returnLat,
           fp.returnLon,
           fp.departureTime,
+          DATE_FORMAT(fp.departureTime, '%Y-%m-%d %H:%i:%s') AS departureTimeLocalRaw,
           fp.departureTimeUTC,
+          DATE_FORMAT(fp.departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUtcRaw,
           fp.departureTZ,
           fp.departTimezone,
           fp.returnTime,
+          DATE_FORMAT(fp.returnTime, '%Y-%m-%d %H:%i:%s') AS returnTimeLocalRaw,
           fp.returnTimeUTC,
+          DATE_FORMAT(fp.returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS returnTimeUtcRaw,
           fp.returnTZ,
           fp.returnTimezone,
-          fp.dailyStartLocalTime,
+          TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS dailyStartLocalTime,
           fp.manual_delay_minutes_total,
           fp.activatedAt,
           fp.checkedInAt,
@@ -513,18 +559,23 @@
           monitor_state,
           is_monitoring_enabled,
           expected_checkin_at,
+          DATE_FORMAT(expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at_raw,
           grace_expires_at,
+          DATE_FORMAT(grace_expires_at, '%Y-%m-%d %H:%i:%s') AS grace_expires_at_raw,
           missed_at,
           escalated_at,
           resolved_at,
           closed_at,
           last_checkin_at,
+          DATE_FORMAT(last_checkin_at, '%Y-%m-%d %H:%i:%s') AS last_checkin_at_raw,
           last_checkin_status,
           secure_for_night,
           secure_for_night_until,
+          DATE_FORMAT(secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until_raw,
           escalation_delay_minutes,
           grace_window_minutes,
           next_monitor_eval_at,
+          DATE_FORMAT(next_monitor_eval_at, '%Y-%m-%d %H:%i:%s') AS next_monitor_eval_at_raw,
           last_monitor_eval_at,
           last_captain_alert_at,
           last_contact_alert_at
@@ -571,7 +622,7 @@
         service = createObject("component", "api.v1.TripProgressProjectionService").init(variables.datasource);
       }
       try {
-        return service.getProjection(arguments.floatPlanId, "", { "includeOperationalLockTime" = true });
+        return service.getProjection(arguments.floatPlanId, "", { "includeOperationalLockTime" = false });
       } catch (any projectionErr) {
         addWarning(arguments.model, "ACTIVE_CRUISE_PROJECTION_ERROR", projectionErr.message, "TripProgressProjectionService");
         return {
@@ -629,8 +680,10 @@
         "id" = safeNumber(arguments.qPlan.floatPlanId[1]),
         "status" = safeString(arguments.qPlan.status[1]),
         "name" = safeString(arguments.qPlan.floatPlanName[1]),
-        "scheduledDepartureUtc" = formatUtc(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1])),
-        "scheduledDepartureLocal" = formatLocal(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1]), tz),
+        "scheduledDepartureUtc" = safeString(arguments.qPlan.departureTimeUtcRaw[1]),
+        "scheduledDepartureLocalRaw" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
+        "scheduledDepartureLocal" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
+        "scheduledDepartureTimezone" = tz,
         "timezone" = tz,
         "checkedInAtUtc" = formatUtc(arguments.qPlan.checkedInAt[1]),
         "checkinContext" = safeString(arguments.qPlan.checkin_context[1]),
@@ -674,27 +727,35 @@
     <cfscript>
       var timingFields = buildTimingFields(arguments.qPlan);
       var expectedCheckinLocalLabel = "";
+      var expectedCheckinRaw = "";
+      var graceExpiresRaw = "";
+      var secureForNightUntilRaw = "";
+      var nextMonitorEvalRaw = "";
       if (arguments.qMonitoring.recordCount EQ 0) {
         timingFields.available = false;
         timingFields.expectedCheckinLocalLabel = "";
         return timingFields;
       }
-      expectedCheckinLocalLabel = formatLocalDisplay(arguments.qMonitoring.expected_checkin_at[1], resolveTimezone(arguments.qPlan));
+      expectedCheckinRaw = safeString(arguments.qMonitoring.expected_checkin_at_raw[1]);
+      graceExpiresRaw = safeString(arguments.qMonitoring.grace_expires_at_raw[1]);
+      secureForNightUntilRaw = safeString(arguments.qMonitoring.secure_for_night_until_raw[1]);
+      nextMonitorEvalRaw = safeString(arguments.qMonitoring.next_monitor_eval_at_raw[1]);
+      expectedCheckinLocalLabel = formatUtcSqlStringAsLocalDisplay(expectedCheckinRaw, resolveTimezone(arguments.qPlan));
       return {
         "available" = true,
         "id" = safeNumber(arguments.qMonitoring.id[1]),
         "mode" = safeString(arguments.qMonitoring.monitoring_mode[1]),
         "state" = safeString(arguments.qMonitoring.monitor_state[1]),
         "isEnabled" = (safeNumber(arguments.qMonitoring.is_monitoring_enabled[1]) EQ 1),
-        "expectedCheckinAtUtc" = formatUtc(arguments.qMonitoring.expected_checkin_at[1]),
+        "expectedCheckinAtUtc" = formatRawUtc(expectedCheckinRaw),
         "expectedCheckinLocalLabel" = expectedCheckinLocalLabel,
-        "graceExpiresAtUtc" = formatUtc(arguments.qMonitoring.grace_expires_at[1]),
-        "nextMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.next_monitor_eval_at[1]),
+        "graceExpiresAtUtc" = formatRawUtc(graceExpiresRaw),
+        "nextMonitorEvalAtUtc" = formatRawUtc(nextMonitorEvalRaw),
         "lastMonitorEvalAtUtc" = formatUtc(arguments.qMonitoring.last_monitor_eval_at[1]),
-        "lastCheckinAtUtc" = formatUtc(arguments.qMonitoring.last_checkin_at[1]),
+        "lastCheckinAtUtc" = formatRawUtc(arguments.qMonitoring.last_checkin_at_raw[1]),
         "lastCheckinStatus" = safeString(arguments.qMonitoring.last_checkin_status[1]),
         "secureForNight" = (safeNumber(arguments.qMonitoring.secure_for_night[1]) EQ 1),
-        "secureForNightUntilUtc" = formatUtc(arguments.qMonitoring.secure_for_night_until[1]),
+        "secureForNightUntilUtc" = formatRawUtc(secureForNightUntilRaw),
         "missedAtUtc" = formatUtc(arguments.qMonitoring.missed_at[1]),
         "escalatedAtUtc" = formatUtc(arguments.qMonitoring.escalated_at[1]),
         "resolvedAtUtc" = formatUtc(arguments.qMonitoring.resolved_at[1]),
@@ -837,6 +898,282 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildRouteTimelineLegFuelUnavailable" access="private" returntype="struct" output="false">
+    <cfargument name="reason" type="string" required="false" default="Fuel data is not available.">
+    <cfscript>
+      var cleanReason = trim(arguments.reason);
+      if (!len(cleanReason)) {
+        cleanReason = "Fuel data is not available.";
+      }
+      return {
+        "isAvailable" = false,
+        "unavailableReason" = cleanReason,
+        "authority" = "routeBuilder.routegenEstimateFuelForDistance",
+        "totalFuelGallons" = 0,
+        "totalFuelLabel" = "Not available",
+        "fuelWithReserveGallons" = 0,
+        "fuelWithReserveLabel" = "Not available",
+        "legFuelNeededGallons" = 0,
+        "legFuelNeededLabel" = "Not available"
+      };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="assignRouteTimelineFuelUnavailable" access="private" returntype="struct" output="false">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfargument name="reason" type="string" required="true">
+    <cfscript>
+      var out = duplicate(arguments.routeTimeline);
+      var i = 0;
+      if (!structKeyExists(out, "legs") OR !isArray(out.legs)) {
+        return out;
+      }
+      for (i = 1; i LTE arrayLen(out.legs); i++) {
+        out.legs[i].fuel = buildRouteTimelineLegFuelUnavailable(arguments.reason);
+      }
+      return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="enrichRouteTimelineFuel" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfscript>
+      var out = duplicate(arguments.routeTimeline);
+      var routeInputs = {};
+      var routeSummary = {};
+      var totalDistanceNm = 0;
+      var routeBuilderService = "";
+      var totalFuelResult = {};
+      var totalEstimate = {};
+      var totalFuelGallons = 0;
+      var fuelWithReserveGallons = 0;
+      var baseFuel = {};
+      var legDistanceNm = 0;
+      var legFuelResult = {};
+      var legEstimate = {};
+      var legFuel = {};
+      var legFuelNeededGallons = 0;
+      var i = 0;
+
+      if (!structKeyExists(out, "legs") OR !isArray(out.legs) OR arrayLen(out.legs) EQ 0) {
+        return out;
+      }
+
+      routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      if (!structCount(routeInputs)) {
+        return assignRouteTimelineFuelUnavailable(out, "Route generator fuel inputs are unavailable.");
+      }
+
+      routeSummary = (
+        structKeyExists(out, "summary")
+        AND isStruct(out.summary)
+        ? out.summary
+        : {}
+      );
+      totalDistanceNm = (structKeyExists(routeSummary, "totalNm") ? safeNumber(routeSummary.totalNm) : 0);
+      if (totalDistanceNm LTE 0) {
+        return assignRouteTimelineFuelUnavailable(out, "Route distance is unavailable.");
+      }
+
+      try {
+        routeBuilderService = createRouteBuilderService();
+        totalFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, totalDistanceNm, 0, true);
+      } catch (any totalFuelErr) {
+        return assignRouteTimelineFuelUnavailable(out, "Route generator fuel estimate failed.");
+      }
+
+      if (!structKeyExists(totalFuelResult, "SUCCESS") OR totalFuelResult.SUCCESS NEQ true) {
+        return assignRouteTimelineFuelUnavailable(out, (structKeyExists(totalFuelResult, "MESSAGE") ? safeString(totalFuelResult.MESSAGE) : "Route fuel estimate is unavailable."));
+      }
+
+      totalEstimate = (
+        structKeyExists(totalFuelResult, "FUEL_ESTIMATE")
+        AND isStruct(totalFuelResult.FUEL_ESTIMATE)
+        ? totalFuelResult.FUEL_ESTIMATE
+        : {}
+      );
+      totalFuelGallons = (structKeyExists(totalEstimate, "baseFuelGallons") ? safeNumber(totalEstimate.baseFuelGallons) : 0);
+      fuelWithReserveGallons = (structKeyExists(totalEstimate, "requiredFuelGallons") ? safeNumber(totalEstimate.requiredFuelGallons) : 0);
+      if (fuelWithReserveGallons LTE 0) {
+        return assignRouteTimelineFuelUnavailable(out, "Fuel burn inputs are unavailable for fuel estimation.");
+      }
+
+      baseFuel = buildRouteTimelineLegFuelUnavailable("");
+      baseFuel.totalFuelGallons = totalFuelGallons;
+      baseFuel.totalFuelLabel = formatFuelGallonsLabel(totalFuelGallons);
+      baseFuel.fuelWithReserveGallons = fuelWithReserveGallons;
+      baseFuel.fuelWithReserveLabel = formatFuelGallonsLabel(fuelWithReserveGallons);
+
+      for (i = 1; i LTE arrayLen(out.legs); i++) {
+        legFuel = duplicate(baseFuel);
+        legDistanceNm = (structKeyExists(out.legs[i], "distanceNm") ? safeNumber(out.legs[i].distanceNm) : 0);
+        if (legDistanceNm LTE 0) {
+          legFuel.unavailableReason = "Selected leg distance is unavailable.";
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        try {
+          legFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, legDistanceNm, 0, false);
+        } catch (any legFuelErr) {
+          legFuel.unavailableReason = "Route generator fuel estimate failed.";
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        if (!structKeyExists(legFuelResult, "SUCCESS") OR legFuelResult.SUCCESS NEQ true) {
+          legFuel.unavailableReason = (structKeyExists(legFuelResult, "MESSAGE") ? safeString(legFuelResult.MESSAGE) : "Selected leg fuel estimate is unavailable.");
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        legEstimate = (
+          structKeyExists(legFuelResult, "FUEL_ESTIMATE")
+          AND isStruct(legFuelResult.FUEL_ESTIMATE)
+          ? legFuelResult.FUEL_ESTIMATE
+          : {}
+        );
+        legFuelNeededGallons = (structKeyExists(legEstimate, "requiredFuelGallons") ? safeNumber(legEstimate.requiredFuelGallons) : 0);
+        if (legFuelNeededGallons LTE 0) {
+          legFuel.unavailableReason = "Selected leg fuel estimate is unavailable.";
+          out.legs[i].fuel = legFuel;
+          continue;
+        }
+
+        legFuel.isAvailable = true;
+        legFuel.unavailableReason = "";
+        legFuel.legFuelNeededGallons = legFuelNeededGallons;
+        legFuel.legFuelNeededLabel = formatFuelGallonsLabel(legFuelNeededGallons);
+        out.legs[i].fuel = legFuel;
+      }
+
+      return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="buildCurrentLegFuelSection" access="private" returntype="struct" output="false">
+    <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfargument name="currentLeg" type="struct" required="true">
+    <cfscript>
+      var out = {
+        "isAvailable" = false,
+        "unavailableReason" = "Fuel data is not available.",
+        "authority" = "routeBuilder.routegenEstimateFuelForDistance",
+        "totalFuelGallons" = 0,
+        "totalFuelLabel" = "Not available",
+        "fuelWithReserveGallons" = 0,
+        "fuelWithReserveLabel" = "Not available",
+        "legFuelNeededGallons" = 0,
+        "legFuelNeededLabel" = "Not available",
+        "fuelPricePerGallon" = 0,
+        "fuelPriceLabel" = "Not provided",
+        "fuelCost" = 0,
+        "fuelCostLabel" = "Not available",
+        "reservePercent" = 0,
+        "reserveGallons" = 0,
+        "reserveLabel" = "Not available"
+      };
+      var routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      var routeSummary = (
+        structKeyExists(arguments.routeTimeline, "summary")
+        AND isStruct(arguments.routeTimeline.summary)
+        ? arguments.routeTimeline.summary
+        : {}
+      );
+      var totalDistanceNm = (structKeyExists(routeSummary, "totalNm") ? safeNumber(routeSummary.totalNm) : 0);
+      var legDistanceNm = (structKeyExists(arguments.currentLeg, "distanceNm") ? safeNumber(arguments.currentLeg.distanceNm) : 0);
+      var routeBuilderService = "";
+      var totalFuelResult = {};
+      var legFuelResult = {};
+      var totalEstimate = {};
+      var legEstimate = {};
+      var totalFuelGallons = 0;
+      var fuelWithReserveGallons = 0;
+      var legFuelNeededGallons = 0;
+      var fuelPricePerGallon = 0;
+      var fuelCost = 0;
+      var reservePercent = 0;
+      var reserveGallons = 0;
+
+      if (!structCount(routeInputs)) {
+        out.unavailableReason = "Route generator fuel inputs are unavailable.";
+        return out;
+      }
+      if (totalDistanceNm LTE 0) {
+        out.unavailableReason = "Route distance is unavailable.";
+        return out;
+      }
+      if (legDistanceNm LTE 0) {
+        out.unavailableReason = "Current leg distance is unavailable.";
+        return out;
+      }
+
+      try {
+        routeBuilderService = createRouteBuilderService();
+        totalFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, totalDistanceNm, 0, true);
+        legFuelResult = routeBuilderService.routegenEstimateFuelForDistance(routeInputs, legDistanceNm, 0, false);
+      } catch (any fuelErr) {
+        out.unavailableReason = "Route generator fuel estimate failed.";
+        return out;
+      }
+
+      if (!structKeyExists(totalFuelResult, "SUCCESS") OR totalFuelResult.SUCCESS NEQ true) {
+        out.unavailableReason = (structKeyExists(totalFuelResult, "MESSAGE") ? safeString(totalFuelResult.MESSAGE) : "Route fuel estimate is unavailable.");
+        return out;
+      }
+      if (!structKeyExists(legFuelResult, "SUCCESS") OR legFuelResult.SUCCESS NEQ true) {
+        out.unavailableReason = (structKeyExists(legFuelResult, "MESSAGE") ? safeString(legFuelResult.MESSAGE) : "Current leg fuel estimate is unavailable.");
+        return out;
+      }
+
+      totalEstimate = (
+        structKeyExists(totalFuelResult, "FUEL_ESTIMATE")
+        AND isStruct(totalFuelResult.FUEL_ESTIMATE)
+        ? totalFuelResult.FUEL_ESTIMATE
+        : {}
+      );
+      legEstimate = (
+        structKeyExists(legFuelResult, "FUEL_ESTIMATE")
+        AND isStruct(legFuelResult.FUEL_ESTIMATE)
+        ? legFuelResult.FUEL_ESTIMATE
+        : {}
+      );
+
+      totalFuelGallons = (structKeyExists(totalEstimate, "baseFuelGallons") ? safeNumber(totalEstimate.baseFuelGallons) : 0);
+      fuelWithReserveGallons = (structKeyExists(totalEstimate, "requiredFuelGallons") ? safeNumber(totalEstimate.requiredFuelGallons) : 0);
+      legFuelNeededGallons = (structKeyExists(legEstimate, "requiredFuelGallons") ? safeNumber(legEstimate.requiredFuelGallons) : 0);
+      fuelPricePerGallon = (structKeyExists(totalFuelResult, "FUEL_PRICE_PER_GALLON") ? safeNumber(totalFuelResult.FUEL_PRICE_PER_GALLON) : 0);
+      fuelCost = (structKeyExists(totalEstimate, "totalFuelCost") ? safeNumber(totalEstimate.totalFuelCost) : 0);
+      reservePercent = (structKeyExists(totalFuelResult, "RESERVE_PCT") ? safeNumber(totalFuelResult.RESERVE_PCT) : 0);
+      reserveGallons = (structKeyExists(totalEstimate, "reserveGallons") ? safeNumber(totalEstimate.reserveGallons) : 0);
+
+      if (fuelWithReserveGallons LTE 0 OR legFuelNeededGallons LTE 0) {
+        out.unavailableReason = "Fuel burn inputs are unavailable for fuel estimation.";
+        return out;
+      }
+
+      out.isAvailable = true;
+      out.unavailableReason = "";
+      out.totalFuelGallons = totalFuelGallons;
+      out.totalFuelLabel = formatFuelGallonsLabel(totalFuelGallons);
+      out.fuelWithReserveGallons = fuelWithReserveGallons;
+      out.fuelWithReserveLabel = formatFuelGallonsLabel(fuelWithReserveGallons);
+      out.legFuelNeededGallons = legFuelNeededGallons;
+      out.legFuelNeededLabel = formatFuelGallonsLabel(legFuelNeededGallons);
+      out.fuelPricePerGallon = fuelPricePerGallon;
+      out.fuelPriceLabel = formatFuelPriceLabel(fuelPricePerGallon);
+      out.fuelCost = fuelCost;
+      out.fuelCostLabel = formatFuelCostLabel(fuelCost);
+      out.reservePercent = reservePercent;
+      out.reserveGallons = reserveGallons;
+      out.reserveLabel = formatFuelReserveLabel(reservePercent, reserveGallons);
+
+      return out;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildCheckInSection" access="private" returntype="struct" output="false">
     <cfargument name="qPlan" type="query" required="true">
     <cfargument name="monitoring" type="struct" required="true">
@@ -850,6 +1187,7 @@
       var closedReason = "Float plan is closed.";
       var delayedReason = "Please provide a new expected departure time before marking the trip delayed.";
       var changedPlanReason = "Please update and resend the plan if the route or schedule changed.";
+      var assistanceReason = "Assistance monitoring is available after the cruise has started.";
       var secureReason = "Secure for the Night is available after the cruise has started.";
       var baseInputs = {
         "note" = { "required" = false },
@@ -867,13 +1205,14 @@
           { "status" = "On Track", "enabled" = !isClosed, "disabledReason" = (isClosed ? closedReason : ""), "startsTripPreDeparture" = true, "validationError" = "", "inputRequirements" = baseInputs, "confirmationRequired" = false, "confirmationMessage" = "" },
           { "status" = "Delayed", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? delayedReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME", "inputRequirements" = delayInputs, "confirmationRequired" = false, "confirmationMessage" = "" },
           { "status" = "Changed Plan", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? changedPlanReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_PLAN_CHANGE_REQUIRES_UPDATE", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = changedPlanReason },
-          { "status" = "Assistance Needed", "enabled" = !isClosed, "disabledReason" = (isClosed ? closedReason : ""), "startsTripPreDeparture" = false, "validationError" = "", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Assistance Needed may notify approved monitoring contacts." },
+          { "status" = "Assistance Needed", "enabled" = (!isClosed AND !isScheduled), "disabledReason" = (isClosed ? closedReason : (isScheduled ? assistanceReason : "")), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Assistance Needed may notify approved monitoring contacts." },
           { "status" = "Secure for the Night", "enabled" = (!isClosed AND (isUnderway OR isDelayedPause)), "disabledReason" = (isClosed ? closedReason : ((isUnderway OR isDelayedPause) ? "" : secureReason)), "startsTripPreDeparture" = false, "validationError" = "PRE_DEPARTURE_SECURE_NOT_ALLOWED", "inputRequirements" = baseInputs, "confirmationRequired" = true, "confirmationMessage" = "Confirm the vessel is secure for the night." }
         ],
         "validationMessages" = {
           "PRE_DEPARTURE_DELAY_REQUIRES_NEW_TIME" = delayedReason,
           "PRE_DEPARTURE_PLAN_CHANGE_REQUIRES_UPDATE" = changedPlanReason,
-          "PRE_DEPARTURE_SECURE_NOT_ALLOWED" = secureReason
+          "PRE_DEPARTURE_SECURE_NOT_ALLOWED" = secureReason,
+          "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START" = assistanceReason
         }
       };
     </cfscript>
@@ -944,11 +1283,20 @@
     <cfargument name="motionState" type="string" required="true">
     <cfargument name="progressSummary" type="struct" required="true">
     <cfscript>
-      var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(safeString(arguments.qPlan.status[1]), "CLOSED") EQ 0 OR compareNoCase(arguments.tripState, "closed") EQ 0;
+      var planStatus = uCase(safeString(arguments.qPlan.status[1]));
+      var isClosed = isDate(arguments.qPlan.closedAt[1]) OR compareNoCase(planStatus, "CLOSED") EQ 0 OR compareNoCase(arguments.tripState, "closed") EQ 0;
       var isUnderway = compareNoCase(arguments.motionState, "underway") EQ 0;
       var hasCurrentLeg = structKeyExists(arguments.currentLeg, "order") AND safeNumber(arguments.currentLeg.order) GT 0;
       var completeLegReason = "";
       var startNextLegAvailability = buildStartNextLegAvailability(arguments.routeTimeline, arguments.progressSummary, isClosed);
+      var routeLegsComplete = (
+        structKeyExists(arguments.progressSummary, "totalRows")
+        AND safeNumber(arguments.progressSummary.totalRows) GT 0
+        AND structKeyExists(arguments.progressSummary, "completedRows")
+        AND safeNumber(arguments.progressSummary.completedRows) EQ safeNumber(arguments.progressSummary.totalRows)
+      );
+      var closeFloatPlanEnabled = (!isClosed AND planStatus EQ "ACTIVE" AND routeLegsComplete);
+      var closeFloatPlanReason = "";
 
       if (isClosed) {
         completeLegReason = "Float plan is closed.";
@@ -956,6 +1304,13 @@
         completeLegReason = "Current leg is not available.";
       } else if (!isUnderway) {
         completeLegReason = "Complete Current Leg is available after the cruise is underway.";
+      }
+      if (isClosed) {
+        closeFloatPlanReason = "Float plan is closed.";
+      } else if (planStatus NEQ "ACTIVE") {
+        closeFloatPlanReason = "Close Float Plan is available only for active float plans.";
+      } else if (!routeLegsComplete) {
+        closeFloatPlanReason = "Close Float Plan is available after all route legs are completed.";
       }
 
       return {
@@ -969,6 +1324,11 @@
             "note" = { "required" = false },
             "checkinContext" = { "required" = false }
           },
+          "supportsLocation" = true,
+          "locationCapture" = {
+            "required" = false,
+            "source" = "browser_geolocation"
+          },
           "confirmationRequired" = false,
           "confirmationMessage" = ""
         },
@@ -978,10 +1338,10 @@
         "completeLeg" = {
           "enabled" = (!isClosed AND hasCurrentLeg AND isUnderway),
           "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=completeleg&returnFormat=json",
-          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]), "routeLegOrder" = (hasCurrentLeg ? safeNumber(arguments.currentLeg.order) : 0) },
+          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]), "expectedLegOrder" = (hasCurrentLeg ? safeNumber(arguments.currentLeg.order) : 0) },
           "reason" = completeLegReason,
           "inputRequirements" = {
-            "routeLegOrder" = { "required" = true }
+            "expectedLegOrder" = { "required" = true }
           },
           "confirmationRequired" = true,
           "confirmationMessage" = "Confirm the current leg is complete."
@@ -996,10 +1356,10 @@
           "confirmationMessage" = ""
         },
         "closeFloatPlan" = {
-          "enabled" = false,
-          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=close&returnFormat=json",
-          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]) },
-          "reason" = "Close Float Plan requires final-leg and monitoring close rules.",
+          "enabled" = closeFloatPlanEnabled,
+          "endpoint" = "/api/v1/floatplan.cfc?method=handle&action=checkin&returnFormat=json",
+          "payload" = { "floatPlanId" = safeNumber(arguments.qPlan.floatPlanId[1]), "status" = "Arrived", "note" = "", "checkinContext" = "" },
+          "reason" = closeFloatPlanReason,
           "inputRequirements" = {},
           "confirmationRequired" = true,
           "confirmationMessage" = "Confirm the float plan can be closed."
@@ -1481,16 +1841,18 @@
           "location" = safeString(arguments.qPlan.departing[1]),
           "lat" = safeNumber(arguments.qPlan.departureLat[1]),
           "lon" = safeNumber(arguments.qPlan.departureLon[1]),
-          "scheduledUtc" = formatUtc(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1])),
-          "scheduledLocal" = formatLocal(firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1]), resolveTimezone(arguments.qPlan)),
+          "scheduledUtc" = safeString(arguments.qPlan.departureTimeUtcRaw[1]),
+          "scheduledLocalRaw" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
+          "scheduledLocal" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
           "timezone" = resolveTimezone(arguments.qPlan)
         },
         "return" = {
           "location" = safeString(arguments.qPlan.returning[1]),
           "lat" = safeNumber(arguments.qPlan.returnLat[1]),
           "lon" = safeNumber(arguments.qPlan.returnLon[1]),
-          "scheduledUtc" = formatUtc(firstDate(arguments.qPlan.returnTimeUTC[1], arguments.qPlan.returnTime[1])),
-          "scheduledLocal" = formatLocal(firstDate(arguments.qPlan.returnTimeUTC[1], arguments.qPlan.returnTime[1]), resolveTimezone(arguments.qPlan)),
+          "scheduledUtc" = safeString(arguments.qPlan.returnTimeUtcRaw[1]),
+          "scheduledLocalRaw" = safeString(arguments.qPlan.returnTimeLocalRaw[1]),
+          "scheduledLocal" = safeString(arguments.qPlan.returnTimeLocalRaw[1]),
           "timezone" = resolveTimezone(arguments.qPlan)
         },
         "rescueAuthority" = {
@@ -1721,7 +2083,14 @@
       var toName = "";
 
       qTimeline = queryExecute("
-        SELECT id, event_type, event_status, occurred_at_utc, source, payload_json
+        SELECT
+          id,
+          event_type,
+          event_status,
+          occurred_at_utc,
+          DATE_FORMAT(occurred_at_utc, '%Y-%m-%d %H:%i:%s') AS occurred_at_utc_raw,
+          source,
+          payload_json
         FROM floatplan_events
         WHERE floatplan_id = :floatPlanId
           AND user_id = :userId
@@ -1779,8 +2148,8 @@
           "title" = (len(titleVal) ? titleVal : "Operational event"),
           "detail" = detailVal,
           "note" = noteBody,
-          "occurredAtUtc" = formatUtc(qTimeline.occurred_at_utc[i]),
-          "occurredLocalLabel" = formatLocalDisplay(qTimeline.occurred_at_utc[i], resolveTimezone(arguments.qPlan)),
+          "occurredAtUtc" = formatRawUtc(qTimeline.occurred_at_utc_raw[i]),
+          "occurredLocalLabel" = formatUtcSqlStringAsLocalDisplay(qTimeline.occurred_at_utc_raw[i], resolveTimezone(arguments.qPlan)),
           "storageAuthority" = "floatplan_events"
         });
       }
@@ -1869,6 +2238,16 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="createRouteBuilderService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.routeBuilder");
+      } catch (any routeBuilderPathErr) {
+        return createObject("component", "api.v1.routeBuilder");
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="formatSpeedKnLabel" access="private" returntype="string" output="false">
     <cfargument name="value" type="any" required="true">
     <cfscript>
@@ -1886,6 +2265,47 @@
         return "0%";
       }
       return numberFormat(safeNumber(arguments.value), "0") & "%";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelGallonsLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "Not available";
+      }
+      return numberFormat(safeNumber(arguments.value), "0.0") & " gal";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelPriceLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "Not provided";
+      }
+      return "$" & numberFormat(safeNumber(arguments.value), "0.00") & "/gal";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelCostLabel" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.value) OR safeNumber(arguments.value) LTE 0) {
+        return "Not available";
+      }
+      return "$" & numberFormat(safeNumber(arguments.value), "0.00");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatFuelReserveLabel" access="private" returntype="string" output="false">
+    <cfargument name="reservePercent" type="any" required="true">
+    <cfargument name="reserveGallons" type="any" required="true">
+    <cfscript>
+      if (!isNumeric(arguments.reservePercent) OR safeNumber(arguments.reservePercent) LTE 0) {
+        return formatFuelGallonsLabel(arguments.reserveGallons);
+      }
+      return numberFormat(safeNumber(arguments.reservePercent), "0") & "% / " & formatFuelGallonsLabel(arguments.reserveGallons);
     </cfscript>
   </cffunction>
 
@@ -1928,9 +2348,13 @@
   </cffunction>
 
   <cffunction name="hasExplicitStartProof" access="private" returntype="boolean" output="false">
+    <cfargument name="qPlan" type="query" required="true">
     <cfargument name="projection" type="struct" required="true">
     <cfargument name="progressSummary" type="struct" required="true">
     <cfscript>
+      if (arguments.qPlan.recordCount AND !isNull(arguments.qPlan.route_started_at[1]) AND isDate(arguments.qPlan.route_started_at[1])) {
+        return true;
+      }
       if (structKeyExists(arguments.projection, "activitySegments") AND isArray(arguments.projection.activitySegments) AND arrayLen(arguments.projection.activitySegments) GT 0) {
         return true;
       }
@@ -1957,6 +2381,11 @@
       var currentSegmentType = "";
       var routeTimelineAuthority = (structKeyExists(arguments.routeTimeline, "authority") ? safeString(arguments.routeTimeline.authority) : "");
       var routeTimelineAvailable = (structKeyExists(arguments.routeTimeline, "available") AND arguments.routeTimeline.available EQ true);
+      var openStartedLegOrder = (structKeyExists(arguments.progressSummary, "firstOpenStartedLegOrder") ? safeNumber(arguments.progressSummary.firstOpenStartedLegOrder) : 0);
+      var startedStatusRows = (structKeyExists(arguments.progressSummary, "startedStatusRows") ? safeNumber(arguments.progressSummary.startedStatusRows) : 0);
+      var completedRows = (structKeyExists(arguments.progressSummary, "completedRows") ? safeNumber(arguments.progressSummary.completedRows) : 0);
+      var notStartedRows = (structKeyExists(arguments.progressSummary, "notStartedRows") ? safeNumber(arguments.progressSummary.notStartedRows) : 0);
+      var hasCurrentUnderwayProof = false;
 
       if (planStatus EQ "CLOSED" OR isDate(arguments.qPlan.closedAt[1]) OR monitorState EQ "CLOSED") {
         return "closed";
@@ -1979,8 +2408,13 @@
       if (structKeyExists(arguments.projection, "currentLegProgress") AND isStruct(arguments.projection.currentLegProgress) AND structKeyExists(arguments.projection.currentLegProgress, "paused") AND arguments.projection.currentLegProgress.paused EQ true) {
         return "paused_overnight";
       }
-      if (currentSegmentType EQ "UNDERWAY" OR arguments.explicitStartProof) {
+      hasCurrentUnderwayProof = (currentSegmentType EQ "UNDERWAY" OR openStartedLegOrder GT 0 OR startedStatusRows GT 0);
+
+      if (hasCurrentUnderwayProof) {
         return "underway";
+      }
+      if (arguments.explicitStartProof AND completedRows GT 0 AND notStartedRows GT 0) {
+        return "awaiting_next_leg";
       }
       if (routeTimelineAvailable AND routeTimelineAuthority EQ "scheduled_projection") {
         return "scheduled";
@@ -2028,7 +2462,7 @@
       if (listFindNoCase("assistance_needed,escalated,missed,late", arguments.safetyState)) {
         return arguments.safetyState;
       }
-      if (listFindNoCase("scheduled,underway,paused_overnight,paused_delayed,arrived,closed", arguments.motionState)) {
+      if (listFindNoCase("scheduled,underway,awaiting_next_leg,paused_overnight,paused_delayed,arrived,closed", arguments.motionState)) {
         return arguments.motionState;
       }
       return "unknown_error";
@@ -2092,7 +2526,7 @@
     <cfscript>
       var routeStatus = uCase(safeString(arguments.qPlan.route_status[1]));
       var routeTimelineAuthority = (structKeyExists(arguments.routeTimeline, "authority") ? safeString(arguments.routeTimeline.authority) : "");
-      var scheduledDeparture = firstDate(arguments.qPlan.departureTimeUTC[1], arguments.qPlan.departureTime[1]);
+      var scheduledDeparture = firstDate(arguments.qPlan.departureTimeUTC[1], "");
 
       if (arguments.explicitStartProof AND isDate(scheduledDeparture) AND dateCompare(scheduledDeparture, now(), "s") GT 0) {
         addWarning(arguments.model, "SCHEDULED_CLOCK_IGNORED_EXPLICIT_START", "Scheduled departure is still in the future, but explicit start proof exists. Display state must not remain scheduled.", "view_model");
@@ -2245,6 +2679,7 @@
       switch (arguments.state) {
         case "scheduled": return "Scheduled";
         case "underway": return "Underway";
+        case "awaiting_next_leg": return "Awaiting Next Leg";
         case "paused_overnight": return "Secure for the Night";
         case "paused_delayed": return "Delayed";
         case "late": return "Late";
@@ -2274,6 +2709,9 @@
       }
       if (arguments.motionState EQ "scheduled") {
         return "Scheduled departure is pending and no explicit start proof exists.";
+      }
+      if (arguments.motionState EQ "awaiting_next_leg") {
+        return "Trip progress is paused until Start Next Leg is selected.";
       }
       if (arguments.motionState EQ "paused_overnight") {
         return "Trip progress is paused for secure overnight.";
@@ -2316,6 +2754,10 @@
           }
       }
 
+      if (listFindNoCase("ESCALATED,MISSED,LATE", stateVal)) {
+        return out;
+      }
+
       switch (lastStatusVal) {
         case "DELAYED":
           out.label = "Delayed";
@@ -2346,8 +2788,9 @@
     <cfargument name="safetyState" type="string" required="true">
     <cfscript>
       switch (safeString(arguments.safetyState)) {
+        case "assistance_needed":
         case "needs_attention":
-          return "The latest public check-in reported assistance needed.";
+          return "Latest check-in reported Assistance Needed.";
         case "escalated":
           return "Monitoring status requires attention.";
       }
@@ -2365,11 +2808,15 @@
           return "The trip is scheduled and has not started yet.";
         case "underway":
           return "The trip is underway on the active route.";
+        case "awaiting_next_leg":
+          return "Trip progress is paused until the next route leg is started.";
       }
 
       switch (safeString(arguments.motionState)) {
         case "underway":
           return "The trip is underway on the active route.";
+        case "awaiting_next_leg":
+          return "Trip progress is paused until the next route leg is started.";
         case "scheduled":
           return "The trip is scheduled and has not started yet.";
       }
@@ -2452,24 +2899,30 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="formatRawUtc" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      var rawUtc = normalizeUtcSqlString(arguments.value);
+      if (!len(rawUtc)) {
+        return "";
+      }
+      return replace(rawUtc, " ", "T", "one") & "Z";
+    </cfscript>
+  </cffunction>
+
   <cffunction name="formatLocal" access="private" returntype="string" output="false">
     <cfargument name="value" type="any" required="true">
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
-      var qLocal = queryNew("");
+      var tzId = len(safeString(arguments.timezone)) ? safeString(arguments.timezone) : "UTC";
       if (!isDate(arguments.value)) {
         return "";
       }
-      qLocal = queryExecute("
-        SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-      ", {
-        utcValue = { value = arguments.value, cfsqltype = "cf_sql_timestamp" },
-        tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-      }, { datasource = variables.datasource });
-      if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-        return dateTimeFormat(qLocal.local_value[1], "yyyy-mm-dd HH:nn:ss");
+      try {
+        return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss", tzId);
+      } catch (any localFormatErr) {
+        return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
       }
-      return dateTimeFormat(arguments.value, "yyyy-mm-dd HH:nn:ss");
     </cfscript>
   </cffunction>
 
@@ -2477,20 +2930,64 @@
     <cfargument name="value" type="any" required="true">
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
-      var qLocal = queryNew("");
+      var tzId = len(safeString(arguments.timezone)) ? safeString(arguments.timezone) : "UTC";
       if (!isDate(arguments.value)) {
         return "";
       }
-      qLocal = queryExecute("
-        SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-      ", {
-        utcValue = { value = arguments.value, cfsqltype = "cf_sql_timestamp" },
-        tz = { value = arguments.timezone, cfsqltype = "cf_sql_varchar" }
-      }, { datasource = variables.datasource });
-      if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-        return dateTimeFormat(qLocal.local_value[1], "mmm d, yyyy h:nn tt");
+      try {
+        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt", tzId);
+      } catch (any localDisplayErr) {
+        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
       }
-      return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizeUtcSqlString" access="private" returntype="string" output="false">
+    <cfargument name="value" type="any" required="true">
+    <cfscript>
+      var raw = trim(safeString(arguments.value));
+      if (!len(raw)) {
+        return "";
+      }
+      raw = replace(raw, "T", " ", "one");
+      raw = reReplace(raw, "Z$", "", "one");
+      raw = reReplace(raw, "\.[0-9]+$", "", "one");
+      if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", raw)) {
+        raw &= ":00";
+      }
+      if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", raw)) {
+        return "";
+      }
+      return left(raw, 19);
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="formatUtcSqlStringAsLocalDisplay" access="private" returntype="string" output="false">
+    <cfargument name="utcSqlValue" type="string" required="true">
+    <cfargument name="timezone" type="string" required="true">
+    <cfscript>
+      var rawUtc = normalizeUtcSqlString(arguments.utcSqlValue);
+      var tzId = trim(safeString(arguments.timezone));
+      var formatter = "";
+      var displayFormatter = "";
+      var localDateTime = "";
+      var zoneId = "";
+      var instant = "";
+      var zonedDateTime = "";
+      if (!len(rawUtc) OR !len(tzId)) {
+        return "";
+      }
+      try {
+        formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
+        displayFormatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("MMM d, yyyy h:mm a");
+        localDateTime = createObject("java", "java.time.LocalDateTime").parse(rawUtc, formatter);
+        instant = localDateTime.atOffset(createObject("java", "java.time.ZoneOffset").UTC).toInstant();
+        zoneId = createObject("java", "java.time.ZoneId").of(tzId);
+        zonedDateTime = createObject("java", "java.time.ZonedDateTime").ofInstant(instant, zoneId);
+        return toString(displayFormatter.format(zonedDateTime));
+      } catch (any utcLocalDisplayErr) {
+        return "";
+      }
     </cfscript>
   </cffunction>
 
@@ -2499,51 +2996,27 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var raw = safeString(arguments.utcValue);
-      var normalized = "";
+      var rawUtc = "";
       var tzId = safeString(arguments.timezone);
-      var qLocal = queryNew("");
-      var utcDt = "";
-      var localValue = "";
       var tzLabel = "";
+      var localLabel = "";
 
       if (!len(raw)) {
         return "";
       }
-      if (!len(tzId)) {
-        tzId = "UTC";
-      }
 
-      normalized = replace(raw, "T", " ", "one");
-      normalized = reReplace(normalized, "Z$", "", "one");
-      normalized = reReplace(normalized, "([+-][0-9]{2}:?[0-9]{2})$", "", "one");
-      normalized = reReplace(normalized, "\.[0-9]+$", "", "one");
-      if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}$", normalized)) {
-        normalized &= ":00";
-      }
-      if (!isDate(normalized)) {
+      rawUtc = normalizeUtcSqlString(raw);
+      if (!len(rawUtc) OR !len(tzId)) {
         return "";
       }
 
-      utcDt = parseDateTime(normalized);
-      try {
-        qLocal = queryExecute("
-          SELECT CONVERT_TZ(:utcValue, 'UTC', :tz) AS local_value
-        ", {
-          utcValue = { value = utcDt, cfsqltype = "cf_sql_timestamp" },
-          tz = { value = tzId, cfsqltype = "cf_sql_varchar" }
-        }, { datasource = variables.datasource });
-        if (qLocal.recordCount AND isDate(qLocal.local_value[1])) {
-          localValue = qLocal.local_value[1];
-        }
-      } catch (any localLabelErr) {
-        localValue = "";
-      }
-      if (!isDate(localValue)) {
-        localValue = utcDt;
+      localLabel = formatUtcSqlStringAsLocalDisplay(rawUtc, tzId);
+      if (!len(localLabel)) {
+        return "";
       }
 
-      tzLabel = publicFollowTimezoneLabel(tzId, utcDt);
-      return dateTimeFormat(localValue, "mmm d, yyyy h:nn tt") & (len(tzLabel) ? " " & tzLabel : "");
+      tzLabel = publicFollowTimezoneLabel(tzId, rawUtc);
+      return localLabel & (len(tzLabel) ? " " & tzLabel : "");
     </cfscript>
   </cffunction>
 
@@ -2552,24 +3025,10 @@
     <cfargument name="referenceValue" type="any" required="true">
     <cfscript>
       var tzId = safeString(arguments.timezone);
-      var localTimeZone = "";
-      var out = "";
       if (!len(tzId)) {
         tzId = "UTC";
       }
-      if (!isDate(arguments.referenceValue)) {
-        return tzId;
-      }
-      try {
-        localTimeZone = createObject("java", "java.util.TimeZone").getTimeZone(tzId);
-        out = localTimeZone.getDisplayName(localTimeZone.inDaylightTime(arguments.referenceValue), 0);
-        if (localTimeZone.getID() EQ "GMT" AND NOT listFindNoCase("GMT,UTC,Etc/UTC", tzId)) {
-          return tzId;
-        }
-        return (len(out) ? out : tzId);
-      } catch (any timezoneLabelErr) {
-        return tzId;
-      }
+      return tzId;
     </cfscript>
   </cffunction>
 

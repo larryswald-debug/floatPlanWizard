@@ -1,0 +1,33 @@
+- generic [active] [ref=e1] [box=0,0,1440,1720]:
+  - banner [ref=e2] [box=0,0,1440,83]:
+    - generic [ref=e4] [box=60,0,1320,81]:
+      - link "FloatPlanWizard home" [ref=e5] [cursor=pointer] [box=60,19,692,42]:
+        - /url: /fpw/index.cfm
+      - navigation "Member navigation" [ref=e236] [box=778,14,356,53]
+      - generic [ref=e21] [box=1159,19,221,42]
+  - main [ref=e24] [box=0,83,1440,1638]:
+    - generic [ref=e27] [box=60,137,1320,204]:
+      - heading "Membership Plans" [level=1] [ref=e28] [box=60,137,1320,68]
+      - paragraph [ref=e29] [box=340,223,760,57]: Free for simple same-day trips. Premium for route-based planning, Active Cruise, Trip status pages, and mobile check-ins.
+      - paragraph [ref=e30] [box=320,294,800,47]: All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.
+    - region "Membership plans" [ref=e31] [box=60,364,1320,621]:
+      - article [ref=e32] [box=60,364,317,621]
+      - article [ref=e50] [box=395,364,317,621]
+      - article [ref=e72] [box=729,364,317,621]
+      - article [ref=e95] [box=1064,364,317,621]
+    - generic [ref=e119] [box=60,1003,1320,62]:
+      - strong [ref=e120] [box=85,1022,386,24]: All paid plans include the same Premium features.
+      - generic [ref=e121] [box=487,1022,723,24]: Premium Monthly and Annual renew automatically. Cancel anytime. The 3-Day Pass does not renew.
+    - generic [ref=e122] [box=60,1083,1320,84]:
+      - generic [ref=e123] [box=61,1084,186,82]: All Premium plans include
+      - generic [ref=e124] [box=247,1084,162,82]
+      - generic [ref=e128] [box=409,1084,162,82]
+      - generic [ref=e132] [box=570,1084,162,82]
+      - generic [ref=e136] [box=732,1084,162,82]
+      - generic [ref=e140] [box=894,1084,162,82]
+      - generic [ref=e144] [box=1056,1084,162,82]
+      - generic [ref=e148] [box=1217,1084,162,82]
+    - generic [ref=e152] [box=60,1185,1320,536]:
+      - article [ref=e153] [box=60,1185,385,484]
+      - article [ref=e180] [box=463,1185,449,484]
+      - article [ref=e225] [box=931,1185,449,484]

@@ -253,7 +253,7 @@
       var host = structKeyExists(cgi, "HTTP_HOST") ? cgi.HTTP_HOST : "localhost:8500";
       var scriptName = structKeyExists(cgi, "SCRIPT_NAME") ? cgi.SCRIPT_NAME : "/fpw/api/v1/companion.cfc";
       var marker = findNoCase("/api/v1/companion.cfc", scriptName);
-      var appPath = marker GT 0 ? left(scriptName, marker - 1) : "";
+      var appPath = marker GT 1 ? left(scriptName, marker - 1) : "";
       return scheme & "://" & host & appPath;
     </cfscript>
   </cffunction>

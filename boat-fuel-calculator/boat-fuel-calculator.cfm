@@ -1,566 +1,1592 @@
 <cfsetting showdebugoutput="false">
 <cfcontent type="text/html; charset=utf-8">
 
+<cfscript>
+schemaAtKey = chr(64);
+schemaTypeKey = schemaAtKey & "type";
+schemaIdKey = schemaAtKey & "id";
+schemaContextKey = schemaAtKey & "context";
+schemaGraphKey = schemaAtKey & "graph";
+
+function fpwFuelSchemaRef(required string idValue) {
+  var out = structNew("ordered");
+  structInsert(out, schemaIdKey, arguments.idValue, true);
+  return out;
+}
+
+function fpwFuelSchemaListItem(required numeric position, required string name, required string urlValue) {
+  var out = structNew("ordered");
+  var item = structNew("ordered");
+  structInsert(out, schemaTypeKey, "ListItem", true);
+  out["position"] = arguments.position;
+  structInsert(item, schemaIdKey, arguments.urlValue, true);
+  item["name"] = arguments.name;
+  out["item"] = item;
+  return out;
+}
+
+function fpwFuelSchemaQuestion(required string questionText, required string answerText) {
+  var question = structNew("ordered");
+  var answer = structNew("ordered");
+  structInsert(question, schemaTypeKey, "Question", true);
+  question["name"] = arguments.questionText;
+  structInsert(answer, schemaTypeKey, "Answer", true);
+  answer["text"] = arguments.answerText;
+  question["acceptedAnswer"] = answer;
+  return question;
+}
+
+fpwFuelCanonicalUrl = "https://floatplanwizard.com/boat-fuel-calculator/";
+fpwFuelPageTitle = "Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost";
+fpwFuelPageDescription = "Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.";
+fpwFuelFaqId = fpwFuelCanonicalUrl & "##faq";
+fpwFuelJsonLdText = "";
+fpwFuelSchemaGraph = [];
+fpwFuelSchemaOrg = structNew("ordered");
+fpwFuelSchemaBreadcrumb = structNew("ordered");
+fpwFuelSchemaPage = structNew("ordered");
+fpwFuelSchemaFaq = structNew("ordered");
+fpwFuelJsonLd = structNew("ordered");
+
+structInsert(fpwFuelSchemaOrg, schemaTypeKey, "Organization", true);
+structInsert(fpwFuelSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
+fpwFuelSchemaOrg["name"] = "FloatPlanWizard";
+fpwFuelSchemaOrg["url"] = "https://floatplanwizard.com/";
+fpwFuelSchemaOrg["logo"] = "https://floatplanwizard.com/assets/images/checkout/floatplanwizard-logo.jpg";
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaOrg);
+
+structInsert(fpwFuelSchemaBreadcrumb, schemaTypeKey, "BreadcrumbList", true);
+structInsert(fpwFuelSchemaBreadcrumb, schemaIdKey, fpwFuelCanonicalUrl & "##breadcrumb", true);
+fpwFuelSchemaBreadcrumb["itemListElement"] = [];
+arrayAppend(fpwFuelSchemaBreadcrumb["itemListElement"], fpwFuelSchemaListItem(1, "FloatPlanWizard", "https://floatplanwizard.com/"));
+arrayAppend(fpwFuelSchemaBreadcrumb["itemListElement"], fpwFuelSchemaListItem(2, "Boat Fuel Calculator", fpwFuelCanonicalUrl));
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaBreadcrumb);
+
+structInsert(fpwFuelSchemaPage, schemaTypeKey, "WebPage", true);
+structInsert(fpwFuelSchemaPage, schemaIdKey, fpwFuelCanonicalUrl & "##webpage", true);
+fpwFuelSchemaPage["url"] = fpwFuelCanonicalUrl;
+fpwFuelSchemaPage["name"] = fpwFuelPageTitle;
+fpwFuelSchemaPage["description"] = fpwFuelPageDescription;
+fpwFuelSchemaPage["isPartOf"] = fpwFuelSchemaRef("https://floatplanwizard.com/##website");
+fpwFuelSchemaPage["publisher"] = fpwFuelSchemaRef("https://floatplanwizard.com/##organization");
+fpwFuelSchemaPage["breadcrumb"] = fpwFuelSchemaRef(fpwFuelCanonicalUrl & "##breadcrumb");
+fpwFuelSchemaPage["mainEntity"] = fpwFuelSchemaRef(fpwFuelFaqId);
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaPage);
+
+structInsert(fpwFuelSchemaFaq, schemaTypeKey, "FAQPage", true);
+structInsert(fpwFuelSchemaFaq, schemaIdKey, fpwFuelFaqId, true);
+fpwFuelSchemaFaq["mainEntity"] = [
+  fpwFuelSchemaQuestion(
+    "How accurate is this calculator?",
+    "It provides an estimate based on your inputs. Actual fuel use can vary with conditions, load, speed, and engine performance."
+  ),
+  fpwFuelSchemaQuestion(
+    "What is a good reserve percentage?",
+    "Many boaters plan with a meaningful reserve such as the rule of thirds, but the right reserve depends on the trip and conditions."
+  ),
+  fpwFuelSchemaQuestion(
+    "Should I plan using max speed?",
+    "For conservative planning, compare efficient cruise numbers with higher burn scenarios so you understand your margin."
+  ),
+  fpwFuelSchemaQuestion(
+    "How does weather factor work?",
+    "The weather factor increases estimated fuel use to account for wind, current, chop, and less efficient real-world operation."
+  )
+];
+arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaFaq);
+
+structInsert(fpwFuelJsonLd, schemaContextKey, "https://schema.org", true);
+structInsert(fpwFuelJsonLd, schemaGraphKey, fpwFuelSchemaGraph, true);
+fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
+</cfscript>
+
 <!doctype html>
 <html lang="en">
 <head>
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Boat Fuel Calculator | FloatPlanWizard</title>
+  <title>Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost</title>
 
-<meta name="description" content="Estimate your boat’s fuel burn, cruising range, fuel reserve, and approximate trip cost with the free boat fuel calculator from FloatPlanWizard.">
+<meta name="description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
 
-<link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/boat-fuel-calculator.cfm">
+<link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FloatPlanWizard">
+<meta property="og:url" content="https://floatplanwizard.com/boat-fuel-calculator/">
+<meta property="og:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
+<meta property="og:description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
+<meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
+<meta name="twitter:description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
+<meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+  <script type="application/ld+json"><cfoutput>#fpwFuelJsonLdText#</cfoutput></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <style>
     :root {
-      --panel: rgba(11, 29, 43, 0.78);
-      --radius-xl: 28px;
-      --text: #eaf5ff;
-      --muted: #a7c0d5;
-      --soft: #7f9ab0;
-      --accent: #47c7ff;
-      --accent-2: #18f2d2;
-      --line: rgba(130, 186, 226, 0.18);
-      --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+      --fpw-public-layout-max: var(--fpw-wide-max, 1320px);
+      --fuel-bg: #061726;
+      --fuel-panel: rgba(7, 22, 38, 0.84);
+      --fuel-panel-strong: rgba(4, 15, 28, 0.96);
+      --fuel-line: rgba(126, 205, 220, 0.28);
+      --fuel-line-strong: rgba(33, 243, 238, 0.62);
+      --fuel-text: #f3f8ff;
+      --fuel-muted: #b8c7d6;
+      --fuel-soft: #87a0b6;
+      --fuel-cyan: #23d7cf;
+      --fuel-blue: #38bdf8;
+      --fuel-radius: 18px;
     }
+
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     a { color: inherit; text-decoration: none; }
-    .shell {
-      width: min(calc(100% - 32px), 1200px);
-      margin: 0 auto;
-    }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      backdrop-filter: blur(18px);
-      background: rgba(6, 17, 26, 0.68);
-      border-bottom: 1px solid rgba(130, 186, 226, 0.12);
-    }
-    .promo-strip {
-      border-bottom: 1px solid rgba(130, 186, 226, 0.1);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015));
-      box-shadow: inset 0 -1px 0 rgba(255,255,255,0.02);
-    }
-    .promo-strip-inner {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px 0 7px;
-      text-align: center;
-    }
-    .promo-strip-copy {
+
+    .fuelcalc-page {
       margin: 0;
-      color: rgba(234, 245, 255, 0.84);
-      font-size: clamp(0.76rem, 1.4vw, 0.84rem);
-      font-weight: 600;
-      letter-spacing: 0.01em;
-      line-height: 1.25;
-      white-space: nowrap;
-    }
-    .promo-strip-copy strong {
-      color: #f4fbff;
-      font-weight: 700;
-    }
-    .topbar-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 20px;
-      padding: 14px 0;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-width: 0;
-    }
-    .brand-mark {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
+      color: var(--fuel-text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background:
-        linear-gradient(145deg, rgba(71,199,255,0.24), rgba(24,242,210,0.16));
-      border: 1px solid rgba(130, 186, 226, 0.24);
-      display: grid;
-      place-items: center;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 28px rgba(0,0,0,0.28);
+        radial-gradient(circle at 15% 0%, rgba(35, 215, 207, 0.13), transparent 26rem),
+        radial-gradient(circle at 85% 4%, rgba(56, 189, 248, 0.11), transparent 28rem),
+        linear-gradient(180deg, #061726 0%, #082033 48%, #061726 100%);
+    }
+
+    .fuelcalc-page input,
+    .fuelcalc-page select,
+    .fuelcalc-page button {
+      font: inherit;
+    }
+
+    .fuelcalc-page svg {
+      display: block;
+    }
+
+    .fpw-fuel-page {
       position: relative;
+      width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+      margin-inline: auto;
+      padding: 28px 0 34px;
       overflow: hidden;
     }
-    .brand-mark::before {
+
+    .fpw-fuel-page::before {
       content: "";
       position: absolute;
       inset: 0;
-      background:
-        radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), transparent 0 38%),
-        linear-gradient(180deg, transparent, rgba(255,255,255,0.02));
       pointer-events: none;
+      background-image:
+        linear-gradient(rgba(126, 205, 220, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(126, 205, 220, 0.032) 1px, transparent 1px);
+      background-size: 76px 76px;
+      mask-image: radial-gradient(circle at 50% 0%, black 0%, transparent 58%);
+      opacity: 0.7;
     }
-    .brand-mark i {
+
+    .fpw-fuel-page > * {
       position: relative;
       z-index: 1;
-      font-size: 1.2rem;
-      color: #bceaff;
-      filter: drop-shadow(0 0 12px rgba(71,199,255,0.45));
     }
-    .brand-copy { min-width: 0; }
-    .brand-name {
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-    }
-    .brand-tag {
-      color: var(--muted);
-      font-size: 0.82rem;
-      margin-top: 2px;
-      white-space: nowrap;
+
+    .fpw-compact-tool-hero {
+      position: relative;
+      min-height: 240px;
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+      align-items: stretch;
       overflow: hidden;
-      text-overflow: ellipsis;
+      border: 1px solid rgba(47, 232, 226, 0.18);
+      background:
+        linear-gradient(90deg, rgba(1, 12, 22, 0.98) 0%, rgba(3, 22, 37, 0.94) 42%, rgba(3, 28, 48, 0.72) 100%);
     }
-    .nav {
+
+    .fpw-compact-tool-hero__content {
+      position: relative;
+      z-index: 2;
+      max-width: 720px;
+      padding: clamp(22px, 3vw, 34px);
+    }
+
+    .fpw-compact-tool-hero__eyebrow {
+      margin: 0 0 8px;
+      color: #7ffaf5;
+      font-size: 0.86rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .fpw-compact-tool-hero h1 {
+      margin: 0;
+      color: #ffffff;
+      font-size: clamp(2.25rem, 3.6vw, 3.1rem);
+      line-height: 0.98;
+      letter-spacing: 0;
+      text-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+    }
+
+    .fpw-compact-tool-hero__intro {
+      max-width: 620px;
+      margin: 14px 0 0;
+      color: rgba(226, 236, 246, 0.86);
+      font-size: clamp(1.05rem, 1.45vw, 1.28rem);
+      line-height: 1.42;
+    }
+
+    .fpw-compact-tool-hero__accent {
+      margin: 18px 0 0;
+      color: #39f4ee;
+      font-weight: 800;
+    }
+
+    .fpw-compact-tool-hero__image {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      min-height: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(90deg,
+          rgba(1, 12, 22, 1) 0%,
+          rgba(1, 12, 22, 1) 32%,
+          rgba(1, 12, 22, 0.88) 46%,
+          rgba(1, 12, 22, 0.52) 60%,
+          rgba(1, 12, 22, 0.18) 76%,
+          rgba(1, 12, 22, 0) 92%
+        ),
+        linear-gradient(180deg, rgba(1, 12, 22, 0.22), rgba(1, 12, 22, 0) 42%, rgba(1, 12, 22, 0.22)),
+        url("../assets/images/boat-fuel-calculator/Silent-voyage-on-calm-waters.png");
+      background-size: cover, cover, cover;
+      background-position: center right, center right, center right;
+      background-repeat: no-repeat;
+    }
+
+    .fpw-mini-compass svg,
+    .fpw-card-icon svg,
+    .fpw-fuel-cta__icon svg {
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .fpw-section-rule {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+      margin: 28px 0 20px;
+      text-align: center;
+    }
+
+    .fpw-section-rule span {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(126, 205, 220, 0.48), transparent);
+    }
+
+    .fpw-section-rule h2,
+    .fpw-panel-heading h2 {
+      margin: 0;
+      color: #7df7f0;
+      font-size: 0.92rem;
+      font-weight: 900;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+    }
+
+    .fpw-why-grid,
+    .fpw-results-grid,
+    .fpw-fuel-education {
+      display: grid;
+      gap: 16px;
+    }
+
+    .fpw-why-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .fpw-why-card,
+    .fpw-fuel-calculator-panel,
+    .fpw-result-card,
+    .fpw-info-card,
+    .fpw-fuel-cta,
+    .fpw-dev-output {
+      border: 1px solid var(--fuel-line);
+      background:
+        linear-gradient(180deg, rgba(8, 26, 44, 0.84), rgba(3, 14, 26, 0.94));
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .fpw-why-card {
+      min-height: 110px;
+      display: grid;
+      grid-template-columns: 54px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+
+    .fpw-card-icon {
+      width: 48px;
+      height: 48px;
+      color: #28f3e8;
+      filter: drop-shadow(0 0 16px rgba(40, 243, 232, 0.35));
+    }
+
+    .fpw-why-card h3,
+    .fpw-info-card h2,
+    .fpw-result-card h3 {
+      margin: 0;
+      color: #ffffff;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .fpw-why-card h3 {
+      font-size: 1.08rem;
+    }
+
+    .fpw-why-card p,
+    .fpw-info-card p,
+    .fpw-info-card li,
+    .fpw-fuel-cta p {
+      color: var(--fuel-muted);
+      line-height: 1.5;
+    }
+
+    .fpw-why-card p {
+      margin: 7px 0 0;
+      font-size: 0.94rem;
+    }
+
+    .fpw-fuel-calculator-panel {
+      margin-top: 20px;
+      border-radius: var(--fuel-radius);
+      padding: 24px 26px;
+    }
+
+    .fpw-panel-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .fpw-panel-heading::after {
+      content: "";
+      height: 1px;
+      background: linear-gradient(90deg, rgba(35, 215, 207, 0.68), transparent);
+    }
+
+    .fpw-panel-heading p {
+      grid-column: 2;
+      grid-row: 1;
+      margin: 0;
+      color: var(--fuel-soft);
+      font-size: 0.84rem;
+      white-space: nowrap;
+    }
+
+    .fpw-fuel-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 32px;
+    }
+
+    .fpw-input-group {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .fpw-input-group h3 {
       display: flex;
       align-items: center;
       gap: 10px;
+      margin: 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(126, 205, 220, 0.16);
+      color: #7df7f0;
+      font-size: 0.86rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .fpw-field {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(140px, 0.72fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+    }
+
+    .fpw-field label {
+      color: rgba(238, 247, 251, 0.9);
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .fpw-label-row {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 4px;
+      width: fit-content;
+    }
+
+    .fpw-label-row label {
+      margin: 0;
+    }
+
+    .fuelcalc-page .fpw-help {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(69, 227, 255, 0.55);
+      border-radius: 50%;
+      padding: 0;
+      color: #78f2ff;
+      background: rgba(8, 22, 40, 0.9);
+      font: inherit;
+      font-size: 7px;
+      font-weight: 800;
+      line-height: 1;
+      margin-top: 1px;
+      cursor: pointer;
+      transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, color 180ms ease;
+    }
+
+    .fuelcalc-page .fpw-help:hover,
+    .fuelcalc-page .fpw-help:focus {
+      outline: none;
+      border-color: #45e3ff;
+      color: #ffffff;
+      background: rgba(10, 31, 55, 1);
+      box-shadow: 0 0 0 3px rgba(69, 227, 255, 0.14), 0 0 16px rgba(69, 227, 255, 0.2);
+    }
+
+    .fpw-tooltip {
+      position: absolute;
+      left: 0;
+      top: calc(100% + 8px);
+      z-index: 50;
+      width: min(320px, calc(100vw - 48px));
+      border: 1px solid rgba(69, 227, 255, 0.35);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #d8e7f3;
+      background: rgba(6, 18, 35, 0.98);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), 0 0 24px rgba(35, 215, 207, 0.08);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(6px);
+      transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+      pointer-events: none;
+    }
+
+    .fpw-tooltip.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .fpw-field__control {
+      position: relative;
+      display: block;
+    }
+
+    .fpw-field input,
+    .fpw-field select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid rgba(126, 205, 220, 0.28);
+      border-radius: 6px;
+      padding: 0 48px 0 12px;
+      color: rgba(244, 248, 255, 0.96);
+      background: rgba(3, 13, 26, 0.82);
+      outline: none;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .fpw-field select {
+      padding-right: 32px;
+    }
+
+    .fpw-field input:focus-visible,
+    .fpw-field select:focus-visible,
+    .fpw-ghost-button:focus-visible,
+    .fpw-fuel-cta__button:focus-visible,
+    .fpw-info-card summary:focus-visible {
+      border-color: var(--fuel-line-strong);
+      box-shadow: 0 0 0 3px rgba(35, 215, 207, 0.18), 0 0 22px rgba(35, 215, 207, 0.18);
+    }
+
+    .fpw-field input[aria-invalid="true"] {
+      border-color: rgba(255, 204, 92, 0.62);
+    }
+
+    .fpw-field input::placeholder {
+      color: rgba(174, 194, 219, 0.72);
+    }
+
+    .fpw-field__unit {
+      position: absolute;
+      top: 50%;
+      right: 12px;
+      color: rgba(220, 234, 246, 0.88);
+      font-size: 0.86rem;
+      font-style: normal;
+      font-weight: 800;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .field-note {
+      grid-column: 2;
+      margin-top: -6px;
+      color: var(--fuel-soft);
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+
+    .calc-actions {
+      display: flex;
       flex-wrap: wrap;
-      justify-content: flex-end;
+      gap: 14px;
+      margin-top: 20px;
     }
-    .nav a {
-      color: var(--muted);
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-size: 0.94rem;
-      transition: 0.2s ease;
-    }
-    .nav a:hover { color: var(--text); background: rgba(130,186,226,0.08); }
-    .btn {
+
+    .fpw-ghost-button {
+      min-height: 46px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      border: 0;
-      border-radius: 999px;
+      border: 1px solid rgba(35, 215, 207, 0.58);
+      border-radius: 7px;
+      padding: 0 18px;
+      color: rgba(238, 247, 251, 0.94);
+      background: rgba(3, 18, 33, 0.56);
       cursor: pointer;
-      font-weight: 700;
-      font-size: 0.98rem;
-      padding: 7px 11px;
-      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-      white-space: nowrap;
+      transition: transform 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
     }
-    .btn:hover { transform: translateY(-1px); }
-    .btn-secondary {
-      color: var(--text);
-      background: rgba(130,186,226,0.08);
-      border: 1px solid rgba(130,186,226,0.16);
+
+    .fpw-ghost-button:hover {
+      color: #ffffff;
+      border-color: rgba(40, 243, 232, 0.82);
+      transform: translateY(-1px);
     }
-    .btn i {
-      font-size: 1rem;
-      line-height: 1;
+
+    .fpw-fuel-note,
+    .msg.warn {
+      border: 1px solid rgba(35, 215, 207, 0.58);
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(8, 83, 97, 0.34), rgba(3, 18, 33, 0.74));
+      color: rgba(238, 247, 251, 0.92);
     }
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(20px);
+
+    .fpw-fuel-note {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 16px;
+      align-items: center;
+      margin-top: 20px;
+      padding: 14px 18px;
     }
-    .fuelcalc-page {
+
+    .fpw-fuel-note span {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--fuel-cyan);
+      border-radius: 50%;
+      color: var(--fuel-cyan);
+      font-weight: 900;
+    }
+
+    .fpw-fuel-note p {
       margin: 0;
-      background:
-        radial-gradient(1200px 520px at 10% -20%, rgba(53, 208, 200, 0.14), transparent 60%),
-        radial-gradient(900px 480px at 95% 0%, rgba(74, 163, 255, 0.16), transparent 64%),
-        linear-gradient(180deg, #041025 0%, #031020 100%);
-      color: rgba(235, 244, 255, 0.94);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: rgba(238, 247, 251, 0.92);
+      line-height: 1.45;
     }
-    .fuelcalc-main { padding: 10px 0 18px; }
-    .fuelcalc-main .wrap {
-      max-width: 1240px;
-      margin: 0 auto;
-      background: linear-gradient(180deg, rgba(9, 24, 42, 0.96), rgba(5, 17, 32, 0.96));
-      border: 1px solid rgba(82, 132, 204, 0.45);
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: 0 22px 56px rgba(0, 0, 0, 0.42);
+
+    .msg.warn {
+      margin-top: 18px;
+      padding: 14px 18px;
+      color: var(--fuel-muted);
     }
-    .fuelcalc-main h1 {
-      margin-top: 0;
-      margin-bottom: 10px;
-      font-size: 34px;
-      letter-spacing: 0.02em;
-      color: #e8f2ff;
+
+    .msg.warn strong,
+    .msg.warn ul {
+      color: var(--fuel-text);
     }
-    .fuelcalc-main .hint {
-      color: rgba(206, 223, 244, 0.9);
-      margin-bottom: 16px;
-      font-size: 18px;
-    }
-    .fuelcalc-main .msg {
-      margin-top: 12px;
-      padding: 12px 14px;
-      border-radius: 8px;
-    }
-    .fuelcalc-main .msg.info {
-      background: rgba(42, 66, 110, 0.48);
-      border: 1px solid rgba(131, 166, 224, 0.55);
-      color: rgba(230, 241, 255, 0.96);
-    }
-    .fuelcalc-main .msg.warn {
-      background: rgba(130,186,226,0.05);
-      border: 1px solid rgba(130,186,226,0.12);
-      color: var(--muted);
-    }
-    .fuelcalc-main .msg.warn strong,
-    .fuelcalc-main .msg.warn ul {
-      color: var(--text);
-    }
-    .fuelcalc-main .msg ul {
+
+    .msg.warn ul {
       margin: 8px 0 0 20px;
       padding: 0;
     }
-    .fuelcalc-main .msg .msg-detail {
+
+    .msg.warn .msg-detail {
       margin-top: 8px;
     }
-    .fuelcalc-main .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+
+    .fpw-results-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
     }
-    .fuelcalc-main .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+
+    .fpw-result-card {
+      min-height: 142px;
+      border-radius: 9px;
+      padding: 18px 18px 16px;
     }
-    .fuelcalc-main .field label {
-      display: block !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
+
+    .fpw-result-card__icon {
+      display: inline-flex;
+      margin-bottom: 10px;
+      color: var(--fuel-cyan);
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+
+    .fpw-result-card h3 {
+      color: rgba(220, 234, 246, 0.82);
+      font-size: 0.78rem;
+      font-weight: 850;
       letter-spacing: 0.08em;
-      color: rgba(178, 216, 255, 0.96);
+      text-transform: uppercase;
     }
-    .fuelcalc-main .field input,
-    .fuelcalc-main .field select {
-      border: 1px solid rgba(117, 150, 205, 0.45);
-      border-radius: 4px;
-      font-size: 14px;
-      padding: 8px;
-      background: rgba(7, 20, 38, 0.88);
-      color: rgba(233, 243, 255, 0.98);
+
+    .fpw-result-card .value {
+      display: block;
+      margin-top: 14px;
+      color: #ffffff;
+      font-size: clamp(1.85rem, 3vw, 2.55rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.02em;
     }
-    .fuelcalc-main .field input[aria-invalid="true"] {
-      border-color: rgba(117, 150, 205, 0.45);
-      box-shadow: none;
-    }
-    .fuelcalc-main .field input::placeholder { color: rgba(175, 197, 230, 0.75); }
-    .fuelcalc-main .field-note {
-      font-size: 12px;
-      color: rgba(184, 204, 236, 0.82);
+
+    .fpw-result-card .sub {
+      margin-top: 10px;
+      color: var(--fuel-soft);
+      font-size: 0.86rem;
       line-height: 1.4;
     }
-    .fuelcalc-main .calc-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 14px;
+
+    .fpw-fuel-education {
+      grid-template-columns: 1.06fr 1fr 0.94fr;
+      margin-top: 24px;
     }
-    .fuelcalc-main .calc-actions button {
-      padding: 8px 12px;
-      border-radius: 4px;
-      border: 1px solid rgba(121, 151, 206, 0.55);
-      background: rgba(7, 20, 38, 0.92);
-      color: rgba(235, 244, 255, 0.95);
-      cursor: pointer;
-      font-size: 14px;
+
+    .fpw-info-card {
+      min-height: 210px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 10px;
+      padding: 24px 26px;
     }
-    .fuelcalc-main .calc-actions button.primary {
-      border-color: rgba(83, 174, 239, 0.9);
-      background: linear-gradient(135deg, rgba(43, 129, 214, 0.95), rgba(57, 196, 232, 0.94));
-      color: #041221;
+
+    .fpw-info-card::after {
+      content: "";
+      position: absolute;
+      right: -42px;
+      bottom: -56px;
+      width: 190px;
+      height: 150px;
+      border: 1px solid rgba(35, 215, 207, 0.12);
+      border-radius: 50%;
+      box-shadow: inset 0 0 28px rgba(35, 215, 207, 0.08);
+      pointer-events: none;
     }
-    .fuelcalc-main .cards {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 16px;
-    }
-    .fuelcalc-main .card {
-      background: linear-gradient(180deg, rgba(8, 25, 45, 0.92), rgba(5, 15, 30, 0.88));
-      border: 1px solid rgba(88, 128, 189, 0.45);
-      border-radius: 6px;
-      padding: 12px;
-    }
-    .fuelcalc-main .card .label {
-      font-size: 12px;
+
+    .fpw-info-card h2 {
+      margin-bottom: 18px;
+      color: rgba(238, 247, 251, 0.94);
+      font-size: 0.94rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      letter-spacing: 0.07em;
-      color: rgba(184, 204, 236, 0.82);
-      margin-bottom: 6px;
     }
-    .fuelcalc-main .card .value {
-      font-size: 40px;
-      font-weight: 800;
-      line-height: 1.1;
-      color: #f5fbff;
+
+    .fpw-number-list,
+    .fpw-info-card ul {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
     }
-    .fuelcalc-main .card .sub {
-      margin-top: 4px;
-      font-size: 12px;
-      color: rgba(182, 204, 237, 0.86);
-      line-height: 1.5;
+
+    .fpw-number-list {
+      list-style: none;
     }
-    .fuelcalc-main table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 16px;
-      font-size: 14px;
+
+    .fpw-number-list__item {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
     }
-    .fuelcalc-main th,
-    .fuelcalc-main td {
-      border: 1px solid rgba(85, 122, 180, 0.5);
-      padding: 8px;
-      text-align: left;
-      vertical-align: top;
-      color: rgba(226, 238, 255, 0.95);
+
+    .fpw-number-list__badge {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #02212a;
+      background: var(--fuel-cyan);
+      font-size: 0.78rem;
+      font-weight: 900;
     }
-    .fuelcalc-main th { background: rgba(18, 40, 69, 0.88); }
-    .fuelcalc-main td.num {
-      text-align: right;
-      font-family: Consolas, Menlo, Monaco, monospace;
+
+    .fpw-fuel-cta--midpage {
+      margin-top: 20px;
     }
-    .fuelcalc-main pre {
-      margin-top: 16px;
-      background: rgba(3, 11, 22, 0.95);
-      border: 1px solid rgba(73, 115, 175, 0.45);
-      color: #eef6ff;
-      padding: 12px;
-      border-radius: 6px;
-      overflow: auto;
-      font-size: 12px;
-      line-height: 1.45;
+
+    .fpw-info-card ul {
+      padding-left: 1.1rem;
     }
-    @media (max-width: 900px) {
-      .fuelcalc-main .grid,
-      .fuelcalc-main .cards {
-        grid-template-columns: 1fr;
-      }
-      .fuelcalc-main h1 { font-size: 30px; }
-      .fuelcalc-main .card .value { font-size: 34px; }
+
+    .fpw-faq-card {
+      display: grid;
+      gap: 8px;
     }
-    @media (max-width: 780px) {
-      .shell { width: min(calc(100% - 20px), 1200px); }
-      .topbar-inner { align-items: flex-start; flex-direction: column; }
-      .nav { width: 100%; justify-content: flex-start; }
+
+    .fpw-faq-card details {
+      border: 1px solid rgba(126, 205, 220, 0.18);
+      border-radius: 7px;
+      background: rgba(3, 13, 26, 0.48);
     }
-    @media (max-width: 560px) {
-      .promo-strip-copy { white-space: normal; }
-    }
-    footer {
-      padding: 0 0 27px;
-    }
-    .footer-card {
-      padding: 26px;
+
+    .fpw-faq-card summary {
+      min-height: 36px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      background: rgba(8,19,28,0.95);
+      gap: 12px;
+      padding: 0 12px;
+      color: rgba(238, 247, 251, 0.9);
+      cursor: pointer;
+      font-size: 0.84rem;
+      list-style: none;
     }
-    .footer-card p {
+
+    .fpw-faq-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .fpw-faq-card summary::after {
+      content: ">";
+      color: var(--fuel-cyan);
+    }
+
+    .fpw-faq-card details[open] summary::after {
+      transform: rotate(90deg);
+    }
+
+    .fpw-faq-card details p {
       margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    .footer-card .footer-copyright {
-      display: block;
-      margin-top: 6px;
-      color: var(--soft);
+      padding: 0 12px 12px;
       font-size: 0.84rem;
     }
-    .footer-links {
-      display: flex;
+
+    .fpw-dev-output {
+      margin-top: 24px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .fpw-dev-output summary {
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 18px;
+      color: rgba(238, 247, 251, 0.9);
+      cursor: pointer;
+      font-weight: 800;
+      list-style: none;
+    }
+
+    .fpw-dev-output summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .fpw-dev-output summary::after {
+      content: ">";
+      color: var(--fuel-cyan);
+      font-size: 1.1rem;
+      line-height: 1;
+      transition: transform 160ms ease;
+    }
+
+    .fpw-dev-output[open] summary::after {
+      transform: rotate(90deg);
+    }
+
+    .fpw-dev-output table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    .fpw-dev-output th,
+    .fpw-dev-output td {
+      border-top: 1px solid rgba(126, 205, 220, 0.16);
+      padding: 10px 12px;
+      color: rgba(226, 238, 255, 0.95);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .fpw-dev-output th {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .fpw-dev-output td.num {
+      text-align: right;
+      font-family: Consolas, Menlo, Monaco, monospace;
+    }
+
+    .fpw-dev-output pre {
+      margin: 0;
+      padding: 14px;
+      border-top: 1px solid rgba(126, 205, 220, 0.16);
+      color: #eef6ff;
+      background: rgba(2, 8, 17, 0.78);
+      overflow: auto;
+      font-size: 0.76rem;
+      line-height: 1.45;
+    }
+
+    .fpw-fuel-cta {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 28px;
+      align-items: center;
+      margin-top: 24px;
+      border-color: rgba(35, 215, 207, 0.62);
+      border-radius: 12px;
+      padding: 24px 36px;
+      background:
+        radial-gradient(circle at 10% 50%, rgba(35, 215, 207, 0.16), transparent 13rem),
+        radial-gradient(circle at 88% 48%, rgba(56, 189, 248, 0.12), transparent 15rem),
+        linear-gradient(180deg, rgba(4, 21, 36, 0.96), rgba(3, 12, 24, 0.98));
+    }
+
+    .fpw-fuel-cta__icon {
+      width: 74px;
+      height: 74px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(35, 215, 207, 0.42);
+      border-radius: 50%;
+      color: var(--fuel-cyan);
+      box-shadow: 0 0 24px rgba(35, 215, 207, 0.22);
+    }
+
+    .fpw-fuel-cta h2 {
+      margin: 0;
+      color: #ffffff;
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      line-height: 1.1;
+    }
+
+    .fpw-fuel-cta p {
+      margin: 8px 0 0;
+    }
+
+    .fpw-fuel-cta__button {
+      min-height: 52px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       gap: 12px;
-      flex-wrap: wrap;
-      color: var(--soft);
-      font-size: 0.9rem;
-      letter-spacing: 0.01em;
+      border: 1px solid rgba(127, 252, 246, 0.8);
+      border-radius: 8px;
+      padding: 0 32px;
+      color: #041421;
+      background: linear-gradient(135deg, #28f3e8, #0db7c9);
+      box-shadow: 0 0 28px rgba(33, 243, 238, 0.34);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .fpw-fuel-cta__small {
+      grid-column: 3;
+      margin: -12px 0 0;
+      color: #28f3e8;
+      text-align: center;
+      font-size: 0.86rem;
+      font-weight: 800;
+    }
+
+    @media (max-width: 1180px) {
+      .fpw-results-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .fpw-fuel-education {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .fpw-fuel-page {
+        width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+      }
+
+      .fuel-compact-hero {
+        grid-template-columns: 1fr;
+        min-height: 230px;
+        background-image:
+          linear-gradient(90deg, rgba(1, 12, 22, 0.98), rgba(1, 12, 22, 0.78)),
+          url("../assets/images/boat-fuel-calculator/Silent-voyage-on-calm-waters.png");
+        background-size: cover;
+        background-position: center right;
+      }
+
+      .fpw-compact-tool-hero__image {
+        display: none;
+      }
+
+      .fpw-compact-tool-hero__content {
+        padding: 30px 24px;
+      }
+
+      .fpw-why-grid,
+      .fpw-fuel-form {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-panel-heading {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-panel-heading::after {
+        grid-row: 2;
+      }
+
+      .fpw-panel-heading p {
+        grid-column: 1;
+        grid-row: auto;
+        white-space: normal;
+      }
+
+      .fpw-fuel-cta {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .fpw-fuel-cta__button,
+      .fpw-fuel-cta__small {
+        grid-column: 1 / -1;
+        justify-self: start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .fpw-fuel-page {
+        width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+        padding-top: 16px;
+      }
+
+      .fuel-compact-hero {
+        min-height: 220px;
+      }
+
+      .fpw-compact-tool-hero__content {
+        padding: 26px 20px;
+      }
+
+      .fpw-compact-tool-hero__eyebrow {
+        font-size: 0.74rem;
+        letter-spacing: 0.16em;
+      }
+
+      .fpw-compact-tool-hero h1 {
+        font-size: clamp(2.125rem, 9vw, 2.625rem);
+        line-height: 1;
+      }
+
+      .fpw-compact-tool-hero__intro {
+        margin-top: 12px;
+        font-size: 1rem;
+      }
+
+      .fpw-compact-tool-hero__accent {
+        margin-top: 14px;
+      }
+
+      .fpw-section-rule {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .fpw-section-rule span {
+        display: none;
+      }
+
+      .fpw-why-card {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-fuel-calculator-panel,
+      .fpw-info-card,
+      .fpw-fuel-cta {
+        padding: 20px;
+      }
+
+      .fpw-field {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .field-note {
+        grid-column: 1;
+      }
+
+      .calc-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-results-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-fuel-cta {
+        grid-template-columns: 1fr;
+        text-align: left;
+      }
+
+      .fpw-fuel-cta__button {
+        width: 100%;
+      }
     }
   </style>
+<link rel="stylesheet" href="../assets/css/layout.css?v=20260620-page-width">
+<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260630-mega-weight-minus1">
+<cfinclude template="../includes/trustedsite.cfm">
 </head>
 <body class="fuelcalc-page">
-  <header class="topbar">
-    <div class="promo-strip">
-      <div class="shell promo-strip-inner">
-        <p class="promo-strip-copy">Join prelaunch &mdash; get <strong>2 months of Premium free</strong></p>
+<cfset request.fpwTopNavActive = "fuel">
+<cfinclude template="../includes/top_nav.cfm">
+  <main class="fpw-fuel-page fuelcalc-main">
+    <section class="fpw-compact-tool-hero fuel-compact-hero" aria-labelledby="fuel-calculator-title">
+      <div class="fpw-compact-tool-hero__content">
+        <p class="fpw-compact-tool-hero__eyebrow">BOAT PLANNING TOOL</p>
+        <h1 id="fuel-calculator-title">Boat Fuel Calculator</h1>
+        <p class="fpw-compact-tool-hero__intro">
+          Estimate fuel needs, range, and reserve before your next boating trip.
+        </p>
+        <p class="fpw-compact-tool-hero__accent">Plan smarter. Leave with reserve.</p>
       </div>
-    </div>
-    <div class="shell topbar-inner">
-      <a href="/preLaunch.cfm#top" class="brand" aria-label="FloatPlanWizard home">
-        <div class="brand-mark"><i class="bi bi-compass-fill" aria-hidden="true"></i></div>
-        <div class="brand-copy">
-          <div class="brand-name">FloatPlanWizard</div>
-          <div class="brand-tag">Built for serious recreational boaters</div>
-        </div>
+      <div class="fpw-compact-tool-hero__image" aria-hidden="true"></div>
+    </section>
+
+    <section class="fpw-fuel-why" aria-labelledby="why-fuel-planning-title">
+      <div class="fpw-section-rule">
+        <span></span>
+        <h2 id="why-fuel-planning-title">Why Fuel Planning Matters</h2>
+        <span></span>
+      </div>
+
+      <div class="fpw-why-grid">
+        <article class="fpw-why-card">
+          <div class="fpw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M16 3 27 7v8c0 7-4.7 11.8-11 14-6.3-2.2-11-7-11-14V7z"></path>
+              <path d="m10.8 15.8 3.2 3.2 7.4-8"></path>
+            </svg>
+          </div>
+          <div>
+            <h3>Safety First</h3>
+            <p>Running out of fuel isn&rsquo;t an option. Plan ahead and stay in control.</p>
+          </div>
+        </article>
+
+        <article class="fpw-why-card">
+          <div class="fpw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M10 23H8a5 5 0 0 1 0-10 8 8 0 0 1 15.5-2A6 6 0 0 1 24 23h-2"></path>
+              <path d="m17 14-5 8h5l-2 6 6-10h-5z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3>Weather Changes Everything</h3>
+            <p>Wind, current, and sea state can significantly impact fuel burn.</p>
+          </div>
+        </article>
+
+        <article class="fpw-why-card">
+          <div class="fpw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M8 29V4h12a4 4 0 0 1 4 4v21"></path>
+              <path d="M8 13h16"></path>
+              <path d="M24 10h2l3 4v10a3 3 0 0 1-3 3h-2"></path>
+              <path d="M13 7h5"></path>
+            </svg>
+          </div>
+          <div>
+            <h3>Plan With Reserve</h3>
+            <p>Build in reserve so you have options when conditions or plans change.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="fpw-fuel-cta fpw-fuel-cta--midpage" aria-labelledby="fuel-midpage-cta-title">
+      <div class="fpw-fuel-cta__icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" focusable="false">
+          <circle cx="32" cy="32" r="22"></circle>
+          <path d="M32 8 40 32 32 56 24 32z"></path>
+          <path d="M32 20v24"></path>
+          <path d="M20 32h24"></path>
+        </svg>
+      </div>
+
+      <div>
+        <h2 id="fuel-midpage-cta-title">Fuel is only one part of the plan.</h2>
+        <p>Create a free float plan, organize your route, and share trip details before leaving the dock.</p>
+      </div>
+
+      <a class="fpw-cta fpw-cta-primary" href="../app/join.cfm">
+        <span>Create a Free Float Plan</span>
+        <span aria-hidden="true">&rarr;</span>
       </a>
-      <nav class="nav" aria-label="Primary">
-        <a href="/preLaunch.cfm#features">Features</a>
-        <a href="/preLaunch.cfm#great-loop">Great Loop</a>
-        <a href="/preLaunch.cfm#followers">Share the Trip</a>
-        <a href="/preLaunch.cfm#story">Why FPW</a>
-        <a href="/boat-fuel-calculator/boat-fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
-        <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
-      </nav>
-    </div>
-  </header>
-  <main class="fuelcalc-main">
-    <div class="wrap shell">
-      <h1>Boat Fuel Calculator</h1>
-     
+    </section>
 
-     <!--- <div class="msg info">
-        <strong>Notes</strong>
-        <ul>
-          <li>Manual only. No vessel lookup, route template, or saved FPW data is required.</li>
-          <li>Balanced pace uses <strong>Most Efficient Speed</strong> and <strong>GPH @ Efficient</strong> when supplied.</li>
-          <li>Relaxed and Aggressive use <strong>Fuel Burn @ Max</strong> and switch to the Route Generator anchored-burn model when both efficient anchors are present.</li>
-          <li>Lock and offshore counts are not calculated here because this standalone page has no route geometry input.</li>
-        </ul>
-      </div>--->
+    <section class="fpw-fuel-calculator-panel" aria-labelledby="fuel-planning-inputs-title">
+      <div class="fpw-panel-heading">
+        <h2 id="fuel-planning-inputs-title">Fuel Planning Inputs</h2>
+        <p>All units are standard for recreational boating</p>
+      </div>
 
-      <form id="qaFuelCalcForm" onsubmit="return false;">
-        <div class="grid">
-          <div class="field">
-            <label for="totalNm">Total distance (NM)</label>
-            <input id="totalNm" name="totalNm" type="number" step="0.1" min="0" value="" placeholder="Enter NM">
+      <form class="fpw-fuel-form" id="qaFuelCalcForm" onsubmit="return false;">
+        <div class="fpw-input-group">
+          <h3>Trip &amp; Speed</h3>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="totalNm">Total Distance (NM)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Total Distance" aria-expanded="false" aria-describedby="tip-totalNm" data-tooltip-target="tip-totalNm">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="totalNm" name="totalNm" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Enter nautical miles">
+              <em class="fpw-field__unit">NM</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-totalNm" role="tooltip">Total trip distance used to estimate total run time and fuel needed. Greater distance increases fuel use.</div>
           </div>
-          <div class="field">
-            <label for="pace">Pace</label>
-            <select id="pace" name="pace">
-              <option value="RELAXED">Relaxed</option>
-              <option value="BALANCED">Efficient Speed</option>
-              <option value="AGGRESSIVE">Max Speed</option>
-            </select>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="mostEfficientSpeedKn">Most Efficient Speed (kn)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Most Efficient Speed" aria-expanded="false" aria-describedby="tip-mostEfficientSpeedKn" data-tooltip-target="tip-mostEfficientSpeedKn">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="mostEfficientSpeedKn" name="mostEfficientSpeedKn" type="number" inputmode="decimal" step="0.1" min="1" max="60" value="" placeholder="Required" required aria-describedby="requiredEfficientInputsMsg">
+              <em class="fpw-field__unit">kn</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-mostEfficientSpeedKn" role="tooltip">The speed where your boat burns fuel most efficiently. Used when the selected pace favors efficiency.</div>
           </div>
-          <div class="field">
-            <label for="mostEfficientSpeedKn">Most Efficient Speed (kn)</label>
-            <input id="mostEfficientSpeedKn" name="mostEfficientSpeedKn" type="number" step="0.1" min="1" max="60" value="" placeholder="Required" required aria-describedby="requiredEfficientInputsMsg">
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="maxSpeedKn">Max Speed (kn)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Max Speed" aria-expanded="false" aria-describedby="tip-maxSpeedKn" data-tooltip-target="tip-maxSpeedKn">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="maxSpeedKn" name="maxSpeedKn" type="number" inputmode="decimal" step="0.1" min="1" max="60" value="" placeholder="Required" aria-describedby="requiredEfficientInputsMsg">
+              <em class="fpw-field__unit">kn</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-maxSpeedKn" role="tooltip">Your expected higher cruising speed. Used when pace or routing assumptions call for faster travel.</div>
           </div>
-          <div class="field">
-            <label for="fuelBurnEfficientGph">GPH @ Efficient</label>
-            <input id="fuelBurnEfficientGph" name="fuelBurnEfficientGph" type="number" step="0.1" min="0" value="" placeholder="Required" required aria-describedby="requiredEfficientInputsMsg">
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="idleBurnGph">Idle Burn (GPH)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Idle Burn" aria-expanded="false" aria-describedby="tip-idleBurnGph" data-tooltip-target="tip-idleBurnGph">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="idleBurnGph" name="idleBurnGph" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Optional">
+              <em class="fpw-field__unit">GPH</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-idleBurnGph" role="tooltip">Fuel burned while idling, maneuvering, or waiting. If entered, it is added into the trip estimate.</div>
           </div>
-          <div class="field">
-            <label for="maxSpeedKn">Max Speed (kn)</label>
-            <input id="maxSpeedKn" name="maxSpeedKn" type="number" step="0.1" min="1" max="60" value="" placeholder="Required" aria-describedby="requiredEfficientInputsMsg">
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="weatherPct">Weather Factor (%)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Weather Factor" aria-expanded="false" aria-describedby="tip-weatherPct" data-tooltip-target="tip-weatherPct">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="weatherPct" name="weatherPct" type="number" inputmode="decimal" step="1" min="0" max="60" value="0">
+              <em class="fpw-field__unit">%</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-weatherPct" role="tooltip">Adds a percentage buffer to account for extra burn from wind, waves, current, or rougher conditions.</div>
           </div>
-          <div class="field">
-            <label for="fuelBurnGph">Fuel Burn @ Max (GPH)</label>
-            <input id="fuelBurnGph" name="fuelBurnGph" type="number" step="0.1" min="0" value="" placeholder="Required for Relaxed or Max Speed" aria-describedby="requiredEfficientInputsMsg">
-            <div class="field-note">Matches the Route Generator max-speed burn input. Pace and weather adjustments are derived from this value unless Balanced pace uses the efficient inputs instead.</div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="underwayHoursPerDay">Underway Hrs / Day</label>
+              <button type="button" class="fpw-help" aria-label="More information about Underway Hrs / Day" aria-expanded="false" aria-describedby="tip-underwayHoursPerDay" data-tooltip-target="tip-underwayHoursPerDay">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="underwayHoursPerDay" name="underwayHoursPerDay" type="number" inputmode="decimal" step="0.5" min="1" max="24" value="6.5">
+              <em class="fpw-field__unit">hrs</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-underwayHoursPerDay" role="tooltip">Used to estimate how many travel days the trip may require based on your expected daily running time.</div>
           </div>
-          <div class="field">
-            <label for="idleBurnGph">Idle Burn (GPH)</label>
-            <input id="idleBurnGph" name="idleBurnGph" type="number" step="0.1" min="0" value="" placeholder="Optional">
-          </div>
-          <div class="field">
-            <label for="idleHoursTotal">Idle Hours (total)</label>
-            <input id="idleHoursTotal" name="idleHoursTotal" type="number" step="0.1" min="0" value="" placeholder="Optional">
-          </div>
-          <div class="field">
-            <label for="weatherPct">Weather Factor (%)</label>
-            <input id="weatherPct" name="weatherPct" type="number" step="1" min="0" max="60" value="0">
-          </div>
-          <div class="field">
-            <label for="reservePct">Reserve (%)</label>
-            <select id="reservePct" name="reservePct">
-              <option value="33" selected>Rule of Thirds - 33%</option>
-              <option value="20">Standard Reserve - 20%</option>
-              <option value="15">Minimum Reserve - 15%</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="underwayHoursPerDay">Underway Hrs / Day</label>
-            <input id="underwayHoursPerDay" name="underwayHoursPerDay" type="number" step="0.5" min="1" max="24" value="6.5">
-          </div>
-          <div class="field">
-            <label for="fuelPricePerGal">Fuel Price ($/gal)</label>
-            <input id="fuelPricePerGal" name="fuelPricePerGal" type="number" step="0.01" min="0" value="" placeholder="Optional">
+
+          <div class="calc-actions">
+            <button class="fpw-ghost-button" type="button" id="resetBtn">
+              <span aria-hidden="true">&olarr;</span>
+              Reset
+            </button>
+
+            <button class="fpw-ghost-button" type="button" id="copyJsonBtn">
+              <span aria-hidden="true">[]</span>
+              Copy Result JSON
+            </button>
           </div>
         </div>
 
-        <div class="calc-actions">
-          <button type="button" id="resetBtn">Reset</button>
-          <button type="button" id="copyJsonBtn">Copy Result JSON</button>
+        <div class="fpw-input-group">
+          <h3>Performance &amp; Consumption</h3>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="pace">Pace</label>
+              <button type="button" class="fpw-help" aria-label="More information about Pace" aria-expanded="false" aria-describedby="tip-pace" data-tooltip-target="tip-pace">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <select id="pace" name="pace">
+                <option value="RELAXED">Relaxed</option>
+                <option value="BALANCED">Efficient Speed</option>
+                <option value="AGGRESSIVE">Max Speed</option>
+              </select>
+            </span>
+            <div class="fpw-tooltip" id="tip-pace" role="tooltip">Changes whether the estimate leans more toward efficient-speed or max-speed consumption assumptions.</div>
+          </div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="fuelBurnEfficientGph">GPH @ Efficient</label>
+              <button type="button" class="fpw-help" aria-label="More information about GPH @ Efficient" aria-expanded="false" aria-describedby="tip-fuelBurnEfficientGph" data-tooltip-target="tip-fuelBurnEfficientGph">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="fuelBurnEfficientGph" name="fuelBurnEfficientGph" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Required" required aria-describedby="requiredEfficientInputsMsg">
+              <em class="fpw-field__unit">GPH</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-fuelBurnEfficientGph" role="tooltip">Fuel burned per hour at your most efficient speed. This directly affects fuel calculations for efficient pacing.</div>
+          </div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="fuelBurnGph">Fuel Burn @ Max (GPH)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Fuel Burn @ Max" aria-expanded="false" aria-describedby="tip-fuelBurnGph" data-tooltip-target="tip-fuelBurnGph">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="fuelBurnGph" name="fuelBurnGph" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Required for Relaxed or Max Speed" aria-describedby="requiredEfficientInputsMsg">
+              <em class="fpw-field__unit">GPH</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-fuelBurnGph" role="tooltip">Fuel burned per hour at higher cruising speed. This is used for relaxed or max-speed estimates.</div>
+            <div class="field-note">Matches the Route Generator max-speed burn input. Pace and weather adjustments are derived from this value unless Efficient Speed uses the efficient inputs instead.</div>
+          </div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="idleHoursTotal">Idle Hours</label>
+              <button type="button" class="fpw-help" aria-label="More information about Idle Hours" aria-expanded="false" aria-describedby="tip-idleHoursTotal" data-tooltip-target="tip-idleHoursTotal">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="idleHoursTotal" name="idleHoursTotal" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Optional">
+              <em class="fpw-field__unit">hrs</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-idleHoursTotal" role="tooltip">Optional extra hours of idling or slow maneuvering. Increases estimated fuel use.</div>
+          </div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="reservePct">Reserve (%)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Reserve" aria-expanded="false" aria-describedby="tip-reservePct" data-tooltip-target="tip-reservePct">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <select id="reservePct" name="reservePct">
+                <option value="33" selected>Rule of Thirds - 33%</option>
+                <option value="20">Standard Reserve - 20%</option>
+                <option value="15">Minimum Reserve - 15%</option>
+              </select>
+            </span>
+            <div class="fpw-tooltip" id="tip-reservePct" role="tooltip">Extra fuel held back as a safety margin. Rule of Thirds is commonly used for boating trip planning.</div>
+          </div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
+              <label for="fuelPricePerGal">Fuel Price ($/gal)</label>
+              <button type="button" class="fpw-help" aria-label="More information about Fuel Price" aria-expanded="false" aria-describedby="tip-fuelPricePerGal" data-tooltip-target="tip-fuelPricePerGal">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="fuelPricePerGal" name="fuelPricePerGal" type="number" inputmode="decimal" step="0.01" min="0" value="" placeholder="Optional">
+              <em class="fpw-field__unit">$/gal</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-fuelPricePerGal" role="tooltip">Used only to estimate fuel cost. It does not change the fuel burn calculation itself.</div>
+          </div>
+
+          <div class="fpw-fuel-note">
+            <span aria-hidden="true">i</span>
+            <p>Fuel planning is important because wind, current, sea state, idling, and speed changes all affect real-world fuel burn.</p>
+          </div>
         </div>
       </form>
 
       <div id="requiredEfficientInputsMsg" class="msg warn" hidden></div>
+    </section>
 
-      <div class="cards">
-        <div class="card">
-          <div class="label">Total Distance</div>
-          <div class="value" id="cardTotalDistance">0.0 NM</div>
-          <div class="sub" id="cardTotalDistanceSub">Manual distance input</div>
-        </div>
-        <div class="card">
-          <div class="label">Total Travel Hours</div>
-          <div class="value" id="cardTotalHours">-- h</div>
-          <div class="sub" id="cardTotalHoursSub">Enter distance and fuel inputs.</div>
-        </div>
-        <div class="card">
-          <div class="label">Estimated Fuel</div>
-          <div class="value" id="cardEstimatedFuel">-- gal</div>
-          <div class="sub" id="cardEstimatedFuelSub">Required + reserve</div>
-        </div>
-        <div class="card">
-          <div class="label">Adjusted Speed</div>
-          <div class="value" id="cardAdjustedSpeed">-- kn</div>
-          <div class="sub" id="cardAdjustedSpeedSub">Pace + weather adjusted</div>
-        </div>
-        <div class="card">
-          <div class="label">Expected Avg GPH</div>
-          <div class="value" id="cardExpectedAvgGph">-- GPH</div>
-          <div class="sub" id="cardExpectedAvgGphSub">Current pace + weather burn</div>
-        </div>
-        <div class="card">
-          <div class="label">Fuel Cost</div>
-          <div class="value" id="cardFuelCost">--</div>
-          <div class="sub" id="cardFuelCostSub">Enter fuel price to estimate</div>
-        </div>
+    <section class="fpw-results-section" aria-labelledby="estimated-results-title">
+      <div class="fpw-section-rule">
+        <span></span>
+        <h2 id="estimated-results-title">Estimated Results</h2>
+        <span></span>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Value</th>
-            <th>How computed</th>
-          </tr>
-        </thead>
-        <tbody id="calcBreakdownBody"></tbody>
-      </table>
+      <div class="fpw-results-grid cards">
+        <article class="card fpw-result-card">
+          <span class="fpw-result-card__icon" aria-hidden="true">~</span>
+          <h3 class="label">Total Distance</h3>
+          <strong class="value" id="cardTotalDistance">0.0 NM</strong>
+          <p class="sub" id="cardTotalDistanceSub">Manual distance input</p>
+        </article>
 
-      <pre id="calcJsonOut">{}</pre>
-    </div>
+        <article class="card fpw-result-card">
+          <span class="fpw-result-card__icon" aria-hidden="true">o</span>
+          <h3 class="label">Total Travel Hours</h3>
+          <strong class="value" id="cardTotalHours">-- h</strong>
+          <p class="sub" id="cardTotalHoursSub">Enter distance and inputs</p>
+        </article>
+
+        <article class="card fpw-result-card">
+          <span class="fpw-result-card__icon" aria-hidden="true">F</span>
+          <h3 class="label">Estimated Fuel</h3>
+          <strong class="value" id="cardEstimatedFuel">-- gal</strong>
+          <p class="sub" id="cardEstimatedFuelSub">Required + reserve</p>
+        </article>
+
+        <article class="card fpw-result-card">
+          <span class="fpw-result-card__icon" aria-hidden="true">kn</span>
+          <h3 class="label">Adjusted Speed</h3>
+          <strong class="value" id="cardAdjustedSpeed">-- kn</strong>
+          <p class="sub" id="cardAdjustedSpeedSub">Weather adjusted</p>
+        </article>
+
+        <article class="card fpw-result-card">
+          <span class="fpw-result-card__icon" aria-hidden="true">G</span>
+          <h3 class="label">Expected Avg GPH</h3>
+          <strong class="value" id="cardExpectedAvgGph">-- GPH</strong>
+          <p class="sub" id="cardExpectedAvgGphSub">Across all running time</p>
+        </article>
+
+        <article class="card fpw-result-card">
+          <span class="fpw-result-card__icon" aria-hidden="true">$</span>
+          <h3 class="label">Fuel Cost</h3>
+          <strong class="value" id="cardFuelCost">--</strong>
+          <p class="sub" id="cardFuelCostSub">Based on fuel price</p>
+        </article>
+      </div>
+
+      <details class="fpw-dev-output">
+        <summary>Calculation Breakdown and JSON</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Value</th>
+              <th>How computed</th>
+            </tr>
+          </thead>
+          <tbody id="calcBreakdownBody"></tbody>
+        </table>
+
+        <pre id="calcJsonOut" hidden></pre>
+      </details>
+    </section>
+
+    <section class="fpw-fuel-education" aria-label="Boat fuel planning information">
+      <article class="fpw-info-card">
+        <h2>How to Estimate Boat Fuel Usage</h2>
+        <div class="fpw-number-list" role="list">
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">1</span><span>Enter your trip distance and select a pace.</span></div>
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">2</span><span>Provide your boat&rsquo;s fuel burn at efficient speed.</span></div>
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">3</span><span>Adjust for weather, idling, and reserve.</span></div>
+          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">4</span><span>Review results and plan with confidence.</span></div>
+        </div>
+      </article>
+
+      <article class="fpw-info-card">
+        <h2>What Affects Boat Fuel Consumption?</h2>
+        <ul>
+          <li>Wind direction and strength</li>
+          <li>Current, tide, and water conditions</li>
+          <li>Boat load, gear, and sea state</li>
+          <li>Speed, throttle, and engine efficiency</li>
+          <li>Idling time and route deviations</li>
+        </ul>
+      </article>
+
+      <article class="fpw-info-card fpw-faq-card">
+        <h2>FAQ</h2>
+        <details>
+          <summary>How accurate is this calculator?</summary>
+          <p>It provides an estimate based on your inputs. Actual fuel use can vary with conditions, load, speed, and engine performance.</p>
+        </details>
+        <details>
+          <summary>What is a good reserve percentage?</summary>
+          <p>Many boaters plan with a meaningful reserve such as the rule of thirds, but the right reserve depends on the trip and conditions.</p>
+        </details>
+        <details>
+          <summary>Should I plan using max speed?</summary>
+          <p>For conservative planning, compare efficient cruise numbers with higher burn scenarios so you understand your margin.</p>
+        </details>
+        <details>
+          <summary>How does weather factor work?</summary>
+          <p>The weather factor increases estimated fuel use to account for wind, current, chop, and less efficient real-world operation.</p>
+        </details>
+      </article>
+    </section>
+
+    <section class="fpw-fuel-cta" aria-labelledby="fuel-cta-title">
+      <div class="fpw-fuel-cta__icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" focusable="false">
+          <circle cx="32" cy="32" r="22"></circle>
+          <path d="M32 8 40 32 32 56 24 32z"></path>
+          <path d="M8 32 32 24 56 32 32 40z"></path>
+        </svg>
+      </div>
+
+      <div>
+        <h2 id="fuel-cta-title">Plan more than fuel.</h2>
+        <p>Organize your route, float plan, and trusted-contact sharing with FloatPlanWizard.</p>
+      </div>
+
+      <a class="fpw-cta fpw-cta-primary" href="../app/join.cfm">
+        <span>Join For Free</span>
+        <span class="fpw-cta-arrow" aria-hidden="true">→</span>
+      </a>
+
+      <p class="fpw-fuel-cta__small">No credit card required.</p>
+    </section>
   </main>
 
-  <footer>
-    <div class="shell">
-      <div class="panel footer-card">
-        <p><strong>FloatPlanWizard</strong><br />Plan the voyage. Share the journey. Keep everyone informed.<br /><span class="footer-copyright">&copy; 2026 FloatPlanWizard. All rights reserved.</span></p>
-        <div class="footer-links">
-          <span>Launching Spring 2026</span>
-          <span>Built for Great Loopers and serious recreational boaters</span>
-        </div>
-      </div>
-    </div>
-  </footer>
+  <cfinclude template="../includes/footer.cfm">
+
+  <script>
+    (function () {
+      var helpButtons = document.querySelectorAll(".fpw-help");
+      if (!helpButtons.length) return;
+
+      function getTooltip(button) {
+        var id = button.getAttribute("data-tooltip-target");
+        return id ? document.getElementById(id) : null;
+      }
+
+      function hideTooltip(button) {
+        var tooltip = getTooltip(button);
+        if (!tooltip) return;
+
+        tooltip.classList.remove("is-visible");
+        button.setAttribute("aria-expanded", "false");
+        delete button.dataset.clickedOpen;
+      }
+
+      function hideAllTooltips(exceptButton) {
+        helpButtons.forEach(function (button) {
+          if (button !== exceptButton) {
+            hideTooltip(button);
+          }
+        });
+      }
+
+      function showTooltip(button) {
+        var tooltip = getTooltip(button);
+        if (!tooltip) return;
+
+        hideAllTooltips(button);
+        tooltip.classList.add("is-visible");
+        button.setAttribute("aria-expanded", "true");
+      }
+
+      helpButtons.forEach(function (button) {
+        button.addEventListener("pointerdown", function () {
+          button.dataset.pointerIntent = "true";
+          window.setTimeout(function () {
+            delete button.dataset.pointerIntent;
+          }, 350);
+        });
+
+        button.addEventListener("mouseleave", function () {
+          hideTooltip(button);
+        });
+
+        button.addEventListener("blur", function () {
+          hideTooltip(button);
+        });
+
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+
+          var tooltip = getTooltip(button);
+          var isOpen = tooltip && tooltip.classList.contains("is-visible");
+          var wasClickOpen = button.dataset.clickedOpen === "true";
+
+          if (isOpen && wasClickOpen) {
+            hideTooltip(button);
+            return;
+          }
+
+          hideAllTooltips(button);
+          showTooltip(button);
+          button.dataset.clickedOpen = "true";
+        });
+      });
+
+      document.addEventListener("click", function (event) {
+        var target = event.target;
+        if (!target || typeof target.closest !== "function") return;
+
+        if (!target.closest(".fpw-help") && !target.closest(".fpw-tooltip")) {
+          hideAllTooltips();
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          hideAllTooltips();
+        }
+      });
+    })();
+  </script>
 
   <script>
     (function () {
@@ -573,6 +1599,7 @@
         BALANCED: { key: "BALANCED", label: "Efficient Speed", factor: 0.50 },
         AGGRESSIVE: { key: "AGGRESSIVE", label: "Max Speed", factor: 1.00 }
       };
+      var hasValidFuelJson = false;
 
       function q(id) {
         return document.getElementById(id);
@@ -1061,7 +2088,20 @@
       }
 
       function renderJson(model) {
-        q("calcJsonOut").textContent = JSON.stringify({
+        var output = q("calcJsonOut");
+        var inputs = model.inputs || {};
+        var derived = model.derived || {};
+        var hasDistance = safeNum(inputs.distanceNm) !== null && inputs.distanceNm > 0;
+
+        hasValidFuelJson = !!derived.canEstimateFuel && hasDistance;
+        if (!hasValidFuelJson) {
+          output.textContent = "";
+          output.hidden = true;
+          return;
+        }
+
+        output.hidden = false;
+        output.textContent = JSON.stringify({
           route_generator_source_of_truth: {
             pace_formula: "routegenNormalizePace + routegenPaceDefaults + routegenComputeEffectiveCruisingSpeed",
             burn_formula: "calculateFuelEstimate + routegenAnchoredBurnGph",
@@ -1109,6 +2149,9 @@
       q("resetBtn").addEventListener("click", resetInputs);
       q("copyJsonBtn").addEventListener("click", function () {
         var text = q("calcJsonOut").textContent || "";
+        if (!hasValidFuelJson || !text) {
+          return;
+        }
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text);
         }
@@ -1136,6 +2179,6 @@
 
       resetInputs();
     })();
-  </script>
+</script>
 </body>
 </html>

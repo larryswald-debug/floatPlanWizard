@@ -838,9 +838,11 @@ component extends="testbox.system.BaseSpec" output="false" {
         DEPARTING_FROM = "Linked Dock",
         DEPARTURE_TIME = "2026-04-05T09:00",
         DEPARTURE_TIMEZONE = "US/Eastern",
+        DEPARTURE_TIME_UTC = "2026-04-05 13:00:00",
         RETURNING_TO = "Linked Dock",
         RETURN_TIME = "2026-04-05T18:00",
         RETURN_TIMEZONE = "US/Eastern",
+        RETURN_TIME_UTC = "2026-04-05 22:00:00",
         EMAIL = "linked@example.com",
         RESCUE_AUTHORITY = "USCG",
         RESCUE_AUTHORITY_PHONE = "5555551212"

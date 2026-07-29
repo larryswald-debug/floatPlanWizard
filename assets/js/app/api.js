@@ -4,14 +4,56 @@
 
   console.log("api.js loaded OK");
 
-  // Compute API base dynamically. If the app is served under a first
-  // path segment (e.g. "/fpw"), use that. Allow an explicit override
-  // via `window.FPW_API_BASE` for environments where detection fails.
+  function normalizeBasePath(value) {
+    if (!value) return "";
+    var normalized = String(value).replace(/\/+$/, "");
+    if (normalized === "/") return "";
+    if (/^https?:\/\//i.test(normalized)) return normalized;
+    return normalized.charAt(0) === "/" ? normalized : "/" + normalized;
+  }
+
+  function getScriptBasePath(fileName) {
+    var script = document.currentScript;
+    if (!script || !script.getAttribute) return "";
+
+    var src = script.getAttribute("src") || "";
+    if (!src) return "";
+
+    var anchor = document.createElement("a");
+    anchor.href = src;
+
+    var scriptPath = anchor.pathname || src;
+    var marker = "/assets/js/app/" + fileName;
+    var markerIndex = scriptPath.toLowerCase().indexOf(marker.toLowerCase());
+
+    if (markerIndex === -1) return "";
+    return normalizeBasePath(scriptPath.slice(0, markerIndex));
+  }
+
+  function getLocationBasePath() {
+    var basePath = window.location.pathname || "";
+    basePath = basePath.replace(/[?#].*$/, "");
+    basePath = basePath.replace(/\/api\/v1(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/(app|admin|assets|tests)(\/.*)?$/i, "");
+    basePath = basePath.replace(/\/[^/]*\.(cfm|cfc)$/i, "");
+    basePath = basePath.replace(/\/$/, "");
+    return normalizeBasePath(basePath);
+  }
+
+  // Compute API base dynamically. Prefer the server-provided base values,
+  // then derive the mount from this script path, then fall back to location.
   var API_BASE = (function () {
-    if (window.FPW_API_BASE) return window.FPW_API_BASE;
-    var firstSegment = (window.location.pathname.split('/')[1] || "");
-    var prefix = firstSegment ? "/" + firstSegment : "";
-    return prefix + "/api/v1";
+    var configuredApiBase = normalizeBasePath(window.FPW_API_BASE);
+    if (configuredApiBase) return configuredApiBase;
+
+    if (Object.prototype.hasOwnProperty.call(window, "FPW_BASE")) {
+      return normalizeBasePath(window.FPW_BASE) + "/api/v1";
+    }
+
+    var scriptBasePath = getScriptBasePath("api.js");
+    if (scriptBasePath) return scriptBasePath + "/api/v1";
+
+    return getLocationBasePath() + "/api/v1";
   })();
   var API_ROOT = API_BASE.replace(/\/v1$/, "");
 
@@ -109,6 +151,78 @@
       return request("/me.cfc?method=handle", { method: "GET" });
     },
 
+    getCurrentMemberAccess: function () {
+      return request("/me.cfc?method=handle", { method: "GET" });
+    },
+
+    createPremiumCheckoutSession: function (interval) {
+      var intervalValue = String(interval || "").trim().toLowerCase();
+      if (intervalValue !== "monthly" && intervalValue !== "yearly" && intervalValue !== "three_day_pass") {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "INVALID_PRICE_SELECTOR",
+          errorCode: "INVALID_PRICE_SELECTOR",
+          MESSAGE: "Choose monthly, yearly, or 3-Day Pass Premium billing.",
+          message: "Choose monthly, yearly, or 3-Day Pass Premium billing."
+        });
+      }
+      return request("/billing.cfc?method=handle&action=createcheckoutsession", {
+        method: "POST",
+        body: { interval: intervalValue }
+      });
+    },
+
+    createBillingPortalSession: function () {
+      return request("/billing.cfc?method=handle&action=createportal", {
+        method: "POST",
+        body: {}
+      });
+    },
+
+    validatePromoCode: function (code) {
+      var codeValue = String(code || "").trim();
+      if (!codeValue) {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "CODE_REQUIRED",
+          errorCode: "CODE_REQUIRED",
+          MESSAGE: "Enter a promo code.",
+          message: "Enter a promo code."
+        });
+      }
+      return request("/promo.cfc?method=handle&action=validate", {
+        method: "POST",
+        body: { code: codeValue }
+      });
+    },
+
+    redeemPromoCode: function (code) {
+      var codeValue = String(code || "").trim();
+      if (!codeValue) {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "CODE_REQUIRED",
+          errorCode: "CODE_REQUIRED",
+          MESSAGE: "Enter a promo code.",
+          message: "Enter a promo code."
+        });
+      }
+      return request("/promo.cfc?method=handle&action=redeem", {
+        method: "POST",
+        body: { code: codeValue }
+      });
+    },
+
+    startLaunchTrial: function () {
+      return request("/promo.cfc?method=handle&action=startlaunchtrial", {
+        method: "POST",
+        body: {}
+      });
+    },
+
     getFloatPlans: function (options) {
       return listGet("floatplans", options);
     },
@@ -122,6 +236,43 @@
       var path = "/floatplan.cfc?method=handle&action=bootstrap";
       path += "&id=" + encodeURIComponent(floatPlanId);
       return request(path, { method: "GET" });
+    },
+
+    suggestFloatPlanReturnTime: function (payload) {
+      return request("/floatplan.cfc?method=handle&action=suggestReturnTime", {
+        method: "POST",
+        body: payload || {}
+      });
+    },
+
+    getBasicFloatPlanDrafts: function () {
+      return request("/floatplan.cfc?method=handle&action=listbasicdrafts", { method: "GET" });
+    },
+
+    getBasicFloatPlanCurrent: function () {
+      return request("/floatplan.cfc?method=handle&action=getbasiccurrent", { method: "GET" });
+    },
+
+	    getBasicFloatPlanDraft: function (floatPlanId) {
+	      var id = parseInt(floatPlanId, 10);
+	      if (!(id > 0)) {
+        return Promise.reject({
+          MESSAGE: "Basic float plan draft id is required."
+        });
+      }
+	      return request("/floatplan.cfc?method=handle&action=getbasicdraft&id=" + encodeURIComponent(id), { method: "GET" });
+	    },
+
+	    getBasicRescueAuthorities: function () {
+	      return request("/floatplan.cfc?method=handle&action=getbasicrescueauthorities", { method: "GET" });
+	    },
+
+	    getBasicFloatPlanPdfDownloadUrl: function (floatPlanId) {
+      var id = parseInt(floatPlanId, 10);
+      if (!(id > 0)) {
+        return "";
+      }
+      return API_BASE + "/floatplan.cfc?method=handle&action=downloadbasicpdf&id=" + encodeURIComponent(id);
     },
 
     getVessels: function (options) {
@@ -234,11 +385,40 @@
       });
     },
 
+    saveBasicFloatPlan: function (payload) {
+      payload = payload || {};
+      payload.action = "savebasic";
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: payload
+      });
+    },
+
     sendFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",
         body: {
           action: "send",
+          floatPlanId: floatPlanId
+        }
+      });
+    },
+
+    sendBasicFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "sendbasic",
+          floatPlanId: floatPlanId
+        }
+      });
+    },
+
+    closeBasicFloatPlan: function (floatPlanId) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "closebasic",
           floatPlanId: floatPlanId
         }
       });
@@ -339,3 +519,4 @@
 
   console.log("Api methods:", Object.keys(window.Api));
 })();
+

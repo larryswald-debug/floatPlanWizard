@@ -1,0 +1,32 @@
+- generic [active] [ref=e1] [box=0,0,390,4950]:
+  - banner [ref=e2] [box=0,0,390,76]:
+    - generic [ref=e4] [box=14,0,362,74]:
+      - link "FloatPlanWizard home" [ref=e5] [cursor=pointer] [box=14,17,302,40]:
+        - /url: /fpw/index.cfm
+      - button "Toggle member menu" [ref=e22] [cursor=pointer] [box=330,14,46,46]
+  - main [ref=e24] [box=0,76,390,4874]:
+    - generic [ref=e27] [box=14,116,362,202]:
+      - heading "Membership Plans" [level=1] [ref=e28] [box=14,116,362,35]
+      - paragraph [ref=e29] [box=14,169,362,65]: Free for simple same-day trips. Premium for route-based planning, Active Cruise, Trip status pages, and mobile check-ins.
+      - paragraph [ref=e30] [box=14,248,362,71]: All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.
+    - region "Membership plans" [ref=e31] [box=14,347,362,2324]:
+      - article [ref=e32] [box=14,347,362,502]
+      - article [ref=e50] [box=14,867,362,565]
+      - article [ref=e72] [box=14,1450,362,582]
+      - article [ref=e95] [box=14,2050,362,621]
+    - generic [ref=e119] [box=14,2689,362,174]:
+      - strong [ref=e120] [box=39,2708,312,48]: All paid plans include the same Premium features.
+      - generic [ref=e121] [box=39,2772,312,72]: Premium Monthly and Annual renew automatically. Cancel anytime. The 3-Day Pass does not renew.
+    - generic [ref=e122] [box=14,2881,362,610]:
+      - generic [ref=e123] [box=15,2882,360,76]: All Premium plans include
+      - generic [ref=e124] [box=15,2958,360,76]
+      - generic [ref=e128] [box=15,3034,360,76]
+      - generic [ref=e132] [box=15,3110,360,76]
+      - generic [ref=e136] [box=15,3186,360,76]
+      - generic [ref=e140] [box=15,3262,360,76]
+      - generic [ref=e144] [box=15,3338,360,76]
+      - generic [ref=e148] [box=15,3414,360,76]
+    - generic [ref=e152] [box=14,3509,362,1441]:
+      - article [ref=e153] [box=14,3509,362,350]
+      - article [ref=e180] [box=14,3877,362,526]
+      - article [ref=e225] [box=14,4421,362,476]

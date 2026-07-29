@@ -1,0 +1,105 @@
+- generic [active] [ref=e1] [box=0,0,390,5080]:
+  - banner [ref=e2] [box=0,0,390,207]:
+    - link "FloatPlanWizard is now live. Start free. Premium available for advanced cruising tools." [ref=e4] [cursor=pointer] [box=0,1,390,44]:
+      - /url: /fpw/app/join.cfm
+      - generic [ref=e6] [box=34,7,340,33]:
+        - strong [ref=e7] [box=53,7,63,17]: Now Live
+        - text: — Start Free • Premium available for advanced cruising tools
+    - generic [ref=e9] [box=14,46,362,159]:
+      - link "FloatPlanWizard home" [ref=e10] [cursor=pointer] [box=14,66,362,57]:
+        - /url: /fpw/#top
+        - img [ref=e12] [box=14,66,34,34]
+        - generic [ref=e23] [box=62,66,314,57]
+      - generic [ref=e39] [box=14,139,362,46]:
+        - link "Start Free" [ref=e40] [cursor=pointer] [box=14,139,217,46]:
+          - /url: /fpw/app/join.cfm
+        - button "Login" [ref=e43] [cursor=pointer] [box=239,139,82,46]
+        - button "Toggle site menu" [ref=e46] [cursor=pointer] [box=330,139,46,46]
+  - region [box=0,-207,390,197]:
+    - generic [box=0,-207,390,196]:
+      - generic [box=0,-195,390,128]:
+        - generic [box=0,-195,390,38]
+        - generic [box=0,-149,390,38]
+        - button [box=0,-103,390,36]: Sign In
+      - link [box=0,-57,69,34]:
+        - /url: /fpw/app/forgot-password.cfm
+        - text: Forgot?
+  - main [ref=e57] [box=0,207,390,4874]:
+    - generic [ref=e60] [box=14,247,362,202]:
+      - heading "Membership Plans" [level=1] [ref=e61] [box=14,247,362,35]
+      - paragraph [ref=e62] [box=14,300,362,65]: Free for simple same-day trips. Premium for route-based planning, Active Cruise, Trip status pages, and mobile check-ins.
+      - paragraph [ref=e63] [box=14,379,362,71]: All paid plans include the same Premium features. Choose Monthly, Annual, or a 3-Day Pass based on how you boat.
+    - region "Membership plans" [ref=e64] [box=14,478,362,2324]:
+      - article [ref=e65] [box=14,478,362,502]:
+        - img [ref=e67] [box=53,517,28,28]
+        - heading "Free" [level=2] [ref=e69] [box=41,575,308,23]
+        - generic [ref=e70] [box=41,613,308,39]: $0
+        - paragraph [ref=e71] [box=41,665,308,22]: Basic Float Plan
+        - paragraph [ref=e72] [box=41,706,308,45]: For simple local same-day boating trips.
+        - list [ref=e73] [box=41,771,308,116]
+        - link "Create Free Account" [ref=e82] [cursor=pointer] [box=41,911,308,46]:
+          - /url: /fpw/app/join.cfm
+      - article [ref=e83] [box=14,998,362,565]:
+        - img [ref=e85] [box=53,1037,28,28]
+        - heading "Premium Monthly" [level=2] [ref=e87] [box=41,1095,308,23]
+        - generic [ref=e88] [box=41,1133,308,39]: $9.99 / month
+        - paragraph [ref=e89] [box=41,1185,308,22]: Cancel anytime
+        - paragraph [ref=e90] [box=41,1226,308,45]: For regular boating season use.
+        - list [ref=e91] [box=41,1291,308,179]
+        - button "Start Monthly Premium" [ref=e104] [cursor=pointer] [box=41,1494,308,46]
+      - article [ref=e105] [box=14,1581,362,582]:
+        - generic [ref=e106] [box=137,1568,116,33]: Best Value
+        - img [ref=e108] [box=53,1620,28,28]
+        - heading "Premium Annual" [level=2] [ref=e110] [box=41,1678,308,23]
+        - generic [ref=e111] [box=41,1715,308,39]: $89 / year
+        - paragraph [ref=e112] [box=41,1767,308,22]: Save about 25% vs monthly
+        - paragraph [ref=e113] [box=41,1808,308,62]: For frequent boaters who want Premium all year.
+        - list [ref=e114] [box=41,1891,308,179]
+        - button "Start Annual Premium" [ref=e127] [cursor=pointer] [box=41,2094,308,46]
+      - article [ref=e128] [box=14,2181,362,621]:
+        - img [ref=e130] [box=53,2220,28,28]
+        - heading "3-Day Pass" [level=2] [ref=e132] [box=41,2278,308,23]
+        - generic [ref=e133] [box=41,2315,308,39]: $4.99
+        - paragraph [ref=e134] [box=41,2367,141,30]: No subscription
+        - paragraph [ref=e135] [box=41,2416,308,62]: Full Premium access for a weekend or short trip.
+        - list [ref=e136] [box=41,2498,308,210]
+        - button "Get 3-Day Pass" [ref=e151] [cursor=pointer] [box=41,2733,308,46]
+    - generic [ref=e152] [box=14,2820,362,174]:
+      - strong [ref=e153] [box=39,2839,312,48]: All paid plans include the same Premium features.
+      - generic [ref=e154] [box=39,2903,312,72]: Premium Monthly and Annual renew automatically. Cancel anytime. The 3-Day Pass does not renew.
+    - generic [ref=e155] [box=14,3012,362,610]:
+      - generic [ref=e156] [box=15,3013,360,76]: All Premium plans include
+      - generic [ref=e157] [box=15,3089,360,76]:
+        - img [ref=e158] [box=33,3111,30,30]
+        - generic [ref=e160] [box=75,3110,84,33]
+      - generic [ref=e161] [box=15,3165,360,76]:
+        - img [ref=e162] [box=33,3187,30,30]
+        - generic [ref=e164] [box=75,3186,42,33]
+      - generic [ref=e165] [box=15,3241,360,76]:
+        - img [ref=e166] [box=33,3263,30,30]
+        - generic [ref=e168] [box=75,3262,78,33]
+      - generic [ref=e169] [box=15,3317,360,76]:
+        - img [ref=e170] [box=33,3339,30,30]
+        - generic [ref=e172] [box=75,3338,74,33]
+      - generic [ref=e173] [box=15,3393,360,76]:
+        - img [ref=e174] [box=33,3415,30,30]
+        - generic [ref=e176] [box=75,3414,88,33]
+      - generic [ref=e177] [box=15,3469,360,76]:
+        - img [ref=e178] [box=33,3491,30,30]
+        - generic [ref=e180] [box=75,3490,70,33]
+      - generic [ref=e181] [box=15,3545,360,76]:
+        - img [ref=e182] [box=33,3567,30,30]
+        - generic [ref=e184] [box=75,3566,91,33]
+    - generic [ref=e185] [box=14,3640,362,1441]:
+      - article [ref=e186] [box=14,3640,362,350]:
+        - heading "Premium includes" [level=2] [ref=e187] [box=39,3663,312,21]
+        - list [ref=e188] [box=39,3699,312,268]
+      - article [ref=e213] [box=14,4008,362,526]:
+        - heading "Free vs Premium" [level=2] [ref=e214] [box=39,4031,312,21]
+        - table [ref=e215] [box=39,4068,312,443]
+      - article [ref=e258] [box=14,4552,362,476]:
+        - heading "FAQ" [level=2] [ref=e259] [box=39,4575,312,21]
+        - group [ref=e260] [box=39,4612,312,178]
+        - group [ref=e263] [box=39,4799,312,78]
+        - group [ref=e265] [box=39,4887,312,54]
+        - group [ref=e267] [box=39,4951,312,54]

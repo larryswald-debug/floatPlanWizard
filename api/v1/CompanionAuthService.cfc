@@ -546,11 +546,19 @@
     <cfargument name="length" type="numeric" required="true">
     <cfargument name="alphabet" type="string" required="true">
     <cfscript>
-      var rng = createObject("java", "java.security.SecureRandom").init();
       var output = "";
       var i = 0;
+      var digest = "";
+      var pair = "";
+      var indexValue = 0;
       for (i = 1; i LTE arguments.length; i++) {
-        output &= mid(arguments.alphabet, rng.nextInt(len(arguments.alphabet)) + 1, 1);
+        if (len(digest) LT 2) {
+          digest &= hash(createUUID() & now() & randRange(1, 999999999), "SHA-256");
+        }
+        pair = left(digest, 2);
+        digest = mid(digest, 3, len(digest) - 2);
+        indexValue = inputBaseN(pair, 16) MOD len(arguments.alphabet);
+        output &= mid(arguments.alphabet, indexValue + 1, 1);
       }
       return output;
     </cfscript>

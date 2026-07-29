@@ -4,10 +4,6 @@
          INIT
          ============================== --->
     <cffunction name="init" access="public" returntype="any" output="true">
-        <cfset variables.timeZoneClass  = createObject("java", "java.util.TimeZone")>
-        <cfset variables.calendarClass  = createObject("java", "java.util.Calendar")>
-        <cfset variables.dateClass      = createObject("java", "java.util.Date")>
-
         <cfreturn this>
     </cffunction>
 
@@ -261,29 +257,12 @@
     <cfsetting enablecfoutputonly="true" showdebugoutput="false">
     <cfcontent type="text/plain; charset=utf-8">
 
-    <cfset var tzLocal  = createObject("java","java.util.TimeZone").getTimeZone(arguments.timeZone)>
-    <cfset var tzUTC    = createObject("java","java.util.TimeZone").getTimeZone("UTC")>
-    <cfset var calUTC   = createObject("java","java.util.Calendar").getInstance(tzUTC)>
-    <cfset var sdf      = createObject("java","java.text.SimpleDateFormat").init("yyyy-MM-dd HH:mm:ss")>
     <cfset var parsed   = 0>
-    <cfset var millis   = 0>
-    <cfset var jDate    = 0>
     <cfset var result   = "">
 
     <cftry>
-        <!--- Parse the incoming string to a CF date/time --->
         <cfset parsed = parseDateTime(arguments.utcTime)>
-
-        <!--- Convert CF date/time into a Java instant (millis) using a UTC calendar --->
-        <cfset calUTC.setTime(parsed)>
-        <cfset millis = calUTC.getTimeInMillis()>
-
-        <!--- Build a real java.util.Date from millis --->
-        <cfset jDate = createObject("java","java.util.Date").init(millis)>
-
-        <!--- Format that instant in the requested LOCAL timezone --->
-        <cfset sdf.setTimeZone(tzLocal)>
-        <cfset result = sdf.format(jDate)>
+        <cfset result = dateTimeFormat(parsed, "yyyy-mm-dd HH:nn:ss", arguments.timeZone)>
 
         <cfoutput>#result#</cfoutput>
         <cfreturn result>

@@ -95,7 +95,9 @@ Manual test steps:
       method: "POST",
       credentials: "same-origin",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-CSRF-Token": window.FPW_ADMIN_CSRF_TOKEN || ""
       },
       body: JSON.stringify(body)
     })
@@ -456,3 +458,4 @@ Manual test steps:
     init();
   }
 })(window, document);
+

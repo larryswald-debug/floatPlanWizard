@@ -4,8 +4,92 @@
 
   var BASE_PATH = window.FPW_BASE || "";
   var API_BASE = window.FPW_API_BASE || (BASE_PATH + "/api/v1");
+  var LAUNCH_TRIAL_PATH = BASE_PATH + "/app/start-trial.cfm?offer=launch_trial";
+  var PHONE_ERROR_MESSAGE = "Please enter a valid US phone number or leave the phone field blank.";
 
   function $(id) { return document.getElementById(id); }
+
+  function formatUsPhoneDigits(digits) {
+    digits = String(digits || "").slice(0, 10);
+    if (!digits.length) return "";
+    if (digits.length <= 3) return "(" + digits;
+    if (digits.length <= 6) return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  }
+
+  function getUsPhoneDigits(value, rawDigitsOverride) {
+    var hasRawOverride = rawDigitsOverride !== undefined && String(rawDigitsOverride || "").length;
+    var digits = hasRawOverride
+      ? String(rawDigitsOverride || "").replace(/\D/g, "")
+      : String(value || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return digits;
+  }
+
+  function normalizeOptionalUsPhone(value, rawDigitsOverride) {
+    var rawValue = String(value || "").trim();
+    var hasRawOverride = rawDigitsOverride !== undefined && String(rawDigitsOverride || "").length;
+    var rawDigits = hasRawOverride ? String(rawDigitsOverride || "").replace(/\D/g, "") : "";
+    var digits = getUsPhoneDigits(rawValue, rawDigitsOverride);
+
+    if (!rawValue.length && !rawDigits.length) {
+      return { valid: true, value: "" };
+    }
+    if (digits.length !== 10) {
+      return { valid: false, value: "" };
+    }
+    if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(digits)) {
+      return { valid: false, value: "" };
+    }
+    return { valid: true, value: formatUsPhoneDigits(digits) };
+  }
+
+  function formatUsPhoneInputValue(value) {
+    var digits = String(value || "").replace(/\D/g, "");
+    if (digits.length > 10 && digits.charAt(0) === "1") {
+      digits = digits.slice(1);
+    }
+    return formatUsPhoneDigits(digits);
+  }
+
+  function setPhoneFieldError(inputEl, errorEl, message) {
+    if (inputEl) {
+      inputEl.classList.add("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = message || "";
+    }
+  }
+
+  function clearPhoneFieldError(inputEl, errorEl) {
+    if (inputEl) {
+      inputEl.classList.remove("is-invalid");
+    }
+    if (errorEl) {
+      errorEl.textContent = "";
+    }
+  }
+
+  function bindOptionalUsPhoneInput(inputEl, errorEl) {
+    if (!inputEl) return;
+    inputEl.addEventListener("input", function () {
+      inputEl.dataset.phoneRawDigits = String(inputEl.value || "").replace(/\D/g, "");
+      inputEl.value = formatUsPhoneInputValue(inputEl.value);
+      if (!inputEl.value || normalizeOptionalUsPhone(inputEl.value, inputEl.dataset.phoneRawDigits).valid) {
+        clearPhoneFieldError(inputEl, errorEl);
+      }
+    });
+    inputEl.addEventListener("blur", function () {
+      var normalized = normalizeOptionalUsPhone(inputEl.value, inputEl.dataset.phoneRawDigits || "");
+      if (normalized.valid) {
+        inputEl.value = normalized.value;
+        inputEl.dataset.phoneRawDigits = "";
+        clearPhoneFieldError(inputEl, errorEl);
+      }
+    });
+  }
 
   function pick(obj, keys, fallback) {
     for (var i = 0; i < keys.length; i++) {
@@ -122,6 +206,393 @@
     populateHomePort(home);
   }
 
+  function getAccessFromPayload(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    if (payload.ACCESS && typeof payload.ACCESS === "object") return payload.ACCESS;
+    if (payload.access && typeof payload.access === "object") return payload.access;
+    return null;
+  }
+
+  function hasPremiumAccess(access) {
+    var value = access && Object.prototype.hasOwnProperty.call(access, "hasPremium")
+      ? access.hasPremium
+      : (access && Object.prototype.hasOwnProperty.call(access, "HASPREMIUM") ? access.HASPREMIUM : false);
+    if (value === true || value === 1) return true;
+    return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
+  }
+
+  function getPremiumSource(access) {
+    return String(pick(access, ["premiumSource", "PREMIUMSOURCE", "source", "SOURCE"], "") || "").trim().toLowerCase();
+  }
+
+  function getPremiumSources(access) {
+    var sources = access && (access.premiumSources || access.PREMIUMSOURCES);
+    if (!Array.isArray(sources)) return [];
+    return sources.map(function (source) {
+      return String(source || "").trim().toLowerCase();
+    }).filter(function (source) {
+      return !!source;
+    });
+  }
+
+  function hasStripeBilling(access) {
+    var value = access && Object.prototype.hasOwnProperty.call(access, "hasStripeBilling")
+      ? access.hasStripeBilling
+      : (access && Object.prototype.hasOwnProperty.call(access, "HASSTRIPEBILLING") ? access.HASSTRIPEBILLING : false);
+    if (value === true || value === 1) return true;
+    return String(value).trim().toLowerCase() === "true" || String(value).trim() === "1";
+  }
+
+  function setBillingStatus(label, statusKey) {
+    var el = $("membershipBillingStatus");
+    if (!el) return;
+    el.textContent = label || "Unknown";
+    el.className = "membership-status-badge membership-status-" + (statusKey || "unknown");
+  }
+
+  function showBillingMessage(message, tone) {
+    var el = $("membershipBillingMessage");
+    if (!el) return;
+    el.textContent = message || "";
+    el.classList.remove("membership-message-error", "membership-message-success");
+    if (tone === "error" || tone === "danger") el.classList.add("membership-message-error");
+    if (tone === "success") el.classList.add("membership-message-success");
+  }
+
+  function showPromoMessage(message, tone) {
+    var el = $("promoCodeMessage");
+    if (!el) return;
+    el.textContent = message || "";
+    el.classList.remove("promo-message-error", "promo-message-success");
+    if (tone === "error" || tone === "danger") el.classList.add("promo-message-error");
+    if (tone === "success") el.classList.add("promo-message-success");
+  }
+
+  function setBillingActionsBusy(isBusy) {
+    var buttons = document.querySelectorAll("[data-membership-upgrade], #membershipManageBillingBtn");
+    Array.prototype.forEach.call(buttons, function (button) {
+      button.disabled = !!isBusy;
+      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+    });
+  }
+
+  function setPromoBusy(isBusy) {
+    var input = $("promoCodeInput");
+    var button = $("promoCodeRedeemBtn");
+    if (input) input.disabled = !!isBusy;
+    if (button) {
+      button.disabled = !!isBusy;
+      button.setAttribute("aria-disabled", isBusy ? "true" : "false");
+      button.textContent = isBusy ? "Redeeming..." : "Redeem Code";
+    }
+  }
+
+  function renderMembershipBilling(access) {
+    var summary = $("membershipBillingSummary");
+    var upgradeActions = $("membershipUpgradeActions");
+    var portalActions = $("membershipPortalActions");
+    var hasPremium = hasPremiumAccess(access);
+    var premiumSource = getPremiumSource(access);
+    var premiumSources = getPremiumSources(access);
+    var hasStripeBillingMapping = hasStripeBilling(access) || premiumSources.indexOf("stripe_subscription") !== -1;
+
+    if (upgradeActions) upgradeActions.classList.add("d-none");
+    if (portalActions) portalActions.classList.add("d-none");
+    showBillingMessage("", "info");
+
+    if (!access) {
+      setBillingStatus("Unavailable", "unknown");
+      if (summary) summary.textContent = "Membership status is unavailable.";
+      return;
+    }
+
+    if (!hasPremium) {
+      setBillingStatus("Basic", "basic");
+      if (summary) summary.textContent = "Upgrade to Premium for saved routes, multi-day trips, Active Cruise, Follow Page sharing, and advanced monitoring.";
+      if (upgradeActions) upgradeActions.classList.remove("d-none");
+      return;
+    }
+
+    setBillingStatus("Premium", "premium");
+    if (premiumSource === "founder_lifetime") {
+      if (summary) {
+        summary.textContent = hasStripeBillingMapping
+          ? "Founders Lifetime Premium is active. If you also have Stripe billing, manage billing separately through Stripe."
+          : "Founders Lifetime Premium is active.";
+      }
+      if (portalActions && hasStripeBillingMapping) portalActions.classList.remove("d-none");
+      return;
+    }
+
+    if (premiumSource === "stripe_subscription") {
+      if (summary) summary.textContent = "Premium access is active through a Stripe subscription.";
+      if (portalActions) portalActions.classList.remove("d-none");
+      return;
+    }
+
+    if (summary) summary.textContent = "Premium access is active. Stripe billing management is not available for this membership source.";
+  }
+
+  function getCheckoutUrl(payload) {
+    return payload && (payload.checkoutUrl || payload.CHECKOUT_URL)
+      ? String(payload.checkoutUrl || payload.CHECKOUT_URL)
+      : "";
+  }
+
+  function getPortalUrl(payload) {
+    return payload && (payload.portalUrl || payload.PORTAL_URL)
+      ? String(payload.portalUrl || payload.PORTAL_URL)
+      : "";
+  }
+
+  function getErrorCode(error) {
+    if (error && typeof error.ERROR === "string") return String(error.ERROR);
+    if (error && typeof error.errorCode === "string") return String(error.errorCode);
+    if (error && error.ERROR && error.ERROR.CODE) return String(error.ERROR.CODE);
+    return "";
+  }
+
+  async function loadMembershipBilling() {
+    if (!$("membershipBillingCard")) return null;
+
+    try {
+      var data = window.Api && typeof window.Api.getCurrentMemberAccess === "function"
+        ? await window.Api.getCurrentMemberAccess()
+        : await fetchJson(API_BASE + "/me.cfc?method=handle", { method: "GET" });
+
+      if (!ensureAuth(data)) {
+        return null;
+      }
+      if (!data || (data.SUCCESS !== true && data.success !== true)) {
+        throw data || { MESSAGE: "Unable to load membership status." };
+      }
+
+      var access = getAccessFromPayload(data);
+      renderMembershipBilling(access);
+      return access;
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return null;
+      }
+      setBillingStatus("Unavailable", "unknown");
+      setText("membershipBillingSummary", "Membership status is unavailable.");
+      showBillingMessage("Unable to load membership status.", "error");
+      return null;
+    }
+  }
+
+  function isStripeCheckoutReturn() {
+    var search = window.location.search || "";
+    if (!search) return false;
+
+    try {
+      var params = new URLSearchParams(search);
+      var stripeValue = String(params.get("stripe") || "").trim().toLowerCase();
+      var stripeCheckoutValue = String(params.get("stripe_checkout") || "").trim().toLowerCase();
+      var checkoutValue = String(params.get("checkout") || "").trim().toLowerCase();
+      return stripeValue === "success" || stripeCheckoutValue === "success" || checkoutValue === "success";
+    } catch (err) {
+      return /(?:[?&](stripe|stripe_checkout|checkout)=success)(?:&|$)/i.test(search);
+    }
+  }
+
+  function refreshMembershipAfterStripeReturn(initialAccess) {
+    var delays = [1000, 2500, 5000, 8000];
+
+    if (!isStripeCheckoutReturn()) return;
+    if (hasPremiumAccess(initialAccess)) {
+      showBillingMessage("Premium access confirmed.", "success");
+      return;
+    }
+
+    showBillingMessage("Confirming Premium access...", "info");
+
+    function scheduleRefresh(index) {
+      if (index >= delays.length) {
+        showBillingMessage("Checkout completed. Premium access is still being confirmed. Refresh shortly.", "info");
+        return;
+      }
+
+      window.setTimeout(async function () {
+        var access = await loadMembershipBilling();
+        if (hasPremiumAccess(access)) {
+          showBillingMessage("Premium access confirmed.", "success");
+          return;
+        }
+        showBillingMessage("Confirming Premium access...", "info");
+        scheduleRefresh(index + 1);
+      }, delays[index]);
+    }
+
+    scheduleRefresh(0);
+  }
+
+  async function startPremiumUpgrade(interval, trigger) {
+    var originalText = trigger ? trigger.textContent : "";
+    var intervalValue = String(interval || "").trim().toLowerCase();
+    if (intervalValue !== "monthly" && intervalValue !== "yearly") {
+      showBillingMessage("Choose monthly or yearly Premium billing.", "error");
+      return;
+    }
+    if (!window.Api || typeof window.Api.createPremiumCheckoutSession !== "function") {
+      showBillingMessage("Premium checkout is not available right now.", "error");
+      return;
+    }
+
+    setBillingActionsBusy(true);
+    if (trigger) trigger.textContent = "Opening...";
+    showBillingMessage("Opening secure Stripe Checkout...", "info");
+
+    try {
+      var data = await window.Api.createPremiumCheckoutSession(intervalValue);
+      var checkoutUrl = getCheckoutUrl(data);
+      if (!data || (data.SUCCESS !== true && data.success !== true) || !checkoutUrl) {
+        throw data || { MESSAGE: "Premium checkout is not available right now." };
+      }
+      if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+        window.FPWAnalytics.track("begin_checkout", {
+          checkout_type: intervalValue,
+          source: "account_page"
+        });
+      }
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      var code = getErrorCode(err).toUpperCase();
+      if (code === "ALREADY_PREMIUM") {
+        showBillingMessage("Your account already has Premium access.", "success");
+        await loadMembershipBilling();
+      } else if (code === "STRIPE_CONFIG_MISSING") {
+        showBillingMessage("Premium checkout is not available right now.", "error");
+      } else {
+        showBillingMessage((err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Premium checkout is not available right now.", "error");
+      }
+    } finally {
+      setBillingActionsBusy(false);
+      if (trigger) trigger.textContent = originalText || (intervalValue === "yearly" ? "Upgrade Yearly" : "Upgrade Monthly");
+    }
+  }
+
+  async function openBillingPortal(trigger) {
+    var originalText = trigger ? trigger.textContent : "";
+    if (!window.Api || typeof window.Api.createBillingPortalSession !== "function") {
+      showBillingMessage("Billing management is not available right now.", "error");
+      return;
+    }
+
+    setBillingActionsBusy(true);
+    if (trigger) trigger.textContent = "Opening...";
+    showBillingMessage("Opening Stripe-hosted billing management...", "info");
+
+    try {
+      var data = await window.Api.createBillingPortalSession();
+      var portalUrl = getPortalUrl(data);
+      if (!data || (data.SUCCESS !== true && data.success !== true) || !portalUrl) {
+        throw data || { MESSAGE: "Billing management is not available right now." };
+      }
+      window.location.href = portalUrl;
+    } catch (err) {
+      var code = getErrorCode(err).toUpperCase();
+      if (code === "NO_BILLING_CUSTOMER") {
+        showBillingMessage("Billing management is not available for this account yet.", "error");
+      } else if (code === "STRIPE_CONFIG_MISSING") {
+        showBillingMessage("Billing management is not available right now.", "error");
+      } else {
+        showBillingMessage((err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Billing management is not available right now.", "error");
+      }
+    } finally {
+      setBillingActionsBusy(false);
+      if (trigger) trigger.textContent = originalText || "Manage Billing";
+    }
+  }
+
+  function promoMessageForError(err) {
+    var code = getErrorCode(err).toUpperCase();
+    if (code === "CODE_REQUIRED") return "Enter a promo code.";
+    if (code === "CODE_NOT_FOUND") return "Promo code was not recognized.";
+    if (code === "CODE_DISABLED") return "Promo code is not active.";
+    if (code === "CODE_NOT_STARTED") return "Promo code is not active yet.";
+    if (code === "CODE_EXPIRED") return "Promo code has expired.";
+    if (code === "CODE_ALREADY_REDEEMED") return "Promo code has already been used for this account.";
+    if (code === "CODE_MAX_REDEMPTIONS_REACHED") return "Promo code has reached its redemption limit.";
+    if (code === "FREE_TRIAL_ALREADY_USED") return "A free trial has already been used for this account.";
+    if (code === "INVALID_TRIAL_DURATION") return "Free trial duration is not supported.";
+    if (code === "PROMO_TYPE_NOT_SUPPORTED") return "Promo code type is not supported.";
+    if (code === "STRIPE_CONFIG_MISSING") return "Trial checkout is not available right now.";
+    if (code === "STRIPE_CHECKOUT_FAILED") return "Trial checkout could not be started.";
+    return (err && (err.MESSAGE || err.message)) ? (err.MESSAGE || err.message) : "Promo code could not be redeemed.";
+  }
+
+  async function redeemPromoCode(evt) {
+    evt.preventDefault();
+
+    var input = $("promoCodeInput");
+    var code = input ? String(input.value || "").trim() : "";
+    if (!code) {
+      showPromoMessage("Enter a promo code.", "error");
+      return;
+    }
+    if (!window.Api || typeof window.Api.redeemPromoCode !== "function") {
+      showPromoMessage("Promo code redemption is not available right now.", "error");
+      return;
+    }
+
+    setPromoBusy(true);
+    showPromoMessage("Checking code...", "info");
+
+    try {
+      var data = await window.Api.redeemPromoCode(code);
+      var nextAction = String((data && (data.nextAction || data.NEXTACTION)) || "").trim().toLowerCase();
+      var promoType = String((data && (data.promoType || data.PROMOTYPE)) || "").trim().toLowerCase();
+
+      if (!data || (data.SUCCESS !== true && data.success !== true)) {
+        throw data || { MESSAGE: "Promo code could not be redeemed." };
+      }
+
+      if (nextAction === "stripe_trial_checkout") {
+        var checkoutUrl = String((data && (data.checkoutUrl || data.CHECKOUT_URL)) || "").trim();
+        if (!checkoutUrl) {
+          showPromoMessage("Trial checkout could not be started.", "error");
+          return;
+        }
+        showPromoMessage("Opening secure Stripe Checkout...", "success");
+        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+          window.FPWAnalytics.track("begin_checkout", {
+            checkout_type: "stripe_trial",
+            promo_type: promoType || "unknown",
+            source: "promo_code"
+          });
+        }
+        window.location.href = checkoutUrl;
+        return;
+      }
+
+      if (nextAction === "stripe_checkout_required" || promoType === "stripe_free_months") {
+        showPromoMessage("Launch trial code recognized. Redeem to start cardless checkout.", "success");
+        return;
+      }
+
+      if (promoType === "founder_lifetime" || nextAction === "founder_lifetime_redeemed") {
+        if (input) input.value = "";
+        showPromoMessage("Founders Lifetime Premium has been added to your account.", "success");
+        await loadMembershipBilling();
+        return;
+      }
+
+      showPromoMessage((data.MESSAGE || data.message) || "Promo code redeemed.", "success");
+      await loadMembershipBilling();
+    } catch (err) {
+      if (handleAuthError(err)) {
+        return;
+      }
+      showPromoMessage(promoMessageForError(err), "error");
+    } finally {
+      setPromoBusy(false);
+    }
+  }
+
   async function fetchJson(url, options) {
     options = options || {};
     options.credentials = "include";
@@ -169,12 +640,27 @@
   async function saveProfile(evt) {
     evt.preventDefault();
 
+    var mobilePhoneEl = $("mobilePhone");
+    var mobilePhoneErrorEl = $("mobilePhoneError");
+    var mobilePhoneResult = normalizeOptionalUsPhone(
+      mobilePhoneEl ? mobilePhoneEl.value : "",
+      mobilePhoneEl ? (mobilePhoneEl.dataset.phoneRawDigits || "") : ""
+    );
+    if (!mobilePhoneResult.valid) {
+      setPhoneFieldError(mobilePhoneEl, mobilePhoneErrorEl, PHONE_ERROR_MESSAGE);
+      if (mobilePhoneEl) mobilePhoneEl.focus();
+      return;
+    }
+    if (mobilePhoneEl) {
+      mobilePhoneEl.value = mobilePhoneResult.value;
+    }
+
     var payload = {
       action: "update",
       // send camelCase; server currently accepts both and writes to fName/lName/mobilePhone
       fName: ($("fName").value || "").trim(),
       lName: ($("lName").value || "").trim(),
-      mobilePhone: ($("mobilePhone").value || "").trim()
+      mobilePhone: mobilePhoneResult.value
     };
 
     var btn = $("saveProfileBtn");
@@ -268,13 +754,25 @@
   async function saveHomePort(evt) {
     evt.preventDefault();
 
+    var homePhoneEl = $("homePhone");
+    var homePhoneErrorEl = $("homePhoneError");
+    var homePhoneResult = normalizeOptionalUsPhone(homePhoneEl ? homePhoneEl.value : "");
+    if (!homePhoneResult.valid) {
+      setPhoneFieldError(homePhoneEl, homePhoneErrorEl, PHONE_ERROR_MESSAGE);
+      if (homePhoneEl) homePhoneEl.focus();
+      return;
+    }
+    if (homePhoneEl) {
+      homePhoneEl.value = homePhoneResult.value;
+    }
+
     var payload = {
       action: "save",
       address: ($("homeAddress").value || "").trim(),
       city: ($("homeCity").value || "").trim(),
       state: ($("homeState").value || "").trim(),
       zip: ($("homeZip").value || "").trim(),
-      phone: ($("homePhone").value || "").trim(),
+      phone: homePhoneResult.value,
       lat: ($("homeLat").value || "").trim(),
       lng: ($("homeLng").value || "").trim()
     };
@@ -542,6 +1040,9 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    bindOptionalUsPhoneInput($("mobilePhone"), $("mobilePhoneError"));
+    bindOptionalUsPhoneInput($("homePhone"), $("homePhoneError"));
+
     var profileForm = $("profileForm");
     if (profileForm) profileForm.addEventListener("submit", saveProfile);
 
@@ -563,11 +1064,28 @@
     var companionCopyBtn = $("copyCompanionPairingCodeBtn");
     if (companionCopyBtn) companionCopyBtn.addEventListener("click", copyCompanionPairingCode);
 
+    var upgradeButtons = document.querySelectorAll("[data-membership-upgrade]");
+    Array.prototype.forEach.call(upgradeButtons, function (button) {
+      button.addEventListener("click", function () {
+        startPremiumUpgrade(button.getAttribute("data-membership-upgrade") || "", button);
+      });
+    });
+
+    var manageBillingBtn = $("membershipManageBillingBtn");
+    if (manageBillingBtn) manageBillingBtn.addEventListener("click", function () {
+      openBillingPortal(manageBillingBtn);
+    });
+
+    var promoCodeForm = $("promoCodeForm");
+    if (promoCodeForm) promoCodeForm.addEventListener("submit", redeemPromoCode);
+
     var logoutBtn = $("logoutButton");
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
     loadProfile();
+    loadMembershipBilling().then(refreshMembershipAfterStripeReturn);
     loadCompanionDevices();
   });
 
 })(window, document);
+

@@ -1,0 +1,484 @@
+- generic [ref=f51e374] [box=323,2266,735,1042]:
+  - generic [ref=f51e375] [box=323,2266,414,899]:
+    - generic [ref=f51e376] [box=342,2285,376,20]:
+      - heading "Route Timeline" [level=3] [ref=f51e377] [box=342,2285,111,20]
+      - generic [ref=f51e378] [box=653,2285,66,19]: 56 legs
+    - generic [ref=f51e379] [box=342,2317,376,71]:
+      - generic [ref=f51e380] [box=357,2332,346,19]: Scheduled Departure
+      - strong [ref=f51e381] [box=357,2356,346,16]: June 11, 2026 22:53 US/Eastern
+    - generic [ref=f51e382] [box=342,2399,376,747]:
+      - button "Select route leg Chicago to Joliet" [ref=f51e383] [cursor=pointer] [box=342,2399,372,86]:
+        - generic [ref=f51e384] [box=343,2400,370,84]:
+          - generic [ref=f51e386] [box=385,2414,111,56]:
+            - text: COMPLETED
+            - generic [ref=f51e387] [box=385,2433,111,16]: Chicago to Joliet
+            - generic [ref=f51e388] [box=385,2452,111,19]: 25.0 nm
+          - generic [ref=f51e390] [box=508,2433,192,19]: June 12, 2026 09:21 US/Eastern
+      - button "Select route leg Joliet to Ottawa" [ref=f51e391] [cursor=pointer] [box=342,2495,372,86]:
+        - generic [ref=f51e392] [box=343,2496,370,84]:
+          - generic [ref=f51e394] [box=385,2510,111,56]:
+            - text: COMPLETED
+            - generic [ref=f51e395] [box=385,2529,111,16]: Joliet to Ottawa
+            - generic [ref=f51e396] [box=385,2548,111,19]: 40.0 nm
+          - generic [ref=f51e398] [box=508,2529,192,19]: June 12, 2026 21:58 US/Eastern
+      - button "Select route leg Ottawa to Peoria" [ref=f51e399] [cursor=pointer] [box=342,2591,372,86]:
+        - generic [ref=f51e400] [box=343,2592,370,84]:
+          - generic [ref=f51e402] [box=385,2606,112,56]:
+            - text: COMPLETED
+            - generic [ref=f51e403] [box=385,2625,112,16]: Ottawa to Peoria
+            - generic [ref=f51e404] [box=385,2644,112,19]: 65.0 nm
+          - generic [ref=f51e406] [box=509,2625,190,19]: June 16, 2026 11:43 US/Eastern
+      - button "Select route leg Peoria to Grafton" [ref=f51e407] [cursor=pointer] [box=342,2688,372,86]:
+        - generic [ref=f51e408] [box=343,2689,370,84]:
+          - generic [ref=f51e410] [box=385,2703,111,56]:
+            - text: COMPLETED
+            - generic [ref=f51e411] [box=385,2721,111,16]: Peoria to Grafton
+            - generic [ref=f51e412] [box=385,2740,111,19]: 137.0 nm
+          - generic [ref=f51e414] [box=508,2721,191,19]: June 18, 2026 19:37 US/Eastern
+      - button "Select route leg Grafton to Alton" [ref=f51e415] [cursor=pointer] [box=342,2784,372,86]:
+        - generic [ref=f51e416] [box=343,2785,370,84]:
+          - generic [ref=f51e418] [box=385,2799,111,56]:
+            - text: COMPLETED
+            - generic [ref=f51e419] [box=385,2817,111,16]: Grafton to Alton
+            - generic [ref=f51e420] [box=385,2836,111,19]: 16.0 nm
+          - generic [ref=f51e422] [box=508,2817,192,19]: June 18, 2026 21:45 US/Eastern
+      - button "Select route leg Alton to Kimmswick" [ref=f51e423] [cursor=pointer] [box=342,2880,372,102]:
+        - generic [ref=f51e424] [box=343,2881,370,100]:
+          - generic [ref=f51e426] [box=385,2895,108,72]:
+            - text: COMPLETED
+            - generic [ref=f51e427] [box=385,2913,108,32]: Alton to Kimmswick
+            - generic [ref=f51e428] [box=385,2948,108,19]: 41.0 nm
+          - generic [ref=f51e430] [box=505,2921,194,19]: June 23, 2026 23:37 US/Eastern
+      - button "Select route leg Kimmswick to Cairo" [ref=f51e431] [cursor=pointer] [box=342,2992,372,102]:
+        - generic [ref=f51e432] [box=343,2993,370,100]:
+          - generic [ref=f51e434] [box=385,3007,107,72]:
+            - text: COMPLETED
+            - generic [ref=f51e435] [box=385,3025,107,32]: Kimmswick to Cairo
+            - generic [ref=f51e436] [box=385,3060,107,19]: 119.0 nm
+          - generic [ref=f51e438] [box=504,3034,196,19]: June 25, 2026 09:56 US/Eastern
+      - button "Select route leg Cairo to Paducah" [ref=f51e439] [cursor=pointer] [box=342,3104,372,86]:
+        - generic [ref=f51e440] [box=343,3105,370,84]:
+          - generic [ref=f51e442] [box=385,3119,111,56]:
+            - text: COMPLETED
+            - generic [ref=f51e443] [box=385,3137,111,16]: Cairo to Paducah
+            - generic [ref=f51e444] [box=385,3156,111,19]: 30.0 nm
+          - generic [ref=f51e446] [box=508,3138,191,19]: June 25, 2026 21:51 US/Eastern
+      - button "Select route leg Paducah to Grand Rivers" [ref=f51e447] [cursor=pointer] [box=342,3200,372,102]:
+        - generic [ref=f51e448] [box=343,3201,370,100]:
+          - generic [ref=f51e450] [box=385,3215,110,72]:
+            - text: COMPLETED
+            - generic [ref=f51e451] [box=385,3234,110,32]: Paducah to Grand Rivers
+            - generic [ref=f51e452] [box=385,3269,110,19]: 23.0 nm
+          - generic [ref=f51e454] [box=507,3242,192,19]: June 27, 2026 13:09 US/Eastern
+      - button "Select route leg Grand Rivers to Counce" [ref=f51e455] [cursor=pointer] [box=342,3312,372,102]:
+        - generic [ref=f51e456] [box=343,3313,370,100]:
+          - generic [ref=f51e458] [box=385,3327,109,72]:
+            - text: COMPLETED
+            - generic [ref=f51e459] [box=385,3346,109,32]: Grand Rivers to Counce
+            - generic [ref=f51e460] [box=385,3381,109,19]: 136.0 nm
+          - generic [ref=f51e462] [box=506,3354,193,19]: June 27, 2026 23:47 US/Eastern
+      - button "Select route leg Counce to Columbus" [ref=f51e463] [cursor=pointer] [box=342,3424,372,102]:
+        - generic [ref=f51e464] [box=343,3425,370,100]:
+          - generic [ref=f51e466] [box=385,3439,109,72]:
+            - text: COMPLETED
+            - generic [ref=f51e467] [box=385,3458,109,32]: Counce to Columbus
+            - generic [ref=f51e468] [box=385,3493,109,19]: 111.0 nm
+          - generic [ref=f51e470] [box=506,3466,193,19]: June 29, 2026 17:54 US/Eastern
+      - button "Select route leg Columbus to Demopolis" [ref=f51e471] [cursor=pointer] [box=342,3536,372,102]:
+        - generic [ref=f51e472] [box=343,3537,370,100]:
+          - generic [ref=f51e474] [box=385,3551,110,72]:
+            - text: COMPLETED
+            - generic [ref=f51e475] [box=385,3570,110,32]: Columbus to Demopolis
+            - generic [ref=f51e476] [box=385,3605,110,19]: 81.0 nm
+          - generic [ref=f51e478] [box=507,3578,193,19]: June 30, 2026 10:27 US/Eastern
+      - button "Select route leg Demopolis to Mobile" [ref=f51e479] [cursor=pointer] [box=342,3648,372,102]:
+        - generic [ref=f51e480] [box=343,3649,370,100]:
+          - generic [ref=f51e482] [box=385,3663,121,72]:
+            - text: COMPLETED
+            - generic [ref=f51e483] [box=385,3682,121,32]: Demopolis to Mobile
+            - generic [ref=f51e484] [box=385,3717,121,19]: 133.0 nm
+          - generic [ref=f51e486] [box=518,3690,181,19]: July 2, 2026 15:26 US/Eastern
+      - button "Select route leg Mobile to Pensacola" [expanded] [ref=f51e487] [cursor=pointer] [box=342,3760,372,477]:
+        - generic [ref=f51e488] [box=343,3761,370,100]:
+          - generic [ref=f51e490] [box=385,3775,121,72]:
+            - text: STARTED
+            - generic [ref=f51e491] [box=385,3794,121,32]: Mobile to Pensacola
+            - generic [ref=f51e492] [box=385,3829,121,19]: 54.0 nm
+          - generic [ref=f51e494] [box=518,3802,181,19]: July 2, 2026 18:26 US/Eastern
+        - generic [ref=f51e495] [box=343,3862,370,374]:
+          - generic [ref=f51e496] [box=385,3875,314,147]:
+            - generic [ref=f51e497] [box=385,3875,152,76]:
+              - generic [ref=f51e498] [box=396,3886,130,19]: Departure
+              - strong [ref=f51e499] [box=396,3909,130,31]: July 2, 2026 15:26 US/Eastern
+            - generic [ref=f51e500] [box=547,3875,152,76]:
+              - generic [ref=f51e501] [box=558,3886,130,19]: ETA / Arrival
+              - strong [ref=f51e502] [box=558,3909,130,31]: July 2, 2026 18:26 US/Eastern
+            - generic [ref=f51e503] [box=385,3961,152,61]:
+              - generic [ref=f51e504] [box=396,3972,130,19]: Distance
+              - strong [ref=f51e505] [box=396,3995,130,15]: 54.0 nm
+            - generic [ref=f51e506] [box=547,3961,152,61]:
+              - generic [ref=f51e507] [box=558,3972,130,19]: Progress
+              - strong [ref=f51e508] [box=558,3995,130,15]: 8.7%
+          - generic [ref=f51e509] [box=385,4034,314,188]:
+            - generic [ref=f51e510] [box=385,4034,314,19]: Lock Navigation Details
+            - generic [ref=f51e511] [box=385,4062,314,132]:
+              - generic [ref=f51e512] [box=385,4062,152,61]:
+                - generic [ref=f51e513] [box=396,4073,130,19]: Locks
+                - strong [ref=f51e514] [box=396,4097,130,15]: "0"
+              - generic [ref=f51e515] [box=547,4062,152,61]:
+                - generic [ref=f51e516] [box=558,4073,130,19]: Best Delay
+                - strong [ref=f51e517] [box=558,4097,130,15]: 0 min
+              - generic [ref=f51e518] [box=385,4133,152,61]:
+                - generic [ref=f51e519] [box=396,4144,130,19]: Typical Delay
+                - strong [ref=f51e520] [box=396,4168,130,15]: 0 min
+              - generic [ref=f51e521] [box=547,4133,152,61]:
+                - generic [ref=f51e522] [box=558,4144,130,19]: Worst Delay
+                - strong [ref=f51e523] [box=558,4168,130,15]: 0 min
+            - paragraph [ref=f51e524] [box=385,4204,314,18]: No locks mapped.
+      - button "Select route leg Pensacola to Panama City" [ref=f51e525] [cursor=pointer] [box=342,4247,372,102]:
+        - generic [ref=f51e526] [box=343,4248,370,100]:
+          - generic [ref=f51e528] [box=385,4262,120,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e529] [box=385,4281,120,32]: Pensacola to Panama City
+            - generic [ref=f51e530] [box=385,4316,120,19]: 89.0 nm
+          - generic [ref=f51e532] [box=517,4289,183,19]: July 2, 2026 23:23 US/Eastern
+      - button "Select route leg Panama City to Carrabelle" [ref=f51e533] [cursor=pointer] [box=342,4359,372,102]:
+        - generic [ref=f51e534] [box=343,4360,370,100]:
+          - generic [ref=f51e536] [box=385,4374,119,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e537] [box=385,4393,119,32]: Panama City to Carrabelle
+            - generic [ref=f51e538] [box=385,4428,119,19]: 61.0 nm
+          - generic [ref=f51e540] [box=516,4401,183,19]: July 3, 2026 02:46 US/Eastern
+      - button "Select route leg Carrabelle to Tarpon Springs" [ref=f51e541] [cursor=pointer] [box=342,4471,372,102]:
+        - generic [ref=f51e542] [box=343,4472,370,100]:
+          - generic [ref=f51e544] [box=385,4486,123,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e545] [box=385,4505,123,32]: Carrabelle to Tarpon Springs
+            - generic [ref=f51e546] [box=385,4540,123,19]: 150.0 nm
+          - generic [ref=f51e548] [box=520,4513,179,19]: July 3, 2026 11:06 US/Eastern
+      - button "Select route leg Tarpon Springs to Clearwater" [ref=f51e549] [cursor=pointer] [box=342,4583,372,102]:
+        - generic [ref=f51e550] [box=343,4584,370,100]:
+          - generic [ref=f51e552] [box=385,4598,122,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e553] [box=385,4617,122,32]: Tarpon Springs to Clearwater
+            - generic [ref=f51e554] [box=385,4652,122,19]: 186.0 nm
+          - generic [ref=f51e556] [box=519,4625,181,19]: July 3, 2026 21:26 US/Eastern
+      - button "Select route leg Clearwater to Sarasota" [ref=f51e557] [cursor=pointer] [box=342,4695,372,102]:
+        - generic [ref=f51e558] [box=343,4696,370,100]:
+          - generic [ref=f51e560] [box=385,4710,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e561] [box=385,4729,121,32]: Clearwater to Sarasota
+            - generic [ref=f51e562] [box=385,4764,121,19]: 49.0 nm
+          - generic [ref=f51e564] [box=518,4737,182,19]: July 4, 2026 00:10 US/Eastern
+      - button "Select route leg Sarasota to Fort Myers" [ref=f51e565] [cursor=pointer] [box=342,4807,372,102]:
+        - generic [ref=f51e566] [box=343,4808,370,100]:
+          - generic [ref=f51e568] [box=385,4822,119,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e569] [box=385,4841,119,32]: Sarasota to Fort Myers
+            - generic [ref=f51e570] [box=385,4876,119,19]: 57.0 nm
+          - generic [ref=f51e572] [box=516,4849,183,19]: July 4, 2026 03:20 US/Eastern
+      - button "Select route leg Fort Myers to Marco Island" [ref=f51e573] [cursor=pointer] [box=342,4920,372,102]:
+        - generic [ref=f51e574] [box=343,4921,370,100]:
+          - generic [ref=f51e576] [box=385,4935,119,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e577] [box=385,4953,119,32]: Fort Myers to Marco Island
+            - generic [ref=f51e578] [box=385,4988,119,19]: 46.0 nm
+          - generic [ref=f51e580] [box=516,4961,184,19]: July 4, 2026 05:53 US/Eastern
+      - button "Select route leg Marco Island to Clewiston" [ref=f51e581] [cursor=pointer] [box=342,5032,372,102]:
+        - generic [ref=f51e582] [box=343,5033,370,100]:
+          - generic [ref=f51e584] [box=385,5047,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e585] [box=385,5065,121,32]: Marco Island to Clewiston
+            - generic [ref=f51e586] [box=385,5100,121,19]: 74.0 nm
+          - generic [ref=f51e588] [box=518,5073,182,19]: July 4, 2026 10:00 US/Eastern
+      - button "Select route leg Clewiston to Stuart" [ref=f51e589] [cursor=pointer] [box=342,5144,372,102]:
+        - generic [ref=f51e590] [box=343,5145,370,100]:
+          - generic [ref=f51e592] [box=385,5159,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e593] [box=385,5177,121,32]: Clewiston to Stuart
+            - generic [ref=f51e594] [box=385,5212,121,19]: 53.0 nm
+          - generic [ref=f51e596] [box=518,5186,181,19]: July 4, 2026 12:56 US/Eastern
+      - button "Select route leg Stuart to Fort Lauderdale" [ref=f51e597] [cursor=pointer] [box=342,5256,372,102]:
+        - generic [ref=f51e598] [box=343,5257,370,100]:
+          - generic [ref=f51e600] [box=385,5271,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e601] [box=385,5289,121,32]: Stuart to Fort Lauderdale
+            - generic [ref=f51e602] [box=385,5324,121,19]: 70.0 nm
+          - generic [ref=f51e604] [box=518,5298,182,19]: July 4, 2026 16:50 US/Eastern
+      - button "Select route leg Fort Lauderdale to West Palm Beach" [ref=f51e605] [cursor=pointer] [box=342,5368,372,102]:
+        - generic [ref=f51e606] [box=343,5369,370,100]:
+          - generic [ref=f51e608] [box=385,5383,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e609] [box=385,5402,121,32]: Fort Lauderdale to West Palm Beach
+            - generic [ref=f51e610] [box=385,5436,121,19]: 40.0 nm
+          - generic [ref=f51e612] [box=518,5410,182,19]: July 4, 2026 19:03 US/Eastern
+      - button "Select route leg West Palm Beach to St. Augustine" [ref=f51e613] [cursor=pointer] [box=342,5480,372,102]:
+        - generic [ref=f51e614] [box=343,5481,370,100]:
+          - generic [ref=f51e616] [box=385,5495,120,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e617] [box=385,5514,120,32]: West Palm Beach to St. Augustine
+            - generic [ref=f51e618] [box=385,5549,120,19]: 229.0 nm
+          - generic [ref=f51e620] [box=517,5522,182,19]: July 5, 2026 07:46 US/Eastern
+      - button "Select route leg St. Augustine to Jacksonville" [ref=f51e621] [cursor=pointer] [box=342,5592,372,102]:
+        - generic [ref=f51e622] [box=343,5593,370,100]:
+          - generic [ref=f51e624] [box=385,5607,119,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e625] [box=385,5626,119,32]: St. Augustine to Jacksonville
+            - generic [ref=f51e626] [box=385,5661,119,19]: 37.0 nm
+          - generic [ref=f51e628] [box=516,5634,183,19]: July 5, 2026 09:50 US/Eastern
+      - button "Select route leg Jacksonville to Savannah" [ref=f51e629] [cursor=pointer] [box=342,5704,372,102]:
+        - generic [ref=f51e630] [box=343,5705,370,100]:
+          - generic [ref=f51e632] [box=385,5719,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e633] [box=385,5738,121,32]: Jacksonville to Savannah
+            - generic [ref=f51e634] [box=385,5773,121,19]: 119.0 nm
+          - generic [ref=f51e636] [box=518,5746,181,19]: July 5, 2026 16:26 US/Eastern
+      - button "Select route leg Savannah to Beaufort" [ref=f51e637] [cursor=pointer] [box=342,5816,372,102]:
+        - generic [ref=f51e638] [box=343,5817,370,100]:
+          - generic [ref=f51e640] [box=385,5831,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e641] [box=385,5850,121,32]: Savannah to Beaufort
+            - generic [ref=f51e642] [box=385,5885,121,19]: 39.0 nm
+          - generic [ref=f51e644] [box=518,5858,181,19]: July 5, 2026 18:36 US/Eastern
+      - button "Select route leg Beaufort to Charleston" [ref=f51e645] [cursor=pointer] [box=342,5928,372,102]:
+        - generic [ref=f51e646] [box=343,5929,370,100]:
+          - generic [ref=f51e648] [box=385,5943,124,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e649] [box=385,5962,124,32]: Beaufort to Charleston
+            - generic [ref=f51e650] [box=385,5997,124,19]: 48.0 nm
+          - generic [ref=f51e652] [box=521,5970,179,19]: July 5, 2026 21:16 US/Eastern
+      - button "Select route leg Charleston to Myrtle Beach" [ref=f51e653] [cursor=pointer] [box=342,6041,372,102]:
+        - generic [ref=f51e654] [box=343,6042,370,100]:
+          - generic [ref=f51e656] [box=385,6056,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e657] [box=385,6074,121,32]: Charleston to Myrtle Beach
+            - generic [ref=f51e658] [box=385,6109,121,19]: 88.0 nm
+          - generic [ref=f51e660] [box=518,6082,181,19]: July 6, 2026 02:10 US/Eastern
+      - button "Select route leg Myrtle Beach to Wrightsville Beach" [ref=f51e661] [cursor=pointer] [box=342,6153,372,118]:
+        - generic [ref=f51e662] [box=343,6154,370,116]:
+          - generic [ref=f51e664] [box=385,6168,119,88]:
+            - text: NOT_STARTED
+            - generic [ref=f51e665] [box=385,6186,119,48]: Myrtle Beach to Wrightsville Beach
+            - generic [ref=f51e666] [box=385,6237,119,19]: 71.0 nm
+          - generic [ref=f51e668] [box=516,6202,184,19]: July 6, 2026 06:06 US/Eastern
+      - button "Select route leg Wrightsville Beach to Morehead City" [ref=f51e669] [cursor=pointer] [box=342,6281,372,118]:
+        - generic [ref=f51e670] [box=343,6282,370,116]:
+          - generic [ref=f51e672] [box=385,6296,119,88]:
+            - text: NOT_STARTED
+            - generic [ref=f51e673] [box=385,6314,119,48]: Wrightsville Beach to Morehead City
+            - generic [ref=f51e674] [box=385,6365,119,19]: 67.0 nm
+          - generic [ref=f51e676] [box=516,6330,184,19]: July 6, 2026 09:50 US/Eastern
+      - button "Select route leg Morehead City to New Bern" [ref=f51e677] [cursor=pointer] [box=342,6409,372,102]:
+        - generic [ref=f51e678] [box=343,6410,370,100]:
+          - generic [ref=f51e680] [box=385,6424,123,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e681] [box=385,6442,123,32]: Morehead City to New Bern
+            - generic [ref=f51e682] [box=385,6477,123,19]: 30.0 nm
+          - generic [ref=f51e684] [box=520,6451,179,19]: July 6, 2026 11:30 US/Eastern
+      - button "Select route leg New Bern to Elizabeth City" [ref=f51e685] [cursor=pointer] [box=342,6521,372,102]:
+        - generic [ref=f51e686] [box=343,6522,370,100]:
+          - generic [ref=f51e688] [box=385,6536,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e689] [box=385,6554,121,32]: New Bern to Elizabeth City
+            - generic [ref=f51e690] [box=385,6589,121,19]: 95.0 nm
+          - generic [ref=f51e692] [box=518,6563,182,19]: July 6, 2026 16:46 US/Eastern
+      - button "Select route leg Elizabeth City to Norfolk" [ref=f51e693] [cursor=pointer] [box=342,6633,372,102]:
+        - generic [ref=f51e694] [box=343,6634,370,100]:
+          - generic [ref=f51e696] [box=385,6648,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e697] [box=385,6667,121,32]: Elizabeth City to Norfolk
+            - generic [ref=f51e698] [box=385,6702,121,19]: 42.0 nm
+          - generic [ref=f51e700] [box=518,6675,182,19]: July 6, 2026 19:06 US/Eastern
+      - button "Select route leg Norfolk to Solomons" [ref=f51e701] [cursor=pointer] [box=342,6745,372,102]:
+        - generic [ref=f51e702] [box=343,6746,370,100]:
+          - generic [ref=f51e704] [box=385,6760,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e705] [box=385,6779,121,32]: Norfolk to Solomons
+            - generic [ref=f51e706] [box=385,6814,121,19]: 94.0 nm
+          - generic [ref=f51e708] [box=518,6787,182,19]: July 7, 2026 00:20 US/Eastern
+      - button "Select route leg Solomons to Annapolis" [ref=f51e709] [cursor=pointer] [box=342,6857,372,102]:
+        - generic [ref=f51e710] [box=343,6858,370,100]:
+          - generic [ref=f51e712] [box=385,6872,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e713] [box=385,6891,121,32]: Solomons to Annapolis
+            - generic [ref=f51e714] [box=385,6926,121,19]: 42.0 nm
+          - generic [ref=f51e716] [box=518,6899,182,19]: July 7, 2026 02:40 US/Eastern
+      - button "Select route leg Annapolis to Chesapeake City" [ref=f51e717] [cursor=pointer] [box=342,6969,372,102]:
+        - generic [ref=f51e718] [box=343,6970,370,100]:
+          - generic [ref=f51e720] [box=385,6984,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e721] [box=385,7003,121,32]: Annapolis to Chesapeake City
+            - generic [ref=f51e722] [box=385,7038,121,19]: 51.0 nm
+          - generic [ref=f51e724] [box=518,7011,182,19]: July 7, 2026 05:30 US/Eastern
+      - button "Select route leg Chesapeake City to Cape May" [ref=f51e725] [cursor=pointer] [box=342,7081,372,102]:
+        - generic [ref=f51e726] [box=343,7082,370,100]:
+          - generic [ref=f51e728] [box=385,7096,120,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e729] [box=385,7115,120,32]: Chesapeake City to Cape May
+            - generic [ref=f51e730] [box=385,7150,120,19]: 61.0 nm
+          - generic [ref=f51e732] [box=517,7123,182,19]: July 7, 2026 08:53 US/Eastern
+      - button "Select route leg Cape May to Atlantic City" [ref=f51e733] [cursor=pointer] [box=342,7193,372,102]:
+        - generic [ref=f51e734] [box=343,7194,370,100]:
+          - generic [ref=f51e736] [box=385,7208,123,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e737] [box=385,7227,123,32]: Cape May to Atlantic City
+            - generic [ref=f51e738] [box=385,7262,123,19]: 37.0 nm
+          - generic [ref=f51e740] [box=520,7235,180,19]: July 7, 2026 10:56 US/Eastern
+      - button "Select route leg Atlantic City to Highlands" [ref=f51e741] [cursor=pointer] [box=342,7306,372,102]:
+        - generic [ref=f51e742] [box=343,7307,370,100]:
+          - generic [ref=f51e744] [box=385,7321,127,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e745] [box=385,7339,127,32]: Atlantic City to Highlands
+            - generic [ref=f51e746] [box=385,7374,127,19]: 4.0 nm
+          - generic [ref=f51e748] [box=524,7347,175,19]: July 7, 2026 11:10 US/Eastern
+      - button "Select route leg Highlands to New York" [ref=f51e749] [cursor=pointer] [box=342,7418,372,102]:
+        - generic [ref=f51e750] [box=343,7419,370,100]:
+          - generic [ref=f51e752] [box=385,7433,123,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e753] [box=385,7451,123,32]: Highlands to New York
+            - generic [ref=f51e754] [box=385,7486,123,19]: 85.0 nm
+          - generic [ref=f51e756] [box=520,7459,180,19]: July 7, 2026 15:53 US/Eastern
+      - button "Select route leg New York to Kingston" [ref=f51e757] [cursor=pointer] [box=342,7530,372,102]:
+        - generic [ref=f51e758] [box=343,7531,370,100]:
+          - generic [ref=f51e760] [box=385,7545,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e761] [box=385,7563,121,32]: New York to Kingston
+            - generic [ref=f51e762] [box=385,7598,121,19]: 85.0 nm
+          - generic [ref=f51e764] [box=518,7571,181,19]: July 7, 2026 20:36 US/Eastern
+      - button "Select route leg Kingston to Albany" [ref=f51e765] [cursor=pointer] [box=342,7642,372,102]:
+        - generic [ref=f51e766] [box=343,7643,370,100]:
+          - generic [ref=f51e768] [box=385,7657,123,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e769] [box=385,7675,123,32]: Kingston to Albany
+            - generic [ref=f51e770] [box=385,7710,123,19]: 48.0 nm
+          - generic [ref=f51e772] [box=520,7684,179,19]: July 7, 2026 23:16 US/Eastern
+      - button "Select route leg Albany to Waterford" [ref=f51e773] [cursor=pointer] [box=342,7754,372,102]:
+        - generic [ref=f51e774] [box=343,7755,370,100]:
+          - generic [ref=f51e776] [box=385,7769,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e777] [box=385,7787,121,32]: Albany to Waterford
+            - generic [ref=f51e778] [box=385,7822,121,19]: 11.0 nm
+          - generic [ref=f51e780] [box=518,7796,181,19]: July 7, 2026 23:53 US/Eastern
+      - button "Select route leg Waterford to Syracuse" [ref=f51e781] [cursor=pointer] [box=342,7866,372,102]:
+        - generic [ref=f51e782] [box=343,7867,370,100]:
+          - generic [ref=f51e784] [box=385,7881,120,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e785] [box=385,7900,120,32]: Waterford to Syracuse
+            - generic [ref=f51e786] [box=385,7935,120,19]: 128.0 nm
+          - generic [ref=f51e788] [box=517,7908,182,19]: July 8, 2026 07:00 US/Eastern
+      - button "Select route leg Syracuse to Buffalo" [ref=f51e789] [cursor=pointer] [box=342,7978,372,102]:
+        - generic [ref=f51e790] [box=343,7979,370,100]:
+          - generic [ref=f51e792] [box=385,7993,123,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e793] [box=385,8012,123,32]: Syracuse to Buffalo
+            - generic [ref=f51e794] [box=385,8047,123,19]: 148.0 nm
+          - generic [ref=f51e796] [box=520,8020,179,19]: July 8, 2026 15:13 US/Eastern
+      - button "Select route leg Buffalo to Erie" [ref=f51e797] [cursor=pointer] [box=342,8090,372,86]:
+        - generic [ref=f51e798] [box=343,8091,370,84]:
+          - generic [ref=f51e800] [box=385,8105,121,56]:
+            - text: NOT_STARTED
+            - generic [ref=f51e801] [box=385,8124,121,16]: Buffalo to Erie
+            - generic [ref=f51e802] [box=385,8143,121,19]: 78.0 nm
+          - generic [ref=f51e804] [box=518,8124,181,19]: July 8, 2026 19:33 US/Eastern
+      - button "Select route leg Erie to Cleveland" [ref=f51e805] [cursor=pointer] [box=342,8186,372,86]:
+        - generic [ref=f51e806] [box=343,8187,370,84]:
+          - generic [ref=f51e808] [box=385,8201,119,56]:
+            - text: NOT_STARTED
+            - generic [ref=f51e809] [box=385,8220,119,16]: Erie to Cleveland
+            - generic [ref=f51e810] [box=385,8239,119,19]: 90.0 nm
+          - generic [ref=f51e812] [box=516,8220,183,19]: July 9, 2026 00:33 US/Eastern
+      - button "Select route leg Cleveland to Detroit" [ref=f51e813] [cursor=pointer] [box=342,8282,372,102]:
+        - generic [ref=f51e814] [box=343,8283,370,100]:
+          - generic [ref=f51e816] [box=385,8297,119,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e817] [box=385,8316,119,32]: Cleveland to Detroit
+            - generic [ref=f51e818] [box=385,8351,119,19]: 92.0 nm
+          - generic [ref=f51e820] [box=516,8324,184,19]: July 9, 2026 05:40 US/Eastern
+      - button "Select route leg Detroit to Mackinac Island" [ref=f51e821] [cursor=pointer] [box=342,8394,372,102]:
+        - generic [ref=f51e822] [box=343,8395,370,100]:
+          - generic [ref=f51e824] [box=385,8409,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e825] [box=385,8428,121,32]: Detroit to Mackinac Island
+            - generic [ref=f51e826] [box=385,8463,121,19]: 241.0 nm
+          - generic [ref=f51e828] [box=518,8436,181,19]: July 9, 2026 19:03 US/Eastern
+      - button "Select route leg Mackinac Island to Charlevoix" [ref=f51e829] [cursor=pointer] [box=342,8507,372,102]:
+        - generic [ref=f51e830] [box=343,8508,370,100]:
+          - generic [ref=f51e832] [box=385,8522,121,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e833] [box=385,8540,121,32]: Mackinac Island to Charlevoix
+            - generic [ref=f51e834] [box=385,8575,121,19]: 46.0 nm
+          - generic [ref=f51e836] [box=518,8548,181,19]: July 9, 2026 21:36 US/Eastern
+      - button "Select route leg Charlevoix to Sturgeon Bay" [ref=f51e837] [cursor=pointer] [box=342,8619,372,102]:
+        - generic [ref=f51e838] [box=343,8620,370,100]:
+          - generic [ref=f51e840] [box=385,8634,113,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e841] [box=385,8652,113,32]: Charlevoix to Sturgeon Bay
+            - generic [ref=f51e842] [box=385,8687,113,19]: 104.0 nm
+          - generic [ref=f51e844] [box=510,8660,189,19]: July 10, 2026 03:23 US/Eastern
+      - button "Select route leg Sturgeon Bay to Milwaukee" [ref=f51e845] [cursor=pointer] [box=342,8731,372,102]:
+        - generic [ref=f51e846] [box=343,8732,370,100]:
+          - generic [ref=f51e848] [box=385,8746,115,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e849] [box=385,8764,115,32]: Sturgeon Bay to Milwaukee
+            - generic [ref=f51e850] [box=385,8799,115,19]: 120.0 nm
+          - generic [ref=f51e852] [box=512,8773,187,19]: July 10, 2026 10:03 US/Eastern
+      - button "Select route leg Milwaukee to Chicago" [ref=f51e853] [cursor=pointer] [box=342,8843,372,102]:
+        - generic [ref=f51e854] [box=343,8844,370,100]:
+          - generic [ref=f51e856] [box=385,8858,115,72]:
+            - text: NOT_STARTED
+            - generic [ref=f51e857] [box=385,8876,115,32]: Milwaukee to Chicago
+            - generic [ref=f51e858] [box=385,8911,115,19]: 82.0 nm
+          - generic [ref=f51e860] [box=512,8885,187,19]: July 10, 2026 14:36 US/Eastern
+      - generic [ref=f51e861] [box=342,8955,372,93]:
+        - generic [ref=f51e862] [box=357,8970,342,19]: Final Destination
+        - strong [ref=f51e863] [box=357,8995,342,16]: Chicago
+        - generic [ref=f51e864] [box=357,9014,342,19]: July 2, 2026 18:26 US/Eastern
+  - generic [ref=f51e865] [box=753,2266,259,1042]:
+    - generic [ref=f51e866] [box=772,2285,221,40]:
+      - heading "Selected Leg Data" [level=3] [ref=f51e867] [box=772,2285,132,40]
+      - generic [ref=f51e868] [box=915,2286,79,37]: V2 Model
+    - generic [ref=f51e869] [box=772,2341,221,948]:
+      - generic [ref=f51e870] [box=772,2341,105,139]:
+        - generic [ref=f51e871] [box=787,2356,75,19]: Distance
+        - strong [ref=f51e872] [box=787,2386,54,15]: 54.0 nm
+        - generic [ref=f51e873] [box=787,2409,75,37]: Total leg length
+      - generic [ref=f51e874] [box=889,2341,105,139]:
+        - generic [ref=f51e875] [box=904,2356,75,19]: Remaining
+        - strong [ref=f51e876] [box=904,2386,53,15]: 49.3 nm
+        - generic [ref=f51e877] [box=904,2409,75,56]: From selected leg model
+      - generic [ref=f51e878] [box=772,2491,105,157]:
+        - generic [ref=f51e879] [box=787,2506,75,37]: Est. Leg Time
+        - strong [ref=f51e880] [box=787,2555,26,15]: 3 hr
+        - generic [ref=f51e881] [box=787,2578,75,37]: Projected full duration
+      - generic [ref=f51e882] [box=889,2491,105,157]:
+        - generic [ref=f51e883] [box=904,2506,75,37]: Time Left
+        - strong [ref=f51e884] [box=904,2555,74,15]: 2 hr 44 min
+        - generic [ref=f51e885] [box=904,2578,75,56]: Projected remaining duration
+      - generic [ref=f51e886] [box=772,2661,105,139]:
+        - generic [ref=f51e887] [box=787,2676,75,19]: Completed
+        - strong [ref=f51e888] [box=787,2706,44,15]: 4.7 nm
+        - generic [ref=f51e889] [box=787,2729,75,56]: Selected leg completed distance
+      - generic [ref=f51e890] [box=889,2661,105,139]:
+        - generic [ref=f51e891] [box=904,2676,75,19]: Progress
+        - strong [ref=f51e892] [box=904,2706,34,15]: 8.7%
+        - generic [ref=f51e893] [box=904,2729,75,37]: Selected leg progress
+      - generic [ref=f51e894] [box=772,2812,105,157]:
+        - generic [ref=f51e895] [box=787,2827,75,19]: Status
+        - strong [ref=f51e896] [box=787,2857,61,15]: STARTED
+        - generic [ref=f51e897] [box=787,2880,75,37]: Selected leg status
+      - generic [ref=f51e898] [box=889,2812,105,157]:
+        - generic [ref=f51e899] [box=904,2827,75,19]: Arrival
+        - strong [ref=f51e900] [box=904,2857,73,71]: July 2, 2026 18:26 US/Eastern
+        - generic [ref=f51e901] [box=904,2935,75,19]: ETA / arrival
+      - generic [ref=f51e902] [box=772,2981,105,157]:
+        - generic [ref=f51e903] [box=787,2996,75,37]: Total Fuel
+        - strong [ref=f51e904] [box=787,3044,61,15]: 481.4 gal
+        - generic [ref=f51e905] [box=787,3068,75,37]: Route estimate
+      - generic [ref=f51e906] [box=889,2981,105,157]:
+        - generic [ref=f51e907] [box=904,2996,75,37]: Fuel + Reserve
+        - strong [ref=f51e908] [box=904,3044,62,15]: 640.2 gal
+        - generic [ref=f51e909] [box=904,3068,75,56]: Route estimate with reserve
+      - generic [ref=f51e910] [box=772,3150,105,139]:
+        - generic [ref=f51e911] [box=787,3165,75,37]: Leg Fuel Needed
+        - strong [ref=f51e912] [box=787,3214,42,15]: 7.9 gal
+        - generic [ref=f51e913] [box=787,3237,75,37]: Selected leg estimate

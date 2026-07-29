@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "periods": [
+      {
+        "startTime": "2026-06-30T18:00:00-04:00",
+        "temperature": 88,
+        "windSpeed": "10 mph",
+        "windDirection": "E",
+        "shortForecast": "Scattered Showers",
+        "probabilityOfPrecipitation": { "value": 60 }
+      },
+      {
+        "startTime": "2026-06-30T19:00:00-04:00",
+        "temperature": 86,
+        "windSpeed": "9 mph",
+        "windDirection": "E",
+        "shortForecast": "Mostly Cloudy",
+        "probabilityOfPrecipitation": { "value": 30 }
+      }
+    ]
+  }
+}

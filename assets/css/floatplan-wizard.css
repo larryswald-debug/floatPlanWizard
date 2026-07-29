@@ -3,3 +3,8 @@
 
 .fpw-pdf-preview{height:60vh;}
 .fpw-pdf-preview-frame{border:0;}
+
+.wizard-body > main {
+  width: min(var(--fpw-wide-max, 1320px), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+  margin-inline: auto;
+}

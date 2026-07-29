@@ -1,3 +1,5 @@
+<cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/require_auth.cfm">
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,15 +8,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=2">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=1">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260526-cache-bump">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260526-cache-bump">
 </head>
 
 <body class="dashboard-body account-body">
 
+<cfset request.fpwTopNavActive = "account">
 <cfinclude template="../includes/top_nav.cfm">
 
-<div class="account-main pb-5">
+<div class="account-main fpw-layout-rail pb-5">
   <div class="row g-4">
     <div class="col-12 col-lg-7">
 
@@ -46,7 +49,8 @@
               </div>
               <div class="col-12">
                 <label for="mobilePhone" class="form-label">Mobile Phone</label>
-                <input type="tel" class="form-control" id="mobilePhone" autocomplete="tel">
+                <input type="tel" class="form-control" id="mobilePhone" inputmode="tel" autocomplete="tel" aria-describedby="mobilePhoneError">
+                <div class="invalid-feedback" id="mobilePhoneError">Please enter a valid US phone number or leave the phone field blank.</div>
               </div>
             </div>
 
@@ -82,7 +86,8 @@
             <div class="row g-3 mt-1">
               <div class="col-md-6">
                 <label for="homePhone" class="form-label">Phone</label>
-                <input type="tel" class="form-control" id="homePhone" autocomplete="tel">
+                <input type="tel" class="form-control" id="homePhone" inputmode="tel" autocomplete="tel" aria-describedby="homePhoneError">
+                <div class="invalid-feedback" id="homePhoneError">Please enter a valid US phone number or leave the phone field blank.</div>
               </div>
               <div class="col-md-3">
                 <label for="homeLat" class="form-label">Latitude</label>
@@ -103,6 +108,42 @@
     </div>
 
     <div class="col-12 col-lg-5">
+      <div class="card shadow-sm mb-4" id="membershipBillingCard">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">Membership &amp; Billing</h2>
+              <p class="small text-muted mb-0" id="membershipBillingSummary">Checking membership status...</p>
+            </div>
+            <span class="membership-status-badge" id="membershipBillingStatus">Loading</span>
+          </div>
+
+          <div class="membership-billing-actions d-none" id="membershipUpgradeActions">
+            <button class="btn btn-primary btn-sm" type="button" data-membership-upgrade="monthly">Upgrade Monthly</button>
+            <button class="btn btn-outline-primary btn-sm" type="button" data-membership-upgrade="yearly">Upgrade Yearly</button>
+          </div>
+
+          <div class="membership-billing-actions d-none" id="membershipPortalActions">
+            <button class="btn btn-primary btn-sm" type="button" id="membershipManageBillingBtn">Manage Billing</button>
+          </div>
+
+          <p class="small text-muted mt-3 mb-0" id="membershipBillingMessage" aria-live="polite"></p>
+
+          <div class="membership-promo-panel mt-4" id="membershipPromoPanel">
+            <h3 class="h6 mb-1">Redeem Launch or Founder Code</h3>
+            <p class="small text-muted mb-3">Enter a Launch or Founder code. Promo codes opens a secure Stripe Checkout, and no credit card is required to start.</p>
+            <form id="promoCodeForm" novalidate>
+              <label class="visually-hidden" for="promoCodeInput">Launch or Founder code</label>
+              <div class="membership-promo-input-group">
+                <input type="text" class="form-control" id="promoCodeInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter code">
+                <button class="btn btn-outline-primary btn-sm" id="promoCodeRedeemBtn" type="submit">Redeem Code</button>
+              </div>
+            </form>
+            <p class="small text-muted mt-2 mb-0" id="promoCodeMessage" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+
       <div class="card shadow-sm">
         <div class="card-body">
           <h2 class="h5 mb-3">Change Password</h2>
@@ -130,7 +171,7 @@
         <div class="card-body">
           <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
             <div>
-              <h2 class="h5 mb-1">Companion Devices</h2>
+              <h2 class="h5 mb-1">Companion Devices (coming soon)</h2>
               <p class="small text-muted mb-0">Pair and manage devices that can use the FPW Companion App.</p>
             </div>
             <div class="d-flex flex-wrap gap-2">
@@ -169,8 +210,10 @@
   </div>
 </div>
 
+<cfinclude template="../includes/footer.cfm">
+
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260528-homeport-phone"></script>
 
 </body>
 </html>

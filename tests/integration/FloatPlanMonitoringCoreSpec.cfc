@@ -9,11 +9,21 @@ component extends="testbox.system.BaseSpec" output="false" {
     variables.cleanup = new fpw.tests.support.FpwCleanupSupport();
     variables.cleanup.init( variables.api );
     variables.monitorService = new fpw.api.v1.monitor().init();
+    variables.entitlements = new fpw.api.v1.MemberEntitlementService().init("fpw");
     variables.created = { vesselIds = [], routeCodes = [], floatPlanIds = [], contactIds = [] };
     variables.hadOriginalTestUserId = structKeyExists( url, "testUserId" );
     variables.originalTestUserId = variables.hadOriginalTestUserId ? url.testUserId : "";
+    variables.hadOriginalSessionUser = structKeyExists( session, "user" );
+    variables.originalSessionUser = ( variables.hadOriginalSessionUser && isStruct( session.user ) ) ? duplicate( session.user ) : {};
+    variables.hadOriginalMonitorToken = structKeyExists( application, "monitorToken" );
+    variables.originalMonitorToken = variables.hadOriginalMonitorToken ? application.monitorToken : "";
+    if ( !variables.hadOriginalMonitorToken || !len( trim( toString( application.monitorToken ) ) ) ) {
+      application.monitorToken = "test-monitor-token";
+    }
     variables.sessionApiUser = createSessionApiUser();
     url.testUserId = variables.sessionApiUser.userId;
+    setMonitoringSessionUser( variables.sessionApiUser.userId );
+    variables.monitoringPremiumEntitlement = variables.entitlements.createAdminCompEntitlement(variables.sessionApiUser.userId);
   }
 
   function afterAll() {
@@ -35,12 +45,25 @@ component extends="testbox.system.BaseSpec" output="false" {
         variables.cleanup.cleanupVessel( variables.created.vesselIds[ k ] );
       } catch ( any ignoredVesselCleanup ) {}
     }
+    queryExecute(
+      "DELETE FROM member_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = variables.sessionApiUser.userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
     cleanupSessionApiUser();
     if ( variables.hadOriginalTestUserId ) {
       url.testUserId = variables.originalTestUserId;
     } else {
       structDelete( url, "testUserId", false );
     }
+    if ( variables.hadOriginalMonitorToken ) {
+      application.monitorToken = variables.originalMonitorToken;
+    } else {
+      structDelete( application, "monitorToken", false );
+    }
+    restoreMonitoringSessionUser();
   }
 
   function run() {
@@ -50,7 +73,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
 
-        var startResult = variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" );
+        var startResult = startActiveRouteMonitoringWithStartProof( asset.floatPlanId );
         var monitoringRow = loadMonitoringRow( asset.floatPlanId );
         var startedEvents = loadMonitoringEvents( asset.floatPlanId, "MONITORING_STARTED" );
 
@@ -67,7 +90,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 18:00:00", "2026-04-10 20:00:00", "US/Eastern" );
 
-        var startResult = variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" );
+        var startResult = startActiveRouteMonitoringWithStartProof( asset.floatPlanId );
         var monitoringRow = loadMonitoringRow( asset.floatPlanId );
 
         expect( startResult.SUCCESS ).toBeTrue( serializeJSON( startResult ) );
@@ -88,7 +111,138 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Central" ) ).toBe( "2026-04-10 19:30:00" );
       } );
 
-      it( "scheduled route monitoring initializes departure as the first expected captain action and is idempotent", function() {
+      it( "basic mode preserves same-day planned return as the expected checkpoint", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "basic-same-day-return" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 08:00:00", "2026-04-09 15:00:00", "US/Eastern" );
+
+        var startResult = variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "basic" );
+        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
+
+        expect( startResult.SUCCESS ).toBeTrue( serializeJSON( startResult ) );
+        expect( monitoringRow.monitoring_mode ).toBe( "basic" );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-09 15:00:00" );
+        expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-09 16:00:00" );
+      } );
+
+      it( "active_route uses same-day planned return after actual leg-start proof when it is before daily check-in", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "active-route-planned-return-before-daily" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 07:30:00", "2026-04-09 15:00:00", "US/Eastern" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+        setFirstLegStartedAt( asset.floatPlanId, "2026-04-09 08:00:00", "US/Eastern" );
+
+        var refreshResult = variables.monitorService.refreshActiveRouteCheckpointFromLegStart( asset.floatPlanId );
+        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
+
+        expect( refreshResult.SUCCESS ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( refreshResult.UPDATED ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-09 15:00:00" );
+        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) ).toBe( "2026-04-09 19:00:00" );
+        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) EQ "2026-04-09 15:00:00" ).toBeFalse();
+        expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-09 16:00:00" );
+      } );
+
+      it( "active_route uses next-morning planned return after evening leg-start proof when it is before morning checkpoint", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "active-route-next-morning-return-before-morning" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 19:00:00", "2026-04-10 04:00:00", "US/Eastern" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+        setFirstLegStartedAt( asset.floatPlanId, "2026-04-09 19:00:00", "US/Eastern" );
+
+        var refreshResult = variables.monitorService.refreshActiveRouteCheckpointFromLegStart( asset.floatPlanId );
+        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
+
+        expect( refreshResult.SUCCESS ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( refreshResult.UPDATED ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-10 04:00:00" );
+        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) ).toBe( "2026-04-10 08:00:00" );
+        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) EQ "2026-04-10 04:00:00" ).toBeFalse();
+        expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-10 05:00:00" );
+      } );
+
+      it( "active_route planned return checkpoint feeds the existing missed and escalated evaluator cycle", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "planned-return-evaluator-cycle" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 07:30:00", "2026-04-09 15:00:00", "US/Eastern" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+        setFirstLegStartedAt( asset.floatPlanId, "2026-04-09 08:00:00", "US/Eastern" );
+        ensureSuccess( variables.monitorService.refreshActiveRouteCheckpointFromLegStart( asset.floatPlanId ), "refresh from actual leg start" );
+
+        var checkpointRow = loadMonitoringRow( asset.floatPlanId );
+        expect( toLocalStamp( checkpointRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-09 15:00:00" );
+
+        var missedResult = variables.monitorService.evaluateMonitoringCycle( asset.floatPlanId );
+        var missedRow = loadMonitoringRow( asset.floatPlanId );
+        var missedEvents = loadMonitoringEvents( asset.floatPlanId, "CHECKIN_MISSED" );
+        expect( missedResult.SUCCESS ).toBeTrue( serializeJSON( missedResult ) );
+        expect( missedRow.monitor_state ).toBe( "MISSED" );
+        expect( missedEvents.recordCount ).toBe( 1 );
+
+        updateMonitoringTimes( asset.floatPlanId, {
+          monitor_state = "MISSED",
+          missed_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 121 MINUTE)",
+          next_monitor_eval_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE)"
+        } );
+        var escalatedResult = variables.monitorService.evaluateMonitoringCycle( asset.floatPlanId );
+        var escalatedRow = loadMonitoringRow( asset.floatPlanId );
+        var contactAlertEvents = loadMonitoringEvents( asset.floatPlanId, "CONTACT_ALERTED" );
+        expect( escalatedResult.SUCCESS ).toBeTrue( serializeJSON( escalatedResult ) );
+        expect( escalatedRow.monitor_state ).toBe( "ESCALATED" );
+        expect( contactAlertEvents.recordCount ).toBe( 1 );
+      } );
+
+      it( "active_route keeps daily check-in when planned return is after the daily checkpoint", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "active-route-return-after-daily" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 07:30:00", "2026-04-09 20:00:00", "US/Eastern" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+        setFirstLegStartedAt( asset.floatPlanId, "2026-04-09 08:00:00", "US/Eastern" );
+
+        var refreshResult = variables.monitorService.refreshActiveRouteCheckpointFromLegStart( asset.floatPlanId );
+        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
+
+        expect( refreshResult.SUCCESS ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( refreshResult.UPDATED ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-09 18:00:00" );
+        expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-09 19:00:00" );
+      } );
+
+      it( "scheduled active_route monitoring defers before actual start proof", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "scheduled-return-before-start-proof" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 08:00:00", "2026-04-09 15:00:00", "US/Eastern" );
+        markPlanActive( asset.floatPlanId );
+
+        var startResult = variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId );
+        var startedEvents = loadMonitoringEvents( asset.floatPlanId, "MONITORING_STARTED" );
+
+        expect( startResult.SUCCESS ).toBeTrue( serializeJSON( startResult ) );
+        expect( startResult.DEFERRED ?: false ).toBeTrue( serializeJSON( startResult ) );
+        expect( structKeyExists( startResult, "SCHEDULED_MONITORING_STARTED" ) ).toBeTrue( serializeJSON( startResult ) );
+        expect( startResult.SCHEDULED_MONITORING_STARTED ).toBeFalse( serializeJSON( startResult ) );
+        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
+        expect( startedEvents.recordCount ).toBe( 0 );
+      } );
+
+      it( "active_route ignores planned return while Secure for Night is active", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-over-planned-return" );
+        var asset = createRouteLinkedDraft( prefix );
+        setPlanSchedule( asset.floatPlanId, "2026-04-09 07:30:00", "2026-04-09 15:00:00", "US/Eastern" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+        setMonitoringSecureForNight( asset.floatPlanId, "2026-04-10 08:00:00", "US/Eastern" );
+        setFirstLegStartedAt( asset.floatPlanId, "2026-04-09 08:00:00", "US/Eastern" );
+
+        var refreshResult = variables.monitorService.refreshActiveRouteCheckpointFromLegStart( asset.floatPlanId );
+        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
+
+        expect( refreshResult.SUCCESS ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( refreshResult.UPDATED ).toBeTrue( serializeJSON( refreshResult ) );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-09 18:00:00" );
+        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) EQ "2026-04-09 15:00:00" ).toBeFalse();
+      } );
+
+      it( "scheduled route monitoring defers before start proof and is idempotent", function() {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "scheduled-start" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
@@ -96,24 +250,17 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         var startResult = variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId );
         var secondStartResult = variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId );
-        var monitoringRow = loadMonitoringRow( asset.floatPlanId );
         var startedEvents = loadMonitoringEvents( asset.floatPlanId, "MONITORING_STARTED" );
 
         expect( startResult.SUCCESS ).toBeTrue( serializeJSON( startResult ) );
         expect( secondStartResult.SUCCESS ).toBeTrue( serializeJSON( secondStartResult ) );
-        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
-        expect( monitoringRow.monitor_state ).toBe( "ACTIVE" );
-        expect( monitoringRow.monitoring_mode ).toBe( "active_route" );
-        expect( monitoringRow.is_monitoring_enabled ).toBeTrue();
-        expect( toLocalStamp( monitoringRow.expected_checkin_at, "US/Eastern" ) ).toBe( "2026-04-09 09:00:00" );
-        expect( toLocalStamp( monitoringRow.grace_expires_at, "US/Eastern" ) ).toBe( "2026-04-09 10:00:00" );
-        expect( normalizeDbDateTime( monitoringRow.next_monitor_eval_at ) ).toBe( normalizeDbDateTime( monitoringRow.expected_checkin_at ) );
-        expect( len( trim( monitoringRow.last_checkin_at & "" ) ) ).toBe( 0 );
-        expect( len( trim( monitoringRow.last_checkin_status & "" ) ) ).toBe( 0 );
-        expect( startedEvents.recordCount ).toBe( 1 );
+        expect( startResult.DEFERRED ?: false ).toBeTrue( serializeJSON( startResult ) );
+        expect( secondStartResult.DEFERRED ?: false ).toBeTrue( serializeJSON( secondStartResult ) );
+        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
+        expect( startedEvents.recordCount ).toBe( 0 );
       } );
 
-      it( "sending a route-backed scheduled float plan creates scheduled monitoring without starting route progress", function() {
+      it( "sending a route-backed scheduled float plan defers monitoring without starting route progress", function() {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "scheduled-send" );
         var asset = createRouteLinkedDraft( prefix );
         var contactPayload = variables.api.saveContact( {
@@ -124,7 +271,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         } );
         var contactId = val( contactPayload.CONTACTID ?: 0 );
         var sendResult = {};
-        var monitoringRow = {};
+        var startedEvents = queryNew( "" );
         var futureDeparture = dateTimeFormat( dateAdd( "h", 3, now() ), "yyyy-mm-dd HH:nn:ss" );
         var futureReturn = dateTimeFormat( dateAdd( "h", 9, now() ), "yyyy-mm-dd HH:nn:ss" );
 
@@ -148,12 +295,9 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         expect( sendResult.SUCCESS ).toBeTrue( serializeJSON( sendResult ) );
         expect( structKeyExists( sendResult, "SENT_COUNT" ) ).toBeTrue( serializeJSON( sendResult ) );
-        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1, "sendResult=" & serializeJSON( sendResult ) & "; planState=" & serializeJSON( loadPlanState( asset.floatPlanId ) ) );
-        monitoringRow = loadMonitoringRow( asset.floatPlanId );
-        expect( monitoringRow.monitor_state ).toBe( "ACTIVE" );
-        expect( monitoringRow.monitoring_mode ).toBe( "active_route" );
-        expect( normalizeDbDateTime( monitoringRow.expected_checkin_at ) ).toBe( normalizeDbDateTime( loadPlanState( asset.floatPlanId ).departureTime ) );
-        expect( normalizeDbDateTime( monitoringRow.next_monitor_eval_at ) ).toBe( normalizeDbDateTime( monitoringRow.expected_checkin_at ) );
+        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0, "sendResult=" & serializeJSON( sendResult ) & "; planState=" & serializeJSON( loadPlanState( asset.floatPlanId ) ) );
+        startedEvents = loadMonitoringEvents( asset.floatPlanId, "MONITORING_STARTED" );
+        expect( startedEvents.recordCount ).toBe( 0 );
         expect( countStartedRouteProgressRows( asset.floatPlanId ) ).toBe( 0 );
       } );
 
@@ -162,7 +306,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
         markPlanActive( asset.floatPlanId );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         queryExecute(
           "UPDATE floatplan_monitoring
            SET last_checkin_at = UTC_TIMESTAMP(),
@@ -185,42 +329,51 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( monitoringAfter.last_checkin_status ).toBe( "ON_TRACK" );
       } );
 
-      it( "scheduled route monitoring follows the existing ACTIVE to LATE to MISSED evaluator rules", function() {
-        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "scheduled-evaluator" );
+      it( "scheduled route-backed trip 10 hours late is not monitorable before start proof", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "scheduled-evaluator-10h" );
         var asset = createRouteLinkedDraft( prefix );
-        setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
+        var pastDeparture = dateTimeFormat( dateAdd( "h", -10, now() ), "yyyy-mm-dd HH:nn:ss" );
+        var futureReturn = dateTimeFormat( dateAdd( "h", 8, now() ), "yyyy-mm-dd HH:nn:ss" );
+        var startResult = {};
+        var dueResult = {};
+        setPlanSchedule( asset.floatPlanId, pastDeparture, futureReturn, "UTC" );
         markPlanActive( asset.floatPlanId );
-        ensureSuccess( variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId ), "start scheduled route monitor" );
+        startResult = variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId );
+        dueResult = variables.monitorService.evaluateDueMonitoringRows( 100 );
 
-        updateMonitoringTimes( asset.floatPlanId, {
-          monitor_state = "ACTIVE",
-          expected_checkin_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 MINUTE)",
-          grace_expires_at_sql = "DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 MINUTE)",
-          next_monitor_eval_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE)"
-        } );
-        var lateResult = variables.monitorService.evaluateMonitoringCycle( asset.floatPlanId );
-        var lateRow = loadMonitoringRow( asset.floatPlanId );
+        expect( startResult.SUCCESS ).toBeTrue( serializeJSON( startResult ) );
+        expect( startResult.DEFERRED ?: false ).toBeTrue( serializeJSON( startResult ) );
+        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
+        expect( arrayFind( dueResult.FLOAT_PLAN_IDS, asset.floatPlanId ) ).toBe( 0, serializeJSON( dueResult ) );
+        expect( loadMonitoringEvents( asset.floatPlanId, "CHECKIN_LATE" ).recordCount ).toBe( 0 );
+        expect( loadMonitoringEvents( asset.floatPlanId, "CHECKIN_MISSED" ).recordCount ).toBe( 0 );
+      } );
 
-        updateMonitoringTimes( asset.floatPlanId, {
-          monitor_state = "LATE",
-          expected_checkin_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 120 MINUTE)",
-          grace_expires_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE)",
-          next_monitor_eval_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE)"
-        } );
-        var missedResult = variables.monitorService.evaluateMonitoringCycle( asset.floatPlanId );
-        var missedRow = loadMonitoringRow( asset.floatPlanId );
+      it( "scheduled route-backed trip 24 hours late is not monitorable before start proof", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "scheduled-evaluator-24h" );
+        var asset = createRouteLinkedDraft( prefix );
+        var pastDeparture = dateTimeFormat( dateAdd( "h", -24, now() ), "yyyy-mm-dd HH:nn:ss" );
+        var futureReturn = dateTimeFormat( dateAdd( "h", 8, now() ), "yyyy-mm-dd HH:nn:ss" );
+        var startResult = {};
+        var dueResult = {};
+        setPlanSchedule( asset.floatPlanId, pastDeparture, futureReturn, "UTC" );
+        markPlanActive( asset.floatPlanId );
+        startResult = variables.monitorService.startScheduledRouteMonitoringForFloatPlan( asset.floatPlanId );
+        dueResult = variables.monitorService.evaluateDueMonitoringRows( 100 );
 
-        expect( lateResult.SUCCESS ).toBeTrue( serializeJSON( lateResult ) );
-        expect( lateRow.monitor_state ).toBe( "LATE" );
-        expect( missedResult.SUCCESS ).toBeTrue( serializeJSON( missedResult ) );
-        expect( missedRow.monitor_state ).toBe( "MISSED" );
+        expect( startResult.SUCCESS ).toBeTrue( serializeJSON( startResult ) );
+        expect( startResult.DEFERRED ?: false ).toBeTrue( serializeJSON( startResult ) );
+        expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
+        expect( arrayFind( dueResult.FLOAT_PLAN_IDS, asset.floatPlanId ) ).toBe( 0, serializeJSON( dueResult ) );
+        expect( loadMonitoringEvents( asset.floatPlanId, "CHECKIN_LATE" ).recordCount ).toBe( 0 );
+        expect( loadMonitoringEvents( asset.floatPlanId, "CHECKIN_MISSED" ).recordCount ).toBe( 0 );
       } );
 
       it( "ACTIVE transitions to LATE after expected time passes but before grace expires", function() {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "late" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         updateMonitoringTimes( asset.floatPlanId, {
           monitor_state = "ACTIVE",
           expected_checkin_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 MINUTE)",
@@ -241,7 +394,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "missed" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         updateMonitoringTimes( asset.floatPlanId, {
           monitor_state = "LATE",
           expected_checkin_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 120 MINUTE)",
@@ -265,7 +418,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "escalated" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         updateMonitoringTimes( asset.floatPlanId, {
           monitor_state = "MISSED",
           missed_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 121 MINUTE)",
@@ -286,7 +439,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "resolve-missed" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         updateMonitoringTimes( asset.floatPlanId, {
           monitor_state = "MISSED",
           missed_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 10 MINUTE)",
@@ -313,7 +466,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "resolve-escalated" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         updateMonitoringTimes( asset.floatPlanId, {
           monitor_state = "ESCALATED",
           missed_at_sql = "DATE_SUB(UTC_TIMESTAMP(), INTERVAL 150 MINUTE)",
@@ -355,7 +508,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           asset = createRouteLinkedDraftForApi( sessionApi, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
           markPlanActive( asset.floatPlanId );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
           assistanceRecipients = assistanceAlertService.getRecipientEmails( asset.floatPlanId );
 
           checkinResult = postActiveCruiseCheckinWithApi(
@@ -444,7 +597,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           asset = createRouteLinkedDraftForApi( sessionApi, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
           markPlanActive( asset.floatPlanId );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
 
           delayedResult = postActiveCruiseCheckinWithApi( sessionApi, asset.floatPlanId, "Delayed" );
           delayedHero = createObject( "component", "fpw.api.v1.voyage" ).getActiveCruiseHeroCanonical(
@@ -582,7 +735,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
             expect( checkinResult.success ?: checkinResult.SUCCESS ?: false ).toBeFalse( serializeJSON( checkinResult ) );
             expect( trim( toString( checkinResult.ERROR ?: "" ) ) ).toBe( statusCase.error );
-            expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
+            expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
             expect( countStartedRouteProgressRows( asset.floatPlanId ) ).toBe( 0 );
           }
         } finally {
@@ -595,13 +748,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         }
       } );
 
-      it( "pre-departure Assistance Needed initializes monitoring, preserves assistance handling, and does not start route progress", function() {
+      it( "pre-departure Assistance Needed returns a controlled start-required error", function() {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "predeparture-assistance" );
         var sessionApi = buildSessionApiSupport();
         var localCreated = { vesselIds = [], routeCodes = [], floatPlanIds = [] };
         var asset = {};
         var checkinResult = {};
-        var monitoringRow = {};
         var futureDeparture = dateTimeFormat( dateAdd( "h", 3, now() ), "yyyy-mm-dd HH:nn:ss" );
         var futureReturn = dateTimeFormat( dateAdd( "h", 9, now() ), "yyyy-mm-dd HH:nn:ss" );
         var hadOriginalTestUserId = structKeyExists( url, "testUserId" );
@@ -615,12 +767,10 @@ component extends="testbox.system.BaseSpec" output="false" {
           deleteMonitoringRows( asset.floatPlanId );
 
           checkinResult = postActiveCruiseCheckinWithApi( sessionApi, asset.floatPlanId, "Assistance Needed", "Need help before departure" );
-          monitoringRow = loadMonitoringRow( asset.floatPlanId );
 
-          expect( checkinResult.success ).toBeTrue( serializeJSON( checkinResult ) );
-          expect( structKeyExists( checkinResult, "ALERT_SENT" ) ).toBeTrue( serializeJSON( checkinResult ) );
-          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 1 );
-          expect( monitoringRow.last_checkin_status ).toBe( "NEED_ATTENTION" );
+          expect( checkinResult.success ?: checkinResult.SUCCESS ?: false ).toBeFalse( serializeJSON( checkinResult ) );
+          expect( trim( toString( checkinResult.ERROR ?: "" ) ) ).toBe( "PRE_DEPARTURE_ASSISTANCE_REQUIRES_START" );
+          expect( countMonitoringRows( asset.floatPlanId ) ).toBe( 0 );
           expect( countStartedRouteProgressRows( asset.floatPlanId ) ).toBe( 0 );
         } finally {
           if ( hadOriginalTestUserId ) {
@@ -636,7 +786,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-for-night" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
 
         var recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT" );
         var monitoringRowBeforeEval = loadMonitoringRow( asset.floatPlanId );
@@ -650,6 +800,96 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect( evalResult.SUCCESS ).toBeTrue( serializeJSON( evalResult ) );
         expect( evalResult.REASON ).toBe( "OVERNIGHT_SUPPRESSED" );
         expect( monitoringRowAfterEval.monitor_state ).toBe( "ACTIVE" );
+      } );
+
+      it( "SECURE_FOR_NIGHT stores EDT daily-start resume checkpoints as UTC DATETIME strings", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-edt" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "US/Eastern" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT", {
+          baseAt = "2026-05-21 02:35:59"
+        } );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( monitoringRaw.expected_checkin_at_raw ).toBe( "2026-05-21 13:30:00" );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( "2026-05-21 13:30:00" );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( "2026-05-21 13:30:00" );
+        expect( monitoringRaw.grace_expires_at_raw ).toBe( "2026-05-21 14:30:00" );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
+      it( "SECURE_FOR_NIGHT stores EST daily-start resume checkpoints as UTC DATETIME strings", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-est" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-12-14 19:00:00", "2026-12-15 17:00:00", "US/Eastern" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT", {
+          baseAt = "2026-12-15 02:35:59"
+        } );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( monitoringRaw.expected_checkin_at_raw ).toBe( "2026-12-15 14:30:00" );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( "2026-12-15 14:30:00" );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( "2026-12-15 14:30:00" );
+        expect( monitoringRaw.grace_expires_at_raw ).toBe( "2026-12-15 15:30:00" );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
+      it( "SECURE_FOR_NIGHT preserves UTC daily-start resume checkpoints without offset", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-utc" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "UTC" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT", {
+          baseAt = "2026-05-20 22:35:59"
+        } );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( monitoringRaw.expected_checkin_at_raw ).toBe( "2026-05-21 09:30:00" );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( "2026-05-21 09:30:00" );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( "2026-05-21 09:30:00" );
+        expect( monitoringRaw.grace_expires_at_raw ).toBe( "2026-05-21 10:30:00" );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
+      } );
+
+      it( "SECURE_FOR_NIGHT accepts UI-saved daily-start values without a test baseAt", function() {
+        var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "secure-daily-start-prod-shape" );
+        var asset = createRouteLinkedDraft( prefix );
+        var recordResult = {};
+        var monitoringRaw = {};
+
+        setPlanSchedule( asset.floatPlanId, "2026-05-20 19:00:00", "2026-05-21 17:00:00", "US/Eastern" );
+        setDailyStartLocalTime( asset.floatPlanId, "09:30:00" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
+
+        recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "SECURE_FOR_NIGHT" );
+        monitoringRaw = loadMonitoringRawTimestamps( asset.floatPlanId );
+
+        expect( recordResult.SUCCESS ).toBeTrue( serializeJSON( recordResult ) );
+        expect( isSqlDateTimeForTest( monitoringRaw.expected_checkin_at_raw ) ).toBeTrue( serializeJSON( monitoringRaw ) );
+        expect( monitoringRaw.secure_for_night_until_raw ).toBe( monitoringRaw.expected_checkin_at_raw );
+        expect( monitoringRaw.next_monitor_eval_at_raw ).toBe( monitoringRaw.expected_checkin_at_raw );
+        expect( minutesBetweenSqlForTest( monitoringRaw.expected_checkin_at_raw, monitoringRaw.grace_expires_at_raw ) ).toBe( 60 );
+        expect( monitoringRaw.daily_start_local_time_raw ).toBe( "09:30:00" );
       } );
 
       it( "literal Secure for the Night Active Cruise status maps to SECURE_FOR_NIGHT and preserves overnight suppression", function() {
@@ -675,10 +915,11 @@ component extends="testbox.system.BaseSpec" output="false" {
             authPassword = localSessionApiUser.password
           );
           url.testUserId = localSessionApiUser.userId;
+          variables.entitlements.createAdminCompEntitlement(localSessionApiUser.userId);
           asset = createRouteLinkedDraftForApi( sessionApi, prefix, localCreated );
           setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
           markPlanActive( asset.floatPlanId );
-          ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+          ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
 
           checkinResult = postActiveCruiseCheckinWithApi( sessionApi, asset.floatPlanId, "Secure for the Night" );
           monitoringRowBeforeEval = loadMonitoringRow( asset.floatPlanId );
@@ -702,6 +943,15 @@ component extends="testbox.system.BaseSpec" output="false" {
             structDelete( url, "testUserId", false );
           }
           cleanupRouteLinkedAssetsForApi( sessionApi, localCreated );
+          if ( structKeyExists( localSessionApiUser, "userId" ) && val( localSessionApiUser.userId ) GT 0 ) {
+            queryExecute(
+              "DELETE FROM member_entitlements WHERE user_id = :userId",
+              {
+                userId = { value = localSessionApiUser.userId, cfsqltype = "cf_sql_integer" }
+              },
+              { datasource = "fpw" }
+            );
+          }
           cleanupApiUser( localSessionApiUser );
         }
       } );
@@ -710,7 +960,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "arrived-requires-close-path" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
 
         var recordResult = variables.monitorService.recordMonitoringCheckin( asset.floatPlanId, "ARRIVED" );
         var monitoringRow = loadMonitoringRow( asset.floatPlanId );
@@ -724,7 +974,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var prefix = variables.naming.buildPrefix( "float-plan-monitoring", "close" );
         var asset = createRouteLinkedDraft( prefix );
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
 
         var closeResult = variables.monitorService.closeMonitoringForFloatPlan( asset.floatPlanId, "final_arrival" );
         var monitoringRow = loadMonitoringRow( asset.floatPlanId );
@@ -752,7 +1002,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var asset = createRouteLinkedDraft( prefix );
         var suppressedDueRows = [];
         setPlanSchedule( asset.floatPlanId, "2026-04-09 09:00:00", "2026-04-10 20:00:00", "US/Eastern" );
-        ensureSuccess( variables.monitorService.startMonitoringForFloatPlan( asset.floatPlanId, "active_route" ), "start active_route monitor" );
+        ensureSuccess( startActiveRouteMonitoringWithStartProof( asset.floatPlanId ), "start active_route monitor" );
         updateMonitoringTimes( asset.floatPlanId, {
           next_monitor_eval_at_sql = "DATE_ADD(UTC_TIMESTAMP(), INTERVAL 2 HOUR)"
         } );
@@ -775,6 +1025,8 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function createRouteLinkedDraft( required string prefix ) {
+    url.testUserId = variables.sessionApiUser.userId;
+    setMonitoringSessionUser( variables.sessionApiUser.userId );
     variables.cleanup.cleanupCurrentRouteFloatPlanGroup();
     var vesselPayload = variables.api.saveVessel( {
       vesselId = 0,
@@ -826,18 +1078,39 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
   }
 
+  private void function setMonitoringSessionUser( required numeric userId ) {
+    if ( !structKeyExists( session, "user" ) || !isStruct( session.user ) ) {
+      session.user = {};
+    }
+    session.user.userId = arguments.userId;
+    session.user.id = arguments.userId;
+    session.user.USERID = arguments.userId;
+  }
+
+  private void function restoreMonitoringSessionUser() {
+    if ( variables.hadOriginalSessionUser ) {
+      session.user = variables.originalSessionUser;
+    } else {
+      structDelete( session, "user", false );
+    }
+  }
+
   private void function setPlanSchedule(
     required numeric floatPlanId,
     required string departureLocal,
     required string returnLocal,
     required string timeZoneId
   ) {
+    var departureUtc = localWallClockToUtcSql(arguments.departureLocal, arguments.timeZoneId);
+    var returnUtc = localWallClockToUtcSql(arguments.returnLocal, arguments.timeZoneId);
     queryExecute(
       "UPDATE floatplans
-       SET departureTime = CONVERT_TZ(:departureLocal, :timeZoneId, 'UTC'),
+       SET departureTime = :departureLocal,
+           departureTimeUTC = :departureUtc,
            departTimezone = :timeZoneId,
            departureTZ = :timeZoneId,
-           returnTime = CONVERT_TZ(:returnLocal, :timeZoneId, 'UTC'),
+           returnTime = :returnLocal,
+           returnTimeUTC = :returnUtc,
            returnTimezone = :timeZoneId,
            returnTZ = :timeZoneId,
            activatedAt = NULL,
@@ -848,14 +1121,72 @@ component extends="testbox.system.BaseSpec" output="false" {
            `status` = 'DRAFT'
        WHERE floatplanId = :floatPlanId",
       {
-        departureLocal = { value = arguments.departureLocal, cfsqltype = "cf_sql_timestamp" },
-        returnLocal = { value = arguments.returnLocal, cfsqltype = "cf_sql_timestamp" },
+        departureLocal = { value = normalizeSqlDateTimeString(arguments.departureLocal), cfsqltype = "cf_sql_varchar" },
+        departureUtc = { value = departureUtc, cfsqltype = "cf_sql_varchar" },
+        returnLocal = { value = normalizeSqlDateTimeString(arguments.returnLocal), cfsqltype = "cf_sql_varchar" },
+        returnUtc = { value = returnUtc, cfsqltype = "cf_sql_varchar" },
         timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" },
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       },
       { datasource = "fpw" }
     );
     deleteMonitoringRows( arguments.floatPlanId );
+  }
+
+  private string function localWallClockToUtcSql(required string localDateTime, required string timeZoneId) {
+    var localText = normalizeSqlDateTimeString(arguments.localDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+    var offsetMinutes = 0;
+    if (!len(localText) OR !len(zoneText)) {
+      return "";
+    }
+    if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
+      return localText;
+    }
+    offsetMinutes = scheduleFixtureOffsetMinutes(localText, zoneText);
+    expect( offsetMinutes ).notToBe( -99999, "Unsupported test timezone/date fixture: " & zoneText & " " & localText );
+    return shiftSqlTimestampForTest(localText, offsetMinutes);
+  }
+
+  private numeric function scheduleFixtureOffsetMinutes(required string localDateTime, required string timeZoneId) {
+    var localText = normalizeSqlDateTimeString(arguments.localDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+    var isEasternDaylight = (localText GTE "2026-03-08 02:00:00" AND localText LT "2026-11-01 02:00:00");
+
+    if (listFindNoCase("US/Eastern,America/New_York", zoneText)) {
+      return isEasternDaylight ? 240 : 300;
+    }
+    if (listFindNoCase("US/Central,America/Chicago", zoneText)) {
+      return isEasternDaylight ? 300 : 360;
+    }
+    return -99999;
+  }
+
+  private string function shiftSqlTimestampForTest(required string sqlTimestamp, required numeric minutes) {
+    var raw = normalizeSqlDateTimeString(arguments.sqlTimestamp);
+    var minutesVal = int(val(arguments.minutes));
+    var qShifted = queryExecute(
+      "SELECT DATE_FORMAT(DATE_ADD(CAST(:raw AS DATETIME), INTERVAL #minutesVal# MINUTE), '%Y-%m-%d %H:%i:%s') AS shifted_at",
+      {
+        raw = { value = raw, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qShifted.recordCount EQ 0 OR isNull(qShifted.shifted_at[1])) {
+      return "";
+    }
+    return trim(toString(qShifted.shifted_at[1]));
+  }
+
+  private string function normalizeSqlDateTimeString(required string value) {
+    var raw = trim(arguments.value);
+    raw = replace(raw, "T", " ", "one");
+    raw = reReplace(raw, "\.[0-9]+$", "", "one");
+    raw = reReplace(raw, "Z$", "", "one");
+    if (len(raw) EQ 16) {
+      raw &= ":00";
+    }
+    return left(raw, 19);
   }
 
   private void function updateMonitoringTimes( required numeric floatPlanId, required struct updates ) {
@@ -895,6 +1226,215 @@ component extends="testbox.system.BaseSpec" output="false" {
       },
       { datasource = "fpw" }
     );
+  }
+
+  private any function setFirstLegStartedAt(
+    required numeric floatPlanId,
+    required string startedLocal,
+    required string timeZoneId
+  ) {
+    var startedUtc = localWallClockToUtcSql(arguments.startedLocal, arguments.timeZoneId);
+    var qLeg = queryExecute(
+      "SELECT fp.userId,
+              fp.route_instance_id,
+              MIN(rilp.leg_order) AS leg_order
+       FROM floatplans fp
+       INNER JOIN route_instance_leg_progress rilp
+          ON rilp.route_instance_id = fp.route_instance_id
+         AND rilp.user_id = fp.userId
+       WHERE fp.floatplanId = :floatPlanId
+       GROUP BY fp.userId, fp.route_instance_id",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qLeg.recordCount ).toBe( 1 );
+    expect( val( qLeg.leg_order[ 1 ] ) ).toBeGT( 0 );
+    queryExecute(
+      "UPDATE route_instance_leg_progress
+       SET status = 'STARTED',
+           leg_started_at = :startedUtc,
+           completed_at = NULL
+       WHERE route_instance_id = :routeInstanceId
+         AND user_id = :userId
+         AND leg_order = :legOrder",
+      {
+        startedUtc = { value = startedUtc, cfsqltype = "cf_sql_varchar" },
+        routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        legOrder = { value = val( qLeg.leg_order[ 1 ] ), cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    var qStarted = queryExecute(
+      "SELECT leg_started_at
+       FROM route_instance_leg_progress
+       WHERE route_instance_id = :routeInstanceId
+         AND user_id = :userId
+         AND leg_order = :legOrder
+       LIMIT 1",
+      {
+        routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        legOrder = { value = val( qLeg.leg_order[ 1 ] ), cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qStarted.recordCount ).toBe( 1 );
+    expect( isDate( qStarted.leg_started_at[ 1 ] ) ).toBeTrue();
+    return qStarted.leg_started_at[ 1 ];
+  }
+
+  private struct function startActiveRouteMonitoringWithStartProof( required numeric floatPlanId ) {
+    var startedUtc = setFirstLegStartedAtFromPlanSchedule( arguments.floatPlanId );
+    return variables.monitorService.startMonitoringForFloatPlan( arguments.floatPlanId, "active_route", {
+      baseAt = startedUtc
+    } );
+  }
+
+  private any function setFirstLegStartedAtFromPlanSchedule( required numeric floatPlanId ) {
+    var qLeg = queryExecute(
+      "SELECT fp.userId,
+              fp.route_instance_id,
+              fp.departureTimeUTC,
+              MIN(rilp.leg_order) AS leg_order
+       FROM floatplans fp
+       INNER JOIN route_instance_leg_progress rilp
+          ON rilp.route_instance_id = fp.route_instance_id
+         AND rilp.user_id = fp.userId
+       WHERE fp.floatplanId = :floatPlanId
+       GROUP BY fp.userId, fp.route_instance_id, fp.departureTimeUTC",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    var startedUtc = "";
+
+    expect( qLeg.recordCount ).toBe( 1 );
+    expect( val( qLeg.leg_order[ 1 ] ) ).toBeGT( 0 );
+    expect( isDate( qLeg.departureTimeUTC[ 1 ] ) ).toBeTrue( serializeJSON( qLeg ) );
+    startedUtc = qLeg.departureTimeUTC[ 1 ];
+
+    queryExecute(
+      "UPDATE route_instance_leg_progress
+       SET status = CASE
+               WHEN UPPER(TRIM(COALESCE(status, ''))) = 'NOT_STARTED' THEN 'STARTED'
+               ELSE status
+           END,
+           leg_started_at = COALESCE(leg_started_at, :startedUtc)
+       WHERE route_instance_id = :routeInstanceId
+         AND user_id = :userId
+         AND leg_order = :legOrder",
+      {
+        startedUtc = { value = startedUtc, cfsqltype = "cf_sql_timestamp" },
+        routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        legOrder = { value = val( qLeg.leg_order[ 1 ] ), cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "UPDATE route_instances
+       SET status = CASE
+               WHEN UPPER(TRIM(COALESCE(status, ''))) = 'PLANNED' THEN 'ACTIVE'
+               ELSE status
+           END,
+           started_at = COALESCE(started_at, :startedUtc)
+       WHERE id = :routeInstanceId
+         AND user_id = :userId",
+      {
+        startedUtc = { value = startedUtc, cfsqltype = "cf_sql_timestamp" },
+        routeInstanceId = { value = val( qLeg.route_instance_id[ 1 ] ), cfsqltype = "cf_sql_integer" },
+        userId = { value = val( qLeg.userId[ 1 ] ), cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+
+    return startedUtc;
+  }
+
+  private void function setMonitoringSecureForNight(
+    required numeric floatPlanId,
+    required string secureUntilLocal,
+    required string timeZoneId
+  ) {
+    var secureUntilUtc = localWallClockToUtcSql(arguments.secureUntilLocal, arguments.timeZoneId);
+    queryExecute(
+      "UPDATE floatplan_monitoring
+       SET secure_for_night = 1,
+           secure_for_night_until = :secureUntilUtc,
+           expected_checkin_at = :secureUntilUtc,
+           grace_expires_at = DATE_ADD(CAST(:secureUntilUtcForGrace AS DATETIME), INTERVAL grace_window_minutes MINUTE),
+           next_monitor_eval_at = :secureUntilUtc
+       WHERE float_plan_id = :floatPlanId",
+      {
+        secureUntilUtc = { value = secureUntilUtc, cfsqltype = "cf_sql_varchar" },
+        secureUntilUtcForGrace = { value = secureUntilUtc, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private void function setDailyStartLocalTime( required numeric floatPlanId, required string dailyStartLocalTime ) {
+    queryExecute(
+      "UPDATE floatplans
+       SET dailyStartLocalTime = :dailyStartLocalTime
+       WHERE floatPlanId = :floatPlanId",
+      {
+        dailyStartLocalTime = { value = arguments.dailyStartLocalTime, cfsqltype = "cf_sql_varchar" },
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+  }
+
+  private struct function loadMonitoringRawTimestamps( required numeric floatPlanId ) {
+    var qRow = queryExecute(
+      "SELECT
+          DATE_FORMAT(expected_checkin_at, '%Y-%m-%d %H:%i:%s') AS expected_checkin_at_raw,
+          DATE_FORMAT(grace_expires_at, '%Y-%m-%d %H:%i:%s') AS grace_expires_at_raw,
+          DATE_FORMAT(secure_for_night_until, '%Y-%m-%d %H:%i:%s') AS secure_for_night_until_raw,
+          DATE_FORMAT(next_monitor_eval_at, '%Y-%m-%d %H:%i:%s') AS next_monitor_eval_at_raw,
+          TIME_FORMAT(fp.dailyStartLocalTime, '%H:%i:%s') AS daily_start_local_time_raw
+       FROM floatplan_monitoring
+       INNER JOIN floatplans fp ON fp.floatPlanId = floatplan_monitoring.float_plan_id
+       WHERE float_plan_id = :floatPlanId
+       LIMIT 1",
+      {
+        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    expect( qRow.recordCount ).toBe( 1 );
+    return {
+      expected_checkin_at_raw = isNull( qRow.expected_checkin_at_raw[ 1 ] ) ? "" : trim( toString( qRow.expected_checkin_at_raw[ 1 ] ) ),
+      grace_expires_at_raw = isNull( qRow.grace_expires_at_raw[ 1 ] ) ? "" : trim( toString( qRow.grace_expires_at_raw[ 1 ] ) ),
+      secure_for_night_until_raw = isNull( qRow.secure_for_night_until_raw[ 1 ] ) ? "" : trim( toString( qRow.secure_for_night_until_raw[ 1 ] ) ),
+      next_monitor_eval_at_raw = isNull( qRow.next_monitor_eval_at_raw[ 1 ] ) ? "" : trim( toString( qRow.next_monitor_eval_at_raw[ 1 ] ) ),
+      daily_start_local_time_raw = isNull( qRow.daily_start_local_time_raw[ 1 ] ) ? "" : trim( toString( qRow.daily_start_local_time_raw[ 1 ] ) )
+    };
+  }
+
+  private boolean function isSqlDateTimeForTest( required string value ) {
+    return reFind( "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", trim( arguments.value ) ) EQ 1;
+  }
+
+  private numeric function minutesBetweenSqlForTest( required string startAt, required string endAt ) {
+    var qDiff = queryExecute(
+      "SELECT TIMESTAMPDIFF(MINUTE, CAST(:startAt AS DATETIME), CAST(:endAt AS DATETIME)) AS minutes_diff",
+      {
+        startAt = { value = arguments.startAt, cfsqltype = "cf_sql_varchar" },
+        endAt = { value = arguments.endAt, cfsqltype = "cf_sql_varchar" }
+      },
+      { datasource = "fpw" }
+    );
+    if (qDiff.recordCount EQ 0 OR isNull(qDiff.minutes_diff[1])) {
+      return -99999;
+    }
+    return val(qDiff.minutes_diff[1]);
   }
 
   private struct function loadMonitoringRow( required numeric floatPlanId ) {
@@ -1059,18 +1599,28 @@ component extends="testbox.system.BaseSpec" output="false" {
     if ( !isDate( arguments.utcDateTime ) ) {
       return "";
     }
-    var qLocal = queryExecute(
-      "SELECT CONVERT_TZ(:utcDateTime, 'UTC', :timeZoneId) AS localDateTime",
-      {
-        utcDateTime = { value = arguments.utcDateTime, cfsqltype = "cf_sql_timestamp" },
-        timeZoneId = { value = arguments.timeZoneId, cfsqltype = "cf_sql_varchar" }
-      },
-      { datasource = "fpw" }
-    );
-    if ( qLocal.recordCount EQ 0 OR isNull( qLocal.localDateTime[ 1 ] ) ) {
+    var utcText = normalizeDbDateTime( arguments.utcDateTime );
+    var offsetMinutes = utcFixtureOffsetMinutes( utcText, arguments.timeZoneId );
+    if ( offsetMinutes EQ -99999 ) {
       return "";
     }
-    return dateTimeFormat( qLocal.localDateTime[ 1 ], "yyyy-mm-dd HH:nn:ss" );
+    return shiftSqlTimestampForTest( utcText, -offsetMinutes );
+  }
+
+  private numeric function utcFixtureOffsetMinutes( required string utcDateTime, required string timeZoneId ) {
+    var utcText = normalizeSqlDateTimeString(arguments.utcDateTime);
+    var zoneText = trim(arguments.timeZoneId);
+
+    if (listFindNoCase("UTC,Etc/UTC,GMT,+00:00", zoneText)) {
+      return 0;
+    }
+    if (listFindNoCase("US/Eastern,America/New_York", zoneText)) {
+      return (utcText GTE "2026-03-08 07:00:00" AND utcText LT "2026-11-01 06:00:00") ? 240 : 300;
+    }
+    if (listFindNoCase("US/Central,America/Chicago", zoneText)) {
+      return (utcText GTE "2026-03-08 08:00:00" AND utcText LT "2026-11-01 07:00:00") ? 300 : 360;
+    }
+    return -99999;
   }
 
   private string function normalizeDbDateTime( required any value ) {
@@ -1255,7 +1805,9 @@ component extends="testbox.system.BaseSpec" output="false" {
       firstName = "FPW",
       lastName = "Assistance",
       email = uniqueEmail,
-      password = "changeIt"
+      password = "changeIt",
+      confirmPassword = "changeIt",
+      termsAccepted = true
     }, false );
 
     expect( payload.SUCCESS ).toBeTrue( serializeJSON( payload ) );
@@ -1285,6 +1837,32 @@ component extends="testbox.system.BaseSpec" output="false" {
     }
 
     queryExecute(
+      "DELETE FROM premium_trip_entitlement_events
+       WHERE premium_trip_entitlement_id IN (
+         SELECT premium_trip_entitlement_id
+         FROM member_premium_trip_entitlements
+         WHERE user_id = :userId
+       )",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM premium_trip_creation_sessions WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
+      "DELETE FROM member_premium_trip_entitlements WHERE user_id = :userId",
+      {
+        userId = { value = userId, cfsqltype = "cf_sql_integer" }
+      },
+      { datasource = "fpw" }
+    );
+    queryExecute(
       "DELETE FROM users_address WHERE userId = :userId",
       {
         userId = { value = userId, cfsqltype = "cf_sql_integer" }
@@ -1301,6 +1879,8 @@ component extends="testbox.system.BaseSpec" output="false" {
   }
 
   private struct function createRouteLinkedDraftForApi( required any apiSupport, required string prefix, required struct created ) {
+    url.testUserId = variables.sessionApiUser.userId;
+    setMonitoringSessionUser( variables.sessionApiUser.userId );
     var cleanupSupport = new fpw.tests.support.FpwCleanupSupport().init( arguments.apiSupport );
     cleanupSupport.cleanupCurrentRouteFloatPlanGroup();
     var vesselPayload = arguments.apiSupport.saveVessel( {

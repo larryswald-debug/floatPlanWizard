@@ -18,10 +18,10 @@
         <cfset var reader = "">
 
         <cftry>
-            <cfif NOT isAuthorizedRequest()>
+            <cfif NOT structKeyExists(request, "fpwAdminAuthorization") OR request.fpwAdminAuthorization.authorized NEQ true>
                 <cfset response.ERROR = {
-                    "CODE" = "UNAUTHORIZED",
-                    "MESSAGE" = "A valid backup token is required."
+                    "CODE" = "FORBIDDEN",
+                    "MESSAGE" = "Interactive ADMIN authorization is required."
                 }>
                 <cfset writeJsonResponse(response)>
                 <cfreturn>
@@ -62,9 +62,11 @@
 
             <cffile action="append" file="#filePath#" output="#chr(10)#SET FOREIGN_KEY_CHECKS=1;#chr(10)#" charset="utf-8">
 
-            <cfset fileObj = createObject("java", "java.io.File").init(filePath)>
-            <cfset sizeBytes = javacast("long", fileObj.length())>
-            <cfset readable = fileObj.exists() AND fileObj.isFile() AND fileObj.canRead() AND sizeBytes GT 0>
+            <cfif fileExists(filePath)>
+                <cfset local.fileInfo = getFileInfo(filePath)>
+                <cfset sizeBytes = local.fileInfo.size>
+            </cfif>
+            <cfset readable = fileExists(filePath) AND sizeBytes GT 0>
 
             <cfif readable>
                 <cfset reader = fileOpen(filePath, "read", "utf-8")>
@@ -76,7 +78,7 @@
 
             <cfset response.SUCCESS = readable>
             <cfset response.DATA = {
-                "METHOD" = "cfml_sql_export_via_mcpcfc_endpoint",
+                "METHOD" = "cfml_sql_export_via_admin_endpoint",
                 "DATABASE_NAME" = dbName,
                 "TABLE_COUNT" = qTables.recordCount,
                 "BACKUP_FILE" = filePath,
@@ -102,32 +104,17 @@
                 </cftry>
             </cfif>
             <cfset response.SUCCESS = false>
+            <cflog file="fpw-db-backup" type="error" text="Backup export failed: #cfcatch.message# #cfcatch.detail#">
             <cfset response.ERROR = {
                 "CODE" = "BACKUP_EXPORT_FAILED",
-                "MESSAGE" = cfcatch.message,
-                "DETAIL" = cfcatch.detail
+                "MESSAGE" = "Database backup export failed."
             }>
             <cfset writeJsonResponse(response)>
         </cfcatch>
         </cftry>
     </cffunction>
 
-    <cffunction name="isAuthorizedRequest" access="private" returntype="boolean" output="false">
-        <cfset var token = "">
-        <cfif structKeyExists(url, "token")>
-            <cfset token = trim(toString(url.token))>
-        </cfif>
-
-        <cfif NOT structKeyExists(application, "monitorToken")>
-            <cfreturn false>
-        </cfif>
-
-        <cfif NOT structKeyExists(application, "env") OR lCase(toString(application.env)) NEQ "dev">
-            <cfreturn false>
-        </cfif>
-
-        <cfreturn len(token) GT 0 AND token EQ toString(application.monitorToken)>
-    </cffunction>
+    <!--- Authentication and CSRF are enforced centrally by Application.cfc. --->
 
     <cffunction name="resolveDatasourceName" access="private" returntype="string" output="false">
         <cfif structKeyExists(application, "DSN") AND len(trim(toString(application.DSN)))>
@@ -216,8 +203,7 @@
 
     <cffunction name="resolveBackupDirectory" access="private" returntype="string" output="false">
         <cfset var apiDir = getDirectoryFromPath(getCurrentTemplatePath())>
-        <cfset var repoDir = createObject("java", "java.io.File").init(apiDir & "../../").getCanonicalPath()>
-        <cfset var backupDir = createObject("java", "java.io.File").init(repoDir & "/.codex-db-backups").getCanonicalPath()>
+        <cfset var backupDir = apiDir & "../../.codex-db-backups">
         <cfreturn backupDir>
     </cffunction>
 
@@ -235,6 +221,7 @@
     </cffunction>
 
 </cfcomponent>
+
 
 
 

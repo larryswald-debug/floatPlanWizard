@@ -170,6 +170,24 @@
     return base + "/api/v1/voyage.cfc?method=handle&action=" + encodeURIComponent(action) + "&returnFormat=json";
   }
 
+  function apiDownloadUrl(action, params) {
+    var base = getBasePath();
+    var query = new URLSearchParams();
+    var values = params && typeof params === "object" ? params : {};
+
+    query.set("method", "handle");
+    query.set("action", action);
+    query.set("returnFormat", "json");
+
+    Object.keys(values).forEach(function (key) {
+      var value = values[key];
+      if (value === undefined || value === null || value === "") return;
+      query.set(key, String(value));
+    });
+
+    return base + "/api/v1/voyage.cfc?" + query.toString();
+  }
+
   function readSlugTokenFromUrl() {
     var params = new URLSearchParams(window.location.search || "");
     var slug = (params.get("slug") || "").trim();
@@ -366,6 +384,12 @@
     el.textContent = String(value);
   }
 
+  function setHookHidden(name, hidden) {
+    var el = getHookField(name);
+    if (!el) return;
+    el.hidden = !!hidden;
+  }
+
   function setHookHTML(name, html) {
     var el = getHookField(name);
     if (!el) return;
@@ -408,6 +432,45 @@
     return label || authorityText(fallback);
   }
 
+  function isScheduledTrip(payload) {
+    var body = payload && payload.body ? payload.body : {};
+    var topCards = payload && payload.topCards ? payload.topCards : {};
+    var tripState = getAuthoritySection(payload, "tripState");
+    var code = authorityText(tripState.code).toLowerCase();
+    var label = authorityText(tripState.label).toLowerCase();
+    var fallbackText = [
+      authorityText(topCards.status),
+      authorityText(topCards.voyage_progress_status),
+      authorityText(body.journey_subtitle),
+      authorityText(body.trip_summary_mode),
+      authorityText(body.family_confidence_subtitle)
+    ].join(" ");
+
+    return code === "scheduled"
+      || label === "scheduled"
+      || /scheduled departure pending|trip is scheduled/i.test(fallbackText);
+  }
+
+  function scheduledDepartureMeta(body) {
+    var meta = String(body && body.journey_departed_meta ? body.journey_departed_meta : "").trim();
+    if (!meta) return "Scheduled departure pending";
+    return /^Scheduled departure:/i.test(meta) ? meta : ("Scheduled departure: " + meta);
+  }
+
+  function firstPlannedLegMeta(fromName, toName) {
+    var from = authorityText(fromName);
+    var to = authorityText(toName);
+    if (from && to) return "First planned leg: " + from + " to " + to;
+    if (to) return "First planned leg ends at " + to;
+    if (from) return "First planned leg starts at " + from;
+    return "First planned leg after scheduled departure";
+  }
+
+  function firstPlannedStopMeta(stopName) {
+    var stop = authorityText(stopName);
+    return stop ? ("First planned stop: " + stop + " after departure") : "First planned stop after departure";
+  }
+
   function renderPhase5StreamShell(payload) {
     var pinned = payload.pinned || {};
     var topCards = payload.topCards || {};
@@ -433,6 +496,7 @@
     var checkinMeta = String(body.journey_checkin_meta || "").trim();
     var cardCheckinMeta = checkinMeta.replace(/\s*Next update expected tomorrow morning\.\s*/i, "").trim();
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var isScheduled = isScheduledTrip(payload);
     var activeLeg = findActiveTimelineLeg(
       legs,
       locationLabel,
@@ -481,11 +545,22 @@
       hoursUnderwayLabel = hoursUnderwayTotal.toFixed(1);
     }
     nextStopEtaLabel = authorityLocalLabel(authorityTiming.etaLocalLabel, etaUtc, "—");
+    if (isScheduled) {
+      updatedLabel = "Scheduled";
+      milesTodayLabel = "—";
+      hoursUnderwayLabel = "—";
+      currentStopValue = "Trip scheduled";
+      currentStopMeta = firstPlannedLegMeta(locationLabel, nextStop);
+      nextStopEtaLabel = firstPlannedStopMeta(nextStop);
+    }
 
     setHookText("stream-glance-updated", updatedLabel);
     setHookText("stream-glance-miles", milesTodayLabel);
     setHookText("stream-glance-hours", hoursUnderwayLabel);
-    if (isOvernightState && locationLabel && cardCheckinMeta) {
+    if (isScheduled) {
+      currentStopValue = "Trip scheduled";
+      currentStopMeta = firstPlannedLegMeta(locationLabel, nextStop);
+    } else if (isOvernightState && locationLabel && cardCheckinMeta) {
       currentStopValue = locationLabel;
       currentStopMeta = cardCheckinMeta;
     } else if (isAwaitingDeparture) {
@@ -498,13 +573,13 @@
       currentStopValue = locationLabel || "—";
       currentStopMeta = cardCheckinMeta || "—";
     }
-    if (!isAwaitingDeparture && activeLegProgressPct !== null) {
+    if (!isScheduled && !isAwaitingDeparture && activeLegProgressPct !== null) {
       currentStopMeta = "Current leg " + formatProgressLabel(activeLegProgressPct) + " complete";
     }
     setHookText("stream-glance-checkin", currentStopValue);
     setHookText("stream-glance-checkin-meta", currentStopMeta);
     setHookText("stream-glance-next-stop", nextStop);
-    setHookText("stream-glance-next-stop-meta", isAwaitingDeparture ? "Awaiting departure" : (nextStopEtaLabel === "—" ? "—" : ("ETA " + nextStopEtaLabel)));
+    setHookText("stream-glance-next-stop-meta", isScheduled ? nextStopEtaLabel : (isAwaitingDeparture ? "Awaiting departure" : (nextStopEtaLabel === "—" ? "—" : ("ETA " + nextStopEtaLabel))));
   }
 
   function formatDayCountLabel(days) {
@@ -564,13 +639,16 @@
     var etaUtc = authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim();
     var etaLabel = "—";
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var isScheduled = isScheduledTrip(payload);
     var progressPct = safeNum(authorityProgress.routeProgressPercent);
     var publicHealthLabel = authorityText(authorityMonitoring.publicHealthLabel);
     var tripStateLabel = authorityText(authorityTripState.label);
     if (pinnedMilesTodayNm === null) {
       pinnedMilesTodayNm = safeNum(pinned.miles_today_nm);
     }
-    if (progressPct === null) {
+    if (isScheduled && progressPct === null) {
+      progressPct = 0;
+    } else if (progressPct === null) {
       progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
     }
 
@@ -584,16 +662,16 @@
     });
     etaLabel = authorityLocalLabel(authorityTiming.etaLocalLabel, etaUtc, "—");
 
-    setHookText("today-progress-metric", (pinnedMilesTodayNm === null ? completedMilesNm : pinnedMilesTodayNm).toFixed(1) + " nm");
-    setHookText("today-progress-location", currentLegLabel ? ("Current leg: " + currentLegLabel) : ("Current location: " + currentLocation));
-    setHookText("today-progress-eta", isAwaitingDeparture ? "Awaiting departure" : (etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel)));
+    setHookText("today-progress-metric", isScheduled ? "—" : ((pinnedMilesTodayNm === null ? completedMilesNm : pinnedMilesTodayNm).toFixed(1) + " nm"));
+    setHookText("today-progress-location", isScheduled ? "Trip scheduled" : (currentLegLabel ? ("Current leg: " + currentLegLabel) : ("Current location: " + currentLocation)));
+    setHookText("today-progress-eta", isScheduled ? firstPlannedLegMeta(currentLocation, nextStop) : (isAwaitingDeparture ? "Awaiting departure" : (etaLabel === "—" ? "—" : ("Estimated arrival: " + etaLabel))));
     setHookWidth("today-progress-fill", progressPct);
     setHookText("latest-photos-count", String(photoCount) + " recent " + (photoCount === 1 ? "moment" : "moments") + " shared");
     setHookText("trip-summary-metric", totalHoursText === "n/a" ? "n/a" : (totalHoursText + " total"));
     setHookText("trip-summary-distance", miles === null ? "0" : miles.toFixed(1) + " mi");
     setHookText("trip-summary-confidence", body.trip_summary_confidence);
     setHookText("trip-summary-mode", tripStateLabel ? ("Trip state: " + tripStateLabel) : (isAwaitingDeparture ? "Trip mode: Awaiting departure" : body.trip_summary_mode));
-    setHookText("trip-summary-safety", publicHealthLabel ? ("Health: " + publicHealthLabel) : body.trip_summary_safety);
+    setHookText("trip-summary-safety", isScheduled ? body.trip_summary_safety : (publicHealthLabel ? ("Health: " + publicHealthLabel) : body.trip_summary_safety));
     renderLatestPhotoRow(posts);
   }
 
@@ -724,6 +802,7 @@
     var currentLocation = authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : "").trim();
     var completedLegs = toInt(summary.completed_legs, 0);
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
+    var isScheduled = isScheduledTrip(payload);
     var activeLeg = findActiveTimelineLeg(legs, currentLocation, nextStop, summary, isAwaitingDeparture);
     var activeLegLabel = authorityText(authorityCurrentLeg.label) || String(activeLeg && activeLeg.label ? activeLeg.label : "").trim();
     var activeLegStartName = String(activeLeg && activeLeg.start_name ? activeLeg.start_name : currentLocation).trim();
@@ -731,14 +810,16 @@
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
     var progressPct = safeNum(authorityProgress.routeProgressPercent);
     var legProgressPct = safeNum(authorityProgress.legProgressPercent);
-    var departedLocalMeta = formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
+    var departedLocalMeta = String(body.journey_departed_meta || "").trim() || formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
     var nextStopLocalEta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var finalArrivalLabel = authorityLocalLabel(authorityTiming.finalArrivalLocalLabel, authorityTiming.finalArrivalUtc, "");
     var routeProgressLabel = "";
     var legProgressLabel = "";
     var journeySubtitleText = "";
     var currentLegMetaText = "";
-    if (progressPct === null) {
+    if (isScheduled && progressPct === null) {
+      progressPct = 0;
+    } else if (progressPct === null) {
       progressPct = computeJourneyProgressPct(summary, legs, currentLocation, nextStop, isAwaitingDeparture);
     }
     routeProgressLabel = formatProgressLabel(progressPct);
@@ -763,6 +844,20 @@
       conditionsValue = String(topCards.conditions || "").trim();
       conditionsCopy = String(body.card_conditions_copy || "").trim();
     }
+    if (isScheduled) {
+      status = "Scheduled";
+      voyageProgressStatus = "Scheduled";
+      voyageProgressStatusVariant = "good";
+      lastCheckinLabel = "";
+      realCheckInLabel = "";
+      sidebarLastCheckin = "—";
+      nextStopLocalEta = firstPlannedStopMeta(nextStop);
+      finalArrivalLabel = "";
+      legProgressLabel = "";
+      conditionsTitle = "Monitoring pending";
+      conditionsValue = "";
+      conditionsCopy = "Monitoring starts at scheduled departure.";
+    }
 
     setHookText("trip-card-title", title);
     setHookText("trip-card-status-pill", status);
@@ -779,7 +874,7 @@
 
     setHookText("page-title", title);
     setHookText("page-subtitle", body.page_subtitle);
-    if (lastCheckinLabel) {
+    if (!isScheduled && lastCheckinLabel) {
       setHookText("live-chip", "Live now · Updated " + lastCheckinLabel);
     }
 
@@ -795,10 +890,12 @@
       dom.journeyStatusPill.classList.toggle("good", voyageProgressStatusVariant !== "danger" && voyageProgressStatusVariant !== "warning");
     }
     setHookWidth("journey-progress-fill", progressPct);
-    setHookText("journey-departed-value", body.journey_departed_value);
-    setHookText("journey-departed-meta", departedLocalMeta);
-    setHookText("journey-current-leg-value", isAwaitingDeparture ? "Awaiting Departure" : activeLegLabel);
-    if (isAwaitingDeparture) {
+    setHookText("journey-departed-value", isScheduled ? "Trip scheduled" : body.journey_departed_value);
+    setHookText("journey-departed-meta", isScheduled ? scheduledDepartureMeta(body) : departedLocalMeta);
+    setHookText("journey-current-leg-value", isScheduled ? "Trip scheduled" : (isAwaitingDeparture ? "Awaiting Departure" : activeLegLabel));
+    if (isScheduled) {
+      setHookText("journey-current-leg-meta", firstPlannedLegMeta(currentLocation, nextStop));
+    } else if (isAwaitingDeparture) {
       setHookText("journey-current-leg-meta", "Next leg has not started yet.");
     } else if (legProgressLabel) {
       currentLegMetaText = "Current leg " + legProgressLabel + " complete";
@@ -809,29 +906,32 @@
     } else if (activeLeg && completedLegs < legs.length && effectiveSpeedKn !== null && effectiveSpeedKn > 0) {
       setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
     }
-    setHookText("journey-next-stop-value", nextStop);
-    setHookText("journey-next-stop-meta", nextStopLocalEta);
-    setHookText("journey-checkin-value", realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --");
-    setHookText("journey-checkin-meta", authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel) ? ("Next expected: " + authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel)) : body.journey_checkin_meta);
+    setHookText("journey-next-stop-value", isScheduled ? "Trip scheduled" : nextStop);
+    setHookText("journey-next-stop-meta", isScheduled ? firstPlannedStopMeta(nextStop) : nextStopLocalEta);
+    setHookText("journey-checkin-value", isScheduled ? "No check-ins yet" : (realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --"));
+    setHookText("journey-checkin-meta", isScheduled ? "First check-in expected at scheduled departure." : (authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel) ? ("Next expected: " + authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel)) : body.journey_checkin_meta));
 
     setHookText("card-status-title", voyageProgressStatus);
-    setHookText("card-status-value", lastCheckinLabel || "—");
-    setHookText("card-status-copy", tripStateLabel ? ("Trip state: " + tripStateLabel + (tripStateHelper ? (". " + tripStateHelper) : "")) : voyageProgressStatusCopy);
+    setHookText("card-status-value", isScheduled ? "—" : (lastCheckinLabel || "—"));
+    setHookText("card-status-copy", isScheduled ? "Trip state: Scheduled. The trip is scheduled and has not started yet." : (tripStateLabel ? ("Trip state: " + tripStateLabel + (tripStateHelper ? (". " + tripStateHelper) : "")) : voyageProgressStatusCopy));
     if (dom.statusDot) {
       dom.statusDot.classList.toggle("warning", voyageProgressStatusVariant === "warning");
       dom.statusDot.classList.toggle("danger", voyageProgressStatusVariant === "danger");
     }
-    setHookText("card-location-title", currentLocation || String(topCards.location_label || "").trim());
-    setHookText("card-location-value", nextStop);
-    setHookText("card-location-copy", isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy);
-    setHookText("card-destination-title", nextStop);
-    setHookText("card-destination-value", topCards.next_stop);
-    setHookText("card-destination-copy", finalArrivalLabel ? ("Final route arrival: " + finalArrivalLabel) : body.card_destination_copy);
-    setHookText("card-arrival-title", nextStopLocalEta);
-    setHookText("card-arrival-value", nextStop);
-    setHookText("card-arrival-copy", isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy);
+    setHookText("card-location-title", isScheduled ? "Trip scheduled" : (currentLocation || String(topCards.location_label || "").trim()));
+    setHookText("card-location-value", isScheduled ? (currentLocation || "Scheduled departure") : nextStop);
+    setHookText("card-location-copy", isScheduled ? firstPlannedLegMeta(currentLocation, nextStop) : (isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy));
+    setHookText("card-destination-title", isScheduled ? "Trip scheduled" : nextStop);
+    setHookText("card-destination-value", isScheduled ? (nextStop || topCards.next_stop) : topCards.next_stop);
+    setHookText("card-destination-copy", isScheduled ? firstPlannedStopMeta(nextStop) : (finalArrivalLabel ? ("Final route arrival: " + finalArrivalLabel) : body.card_destination_copy));
+    setHookText("card-arrival-title", isScheduled ? "Trip scheduled" : nextStopLocalEta);
+    setHookText("card-arrival-value", isScheduled ? "No live ETA yet" : nextStop);
+    setHookText("card-arrival-copy", isScheduled ? "Arrival estimates appear after the trip is underway." : (isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy));
     setHookText("card-conditions-title", conditionsTitle);
-    setHookText("card-conditions-value", conditionsValue);
+    setHookHidden("card-conditions-value", isScheduled);
+    if (!isScheduled) {
+      setHookText("card-conditions-value", conditionsValue);
+    }
     setHookText("card-conditions-copy", conditionsCopy);
     setHookText("family-confidence-subtitle", body.family_confidence_subtitle);
   }
@@ -845,11 +945,12 @@
     var authorityTiming = getAuthoritySection(payload, "timing");
     var authorityMonitoring = getAuthoritySection(payload, "monitoring");
     var title = stream.title || "Voyage Stream";
-    var status = authorityText(authorityMonitoring.publicHealthLabel) || topCards.status || stream.status || "n/a";
-    var lastCheckin = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, authorityMonitoring.lastCheckinUtc || topCards.last_checkin_utc, "n/a");
+    var isScheduled = isScheduledTrip(payload);
+    var status = isScheduled ? "Scheduled" : (authorityText(authorityMonitoring.publicHealthLabel) || topCards.status || stream.status || "n/a");
+    var lastCheckin = isScheduled ? "—" : authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, authorityMonitoring.lastCheckinUtc || topCards.last_checkin_utc, "n/a");
     var location = authorityText(authorityCurrentLeg.fromName) || topCards.location_label || "n/a";
     var nextStop = authorityText(authorityCurrentLeg.toName) || topCards.next_stop || "n/a";
-    var eta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
+    var eta = isScheduled ? "—" : authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var conditions = topCards.conditions || "n/a";
     var miles = safeNum(pinned.miles);
     var days = toInt(pinned.days, 0);
@@ -862,6 +963,8 @@
     renderPhase5StreamShell(payload);
     renderPhase6LowerCards(payload, state.posts);
     renderPhase7TimelineSummary(payload);
+    renderTrackLog(payload);
+    renderFloatPlanDownload(payload);
 
     if (dom.shareTitle) dom.shareTitle.textContent = title;
     if (dom.tripTitle) dom.tripTitle.textContent = title;
@@ -871,19 +974,22 @@
     if (dom.shareViewerCount) dom.shareViewerCount.textContent = "0";
 
     if (dom.cardStatusValue) dom.cardStatusValue.textContent = status;
-    if (dom.cardStatusSub) dom.cardStatusSub.textContent = "Last check-in: " + lastCheckin;
+    if (dom.cardStatusSub) dom.cardStatusSub.textContent = isScheduled ? "Monitoring starts at scheduled departure." : ("Last check-in: " + lastCheckin);
     if (dom.cardLocationValue) dom.cardLocationValue.textContent = location;
-    if (dom.cardLocationSub) dom.cardLocationSub.textContent = "Heading: " + nextStop;
-    if (dom.cardEtaValue) dom.cardEtaValue.textContent = eta;
-    if (dom.cardEtaSub) dom.cardEtaSub.textContent = "Next stop: " + nextStop;
-    if (dom.cardConditionsValue) dom.cardConditionsValue.textContent = conditions;
-    if (dom.cardConditionsSub) dom.cardConditionsSub.textContent = "Based on latest stream updates";
+    if (dom.cardLocationSub) dom.cardLocationSub.textContent = isScheduled ? firstPlannedLegMeta(location, nextStop) : ("Heading: " + nextStop);
+    if (dom.cardEtaValue) dom.cardEtaValue.textContent = isScheduled ? "Trip scheduled" : eta;
+    if (dom.cardEtaSub) dom.cardEtaSub.textContent = isScheduled ? firstPlannedStopMeta(nextStop) : ("Next stop: " + nextStop);
+    if (dom.cardConditionsValue) {
+      dom.cardConditionsValue.hidden = isScheduled;
+      dom.cardConditionsValue.textContent = isScheduled ? "" : conditions;
+    }
+    if (dom.cardConditionsSub) dom.cardConditionsSub.textContent = isScheduled ? "Monitoring starts at scheduled departure." : "Based on latest stream updates";
 
-    if (dom.overlayLeg) dom.overlayLeg.textContent = authorityText(authorityCurrentLeg.label) || (location + " to " + nextStop);
-    if (dom.overlayProgress) dom.overlayProgress.textContent = (miles === null ? "n/a" : miles.toFixed(1) + " mi");
+    if (dom.overlayLeg) dom.overlayLeg.textContent = isScheduled ? firstPlannedLegMeta(location, nextStop) : (authorityText(authorityCurrentLeg.label) || (location + " to " + nextStop));
+    if (dom.overlayProgress) dom.overlayProgress.textContent = isScheduled ? "Scheduled" : (miles === null ? "n/a" : miles.toFixed(1) + " mi");
     if (dom.overlayCheckin) dom.overlayCheckin.textContent = lastCheckin;
 
-    if (dom.pinnedUpdated) dom.pinnedUpdated.textContent = "Updated " + lastCheckin;
+    if (dom.pinnedUpdated) dom.pinnedUpdated.textContent = isScheduled ? "Scheduled" : ("Updated " + lastCheckin);
     if (dom.pinnedMiles) dom.pinnedMiles.textContent = (miles === null ? "0" : miles.toFixed(1));
     if (dom.pinnedDays) dom.pinnedDays.textContent = String(days);
     if (dom.pinnedLocks) dom.pinnedLocks.textContent = String(locks);
@@ -899,8 +1005,8 @@
     progressLabel = formatProgressLabel(progressPct);
     if (dom.progressFill) dom.progressFill.style.width = progressPct + "%";
     if (dom.progressMarker) dom.progressMarker.style.left = progressPct + "%";
-    if (dom.progressHours) dom.progressHours.textContent = progressLabel || (miles === null ? "n/a" : miles.toFixed(1) + " mi");
-    if (dom.progressSub) dom.progressSub.textContent = "Current leg: " + (authorityText(authorityCurrentLeg.label) || (location + " to " + nextStop));
+    if (dom.progressHours) dom.progressHours.textContent = isScheduled ? "Scheduled" : (progressLabel || (miles === null ? "n/a" : miles.toFixed(1) + " mi"));
+    if (dom.progressSub) dom.progressSub.textContent = isScheduled ? firstPlannedLegMeta(location, nextStop) : ("Current leg: " + (authorityText(authorityCurrentLeg.label) || (location + " to " + nextStop)));
   }
 
   function formatTimelineNumber(value, decimals) {
@@ -920,6 +1026,237 @@
     var n = safeNum(value);
     if (n === null) return "--";
     return n.toFixed(5);
+  }
+
+  function formatTrackLogCount(count) {
+    var n = toInt(count, 0);
+    return n + " " + (n === 1 ? "check-in" : "check-ins");
+  }
+
+  function buildFloatPlanPdfDownloadUrl(payload) {
+    var stream = payload && payload.stream && typeof payload.stream === "object" ? payload.stream : {};
+    var slug = String(stream.slug || state.slug || "").trim();
+    var streamId = toInt(stream.id || stream.stream_id || state.streamId, 0);
+    var params = {};
+
+    if (slug) {
+      params.slug = slug;
+    } else if (streamId > 0) {
+      params.stream_id = streamId;
+    } else {
+      return "";
+    }
+
+    if (state.token) {
+      params.t = state.token;
+    }
+
+    return apiDownloadUrl("downloadFloatPlanPdf", params);
+  }
+
+  function renderFloatPlanDownload(payload) {
+    var link = getHookField("float-plan-download-action");
+    var meta = getHookField("float-plan-meta");
+    var href = buildFloatPlanPdfDownloadUrl(payload);
+
+    if (!link) return;
+
+    link.removeAttribute("href");
+    link.removeAttribute("download");
+    link.classList.add("is-disabled");
+    link.setAttribute("aria-disabled", "true");
+    link.textContent = "Float plan PDF unavailable";
+    if (meta) {
+      meta.textContent = "PDF unavailable";
+    }
+
+    if (!href) return;
+
+    link.href = href;
+    link.classList.remove("is-disabled");
+    link.removeAttribute("aria-disabled");
+    link.textContent = "Download PDF";
+    if (meta) {
+      meta.textContent = "PDF";
+    }
+  }
+
+  function parsePdfErrorMessage(text) {
+    var fallback = "Unable to download float plan PDF.";
+    var parsed;
+
+    try {
+      parsed = text ? JSON.parse(text) : {};
+    } catch (ignoreErr) {
+      return fallback;
+    }
+
+    if (parsed && parsed.MESSAGE) {
+      return String(parsed.MESSAGE);
+    }
+
+    return fallback;
+  }
+
+  function getPdfDownloadFileName(disposition) {
+    var value = String(disposition || "");
+    var match = value.match(/filename\*?=(?:UTF-8'')?("?)([^";]+)\1/i);
+    var fileName = match && match[2] ? decodeURIComponent(match[2]) : "";
+
+    return fileName || "float-plan.pdf";
+  }
+
+  function triggerBlobDownload(blob, fileName) {
+    var objectUrl;
+    var link;
+
+    if (!window.URL || typeof window.URL.createObjectURL !== "function") {
+      window.alert("Unable to download float plan PDF.");
+      return;
+    }
+
+    objectUrl = window.URL.createObjectURL(blob);
+    link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = fileName || "float-plan.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(function () {
+      window.URL.revokeObjectURL(objectUrl);
+    }, 1000);
+  }
+
+  function handleFloatPlanPdfDownload(event) {
+    var link = event.currentTarget;
+    var href = link ? String(link.href || "") : "";
+    var originalText = link ? (link.textContent || "Download PDF") : "Download PDF";
+
+    if (!link || link.classList.contains("is-disabled") || link.getAttribute("aria-disabled") === "true") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!href) {
+      window.alert("Unable to download float plan PDF.");
+      return;
+    }
+
+    link.setAttribute("aria-busy", "true");
+    link.textContent = "Preparing PDF...";
+
+    fetch(href, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/pdf, application/json;q=0.9, */*;q=0.8"
+      }
+    })
+      .then(function (res) {
+        var contentType = String(res.headers.get("Content-Type") || "").toLowerCase();
+        var disposition = res.headers.get("Content-Disposition") || "";
+
+        if (!res.ok || contentType.indexOf("application/pdf") === -1) {
+          return res.text().then(function (text) {
+            throw new Error(parsePdfErrorMessage(text));
+          });
+        }
+
+        return res.blob().then(function (blob) {
+          triggerBlobDownload(blob, getPdfDownloadFileName(disposition));
+        });
+      })
+      .catch(function (err) {
+        window.alert((err && err.message) ? err.message : "Unable to download float plan PDF.");
+      })
+      .then(function () {
+        link.removeAttribute("aria-busy");
+        link.textContent = originalText;
+      });
+  }
+
+  function appendTrackLogText(parent, className, value) {
+    var el = document.createElement("span");
+    el.className = className;
+    el.textContent = String(value || "");
+    parent.appendChild(el);
+    return el;
+  }
+
+  function focusTrackLogEntry(row, lat, lng, label) {
+    var api = window.FPWFollowMap;
+    var list = getHookField("track-log-list");
+    var focused = false;
+
+    if (!api || typeof api.focusPoint !== "function") return;
+
+    focused = api.focusPoint(lat, lng, label);
+    if (!focused || !list) return;
+
+    list.querySelectorAll(".follow-track-log-row.is-selected").forEach(function (el) {
+      el.classList.remove("is-selected");
+    });
+    row.classList.add("is-selected");
+  }
+
+  function renderTrackLog(payload) {
+    var trackLog = (payload && payload.trackLog && typeof payload.trackLog === "object") ? payload.trackLog : {};
+    var entries = Array.isArray(trackLog.entries) ? trackLog.entries : [];
+    var list = getHookField("track-log-list");
+    var countEl = getHookField("track-log-count");
+    var count = toInt(trackLog.count, entries.length);
+
+    if (countEl) {
+      countEl.textContent = formatTrackLogCount(count || entries.length);
+    }
+    if (!list) return;
+
+    while (list.firstChild) {
+      list.removeChild(list.firstChild);
+    }
+
+    if (!entries.length) {
+      var empty = document.createElement("div");
+      empty.className = "follow-track-log-empty";
+      empty.textContent = "No check-ins shared yet.";
+      list.appendChild(empty);
+      return;
+    }
+
+    entries.forEach(function (entry, index) {
+      var rowData = (entry && typeof entry === "object") ? entry : {};
+      var statusLabel = String(rowData.statusLabel || rowData.status || "Check-in").trim();
+      var occurredLabel = String(rowData.occurredAtLocalLabel || rowData.occurredAtUtc || "").trim();
+      var sourceLabel = String(rowData.sourceLabel || "").trim();
+      var lat = safeNum(rowData.latitude);
+      var lng = safeNum(rowData.longitude);
+      var hasGps = !!rowData.hasGps && lat !== null && lng !== null;
+      var coordLabel = String(rowData.coordinateLabel || "").trim() || (hasGps ? (formatCoord(lat) + ", " + formatCoord(lng)) : "No GPS attached");
+      var row = document.createElement(hasGps ? "button" : "div");
+      var mapLabel = statusLabel + (occurredLabel ? (" check-in from " + occurredLabel) : " check-in");
+
+      row.className = "follow-track-log-row " + (hasGps ? "has-gps" : "no-gps");
+      row.setAttribute("data-track-log-index", String(index));
+
+      if (hasGps) {
+        row.type = "button";
+        row.setAttribute("aria-label", "Show " + mapLabel + " on map");
+        row.addEventListener("click", function () {
+          focusTrackLogEntry(row, lat, lng, mapLabel);
+        });
+      }
+
+      appendTrackLogText(row, "follow-track-log-status", statusLabel);
+      appendTrackLogText(row, "follow-track-log-time", occurredLabel || "Time unavailable");
+      appendTrackLogText(row, "follow-track-log-coords", hasGps ? coordLabel : "No GPS attached");
+      if (sourceLabel) {
+        appendTrackLogText(row, "follow-track-log-source", sourceLabel);
+      }
+
+      list.appendChild(row);
+    });
   }
 
   function renderLegLockDetailsHtml(leg) {
@@ -1676,7 +2013,7 @@
 
     if (mediaFile) {
       var formData = new FormData();
-      var uploadUrl = getBasePath() + "/api/v1/voyageUpload.cfm";
+      var uploadUrl = apiUrl("ownerCreatePostWithMedia") + "&stream_id=" + encodeURIComponent(state.streamId);
       formData.append("stream_id", String(state.streamId));
       formData.append("body", text);
       formData.append("media_file", mediaFile);
@@ -1920,6 +2257,11 @@
       });
     }
 
+    dom.floatPlanDownloadAction = getHookField("float-plan-download-action");
+    if (dom.floatPlanDownloadAction) {
+      dom.floatPlanDownloadAction.addEventListener("click", handleFloatPlanPdfDownload);
+    }
+
     if (dom.followActionBtn) {
       dom.followActionBtn.addEventListener("click", function () {
         if (state.isOwner) return;
@@ -1972,3 +2314,4 @@
 
   document.addEventListener("DOMContentLoaded", init);
 })(window, document);
+
