@@ -1780,13 +1780,13 @@ if (isEarlyAccessPost) {
             <li>Create clear float plans with key trip and emergency details.</li>
             <li>Plan route legs, timing, fuel stops, and contingencies confidently.</li>
             <li>Keep family and friends informed with private trip updates.</li>
-            <li>Automatic overdue alerts help contacts act quickly if needed.</li>
+            <li>Automated notices share unresolved check-in status with selected contacts; delivery and response are not guaranteed.</li>
           </ul>
 
           <div class="hero-points">
             <div class="hero-point">
               <b><i class="bi bi-life-preserver"></i>Float Plans</b>
-              <span>USCG-style float plans with automated monitoring. Critical information for emergencies.</span>
+              <span>Float plans with automated check-in status and precautionary trip information for selected contacts.</span>
             </div>
             <div class="hero-point">
               <b><i class="bi bi-diagram-3"></i>Route Builder</b>
@@ -1827,7 +1827,7 @@ if (isEarlyAccessPost) {
                   <h3>Share the Trip</h3>
                   <p>Private shared trip page for family and friends to see planned route, key stops, and progress updates.</p>
                   <div class="follower-view-stats">
-                    <div class="stat"><strong>24/7</strong><span>peace of mind</span></div>
+                    <div class="stat"><strong>Automated</strong><span>trip status notices</span></div>
                     <div class="stat"><strong>Loop</strong><span>friendly tools</span></div>
                     <div class="stat"><strong>1 link</strong><span>easy to share</span></div>
                   </div>
@@ -1847,7 +1847,7 @@ if (isEarlyAccessPost) {
                   <p>Visual planning tools for pace, route timing, trip structure, and long-distance cruise organization.</p>
                   <div class="signal-box">
                     <div class="signal"><b>Float Plan Status</b><span class="pill pill-ready">On Time</span></div>
-                    <div class="signal"><b>Stream Enabled</b><span class="pill pill-track">Tracking</span></div>
+                    <div class="signal"><b>Trip Page</b><span class="pill pill-track">Shared</span></div>
                     <div class="signal"><b>Current Route</b><span class="pill pill-loop">Great Loop</span></div>
                   </div>
                 </div>

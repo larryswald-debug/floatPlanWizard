@@ -875,7 +875,7 @@
     setHookText("page-title", title);
     setHookText("page-subtitle", body.page_subtitle);
     if (!isScheduled && lastCheckinLabel) {
-      setHookText("live-chip", "Live now · Updated " + lastCheckinLabel);
+      setHookText("live-chip", "Latest check-in · Updated " + lastCheckinLabel);
     }
 
     journeySubtitleText = isAwaitingDeparture ? "Awaiting departure from the current stop." : body.journey_subtitle;
@@ -964,6 +964,7 @@
     renderPhase6LowerCards(payload, state.posts);
     renderPhase7TimelineSummary(payload);
     renderTrackLog(payload);
+    renderPositionSafety(payload);
     renderFloatPlanDownload(payload);
 
     if (dom.shareTitle) dom.shareTitle.textContent = title;
@@ -1259,6 +1260,40 @@
     });
   }
 
+  function renderPositionSafety(payload) {
+    var trackLog = (payload && payload.trackLog && typeof payload.trackLog === "object") ? payload.trackLog : {};
+    var entries = Array.isArray(trackLog.entries) ? trackLog.entries : [];
+    var latestGpsEntry = null;
+    var positionText = "";
+
+    entries.some(function (entry) {
+      var row = (entry && typeof entry === "object") ? entry : {};
+      var lat = safeNum(row.latitude);
+      var lng = safeNum(row.longitude);
+
+      if (!!row.hasGps && lat !== null && lng !== null) {
+        latestGpsEntry = {
+          coordinateLabel: String(row.coordinateLabel || "").trim() || (formatCoord(lat) + ", " + formatCoord(lng)),
+          occurredLabel: String(row.occurredAtLocalLabel || row.occurredAtUtc || "").trim(),
+          sourceLabel: String(row.sourceLabel || "Captain check-in").trim()
+        };
+        return true;
+      }
+      return false;
+    });
+
+    if (latestGpsEntry) {
+      positionText = "Latest reported position: " + latestGpsEntry.coordinateLabel
+        + ". Source: " + latestGpsEntry.sourceLabel
+        + (latestGpsEntry.occurredLabel ? " · Updated " + latestGpsEntry.occurredLabel : "")
+        + ". The route-progress marker is estimated and is not the reported position. FPW is not continuous live vessel tracking.";
+    } else {
+      positionText = "No position update has been reported yet. Any route-progress marker shown is estimated. FPW is not continuous live vessel tracking.";
+    }
+
+    setHookText("map-position-note", positionText);
+  }
+
   function renderLegLockDetailsHtml(leg) {
     var row = (leg && typeof leg === "object") ? leg : {};
     var details = (row.lock_details && typeof row.lock_details === "object")
@@ -1510,7 +1545,11 @@
     api.fitBoundsToRoute(routeGeo, pins);
 
     if (current.lat !== undefined && current.lng !== undefined) {
-      api.updateBoatMarker(current.lat, current.lng, current.label || "Current position");
+      api.updateBoatMarker(
+        current.lat,
+        current.lng,
+        "Estimated route progress: " + String(current.label || "planned route point")
+      );
     }
   }
 
@@ -2314,4 +2353,3 @@
 
   document.addEventListener("DOMContentLoaded", init);
 })(window, document);
-

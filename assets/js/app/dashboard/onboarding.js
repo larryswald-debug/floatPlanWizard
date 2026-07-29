@@ -32,6 +32,7 @@
   var tourBtn = null;
   var closeBtn = null;
   var currentState = null;
+  var routeReadinessAlertMessage = "";
   var requestSeq = 0;
   var refreshTimer = 0;
   var acknowledgmentBusy = false;
@@ -75,6 +76,85 @@
     if (!statusEl) return;
     statusEl.textContent = message || "";
     statusEl.classList.toggle("is-error", isError === true);
+  }
+
+  function showRouteReadinessAlert(message) {
+    routeReadinessAlertMessage = String(message || "").trim();
+    if (
+      routeReadinessAlertMessage
+      && utils
+      && typeof utils.showDashboardAlert === "function"
+    ) {
+      utils.showDashboardAlert(routeReadinessAlertMessage, "warning");
+    }
+  }
+
+  function clearRouteReadinessAlert() {
+    var alertEl = document.getElementById("dashboardAlert");
+    var displayedMessage = alertEl ? String(alertEl.textContent || "").trim() : "";
+    if (
+      routeReadinessAlertMessage
+      && displayedMessage === routeReadinessAlertMessage
+      && utils
+      && typeof utils.clearDashboardAlert === "function"
+    ) {
+      utils.clearDashboardAlert();
+    }
+    routeReadinessAlertMessage = "";
+  }
+
+  function formatMissingRouteSetupItems(items) {
+    if (!items.length) return "";
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return items[0] + " and " + items[1];
+    return items.slice(0, -1).join(", ") + ", and " + items[items.length - 1];
+  }
+
+  function getMissingRouteSetupItems(state) {
+    var checklist = state && state.checklist && typeof state.checklist === "object"
+      ? state.checklist
+      : {};
+    var missing = [];
+    var savedWaypointCount = Math.max(0, parseInt(checklist.savedWaypointCount, 10) || 0);
+    var requiredWaypointCount = Math.max(1, parseInt(checklist.requiredWaypointCount, 10) || 2);
+    var remainingWaypointCount = Math.max(0, requiredWaypointCount - savedWaypointCount);
+
+    if (checklist.vessel !== true) {
+      missing.push("a vessel");
+    }
+    if (checklist.contact !== true) {
+      missing.push("a shore contact with name, phone, and email");
+    }
+    if (checklist.passengers !== true) {
+      missing.push("a passenger");
+    }
+    if (checklist.operator !== true) {
+      missing.push("an operator");
+    }
+    if (checklist.waypoints !== true) {
+      if (remainingWaypointCount === 1) {
+        missing.push(
+          "1 more waypoint ("
+          + savedWaypointCount
+          + " of "
+          + requiredWaypointCount
+          + " saved)"
+        );
+      } else if (remainingWaypointCount > 1) {
+        missing.push(
+          remainingWaypointCount
+          + " more waypoints ("
+          + savedWaypointCount
+          + " of "
+          + requiredWaypointCount
+          + " saved)"
+        );
+      } else {
+        missing.push("the required saved waypoints");
+      }
+    }
+
+    return missing;
   }
 
   function setModalError(message) {
@@ -308,6 +388,37 @@
           setPanelStatus(getErrorMessage(err, "Unable to refresh Getting Started status."), true);
         }
         throw err;
+      });
+  }
+
+  function validateRouteCreationReadiness() {
+    return refresh()
+      .then(function (state) {
+        var checklist = state && state.checklist && typeof state.checklist === "object"
+          ? state.checklist
+          : {};
+        var missing = [];
+        var message = "";
+
+        if (checklist.allComplete === true) {
+          clearRouteReadinessAlert();
+          return true;
+        }
+
+        missing = getMissingRouteSetupItems(state);
+        message = missing.length
+          ? "Before creating a route, complete Getting Started by saving "
+            + formatMissingRouteSetupItems(missing)
+            + "."
+          : "Before creating a route, complete all Getting Started requirements.";
+        showRouteReadinessAlert(message);
+        return false;
+      })
+      .catch(function () {
+        showRouteReadinessAlert(
+          "Unable to verify route setup. Please try again before creating a route."
+        );
+        return false;
       });
   }
 
@@ -553,6 +664,7 @@
     init: init,
     hydrate: hydrate,
     refresh: refresh,
-    openWelcome: openWelcome
+    openWelcome: openWelcome,
+    validateRouteCreationReadiness: validateRouteCreationReadiness
   };
 })(window, document);

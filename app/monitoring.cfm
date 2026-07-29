@@ -240,7 +240,7 @@
       technicalSnapshot = {},
       safetyCopy = {
         notLiveTrackingMessage = "FPW shows the last check-in location shared by the captain.",
-        emergencyDisclaimer = "This is not live vessel tracking and may not reflect the vessel's current position. In an emergency, use official emergency channels such as VHF Channel 16, DSC distress, 911, EPIRB/PLB, flares, or other accepted emergency methods.",
+        emergencyDisclaimer = "This is not continuous live vessel tracking and may not reflect the vessel's latest reported position. In an emergency, use official emergency channels such as VHF Channel 16, DSC distress, 911, EPIRB/PLB, flares, or other accepted emergency methods.",
         gpsStaleMessage = "",
         noGpsMessage = "No GPS has been captured with a check-in for this monitored trip yet.",
         poorAccuracyMessage = ""
@@ -735,9 +735,13 @@
           </div>
           <h1 class="fpw-monitoring-title">Monitoring Console</h1>
           <p class="fpw-monitoring-muted mt-2 mb-0 fs-6">
-            See how FPW is monitoring <strong class="text-white">#encodeForHTML(fpwMonitoringText(fpwMonitoringGet(monitoringIdentity, "vesselName"), "your vessel"))#</strong>,
-            the next expected check-in, and the last GPS location shared with a check-in.
+            View the automated monitoring status for <strong class="text-white">#encodeForHTML(fpwMonitoringText(fpwMonitoringGet(monitoringIdentity, "vesselName"), "your vessel"))#</strong>,
+            the next expected check-in, and the latest reported GPS location shared with a check-in.
           </p>
+          <div class="fpw-monitoring-soft p-3 mt-3 fpw-monitoring-muted small" role="note">
+            FPW automatically evaluates scheduled check-ins and sends notices based on information reported to the system.
+            FPW staff are not continuously watching this trip. The shore contact remains responsible for reviewing notices and following the response plan agreed upon with the captain.
+          </div>
           <div class="mt-3 fpw-monitoring-muted small">
             <strong class="text-white">#encodeForHTML(fpwMonitoringText(fpwMonitoringGet(monitoringIdentity, "routeName"), "Active route"))#</strong>
             <span class="mx-2">/</span>
@@ -1088,7 +1092,7 @@
 
     <section class="fpw-monitoring-panel p-3 p-lg-4">
       <div class="fpw-monitoring-note mb-3">
-        #encodeForHTML(fpwMonitoringText(fpwMonitoringGet(monitoringSafety, "emergencyDisclaimer"), "This is not live vessel tracking and may not reflect the vessel's current position."))#
+        #encodeForHTML(fpwMonitoringText(fpwMonitoringGet(monitoringSafety, "emergencyDisclaimer"), "This is not continuous live vessel tracking and may not reflect the vessel's latest reported position."))#
       </div>
       <cfif len(fpwMonitoringText(fpwMonitoringGet(monitoringSafety, "gpsStaleMessage"), ""))>
         <div class="fpw-monitoring-note mb-3">#encodeForHTML(fpwMonitoringText(fpwMonitoringGet(monitoringSafety, "gpsStaleMessage"), ""))#</div>

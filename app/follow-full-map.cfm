@@ -239,13 +239,13 @@ if (request.fpwBase == "/") {
       <div>
         <p class="follow-full-map-kicker">Follow Full Map</p>
         <h1 class="follow-full-map-title" id="followFullMapTitle">Loading route map…</h1>
-        <p class="follow-full-map-subtitle" id="followFullMapSubtitle">Opening the live route map in a dedicated window.</p>
+        <p class="follow-full-map-subtitle" id="followFullMapSubtitle">Opening the planned route map in a dedicated window.</p>
       </div>
     </header>
 
     <main class="follow-full-map-stage">
       <div id="followFullMap" class="map-canvas follow-full-map-canvas" aria-label="Full-screen voyage route map"></div>
-      <div class="follow-full-map-status" id="followFullMapStatus">Preparing the live route map.</div>
+      <div class="follow-full-map-status" id="followFullMapStatus">Preparing the planned route map. Any route-progress marker shown is estimated; FPW is not continuous live vessel tracking.</div>
     </main>
   </div>
 

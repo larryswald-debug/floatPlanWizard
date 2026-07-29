@@ -225,6 +225,10 @@
       </div>
     </div>
 
+    <!---
+      Companion Devices panel intentionally hidden until development is complete.
+      Remove only these CFML comment markers to restore the existing UI.
+
     <div class="col-12">
       <div class="card shadow-sm" id="companionDevicesCard">
         <div class="card-body">
@@ -266,6 +270,7 @@
         </div>
       </div>
     </div>
+    --->
   </div>
 </div>
 

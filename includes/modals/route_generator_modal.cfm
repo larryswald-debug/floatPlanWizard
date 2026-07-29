@@ -322,6 +322,91 @@
       display: block;
     }
 
+    #fpwRouteGen .rg-field-label-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      margin-bottom: 7px;
+    }
+
+    #fpwRouteGen .rg-field-label-row > label {
+      min-width: 0;
+      margin-bottom: 0;
+    }
+
+    #fpwRouteGen .rg-guidance-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 20px;
+      width: 20px;
+      height: 20px;
+      border: 1px solid rgba(82, 185, 255, 0.58);
+      border-radius: 50%;
+      background: rgba(82, 185, 255, 0.18);
+      color: #eef6ff;
+      font-family: var(--rg-mono);
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+      text-transform: none;
+      cursor: help;
+      touch-action: manipulation;
+    }
+
+    #fpwRouteGen .rg-guidance-badge:hover,
+    #fpwRouteGen .rg-guidance-badge:focus-visible {
+      border-color: rgba(82, 185, 255, 0.95);
+      background: rgba(82, 185, 255, 0.34);
+      box-shadow: 0 0 0 3px rgba(82, 185, 255, 0.16);
+      outline: none;
+    }
+
+    #fpwRouteGen .rg-guidance-description {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .fpw-routegen-guidance-tooltip {
+      position: fixed;
+      z-index: 2200;
+      width: max-content;
+      max-width: min(320px, calc(100vw - 24px));
+      padding: 9px 11px;
+      border: 1px solid rgba(82, 185, 255, 0.38);
+      border-radius: 10px;
+      background: #102033;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+      color: #eef6ff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      text-align: left;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(3px);
+      transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+    }
+
+    .fpw-routegen-guidance-tooltip.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
     #fpwRouteGen .rg-field-note {
       color: var(--rg-soft);
       font-size: 11px;
@@ -553,6 +638,10 @@
     }
 
     #fpwRouteGen .rg-config-grid-bottom .rg-field--compact label {
+      margin-bottom: 0;
+    }
+
+    #fpwRouteGen .rg-config-grid-bottom .rg-field--compact .rg-field-label-row {
       margin-bottom: 0;
     }
 
@@ -1442,7 +1531,11 @@
                     <div class="rg-section-title">Route Name</div>
                   </div>
                   <div class="rg-field" data-tour="route-name">
-                    <label for="routeGenRouteName">Route Name</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 1: Route Name" aria-describedby="routeGenGuidance1">1</span>
+                      <label for="routeGenRouteName">Route Name</label>
+                      <span id="routeGenGuidance1" class="rg-guidance-description">Enter a name that will identify this saved route.</span>
+                    </div>
                     <input id="routeGenRouteName" type="text" class="form-control form-control-sm" required aria-required="true">
                   </div>
                 </section>
@@ -1455,7 +1548,11 @@
 
                   <div class="rg-myroutes-grid">
                     <div class="rg-field">
-                      <label for="routeGenMyRouteName">Create Route</label>
+                      <div class="rg-field-label-row">
+                        <span class="rg-guidance-badge" tabindex="0" aria-label="Step 2: Create Route" aria-describedby="routeGenGuidance2">2</span>
+                        <label for="routeGenMyRouteName">Create Route</label>
+                        <span id="routeGenGuidance2" class="rg-guidance-description">Create the empty route before adding its starting waypoint and legs.</span>
+                      </div>
                       <div class="rg-inline-actions">
                         <input id="routeGenMyRouteName" type="text" class="form-control form-control-sm" placeholder="Route name">
                         <button type="button" id="routeGenMyRouteCreateBtn" class="btn-secondary btn-sm" data-tour="route-create">Create</button>
@@ -1468,13 +1565,16 @@
                         <select id="routeGenMyRouteSelect" class="form-select form-select-sm">
                           <option value="">Select route</option>
                         </select>
-                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm" data-tour="route-load">Load</button>
                         <button type="button" id="routeGenMyRouteDeleteBtn" class="btn-secondary btn-sm">Delete</button>
                       </div>
                     </div>
 
                     <div class="rg-field" data-tour="route-start-waypoint">
-                      <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
+                      <div class="rg-field-label-row">
+                        <span class="rg-guidance-badge" tabindex="0" aria-label="Step 3: Route Start Waypoint" aria-describedby="routeGenGuidance3">3</span>
+                        <label for="routeGenMyRouteStartWaypointSelect">Route Start Waypoint</label>
+                        <span id="routeGenGuidance3" class="rg-guidance-description">Select the waypoint where your route begins, then choose Set Start.</span>
+                      </div>
                       <div class="rg-inline-actions">
                         <select id="routeGenMyRouteStartWaypointSelect" class="form-select form-select-sm">
                           <option value="">Select start waypoint</option>
@@ -1484,12 +1584,17 @@
                     </div>
 
                     <div class="rg-field" data-tour="route-add-leg-waypoint">
-                      <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
+                      <div class="rg-field-label-row">
+                        <span class="rg-guidance-badge" tabindex="0" aria-label="Step 4: Add Leg by Waypoint" aria-describedby="routeGenGuidance4">4</span>
+                        <label for="routeGenMyRouteEndWaypointSelect">Add Leg by Waypoint</label>
+                        <span id="routeGenGuidance4" class="rg-guidance-description">Select the next waypoint and add the route leg. Repeat this step for every additional leg. Then click Load to add your route to the Cruise Timeline.</span>
+                      </div>
                       <div class="rg-inline-actions">
                         <select id="routeGenMyRouteEndWaypointSelect" class="form-select form-select-sm">
                           <option value="">Select end waypoint</option>
                         </select>
                         <button type="button" id="routeGenMyRouteAddWaypointLegBtn" class="btn-secondary btn-sm">Add Leg</button>
+                        <button type="button" id="routeGenMyRouteLoadBtn" class="btn-secondary btn-sm" data-tour="route-load">Load</button>
                       </div>
                     </div>
                   </div>
@@ -1504,6 +1609,13 @@
                     <div class="fpw-routegen__empty">Create or select a My Route to manage legs.</div>
                   </div>
                 </section>
+
+                <!---
+                TEMPORARILY HIDDEN:
+                Route-template UI removed from the public Route Generator experience.
+                Preserve this functionality for future reuse as an optional planning
+                template that members can import into their Route Library.
+                Do not delete without owner approval.
 
                 <section class="rg-section">
                   <div class="rg-section-head">
@@ -1559,6 +1671,10 @@
                     <div class="fpw-routegen__empty">No optional stops available for this template.</div>
                   </div>
                 </section>
+                --->
+
+                <!--- Custom routes still require a start date for preview, generation, and the Cruise Timeline. --->
+                <input id="routeGenStartDate" type="hidden" value="" aria-hidden="true">
               </div>
             </div>
           </section>
@@ -1570,7 +1686,11 @@
               <div>
                 <h2 id="routeGenPreviewHeading" class="rg-panel-title">Route Summary and Legs</h2>
               </div>
+              <!---
+              TEMPORARILY HIDDEN:
+              Template-only preview label retained for future Route Template Library reuse.
               <div class="rg-panel-sub"><span id="routeGenPreviewTemplate">Template: -</span></div>
+              --->
             </div>
 
             <div class="rg-right-scroll">
@@ -1642,7 +1762,7 @@
                   </div>
 
                   <div id="routeGenLegList" class="rg-leg-list">
-                    <div class="fpw-routegen__empty">Pick template/start/end to see a live preview.</div>
+                    <div class="fpw-routegen__empty">Create or load a My Route to see it in the Cruise Timeline.</div>
                   </div>
                 </div>
 
@@ -1699,43 +1819,79 @@
 
                 <div class="rg-right-input-grid">
                   <div class="rg-field rg-field--full">
-                    <label for="routeGenVesselSelect">Vessel</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 5: Vessel" aria-describedby="routeGenGuidance5">5</span>
+                      <label for="routeGenVesselSelect">Vessel</label>
+                      <span id="routeGenGuidance5" class="rg-guidance-description">Select the vessel whose speed and fuel information will be used for this route.</span>
+                    </div>
                     <select id="routeGenVesselSelect" class="form-select form-select-sm" disabled>
                       <option value="">Loading vessels...</option>
                     </select>
                   </div>
                   <div class="rg-field">
-                    <label for="routeGenMostEfficientSpeed">Most Efficient Speed (kn)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 6: Most Efficient Speed" aria-describedby="routeGenGuidance6">6</span>
+                      <label for="routeGenMostEfficientSpeed">Most Efficient Speed (kn)</label>
+                      <span id="routeGenGuidance6" class="rg-guidance-description">Enter the vessel's normal fuel-efficient cruising speed in knots.</span>
+                    </div>
                     <input id="routeGenMostEfficientSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="">
                   </div>
                   <div class="rg-field">
-                    <label for="routeGenFuelBurnEfficientGph">GPH @ Efficient</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 7: GPH at Efficient Speed" aria-describedby="routeGenGuidance7">7</span>
+                      <label for="routeGenFuelBurnEfficientGph">GPH @ Efficient</label>
+                      <span id="routeGenGuidance7" class="rg-guidance-description">Enter the gallons per hour burned at the efficient cruising speed.</span>
+                    </div>
                     <input id="routeGenFuelBurnEfficientGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
                   </div>
                   <div class="rg-field">
-                    <label for="routeGenCruisingSpeed">Max Speed (kn)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 8: Maximum Speed" aria-describedby="routeGenGuidance8">8</span>
+                      <label for="routeGenCruisingSpeed">Max Speed (kn)</label>
+                      <span id="routeGenGuidance8" class="rg-guidance-description">Enter the vessel's maximum practical cruising speed in knots.</span>
+                    </div>
                     <input id="routeGenCruisingSpeed" type="number" step="0.1" min="1" max="60" class="form-control form-control-sm" value="20">
                   </div>
                   <div class="rg-field">
-                    <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel Burn @ Max (GPH)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 9: GPH at Maximum Speed" aria-describedby="routeGenGuidance9">9</span>
+                      <label id="routeGenFuelBurnLabel" for="routeGenFuelBurnGph">Fuel Burn @ Max (GPH)</label>
+                      <span id="routeGenGuidance9" class="rg-guidance-description">Enter the gallons per hour burned at maximum speed.</span>
+                    </div>
                     <input id="routeGenFuelBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
                     <div id="routeGenFuelBurnHint" class="rg-field-note rg-hidden">FPW derives pace and weather adjusted burn from max speed burn.</div>
                     <div id="routeGenFuelBurnDerived" class="rg-field-note rg-hidden">Derived burn at current pace + weather: -- GPH</div>
                   </div>
                   <div class="rg-field">
-                    <label for="routeGenIdleBurnGph">Idle Burn (GPH)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 10: Idle Burn" aria-describedby="routeGenGuidance10">10</span>
+                      <label for="routeGenIdleBurnGph">Idle Burn (GPH)</label>
+                      <span id="routeGenGuidance10" class="rg-guidance-description">Enter the estimated gallons per hour burned while the vessel is idling.</span>
+                    </div>
                     <input id="routeGenIdleBurnGph" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
                   </div>
                   <div class="rg-field">
-                    <label for="routeGenIdleHoursTotal">Idle Hours (total)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 11: Idle Hours" aria-describedby="routeGenGuidance11">11</span>
+                      <label for="routeGenIdleHoursTotal">Idle Hours (total)</label>
+                      <span id="routeGenGuidance11" class="rg-guidance-description">Enter the estimated total number of idle hours for the route.</span>
+                    </div>
                     <input id="routeGenIdleHoursTotal" type="number" step="0.1" min="0" class="form-control form-control-sm" value="">
                   </div>
                   <div class="rg-field">
-                    <label for="routeGenWeatherFactorPct">Weather Factor (%)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 12: Weather Factor" aria-describedby="routeGenGuidance12">12</span>
+                      <label for="routeGenWeatherFactorPct">Weather Factor (%)</label>
+                      <span id="routeGenGuidance12" class="rg-guidance-description">Add a percentage allowance for wind, current, waves, or other conditions.</span>
+                    </div>
                     <input id="routeGenWeatherFactorPct" type="number" step="1" min="0" max="60" class="form-control form-control-sm" value="0">
                   </div>
                   <div class="rg-field rg-field--compact">
-                    <label for="routeGenReservePct">Reserve (%)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 13: Fuel Reserve" aria-describedby="routeGenGuidance13">13</span>
+                      <label for="routeGenReservePct">Reserve (%)</label>
+                      <span id="routeGenGuidance13" class="rg-guidance-description">Select the additional fuel reserve that should be included in the estimate.</span>
+                    </div>
                     <select id="routeGenReservePct" class="form-select form-select-sm">
                       <option value="33" selected>Rule of Thirds - 33%</option>
                       <option value="20">Standard Reserve - 20%</option>
@@ -1743,11 +1899,19 @@
                     </select>
                   </div>
                   <div class="rg-field rg-field--compact">
-                    <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 14: Underway Hours per Day" aria-describedby="routeGenGuidance14">14</span>
+                      <label for="routeGenUnderwayHoursPerDay">Underway Hrs / Day</label>
+                      <span id="routeGenGuidance14" class="rg-guidance-description">Enter the number of hours you expect to travel each day.</span>
+                    </div>
                     <input id="routeGenUnderwayHoursPerDay" type="number" step="0.5" min="1" max="24" class="form-control form-control-sm" value="">
                   </div>
                   <div class="rg-field rg-field--compact">
-                    <label for="routeGenFuelPricePerGal">Fuel Price ($/gal)</label>
+                    <div class="rg-field-label-row">
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 15: Fuel Price" aria-describedby="routeGenGuidance15">15</span>
+                      <label for="routeGenFuelPricePerGal">Fuel Price ($/gal)</label>
+                      <span id="routeGenGuidance15" class="rg-guidance-description">Enter the estimated fuel price per gallon to calculate the route's fuel cost.</span>
+                    </div>
                     <input id="routeGenFuelPricePerGal" type="number" step="0.01" min="0" class="form-control form-control-sm" value="" placeholder="Enter price">
                   </div>
                 </div>
@@ -1819,7 +1983,7 @@
     </div>
 
     <div class="rg-bottom-bar">
-      <div id="routeGenHintLine" class="rg-hintline">Recommended flow: Preview -&gt; Generate Route -&gt; Build Float Plans from dashboard.</div>
+      <div id="routeGenHintLine" class="rg-hintline">Recommended flow: Create or select a My Route -&gt; add waypoint legs -&gt; Load -&gt; Save Route.</div>
       <div class="rg-actions">
         <button type="button" id="routeGenResetBtn" class="btn-secondary">Reset</button>
         <button type="button" id="routeGenCancelBtn" class="btn-secondary">Close</button>
@@ -1831,3 +1995,208 @@
 
   <div id="fpwCruiseTimeline" class="d-none" aria-hidden="true"></div>
 </div>
+
+<script>
+  (function (window, document) {
+    "use strict";
+
+    function initRouteGeneratorGuidance() {
+      var root = document.getElementById("fpwRouteGen");
+      if (!root || root.getAttribute("data-guidance-ready") === "true") {
+        return;
+      }
+
+      root.setAttribute("data-guidance-ready", "true");
+
+      var tooltip = document.createElement("div");
+      tooltip.className = "fpw-routegen-guidance-tooltip";
+      tooltip.setAttribute("role", "tooltip");
+      tooltip.setAttribute("aria-hidden", "true");
+      document.body.appendChild(tooltip);
+
+      var activeBadge = null;
+      var frameId = 0;
+
+      function getBadge(target) {
+        return target && typeof target.closest === "function"
+          ? target.closest(".rg-guidance-badge")
+          : null;
+      }
+
+      function getDescription(badge) {
+        var descriptionId = badge ? badge.getAttribute("aria-describedby") : "";
+        var description = descriptionId ? document.getElementById(descriptionId) : null;
+        return description ? String(description.textContent || "").trim() : "";
+      }
+
+      function clamp(value, minimum, maximum) {
+        return Math.max(minimum, Math.min(value, maximum));
+      }
+
+      function positionTooltip() {
+        if (!activeBadge || !tooltip.classList.contains("is-visible")) {
+          return;
+        }
+
+        var badgeRect = activeBadge.getBoundingClientRect();
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        var margin = 12;
+        var gap = 10;
+
+        if (
+          badgeRect.bottom < 0
+          || badgeRect.top > viewportHeight
+          || badgeRect.right < 0
+          || badgeRect.left > viewportWidth
+        ) {
+          hideTooltip();
+          return;
+        }
+
+        tooltip.style.left = "0px";
+        tooltip.style.top = "0px";
+
+        var tooltipRect = tooltip.getBoundingClientRect();
+        var left = badgeRect.right + gap;
+        var top = badgeRect.top + ((badgeRect.height - tooltipRect.height) / 2);
+
+        if (left + tooltipRect.width > viewportWidth - margin) {
+          left = badgeRect.left - tooltipRect.width - gap;
+        }
+
+        if (left < margin) {
+          left = clamp(
+            badgeRect.left + (badgeRect.width / 2) - (tooltipRect.width / 2),
+            margin,
+            Math.max(margin, viewportWidth - tooltipRect.width - margin)
+          );
+          top = badgeRect.bottom + gap;
+
+          if (top + tooltipRect.height > viewportHeight - margin) {
+            top = badgeRect.top - tooltipRect.height - gap;
+          }
+        }
+
+        top = clamp(
+          top,
+          margin,
+          Math.max(margin, viewportHeight - tooltipRect.height - margin)
+        );
+
+        tooltip.style.left = Math.round(left) + "px";
+        tooltip.style.top = Math.round(top) + "px";
+      }
+
+      function queuePosition() {
+        if (frameId) {
+          window.cancelAnimationFrame(frameId);
+        }
+        frameId = window.requestAnimationFrame(function () {
+          frameId = 0;
+          positionTooltip();
+        });
+      }
+
+      function showTooltip(badge) {
+        var description = getDescription(badge);
+        if (!badge || !description) {
+          return;
+        }
+
+        activeBadge = badge;
+        tooltip.textContent = description;
+        tooltip.classList.add("is-visible");
+        tooltip.setAttribute("aria-hidden", "false");
+        queuePosition();
+      }
+
+      function hideTooltip() {
+        activeBadge = null;
+        tooltip.classList.remove("is-visible");
+        tooltip.setAttribute("aria-hidden", "true");
+      }
+
+      root.addEventListener("mouseover", function (event) {
+        var badge = getBadge(event.target);
+        if (badge && root.contains(badge)) {
+          showTooltip(badge);
+        }
+      });
+
+      root.addEventListener("mouseout", function (event) {
+        var badge = getBadge(event.target);
+        if (
+          badge
+          && badge === activeBadge
+          && document.activeElement !== badge
+          && !badge.contains(event.relatedTarget)
+        ) {
+          hideTooltip();
+        }
+      });
+
+      root.addEventListener("focusin", function (event) {
+        var badge = getBadge(event.target);
+        if (badge && root.contains(badge)) {
+          showTooltip(badge);
+        }
+      });
+
+      root.addEventListener("focusout", function (event) {
+        var badge = getBadge(event.target);
+        if (!badge || badge !== activeBadge) {
+          return;
+        }
+
+        window.setTimeout(function () {
+          if (activeBadge === badge && !badge.matches(":hover")) {
+            hideTooltip();
+          }
+        }, 0);
+      });
+
+      root.addEventListener("click", function (event) {
+        var badge = getBadge(event.target);
+        if (!badge || !root.contains(badge)) {
+          return;
+        }
+
+        if (document.activeElement !== badge && typeof badge.focus === "function") {
+          try {
+            badge.focus({ preventScroll: true });
+          } catch (err) {
+            badge.focus();
+          }
+        }
+        showTooltip(badge);
+      });
+
+      document.addEventListener("pointerdown", function (event) {
+        if (activeBadge && !getBadge(event.target)) {
+          hideTooltip();
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && activeBadge) {
+          hideTooltip();
+        }
+      });
+
+      window.addEventListener("resize", queuePosition);
+      window.addEventListener("scroll", queuePosition, true);
+
+      var modal = root.closest(".modal");
+      if (modal) {
+        modal.addEventListener("hidden.bs.modal", hideTooltip);
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initRouteGeneratorGuidance);
+    } else {
+      initRouteGeneratorGuidance();
+    }
+  })(window, document);
+</script>

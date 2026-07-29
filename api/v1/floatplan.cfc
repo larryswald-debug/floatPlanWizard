@@ -8062,11 +8062,9 @@
             var safeRescueAuthority = encodeForHtml(rescueAuthority);
             var safeRescuePhone = encodeForHtml(rescuePhone);
             var rescueDetails = "";
-            var rescueLabel = "the selected Rescue Authority";
 
             if (len(rescueAuthority) OR len(rescuePhone)) {
-                rescueLabel = "the selected Rescue Authority listed below";
-                rescueDetails = "<p>Rescue Authority: " & safeRescueAuthority;
+                rescueDetails = "<p><strong>Emergency authority information from this float plan:</strong> " & safeRescueAuthority;
                 if (len(rescuePhone)) {
                     rescueDetails &= " (" & safeRescuePhone & ")";
                 }
@@ -8075,9 +8073,12 @@
 
             var message = "<p>Hello,</p>" &
                 "<p>You are receiving the attached Float Plan (" & safePlanName & ") because you were selected as a contact for this trip.</p>" &
-                "<p>This delivery is a precaution and nothing is wrong at this time.</p>" &
-                "<p>Please keep this PDF available. If the member does not return on time, call " & rescueLabel & ".</p>" &
+                "<p><strong>This float plan is precautionary trip information.</strong> Nothing in this email indicates that FPW has verified an emergency.</p>" &
+                "<p>If the boater is overdue, first try to contact them using the information provided and follow the response plan you agreed upon.</p>" &
+                "<p>If you believe there may be an emergency, contact the appropriate emergency authority directly and provide the float-plan details. FPW does not independently verify emergencies or dispatch assistance.</p>" &
                 rescueDetails &
+                "<p>Email delivery is not guaranteed, and FPW does not confirm that a recipient has received or read this message.</p>" &
+                "<p>Please keep the attached PDF available with the trip information.</p>" &
                 "<p>Thank you.</p>";
 
             var subject = "Float Plan Precautionary Delivery: " & planName;
@@ -8378,11 +8379,9 @@
             var safeRescueAuthority = encodeForHtml(rescueAuthority);
             var safeRescuePhone = encodeForHtml(rescuePhone);
             var rescueDetails = "";
-            var rescueLabel = "the selected Rescue Authority";
 
             if (len(rescueAuthority) OR len(rescuePhone)) {
-                rescueLabel = "the selected Rescue Authority listed below";
-                rescueDetails = "<p>Rescue Authority: " & safeRescueAuthority;
+                rescueDetails = "<p><strong>Emergency authority information from this float plan:</strong> " & safeRescueAuthority;
                 if (len(rescuePhone)) {
                     rescueDetails &= " (" & safeRescuePhone & ")";
                 }
@@ -8391,9 +8390,12 @@
 
             var message = "<p>Hello,</p>" &
                 "<p>You are receiving the attached Float Plan (" & safePlanName & ") because you were selected as a contact for this trip.</p>" &
-                "<p>This delivery is a precaution and nothing is wrong at this time.</p>" &
-                "<p>Please keep this PDF available. If the member does not return on time, call " & rescueLabel & ".</p>" &
+                "<p><strong>This float plan is precautionary trip information.</strong> Nothing in this email indicates that FPW has verified an emergency.</p>" &
+                "<p>If the boater is overdue, first try to contact them using the information provided and follow the response plan you agreed upon.</p>" &
+                "<p>If you believe there may be an emergency, contact the appropriate emergency authority directly and provide the float-plan details. FPW does not independently verify emergencies or dispatch assistance.</p>" &
                 rescueDetails &
+                "<p>Email delivery is not guaranteed, and FPW does not confirm that a recipient has received or read this message.</p>" &
+                "<p>Please keep the attached PDF available with the trip information.</p>" &
                 "<p>Thank you.</p>";
 
             var subject = "Float Plan Precautionary Delivery: " & planName;

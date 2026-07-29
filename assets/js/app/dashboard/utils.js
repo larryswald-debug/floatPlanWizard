@@ -78,6 +78,13 @@
 
     if (!message) {
       alertEl.classList.add("d-none");
+    } else if (alertType === "warning") {
+      var closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "dashboard-alert-close";
+      closeButton.setAttribute("aria-label", "Close warning");
+      closeButton.addEventListener("click", clearDashboardAlert);
+      alertEl.appendChild(closeButton);
     }
   }
 

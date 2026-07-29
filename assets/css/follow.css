@@ -854,6 +854,14 @@ button.follow-track-log-row.has-gps:focus-visible,
   padding: 12px 12px 12px;
 }
 
+.follow-map-safety {
+  margin: 0;
+  padding: 0 18px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .map-canvas {
   position: relative;
   height: 420px;

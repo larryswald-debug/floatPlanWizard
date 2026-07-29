@@ -3606,7 +3606,7 @@
                 <div class="active-cruise-map-head">
                   <div class="active-cruise-map-copy">
                     <h3>Map Overview</h3>
-                    <p>Live route view with current position, completed track, and destination.</p>
+                    <p>Planned route, reported progress, completed legs, and destination.</p>
                   </div>
                   <button class="btn btn-secondary" id="fpwActiveCruiseV2OpenFullMapBtn" type="button"<cfif NOT (mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs))> disabled aria-disabled="true"</cfif>>Open Full Map</button>
                 </div>
@@ -3621,6 +3621,9 @@
                   <cfelse>
                     <div class="panel-note is-warning">Map geometry is not available from the V2 view model for this trip.</div>
                   </cfif>
+                </div>
+                <div class="panel-note is-warning" role="note">
+                  No position update has been reported yet. This map shows the planned route; FPW is not continuous live vessel tracking.
                 </div>
               </div>
 
@@ -4060,14 +4063,14 @@
               <div class="floatplan-box">
                 <div class="mini-panel">
                   <div class="mini-head">
-                    <h3>Float Plan Monitor</h3>
+                    <h3>Shore Contact</h3>
                     <span>#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "attachmentLabel"), "Attached"))#</span>
                   </div>
                   <div class="split"><span>Status</span><strong style="color:#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "statusColor"), "var(--muted)"))#;" data-fpw-field="monitor.status">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "statusLabel"), "Unknown"))#</strong></div>
                   <div class="split" style="margin-top:10px;"><span>Trip Page</span><strong style="color:var(--accent);" data-fpw-field="monitor.followerState">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorModel, "tripPageLabel"), "Not linked"))#</strong></div>
-                  <div class="split" style="margin-top:10px;"><span>Monitor</span><strong data-fpw-field="monitor.emergencyContact">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorContact, "name"), "Emergency monitor not named"))#</strong></div>
+                  <div class="split" style="margin-top:10px;"><span>Contact</span><strong data-fpw-field="monitor.emergencyContact">#encodeForHTML(fpwV2Text(fpwV2Get(floatPlanMonitorContact, "name"), "Shore contact not named"))#</strong></div>
                   <cfif len(floatPlanMonitorPhoneHref) OR len(floatPlanMonitorSmsHref) OR len(floatPlanMonitorEmailHref)>
-                    <div class="contact-reference-actions" aria-label="Float plan monitor contact actions">
+                    <div class="contact-reference-actions" aria-label="Shore contact actions">
                       <cfif len(floatPlanMonitorPhoneHref)>
                         <a class="contact-reference-action" data-fpw-field="contacts.monitor.phoneLink" href="#encodeForHTMLAttribute(floatPlanMonitorPhoneHref)#">
                           <span aria-hidden="true">&##9742;</span>
@@ -4660,7 +4663,7 @@
     window.FPWFollowMap.fitBoundsToRoute(routeGeo, pins);
 
     if (currentPosition && typeof window.FPWFollowMap.updateBoatMarker === 'function') {
-      window.FPWFollowMap.updateBoatMarker(currentPosition.lat, currentPosition.lng, currentPosition.name || 'Current position');
+      window.FPWFollowMap.updateBoatMarker(currentPosition.lat, currentPosition.lng, currentPosition.name || 'Latest reported position');
     }
     if (mapInstance && typeof mapInstance.invalidateSize === 'function') {
       window.setTimeout(function() {
@@ -4831,7 +4834,7 @@
       fullMapBoatMarker = window.L.marker([currentPosition.lat, currentPosition.lng], {
         icon: makeFullMapBoatIcon()
       }).addTo(mapInstance);
-      fullMapBoatMarker.bindTooltip(currentPosition.name || 'Current position', {
+      fullMapBoatMarker.bindTooltip(currentPosition.name || 'Latest reported position', {
         direction: 'right',
         opacity: 0.9
       });
@@ -6856,4 +6859,3 @@ window.FPWActiveCruiseV2.bindActionPanel();
 </script>
 </body>
 </html>
-

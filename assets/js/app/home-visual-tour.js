@@ -72,7 +72,7 @@
         { id: "plan-pages", x: 22, y: 42, label: "Plan pages", copy: "Preview each generated page before saving or sending." },
         { id: "route-import", x: 63, y: 44, label: "Route imported", copy: "Route details carry into the float plan." },
         { id: "save-plan", x: 68, y: 85, label: "Save plan", copy: "Save the generated record before taking the trip live." },
-        { id: "send-activate", x: 68, y: 91, label: "Save and send", copy: "Send the plan and move into monitoring when ready." }
+        { id: "send-activate", x: 68, y: 91, label: "Save and send", copy: "Send the plan and start automated monitoring when ready." }
       ]
     },
     {
@@ -83,9 +83,9 @@
       alt: "FloatPlanWizard Active Cruise full page",
       hotspots: [
         { id: "trip-status", x: 50, y: 4, label: "Underway status", copy: "The active trip state is visible at the top." },
-        { id: "route-map", x: 30, y: 17, label: "Live route view", copy: "Map shows route, current position, and destination." },
+        { id: "route-map", x: 30, y: 17, label: "Planned route view", copy: "Map shows the planned route, reported or estimated route progress, and destination." },
         { id: "trip-facts", x: 29, y: 32, label: "Trip facts", copy: "Departure, leg, distance, next stop, and ETA stay together." },
-        { id: "monitor-card", x: 78, y: 10, label: "Float Plan Monitor", copy: "Monitor status and contact options are attached." },
+        { id: "monitor-card", x: 78, y: 10, label: "Shore Contact", copy: "Shore contact details and automated monitoring status are attached." },
         { id: "checkin-controls", x: 78, y: 18, label: "Check-ins", copy: "Report On Track, Delayed, Changed Plan, or Secure Night." },
         { id: "delay-tools", x: 78, y: 34, label: "Delay timing", copy: "Manual delay adjusts the trip timeline." }
       ]

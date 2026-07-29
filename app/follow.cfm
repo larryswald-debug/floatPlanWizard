@@ -103,11 +103,11 @@
       <div class="topbar" data-fpw-region="topbar">
         <div class="page-title">
           <h2 data-fpw-field="page-title">—</h2>
-          <p data-fpw-field="page-subtitle">Follow along in real time: location, progress, updates, comments, and trip confidence.</p>
+          <p data-fpw-field="page-subtitle">Follow the planned route, reported progress, trip updates, comments, and latest check-in.</p>
         </div>
 
         <div class="topbar-right">
-          <div class="live-chip" data-fpw-field="live-chip"><span class="pulse"></span> —</div>
+          <div class="live-chip" data-fpw-field="live-chip">Latest check-in: —</div>
         </div>
       </div>
 
@@ -162,7 +162,7 @@
             <div class="panel-head">
               <div>
                 <h3 data-fpw-field="map-panel-title">Map Overview</h3>
-                <p data-fpw-field="map-panel-subtitle">Live route view with current position, completed track, and destination.</p>
+                <p data-fpw-field="map-panel-subtitle">Planned route, estimated route progress, completed legs, and destination.</p>
               </div>
               <button class="btn secondary" id="openFullMapBtn" type="button" data-fpw-field="map-open-full-map">Open Full Map</button>
             </div>
@@ -171,9 +171,12 @@
               <div class="map-badges" data-fpw-field="map-badges">
                 <div class="map-badge">Completed leg</div>
                 <div class="map-badge">Active leg</div>
-                <div class="map-badge">Recenter vessel</div>
+                <div class="map-badge">Estimated route progress</div>
               </div>
             </div>
+            <p class="follow-map-safety" data-fpw-field="map-position-note" role="note" aria-live="polite">
+              No position update has been reported yet. Any route-progress marker shown is estimated. FPW is not continuous live vessel tracking.
+            </p>
           </article>
 
           <section class="mini-grid" data-fpw-region="lower-cards">
@@ -214,7 +217,7 @@
               <span>Total elapsed travel time</span>
             </div>
             <div class="glance-item">
-              <small>Current Location</small>
+              <small>Reported Progress</small>
               <strong data-fpw-field="stream-glance-checkin">—</strong>
               <span data-fpw-field="stream-glance-checkin-meta">—</span>
             </div>
@@ -235,15 +238,15 @@
             <div class="trust-grid">
               <div class="trust-card">
                 <h4>What green means</h4>
-                <p>The trip is actively reporting and there are no missed required check-ins at this time.</p>
+                <p>No missed required check-ins have been recorded at this time. This does not confirm the vessel’s latest condition or location.</p>
               </div>
               <div class="trust-card">
                 <h4>Why ETA can shift</h4>
-                <p>Arrival estimates can move with pace, route changes, conditions, and live check-in timing.</p>
+                <p>Arrival estimates can move with pace, route changes, conditions, and reported check-in timing.</p>
               </div>
               <div class="trust-card">
                 <h4>If something changes</h4>
-                <p>Monitoring rules can escalate only when the trip stops reporting as expected or the owner posts a concern.</p>
+                <p>Automated monitoring status can change when an expected check-in is not recorded or the captain reports a concern. FPW does not verify emergencies or dispatch assistance.</p>
               </div>
             </div>
           </article>
@@ -408,4 +411,3 @@
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260714-image-upload-fix"></script>
 </body>
 </html>
-

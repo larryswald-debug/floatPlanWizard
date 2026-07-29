@@ -25,6 +25,7 @@
 
   var dom = {};
   var modal = null;
+  var routeOpenPending = false;
 
   var state = {
     templates: [],
@@ -4341,6 +4342,13 @@
   }
 
   function loadTemplates() {
+    // The template UI is intentionally server-hidden for future Route Template Library reuse.
+    // Restore the CFML block to re-enable the existing template initialization path.
+    if (!dom.templateSelectEl) {
+      state.templates = [];
+      return Promise.resolve();
+    }
+
     return fetchJson(apiUrl("listRouteTemplates"), { credentials: "same-origin" })
       .then(function (payload) {
         if (!payload || payload.SUCCESS === false) {
@@ -7676,6 +7684,52 @@
       });
       dom.modalEl.dataset.routegenEscBound = "true";
     }
+  }
+
+  function showRouteReadinessUnavailable() {
+    if (utils && typeof utils.showDashboardAlert === "function") {
+      utils.showDashboardAlert(
+        "Unable to verify route setup. Please try again before creating a route.",
+        "warning"
+      );
+    }
+  }
+
+  function setRouteOpenPending(isPending) {
+    routeOpenPending = isPending === true;
+    if (!dom.openBtn) return;
+    dom.openBtn.disabled = routeOpenPending;
+    dom.openBtn.setAttribute("aria-busy", routeOpenPending ? "true" : "false");
+  }
+
+  function requestOpenNewRouteBuilder() {
+    var onboarding = window.FPW
+      && window.FPW.DashboardModules
+      ? window.FPW.DashboardModules.onboarding
+      : null;
+
+    if (routeOpenPending) return;
+    if (
+      !onboarding
+      || typeof onboarding.validateRouteCreationReadiness !== "function"
+    ) {
+      showRouteReadinessUnavailable();
+      return;
+    }
+
+    setRouteOpenPending(true);
+    return onboarding.validateRouteCreationReadiness()
+      .then(function (isReady) {
+        if (isReady === true) {
+          openModal("generator", "", { freshStart: true });
+        }
+      })
+      .catch(function () {
+        showRouteReadinessUnavailable();
+      })
+      .finally(function () {
+        setRouteOpenPending(false);
+      });
   }
 
   function normalizeText(value) {

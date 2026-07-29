@@ -110,15 +110,15 @@
 
   function setStatus(message) {
     if (!dom.statusEl) return;
-    dom.statusEl.textContent = String(message || "").trim() || "Preparing the live route map.";
+    dom.statusEl.textContent = String(message || "").trim() || "Preparing the planned route map.";
   }
 
   function setTitles(title, subtitle) {
     if (dom.titleEl) {
-      dom.titleEl.textContent = String(title || "").trim() || "Live route map";
+      dom.titleEl.textContent = String(title || "").trim() || "Planned route map";
     }
     if (dom.subtitleEl) {
-      dom.subtitleEl.textContent = String(subtitle || "").trim() || "Viewing the current Follow route in a dedicated window.";
+      dom.subtitleEl.textContent = String(subtitle || "").trim() || "Viewing the planned Follow route and estimated route progress in a dedicated window.";
     }
   }
 
@@ -155,7 +155,11 @@
     api.fitBoundsToRoute(routeGeo, pins);
 
     if (current.lat !== undefined && current.lng !== undefined) {
-      api.updateBoatMarker(current.lat, current.lng, current.label || "Current position");
+      api.updateBoatMarker(
+        current.lat,
+        current.lng,
+        "Estimated route progress: " + String(current.label || "planned route point")
+      );
     }
 
     syncMapSize();
@@ -202,7 +206,7 @@
   }
 
   function bootstrap() {
-    setStatus("Loading the current Follow map.");
+    setStatus("Loading the planned Follow map.");
     return fetchJson("getStreamBootstrap", {
       slug: state.slug,
       stream_id: state.streamId,
@@ -220,11 +224,13 @@
       }
 
       setTitles(
-        String(stream.title || "").trim() || "Live route map",
-        nextStop ? ("Next stop: " + nextStop) : "Viewing the current Follow route in a dedicated window."
+        String(stream.title || "").trim() || "Planned route map",
+        nextStop
+          ? ("Next planned stop: " + nextStop + ". The route-progress marker is estimated.")
+          : "Viewing the planned Follow route and estimated route progress in a dedicated window."
       );
       renderMap(res.map || {});
-      setStatus("Close this window with the X above, or use Back to Follow Page.");
+      setStatus("Any route-progress marker shown is estimated. FPW is not continuous live vessel tracking. Close this window with the X above, or use Back to Follow Page.");
       return res;
     });
   }
