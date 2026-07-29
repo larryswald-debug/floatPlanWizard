@@ -29,7 +29,7 @@ BEGIN
       AND TABLE_NAME = 'users'
       AND COLUMN_NAME = 'userId'
       AND DATA_TYPE = 'int'
-      AND LOWER(COLUMN_TYPE) = 'int'
+      AND LOWER(COLUMN_TYPE) NOT LIKE '%unsigned%'
       AND IS_NULLABLE = 'NO'
       AND COLUMN_KEY = 'PRI'
       AND LOWER(EXTRA) = 'auto_increment';
@@ -43,7 +43,10 @@ BEGIN
       AND LOWER(COLUMN_TYPE) = 'datetime(6)'
       AND DATETIME_PRECISION = 6
       AND IS_NULLABLE = 'YES'
-      AND COLUMN_DEFAULT IS NULL
+      AND (
+        COLUMN_DEFAULT IS NULL
+        OR UPPER(CAST(COLUMN_DEFAULT AS CHAR)) = 'NULL'
+      )
       AND EXTRA = '';
 
     SELECT COUNT(*) INTO v_target_column_count
@@ -101,7 +104,10 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND DATA_TYPE = 'tinyint'
   AND LOWER(COLUMN_TYPE) = 'tinyint(1)'
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    COLUMN_DEFAULT IS NULL
+    OR UPPER(CAST(COLUMN_DEFAULT AS CHAR)) = 'NULL'
+  )
   AND EXTRA = '';
 
 SELECT COUNT(*)

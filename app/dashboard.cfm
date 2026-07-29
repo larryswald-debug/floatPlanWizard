@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260725-welcome-route-setup">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260727-warning-alert-close-black">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
@@ -1372,7 +1372,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260723-rescue-911"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260727-warning-alert-close"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260721-premium-send-credits"></script>
@@ -1383,10 +1383,10 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-phase3-cutover"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260728-hide-default-route-templates"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260725-readiness-toggle"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260727-create-route-readiness"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260724-onboarding"></script>

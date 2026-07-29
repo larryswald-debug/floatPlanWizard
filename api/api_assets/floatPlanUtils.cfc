@@ -20,39 +20,107 @@
 
             appendFpwPdfLog("information", "createPDF start floatPlanId=#arguments.floatPlanId# userId=#arguments.userId# baseDir=#baseDir# templatePath=#templatePath# outputDir=#outputDir#");
 
-            if (!directoryExists(outputDir)) {
-                appendFpwPdfLog("information", "createPDF outputDir missing; creating #outputDir#");
-                directoryCreate(outputDir);
-            }
+            var preparationStage = "output-directory-check";
+            var plan = {};
+            var planName = "";
+            var safePlanName = "";
+            var stamp = "";
+            var requestToken = "";
+            var fileName = "";
+            var destinationPath = "";
+            var readonlyFileName = "";
+            var readonlyPath = "";
+            var vessel = {};
+            var operatorInfo = {};
+            var passengers = [];
+            var contacts = [];
+            var waypoints = [];
+            var basicDetails = {};
 
-            if (!fileExists(templatePath)) {
-                appendFpwPdfLog("error", "createPDF template missing at #templatePath#");
-            }
+            try {
+                preparationStage = "output-directory-check";
+                if (!directoryExists(outputDir)) {
+                    appendFpwPdfLog("information", "createPDF outputDir missing; creating #outputDir#");
+                    preparationStage = "output-directory-create";
+                    directoryCreate(outputDir);
+                }
 
-            var plan = loadFloatPlan(arguments.floatPlanId, arguments.userId, ds);
-            if (structIsEmpty(plan)) {
-                appendFpwPdfLog("error", "createPDF no owner-scoped plan found for floatPlanId=#arguments.floatPlanId# userId=#arguments.userId#");
-                return false;
-            }
+                preparationStage = "template-check";
+                if (!fileExists(templatePath)) {
+                    appendFpwPdfLog("error", "createPDF template missing at #templatePath#");
+                }
 
-            var planName = getString(plan, "floatPlanName", "floatplan");
-            var safePlanName = reReplace(planName, "[^A-Za-z0-9_-]+", "_", "all");
-            var stamp = dateFormat(now(), "yyyymmdd") & "_" & timeFormat(now(), "HHmmss");
-            var requestToken = left(lCase(replace(createUUID(), "-", "", "all")), 12);
-            var fileName = safePlanName & "_" & stamp & "_" & requestToken & ".pdf";
-            var destinationPath = outputDir & "/" & fileName;
-            var readonlyFileName = reReplace(fileName, "\.pdf$", "_readonly.pdf", "all");
-            if (readonlyFileName EQ fileName) {
-                readonlyFileName = fileName & "_readonly";
-            }
-            var readonlyPath = outputDir & "/" & readonlyFileName;
+                preparationStage = "plan-load";
+                plan = loadFloatPlan(arguments.floatPlanId, arguments.userId, ds);
+                if (structIsEmpty(plan)) {
+                    appendFpwPdfLog("error", "createPDF no owner-scoped plan found for floatPlanId=#arguments.floatPlanId# userId=#arguments.userId#");
+                    return false;
+                }
 
-            var vessel = loadVessel(getNumeric(plan, "vesselId", 0), arguments.userId, ds);
-            var operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), arguments.userId, ds);
-	            var passengers = loadPassengers(arguments.floatPlanId, arguments.userId, ds);
-	            var contacts = loadContacts(arguments.floatPlanId, arguments.userId, ds);
-	            var waypoints = loadWaypoints(arguments.floatPlanId, arguments.userId, ds);
-	            var basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
+                preparationStage = "output-path-build";
+                planName = getString(plan, "floatPlanName", "floatplan");
+                safePlanName = reReplace(planName, "[^A-Za-z0-9_-]+", "_", "all");
+                stamp = dateFormat(now(), "yyyymmdd") & "_" & timeFormat(now(), "HHmmss");
+                requestToken = left(lCase(replace(createUUID(), "-", "", "all")), 12);
+                fileName = safePlanName & "_" & stamp & "_" & requestToken & ".pdf";
+                destinationPath = outputDir & "/" & fileName;
+                readonlyFileName = reReplace(fileName, "\.pdf$", "_readonly.pdf", "all");
+                if (readonlyFileName EQ fileName) {
+                    readonlyFileName = fileName & "_readonly";
+                }
+                readonlyPath = outputDir & "/" & readonlyFileName;
+
+                preparationStage = "vessel-load";
+                vessel = loadVessel(getNumeric(plan, "vesselId", 0), arguments.userId, ds);
+                preparationStage = "operator-load";
+                operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), arguments.userId, ds);
+                preparationStage = "passenger-load";
+                passengers = loadPassengers(arguments.floatPlanId, arguments.userId, ds);
+                preparationStage = "contact-load";
+                contacts = loadContacts(arguments.floatPlanId, arguments.userId, ds);
+                preparationStage = "waypoint-load";
+                waypoints = loadWaypoints(arguments.floatPlanId, arguments.userId, ds);
+                preparationStage = "basic-details-load";
+                basicDetails = loadBasicDetails(arguments.floatPlanId, ds);
+            } catch (any preparationError) {
+                var preparationErrorType = "";
+                var preparationErrorMessage = "";
+                var preparationErrorDetail = "";
+                var preparationErrorTemplate = "";
+                var preparationErrorLine = 0;
+                if (structKeyExists(preparationError, "type") AND !isNull(preparationError.type)) {
+                    preparationErrorType = toString(preparationError.type);
+                }
+                if (structKeyExists(preparationError, "message") AND !isNull(preparationError.message)) {
+                    preparationErrorMessage = toString(preparationError.message);
+                }
+                if (structKeyExists(preparationError, "detail") AND !isNull(preparationError.detail)) {
+                    preparationErrorDetail = toString(preparationError.detail);
+                }
+                if (
+                    structKeyExists(preparationError, "tagContext")
+                    AND isArray(preparationError.tagContext)
+                    AND arrayLen(preparationError.tagContext)
+                ) {
+                    if (
+                        structKeyExists(preparationError.tagContext[1], "template")
+                        AND !isNull(preparationError.tagContext[1].template)
+                    ) {
+                        preparationErrorTemplate = toString(preparationError.tagContext[1].template);
+                    }
+                    if (
+                        structKeyExists(preparationError.tagContext[1], "line")
+                        AND isNumeric(preparationError.tagContext[1].line)
+                    ) {
+                        preparationErrorLine = val(preparationError.tagContext[1].line);
+                    }
+                }
+                appendFpwPdfLog(
+                    "error",
+                    "createPDF preparation ERROR floatPlanId=#arguments.floatPlanId# userId=#arguments.userId# stage=#preparationStage# type=#left(preparationErrorType, 250)# msg=#left(preparationErrorMessage, 1000)# detail=#left(preparationErrorDetail, 1000)# template=#left(preparationErrorTemplate, 500)# line=#preparationErrorLine#"
+                );
+                rethrow;
+            }
             var routeItinerary = {};
             var itineraryFields = {};
             var continuationPaths = [];
@@ -580,11 +648,13 @@
 
     <cffunction name="getPdfOutputDirectory" access="private" output="false" returntype="string">
         <cfscript>
-            var outputDir = replace(getTempDirectory(), "\", "/", "all");
+            // Production Java policy blocks ColdFusion's Catalina temp directory.
+            // Reuse the established application-owned PDF directory.
+            var outputDir = replace(getDirectoryFromPath(getCurrentTemplatePath()), "\", "/", "all");
             if (right(outputDir, 1) NEQ "/") {
                 outputDir &= "/";
             }
-            return outputDir & "fpw_float_plans";
+            return outputDir & "floatPlans/user_float_plans";
         </cfscript>
     </cffunction>
 
@@ -812,7 +882,7 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="getString" access="private" output="false" returntype="string">
+    <cffunction name="  " access="private" output="false" returntype="string">
         <cfargument name="source" type="struct" required="true">
         <cfargument name="key" type="string" required="true">
         <cfargument name="defaultValue" type="string" required="false" default="">

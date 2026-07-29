@@ -1,0 +1,385 @@
+{
+  "approved_extent": {
+    "bounds_utm17_metres": {
+      "east": 341267.0,
+      "north": 3066121.0,
+      "south": 3064121.0,
+      "west": 339267.0
+    },
+    "center_wgs84": {
+      "latitude": 27.7009075652856,
+      "longitude": -82.6200072680348
+    },
+    "clip_metadata_verified": {
+      "crs_epsg": 6346,
+      "elevation_statistics_metres_navd88": {
+        "maximum": -0.2756214141845703,
+        "mean": -4.200513995386502,
+        "minimum": -7.907203674316406,
+        "standard_deviation": 1.7865790127099748
+      },
+      "extent_utm17_metres": {
+        "east": 341267.0,
+        "north": 3066121.0,
+        "south": 3064121.0,
+        "west": 339267.0
+      },
+      "geotransform": [
+        339267.0,
+        1.0,
+        0.0,
+        3066121.0,
+        0.0,
+        -1.0
+      ],
+      "native_resolution_metres": 1.0,
+      "nodata_cells": 1186,
+      "nodata_value": -999999.0,
+      "raster_size": {
+        "cells": 4000000,
+        "columns": 2000,
+        "rows": 2000
+      },
+      "representative_nodata_sample": {
+        "cell_center_utm17_metres": {
+          "x": 340089.5,
+          "y": 3065995.5
+        },
+        "cell_center_wgs84": {
+          "latitude": 27.70877802874617,
+          "longitude": -82.62192360012078
+        },
+        "pixel": {
+          "column": 822,
+          "row": 125
+        },
+        "stored_value": -999999.0
+      },
+      "valid_cells": 3998814,
+      "valid_coverage_percent": 99.97035
+    },
+    "corners_wgs84": {
+      "northeast": {
+        "latitude": 27.7100499393613,
+        "longitude": -82.6100010567928
+      },
+      "northwest": {
+        "latitude": 27.7098125683432,
+        "longitude": -82.6302800675715
+      },
+      "southeast": {
+        "latitude": 27.6920017176445,
+        "longitude": -82.6097361351387
+      },
+      "southwest": {
+        "latitude": 27.6917645274034,
+        "longitude": -82.6300118126363
+      }
+    }
+  },
+  "layer": {
+    "description": "Restrained color relief and multidirectional hillshade derived from the approved native-resolution NOAA topobathymetry clip.",
+    "id": "south-tampa-high-detail",
+    "max_native_zoom": 17,
+    "max_zoom": 17,
+    "min_zoom": 14,
+    "native_resolution_metres": 1.0,
+    "not_current_water_depth": true,
+    "not_for_navigation": true,
+    "tile_format": "XYZ PNG; RGB for fully opaque tiles and RGBA where nodata requires transparency",
+    "tile_url_template": "/assets/maps/poc/south-tampa-high-detail/{z}/{x}/{y}.png",
+    "title": "2021 NOAA NGS Southern Tampa Bay 1 m Topobathymetry",
+    "units": "metres",
+    "valid_coverage_percent": 99.97035,
+    "value_label": "Bathymetric elevation relative to NAVD88",
+    "vertical_datum": "NAVD88, Geoid18"
+  },
+  "processing": {
+    "container_image_id": "sha256:a0dcafba68b64c19a97b718767bcb3f245d1aac94714fea397201d6cdb763f8b",
+    "durations_seconds": {
+      "clip": 1.0,
+      "download": 23.0,
+      "relief": 2.0,
+      "source_validation": 0.0,
+      "tiles": 1.0,
+      "total_before_publish_before_json_write": 27.851816415786743,
+      "validation_and_manifest_before_json_write": 0.8518164157867432
+    },
+    "gdal_version": "GDAL 3.13.0 \"Iowa City\", released 2026/05/04",
+    "generated_at_utc": "2026-07-29T03:12:55Z",
+    "pinned_gdal_image": "ghcr.io/osgeo/gdal@sha256:a0dcafba68b64c19a97b718767bcb3f245d1aac94714fea397201d6cdb763f8b",
+    "public_output_policy": "Only XYZ PNG tiles and this manifest are published. The source, clip, palette, and intermediate rasters are temporary."
+  },
+  "rendering": {
+    "combination": {
+      "alpha": "source color-relief alpha preserved",
+      "formula": "color_rgb * (0.65 + 0.35 * hillshade/255)"
+    },
+    "hillshade": {
+      "algorithm": "multidirectional",
+      "compute_edges": true,
+      "vertical_exaggeration": 2.0
+    },
+    "nodata": "transparent; missing cells are not filled",
+    "palette": {
+      "entries": [
+        {
+          "rgba": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "value_metres": "nv"
+        },
+        {
+          "rgba": [
+            31,
+            154,
+            138,
+            255
+          ],
+          "value_metres": -20.0
+        },
+        {
+          "rgba": [
+            32,
+            164,
+            134,
+            255
+          ],
+          "value_metres": -18.0
+        },
+        {
+          "rgba": [
+            40,
+            174,
+            128,
+            255
+          ],
+          "value_metres": -16.0
+        },
+        {
+          "rgba": [
+            53,
+            183,
+            121,
+            255
+          ],
+          "value_metres": -14.0
+        },
+        {
+          "rgba": [
+            72,
+            193,
+            110,
+            255
+          ],
+          "value_metres": -12.0
+        },
+        {
+          "rgba": [
+            94,
+            201,
+            98,
+            255
+          ],
+          "value_metres": -10.0
+        },
+        {
+          "rgba": [
+            117,
+            208,
+            84,
+            255
+          ],
+          "value_metres": -5.0
+        },
+        {
+          "rgba": [
+            144,
+            215,
+            67,
+            255
+          ],
+          "value_metres": -0.1
+        },
+        {
+          "rgba": [
+            173,
+            220,
+            48,
+            255
+          ],
+          "value_metres": 0.0
+        },
+        {
+          "rgba": [
+            229,
+            228,
+            25,
+            255
+          ],
+          "value_metres": 5.0
+        },
+        {
+          "rgba": [
+            253,
+            231,
+            37,
+            255
+          ],
+          "value_metres": 25.0
+        }
+      ],
+      "interpolation": "linear between documented breakpoints",
+      "name": "NOAA BlueTopo nbs_elevation"
+    },
+    "sharpening": false,
+    "smoothing": false,
+    "spatial_resampling": "nearest neighbour"
+  },
+  "schema_version": 1,
+  "source": {
+    "agency": "National Oceanic and Atmospheric Administration, National Geodetic Survey",
+    "dataset_level_qa": {
+      "bathymetric_95_percent_confidence_centimetres": 30.4,
+      "bathymetric_rmsez_centimetres": 15.5,
+      "scope_note": "These are dataset-level QA values reported by the source; they are not per-cell guarantees."
+    },
+    "filename": "2021_339000e_3067000n_dem.tif",
+    "horizontal_crs": "NAD83(2011) / UTM zone 17N",
+    "horizontal_crs_epsg": 6346,
+    "limitations": [
+      "Informational visualization; not intended for charting or navigation.",
+      "Bathymetric elevation relative to NAVD88 is not current water depth.",
+      "Do not directly compare these values with NOAA charted depths relative to MLLW.",
+      "NOAA does not endorse or certify FloatPlanWizard."
+    ],
+    "metadata_url": "https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/dem/NGS_South_TampBay_Topobathy_2021_9481/2021_ngs_topobathy_southTampaBay_dem_m9481_met_forHumans.html",
+    "product_name": "2021 NOAA NGS Southern Tampa Bay Topobathy DEM",
+    "sha256": "4d943093c0f88b72007d0f99e3e325395a8d0ec21c8be01baba1e7d87de43c90",
+    "size_bytes": 102303312,
+    "source_metadata_verified": {
+      "crs": {
+        "epsg": 6346,
+        "horizontal_datum": "NAD83(2011)",
+        "name": "NAD83(2011) / UTM zone 17N",
+        "utm_zone": "17N",
+        "wkt": "PROJCS[\"NAD83(2011) / UTM zone 17N\",GEOGCS[\"NAD83(2011)\",DATUM[\"NAD83_National_Spatial_Reference_System_2011\",SPHEROID[\"GRS 1980\",6378137,298.257222101,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"1116\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"6318\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-81],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"6346\"]]"
+      },
+      "data_type": "Float32",
+      "elevation_statistics_metres_navd88": {
+        "maximum": 2.5756149291992,
+        "mean": -4.5845984344772,
+        "minimum": -12.875007629395,
+        "standard_deviation": 2.1032851725218
+      },
+      "extent_utm17_metres": {
+        "east": 344000.0,
+        "north": 3067000.0,
+        "south": 3062000.0,
+        "west": 339000.0
+      },
+      "geotransform": [
+        339000.0,
+        1.0,
+        0.0,
+        3067000.0,
+        0.0,
+        -1.0
+      ],
+      "native_resolution_metres": {
+        "x": 1.0,
+        "y": 1.0
+      },
+      "nodata_value": -999999.0,
+      "raster_size": {
+        "bands": 1,
+        "columns": 5000,
+        "rows": 5000
+      },
+      "source_filename": "2021_339000e_3067000n_dem.tif",
+      "source_metadata_url": "https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/dem/NGS_South_TampBay_Topobathy_2021_9481/2021_ngs_topobathy_southTampaBay_dem_m9481_met_forHumans.html",
+      "source_url": "https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/dem/NGS_South_TampBay_Topobathy_2021_9481/2021_339000e_3067000n_dem.tif",
+      "survey_dates": {
+        "end": "2021-02-27",
+        "start": "2021-01-26"
+      },
+      "vertical_datum": "NAVD88, Geoid18",
+      "vertical_unit": "metre"
+    },
+    "survey_dates": {
+      "end": "2021-02-27",
+      "start": "2021-01-26"
+    },
+    "units": "metres",
+    "url": "https://noaa-nos-coastal-lidar-pds.s3.amazonaws.com/dem/NGS_South_TampBay_Topobathy_2021_9481/2021_339000e_3067000n_dem.tif",
+    "vertical_datum": "NAVD88, Geoid18"
+  },
+  "tiles": {
+    "count": 102,
+    "opaque_pixels_across_tiles": 4768567,
+    "per_zoom": {
+      "14": {
+        "ground_resolution_metres_per_pixel": 8.459536849,
+        "png_bytes": 73829,
+        "tile_count": 4,
+        "x_max": 4432,
+        "x_min": 4431,
+        "y_max": 6879,
+        "y_min": 6878
+      },
+      "15": {
+        "ground_resolution_metres_per_pixel": 4.229768425,
+        "png_bytes": 262569,
+        "tile_count": 9,
+        "x_max": 8864,
+        "x_min": 8862,
+        "y_max": 13759,
+        "y_min": 13757
+      },
+      "16": {
+        "ground_resolution_metres_per_pixel": 2.114884212,
+        "png_bytes": 924806,
+        "tile_count": 25,
+        "x_max": 17729,
+        "x_min": 17725,
+        "y_max": 27518,
+        "y_min": 27514
+      },
+      "17": {
+        "ground_resolution_metres_per_pixel": 1.057442106,
+        "png_bytes": 3147922,
+        "tile_count": 64,
+        "x_max": 35458,
+        "x_min": 35451,
+        "y_max": 55036,
+        "y_min": 55029
+      }
+    },
+    "png_bytes": 4409126,
+    "representative_natural_nodata_output_sample": {
+      "alpha": 0,
+      "distance_from_source_nodata_cell_center_metres": 0.5397484752384053,
+      "distance_from_source_nodata_cell_center_pixels": 0.511036334628926,
+      "pixel": {
+        "x": 70,
+        "y": 158
+      },
+      "pixel_center_wgs84": {
+        "latitude": 27.708773212265893,
+        "longitude": -82.6219242811203
+      },
+      "purpose": "Deterministic browser proof of preserved natural nodata transparency after Web Mercator reprojection.",
+      "tile": {
+        "x": 35454,
+        "y": 55029
+      },
+      "zoom": 17
+    },
+    "size_note": "PNG byte count excludes this manifest file.",
+    "tile_set_sha256": "2b664c6784fa5d4f0ff3db5ad1054330558677e65976694970be0abc52359aea",
+    "transparent_pixels_across_tiles": 1916105
+  }
+}
