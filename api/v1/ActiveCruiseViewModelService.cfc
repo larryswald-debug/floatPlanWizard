@@ -1944,14 +1944,14 @@
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
       }, { datasource = variables.datasource });
-      var contactName = "Emergency monitor not named";
+      var contactName = "Shore contact not named";
       var contactPhone = "";
       var contactEmail = "";
 
       if (qContact.recordCount GT 0) {
         contactName = safeString(qContact.name[1]);
         if (!len(contactName)) {
-          contactName = "Emergency monitor not named";
+          contactName = "Shore contact not named";
         }
         contactPhone = safeString(qContact.phone[1]);
         contactEmail = safeString(qContact.email[1]);

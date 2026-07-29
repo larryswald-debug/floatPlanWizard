@@ -1469,7 +1469,7 @@
             };
 
             body = {
-                "page_subtitle"="Follow along in real time: location, progress, updates, comments, and trip confidence.",
+                "page_subtitle"="Follow the planned route, reported progress, trip updates, comments, and latest check-in.",
                 "journey_subtitle"="Current leg is active.",
                 "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
                 "journey_departed_meta"=(isDate(journeyDepartedDt) ? dateTimeFormat(journeyDepartedDt, "mmm d, yyyy h:nn tt") : ""),
@@ -3922,7 +3922,7 @@
                         location_label,
                         created_utc
                      ) VALUES
-                     (:streamId, 'system', :ownerUserId, 'Checked in - All good', 'Crew checked in safely and remains on schedule.', 'system_event', 'checkin', 'Current position updated', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 HOUR)),
+                     (:streamId, 'system', :ownerUserId, 'Checked in - All good', 'Crew checked in safely and remains on schedule.', 'system_event', 'checkin', 'Latest reported position shared', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 HOUR)),
                      (:streamId, 'system', :ownerUserId, 'Lock completed', 'Completed lock transit without delays.', 'system_event', 'lock_complete', 'Lock zone', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 4 HOUR)),
                      (:streamId, 'owner', :ownerUserId, 'Morning update', 'Calm water this morning and making steady progress.', 'photo', 'wildlife', 'Near ICW marker', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 6 HOUR))",
                     {
@@ -4411,7 +4411,7 @@
                     out.current = {
                         "lat"=val(trim(toString(qCurrentLeg.end_lat[1]))),
                         "lng"=val(trim(toString(qCurrentLeg.end_lng[1]))),
-                        "label"=(isNull(qCurrentLeg.end_name[1]) ? "Current position" : trim(toString(qCurrentLeg.end_name[1])))
+                        "label"=(isNull(qCurrentLeg.end_name[1]) ? "Estimated route progress" : trim(toString(qCurrentLeg.end_name[1])))
                     };
                     out.location_label = out.current.label;
                 }

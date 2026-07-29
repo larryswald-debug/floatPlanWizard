@@ -254,7 +254,7 @@
 
   function updateBoatMarker(lat, lng, label) {
     var p = normalizePoint({ lat: lat, lng: lng });
-    var tooltip = String(label || "Current position").trim() || "Current position";
+    var tooltip = String(label || "Estimated route progress").trim() || "Estimated route progress";
 
     if (!state.map || !p) return;
 

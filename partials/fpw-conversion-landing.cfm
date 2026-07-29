@@ -160,7 +160,7 @@
 
     <section class="fpw-compare" id="fpwFeatures" aria-labelledby="fpwCompareTitle">
       <div class="fpw-container">
-        <h2 class="fpw-section-title" id="fpwCompareTitle">A PDF is a start. FPW keeps the plan alive.</h2>
+        <h2 class="fpw-section-title" id="fpwCompareTitle">A PDF is a start. FPW keeps trip information available.</h2>
         <p class="fpw-section-intro fpw-compare-intro">A blank float plan is better than nothing. FPW helps turn that plan into a route-based trip workflow your shore contact can actually use.</p>
         <div class="fpw-compare-panels" aria-label="Blank float plan compared with FloatPlanWizard">
           <article class="fpw-compare-card fpw-compare-card-muted">
@@ -179,10 +179,10 @@
               <li><span class="fpw-yes">✓</span><span>Route-based trip plan</span></li>
               <li><span class="fpw-yes">✓</span><span>Guided instructions for the details that matter</span></li>
               <li><span class="fpw-yes">✓</span><span>Shareable trip page for family and friends</span></li>
-              <li><span class="fpw-yes">✓</span><span>Active Cruise keeps timing and status current</span></li>
+              <li><span class="fpw-yes">✓</span><span>Captains can report updates and check-ins during the trip</span></li>
               <li><span class="fpw-yes">✓</span><span>Organizes route, vessel, passengers and contacts</span></li>
-              <li><span class="fpw-yes">✓</span><span>Electronic arrival and departure monitoring</span></li>
-              <li><span class="fpw-yes">✓</span><span>Trip updates sent to shore contact</span></li>
+              <li><span class="fpw-yes">✓</span><span>Automated arrival and departure check-in status</span></li>
+              <li><span class="fpw-yes">✓</span><span>Trip updates can be sent to a shore contact</span></li>
             </ul>
           </article>
         </div>

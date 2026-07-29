@@ -417,7 +417,7 @@
           out.current = {
             "lat"=val(trim(toString(qCurrentLeg.end_lat[1]))),
             "lng"=val(trim(toString(qCurrentLeg.end_lng[1]))),
-            "label"=(isNull(qCurrentLeg.end_name[1]) ? "Current position" : trim(toString(qCurrentLeg.end_name[1])))
+            "label"=(isNull(qCurrentLeg.end_name[1]) ? "Estimated route progress" : trim(toString(qCurrentLeg.end_name[1])))
           };
           out.location_label = out.current.label;
         }

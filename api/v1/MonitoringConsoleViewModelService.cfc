@@ -940,7 +940,7 @@
     <cfscript>
       return {
         "notLiveTrackingMessage" = "FPW shows the last check-in location shared by the captain.",
-        "emergencyDisclaimer" = "This is not live vessel tracking and may not reflect the vessel's current position. In an emergency, use official emergency channels such as VHF Channel 16, DSC distress, 911, EPIRB/PLB, flares, or other accepted emergency methods.",
+        "emergencyDisclaimer" = "This is not continuous live vessel tracking and may not reflect the vessel's latest reported position. In an emergency, use official emergency channels such as VHF Channel 16, DSC distress, 911, EPIRB/PLB, flares, or other accepted emergency methods.",
         "gpsStaleMessage" = (structKeyExists(arguments.lastLocation, "isStale") AND arguments.lastLocation.isStale ? "The latest GPS check-in may be stale. Use the captured time when interpreting the marker." : ""),
         "noGpsMessage" = "No GPS has been captured with a check-in for this monitored trip yet.",
         "poorAccuracyMessage" = (structKeyExists(arguments.lastLocation, "accuracyQualityLabel") AND arguments.lastLocation.accuracyQualityLabel EQ "Poor" ? "The latest GPS check-in reported poor accuracy. Treat the marker as approximate." : "")

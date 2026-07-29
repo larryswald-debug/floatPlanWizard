@@ -267,7 +267,7 @@
         <cfset var toList = "">
         <cfset var planName = buildMonitoringPlanName( context )>
         <cfset var eventLabel = buildMonitoringTimestampLabel( arguments.missedAt )>
-        <cfset var subject = "FPW Monitoring Alert: Missed Check-In - " & planName>
+        <cfset var subject = "FPW Automated Notice: Scheduled Check-In Not Recorded - " & planName>
         <cfset var body = "">
 
         <cfset ensureHistory( int( arguments.floatPlanId ), alertType )>
@@ -295,11 +295,16 @@
 
         <cfset recipients = getOwnerAlertEmails( context )>
         <cfset toList = arrayToList( recipients, ", " )>
-        <cfset body = "Status: Missed Check-In" & chr(10)
+        <cfset body = "Notice Source: FPW automated check-in status" & chr(10)
+            & "Status: Scheduled Check-In Not Recorded" & chr(10)
             & "Float Plan: " & planName & chr(10)
             & "Timestamp: " & eventLabel & chr(10)
             & "Float Plan ID: " & int( arguments.floatPlanId ) & chr(10)
-            & "Recipients: " & toList>
+            & "Recipients: " & toList & chr(10) & chr(10)
+            & "FPW's automated system did not record the expected check-in by the scheduled time. This may reflect a missed check-in, delayed reporting, connectivity problems, or other circumstances." & chr(10)
+            & "Attempt to contact the captain and follow the response plan you agreed upon." & chr(10)
+            & "FPW has not independently verified an emergency and does not dispatch assistance." & chr(10)
+            & "Electronic-message delivery and receipt are not guaranteed.">
 
         <cfif arrayLen( recipients ) EQ 0>
             <cfset markFailed( int( arguments.floatPlanId ), alertType, "No owner/captain email found for missed monitoring alert." )>
@@ -351,7 +356,7 @@
         <cfset var toList = "">
         <cfset var planName = buildMonitoringPlanName( context )>
         <cfset var eventLabel = buildMonitoringTimestampLabel( arguments.escalatedAt )>
-        <cfset var subject = "FPW Monitoring Alert: Escalated - " & planName>
+        <cfset var subject = "FPW Automated Notice: Check-In Still Unresolved - " & planName>
         <cfset var body = "">
 
         <cfset ensureHistory( int( arguments.floatPlanId ), alertType )>
@@ -379,11 +384,16 @@
 
         <cfset recipients = getSelectedContactEmails( context )>
         <cfset toList = arrayToList( recipients, ", " )>
-        <cfset body = "Status: Escalated" & chr(10)
+        <cfset body = "Notice Source: FPW automated check-in status" & chr(10)
+            & "Status: Check-In Still Unresolved" & chr(10)
             & "Float Plan: " & planName & chr(10)
             & "Timestamp: " & eventLabel & chr(10)
             & "Float Plan ID: " & int( arguments.floatPlanId ) & chr(10)
-            & "Recipients: " & toList>
+            & "Recipients: " & toList & chr(10) & chr(10)
+            & "The scheduled check-in remains unresolved after the configured monitoring delay. This is an automated trip status, not confirmation of distress or professional emergency escalation." & chr(10)
+            & "Attempt to contact the captain and follow the response plan you agreed upon." & chr(10)
+            & "FPW has not independently verified an emergency and does not dispatch assistance." & chr(10)
+            & "Electronic-message delivery and receipt are not guaranteed.">
 
         <cfif arrayLen( recipients ) EQ 0>
             <cfset markFailed( int( arguments.floatPlanId ), alertType, "No selected contact emails found for escalated monitoring alert." )>
@@ -451,13 +461,16 @@
         <cfif len(trim(arguments.note))>
             <cfset noteLine = "Captain Note: " & trim(arguments.note) & chr(10)>
         </cfif>
-        <cfset var subject = "FPW Assistance Needed Alert: " & resolvedPlanName>
-        <cfset var body = "Status: Assistance Needed" & chr(10)
+        <cfset var subject = "FPW Notice: Captain Reported Assistance May Be Needed - " & resolvedPlanName>
+        <cfset var body = "Notice Source: Captain-reported status" & chr(10)
+            & "Status: Assistance May Be Needed" & chr(10)
             & "Float Plan: " & resolvedPlanName & chr(10)
             & "Timestamp: " & checkinLabel & chr(10)
             & noteLine
             & "Float Plan ID: " & int(arguments.floatPlanId) & chr(10)
-            & "Recipients: " & toList>
+            & "Recipients: " & toList & chr(10) & chr(10)
+            & "The captain reported a status indicating that assistance may be needed. FPW is relaying the reported information; it has not independently verified the situation and does not dispatch assistance." & chr(10)
+            & "Electronic-message delivery and receipt are not guaranteed.">
 
         <cfset ensureHistory(int(arguments.floatPlanId), alertType)>
 
@@ -578,4 +591,3 @@
     </cffunction>
 
 </cfcomponent>
-
