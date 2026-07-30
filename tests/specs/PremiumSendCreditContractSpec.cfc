@@ -1454,6 +1454,25 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(captured.payload.formFields.customer).toBe("cus_test_phase3_member_customer");
       });
 
+      it("preserves the one-trip wizard return surface through checkout confirmation", function() {
+        var apiSource = fileRead(expandPath("/fpw/assets/js/app/api.js"), "utf-8");
+        var billingSource = fileRead(expandPath("/fpw/api/v1/billing.cfc"), "utf-8");
+        var accountSource = fileRead(expandPath("/fpw/assets/js/app/account.js"), "utf-8");
+        var dashboardFloatPlansSource = fileRead(expandPath("/fpw/assets/js/app/dashboard/floatplans.js"), "utf-8");
+        var wizardSource = fileRead(expandPath("/fpw/assets/js/app/floatplanWizard.js"), "utf-8");
+
+        expect(find('["dashboard_modal", "standalone_wizard"]', apiSource)).toBeGT(0);
+        expect(find('listFindNoCase("dashboard_modal,standalone_wizard", requestedReturnSurface)', billingSource)).toBeGT(0);
+        expect(find("returnSurface = requestedReturnSurface", billingSource)).toBeGT(0);
+        expect(find('"RETURNSURFACE" = oneTripReturnContext.returnSurface', billingSource)).toBeGT(0);
+        expect(find('returnSurface: "dashboard_modal"', dashboardFloatPlansSource)).toBeGT(0);
+        expect(find("openReturnedOneTripCheckout();", dashboardFloatPlansSource)).toBeGT(0);
+        expect(find('options.returnSurface || "standalone_wizard"', wizardSource)).toBeGT(0);
+        expect(find("this.returnSurface", wizardSource)).toBeGT(0);
+        expect(find('"/app/dashboard.cfm"', accountSource)).toBeGT(0);
+        expect(find('"/app/floatplan-wizard.cfm"', accountSource)).toBeGT(0);
+      });
+
       it("keeps failed Stripe Checkout diagnostics out of the public service response", function() {
         var fixture = createFixture("failed-stripe-checkout");
         var fakeTransport = {};

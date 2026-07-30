@@ -186,9 +186,10 @@
       });
     },
 
-    createPremiumCheckoutSession: function (interval, floatPlanId) {
+    createPremiumCheckoutSession: function (interval, floatPlanId, returnSurface) {
       var intervalValue = String(interval || "").trim().toLowerCase();
       var planId = parseInt(floatPlanId, 10) || 0;
+      var returnSurfaceValue = String(returnSurface || "").trim().toLowerCase();
       var body = { interval: intervalValue };
       if (intervalValue !== "monthly" && intervalValue !== "yearly" && intervalValue !== "three_day_pass" && intervalValue !== "one_trip") {
         return Promise.reject({
@@ -200,8 +201,23 @@
           message: "Choose monthly, yearly, one-trip, or 3-Day Pass Premium billing."
         });
       }
+      if (intervalValue === "one_trip"
+          && returnSurfaceValue
+          && ["dashboard_modal", "standalone_wizard"].indexOf(returnSurfaceValue) === -1) {
+        return Promise.reject({
+          SUCCESS: false,
+          success: false,
+          ERROR: "INVALID_CHECKOUT_RETURN_SURFACE",
+          errorCode: "INVALID_CHECKOUT_RETURN_SURFACE",
+          MESSAGE: "One-trip checkout return surface is invalid.",
+          message: "One-trip checkout return surface is invalid."
+        });
+      }
       if (intervalValue === "one_trip" && planId > 0) {
         body.floatPlanId = planId;
+      }
+      if (intervalValue === "one_trip" && returnSurfaceValue) {
+        body.returnSurface = returnSurfaceValue;
       }
       return request("/billing.cfc?method=handle&action=createcheckoutsession", {
         method: "POST",

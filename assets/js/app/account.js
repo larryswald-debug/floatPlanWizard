@@ -486,15 +486,48 @@
     window.history.replaceState({}, document.title, window.location.pathname + (query ? "?" + query : "") + (window.location.hash || ""));
   }
 
+  function normalizeOneTripReturnSurface(value) {
+    return String(value || "").trim().toLowerCase() === "dashboard_modal"
+      ? "dashboard_modal"
+      : "standalone_wizard";
+  }
+
+  function buildOneTripReturnUrl(floatPlanId, checkoutState, returnSurface) {
+    var planId = parseInt(floatPlanId, 10) || 0;
+    var requestedState = String(checkoutState || "").trim().toLowerCase();
+    var state = requestedState === "success" || requestedState === "cancel" ? requestedState : "";
+    var path = normalizeOneTripReturnSurface(returnSurface) === "dashboard_modal"
+      ? "/app/dashboard.cfm"
+      : "/app/floatplan-wizard.cfm";
+    return BASE_PATH + path + "?floatPlanId=" + encodeURIComponent(planId)
+      + (state ? "&fpw_checkout=one_trip&stripe_checkout=" + encodeURIComponent(state) : "");
+  }
+
   function refreshMembershipAfterStripeReturn(initialAccess) {
     var delays = [1000, 2500, 5000, 8000];
     var checkoutReturn = getStripeCheckoutReturn();
 
     if (checkoutReturn.cancelled) {
       if (checkoutReturn.oneTrip && checkoutReturn.floatPlanId > 0) {
-        var cancelDraftUrl = BASE_PATH + "/app/floatplan-wizard.cfm?floatPlanId=" + encodeURIComponent(checkoutReturn.floatPlanId) + "&fpw_checkout=one_trip&stripe_checkout=cancel";
+        if (/^[a-f0-9]{64}$/.test(checkoutReturn.returnNonce)
+            && window.Api
+            && typeof window.Api.confirmPremiumOneTripCheckout === "function") {
+          window.Api.confirmPremiumOneTripCheckout(checkoutReturn.returnNonce)
+            .then(function (confirmation) {
+              var confirmedPlanId = parseInt((confirmation && (confirmation.FLOATPLANID || confirmation.floatPlanId)) || "0", 10)
+                || checkoutReturn.floatPlanId;
+              var confirmedReturnSurface = confirmation && (confirmation.RETURNSURFACE || confirmation.returnSurface);
+              clearOneTripCheckoutReturnFromLocation();
+              window.location.replace(buildOneTripReturnUrl(confirmedPlanId, "cancel", confirmedReturnSurface));
+            })
+            .catch(function () {
+              clearOneTripCheckoutReturnFromLocation();
+              window.location.replace(buildOneTripReturnUrl(checkoutReturn.floatPlanId, "cancel", "standalone_wizard"));
+            });
+          return;
+        }
         clearOneTripCheckoutReturnFromLocation();
-        window.location.replace(cancelDraftUrl);
+        window.location.replace(buildOneTripReturnUrl(checkoutReturn.floatPlanId, "cancel", "standalone_wizard"));
         return;
       }
       clearOneTripCheckoutReturnFromLocation();
@@ -525,12 +558,16 @@
             var available = confirmation && (confirmation.AVAILABLE === true || confirmation.available === true);
             var creditStatus = String((confirmation && (confirmation.STATUS || confirmation.status)) || "").trim().toUpperCase();
             var confirmedPlanId = parseInt((confirmation && (confirmation.FLOATPLANID || confirmation.floatPlanId)) || "0", 10) || 0;
+            var confirmedReturnSurface = confirmation && (confirmation.RETURNSURFACE || confirmation.returnSurface);
 
             if (resolved) {
               clearOneTripCheckoutReturnFromLocation();
               if (confirmedPlanId > 0) {
-                window.location.href = BASE_PATH + "/app/floatplan-wizard.cfm?floatPlanId=" + encodeURIComponent(confirmedPlanId)
-                  + (available ? "&fpw_checkout=one_trip&stripe_checkout=success" : "");
+                window.location.href = buildOneTripReturnUrl(
+                  confirmedPlanId,
+                  available ? "success" : "",
+                  confirmedReturnSurface
+                );
                 return;
               }
               loadMembershipBilling();

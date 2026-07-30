@@ -4,6 +4,7 @@
     <cfargument name="action" type="string" required="false" default="">
     <cfargument name="interval" type="string" required="false" default="">
     <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+    <cfargument name="returnSurface" type="string" required="false" default="">
     <cfsetting enablecfoutputonly="true" showdebugoutput="false">
     <cfcontent type="application/json; charset=utf-8">
     <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
@@ -17,6 +18,7 @@
       <cfset var intervalValue = readRequestedInterval(body, arguments.interval)>
       <cfset var requestedFloatPlanId = readRequestedFloatPlanId(body, arguments.floatPlanId)>
       <cfset var requestedReturnNonce = readRequestedReturnNonce(body)>
+      <cfset var requestedReturnSurface = readRequestedReturnSurface(body, arguments.returnSurface)>
       <cfset var qDraft = queryNew("")>
       <cfset var qOneTripCredit = queryNew("")>
       <cfset var oneTripReturnNonce = "">
@@ -78,6 +80,16 @@
           <cfreturn>
         </cfif>
 
+        <cfif intervalValue EQ "one_trip">
+          <cfif NOT len(requestedReturnSurface)>
+            <cfset requestedReturnSurface = "standalone_wizard">
+          <cfelseif NOT listFindNoCase("dashboard_modal,standalone_wizard", requestedReturnSurface)>
+            <cfset response = buildErrorResponse(false, true, "INVALID_CHECKOUT_RETURN_SURFACE", "One-trip checkout return surface is invalid.")>
+            <cfoutput>#serializeJSON(response)#</cfoutput>
+            <cfreturn>
+          </cfif>
+        </cfif>
+
         <cfif intervalValue EQ "one_trip" AND requestedFloatPlanId GT 0>
           <cfset qDraft = queryExecute(
             "SELECT floatPlanId
@@ -117,7 +129,8 @@
             returnNonce = oneTripReturnNonce,
             checkoutSessionId = trim(toString(response.stripeCheckoutSessionId)),
             userId = userId,
-            floatPlanId = requestedFloatPlanId
+            floatPlanId = requestedFloatPlanId,
+            returnSurface = requestedReturnSurface
           )>
           <cfset recordBillingProductEvent(
             userId = userId,
@@ -163,6 +176,8 @@
           "status" = qOneTripCredit.recordCount EQ 1 ? uCase(trim(toString(qOneTripCredit.status[1]))) : "PENDING",
           "FLOATPLANID" = oneTripReturnContext.floatPlanId,
           "floatPlanId" = oneTripReturnContext.floatPlanId,
+          "RETURNSURFACE" = oneTripReturnContext.returnSurface,
+          "returnSurface" = oneTripReturnContext.returnSurface,
           "MESSAGE" = qOneTripCredit.recordCount EQ 1 ? "Premium Send Credit confirmed." : "Premium Send Credit is still being confirmed.",
           "message" = qOneTripCredit.recordCount EQ 1 ? "Premium Send Credit confirmed." : "Premium Send Credit is still being confirmed."
         }>
@@ -239,11 +254,16 @@
     <cfargument name="checkoutSessionId" type="string" required="true">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="false" default="0">
+    <cfargument name="returnSurface" type="string" required="false" default="standalone_wizard">
     <cflock scope="session" type="exclusive" timeout="5">
       <cfscript>
         var nonceKey = "";
         var entry = {};
         var nowUtc = dateConvert("local2utc", now());
+        var normalizedReturnSurface = lCase(trim(arguments.returnSurface));
+        if (!listFindNoCase("dashboard_modal,standalone_wizard", normalizedReturnSurface)) {
+          normalizedReturnSurface = "standalone_wizard";
+        }
         if (!structKeyExists(session, "fpwOneTripCheckoutReturns") OR !isStruct(session.fpwOneTripCheckoutReturns)) {
           session.fpwOneTripCheckoutReturns = {};
         }
@@ -260,6 +280,7 @@
           checkoutSessionId = trim(arguments.checkoutSessionId),
           userId = int(val(arguments.userId)),
           floatPlanId = int(val(arguments.floatPlanId)),
+          returnSurface = normalizedReturnSurface,
           expiresAtUtc = dateAdd("n", 60, nowUtc)
         };
       </cfscript>
@@ -293,6 +314,12 @@
             result.MESSAGE = "This one-trip checkout confirmation does not belong to the authenticated member.";
           } else {
             result = duplicate(entry);
+            if (!structKeyExists(result, "returnSurface")
+                OR !listFindNoCase("dashboard_modal,standalone_wizard", lCase(trim(toString(result.returnSurface))))) {
+              result.returnSurface = "standalone_wizard";
+            } else {
+              result.returnSurface = lCase(trim(toString(result.returnSurface)));
+            }
             result.FOUND = true;
             result.ERROR = "";
             result.MESSAGE = "One-trip checkout return matched.";
@@ -313,6 +340,20 @@
         return lCase(trim(toString(arguments.body.RETURNNONCE)));
       }
       return "";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="readRequestedReturnSurface" access="private" returntype="string" output="false">
+    <cfargument name="body" type="struct" required="true">
+    <cfargument name="returnSurfaceArg" type="string" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.body, "returnSurface") AND !isNull(arguments.body.returnSurface)) {
+        return lCase(trim(toString(arguments.body.returnSurface)));
+      }
+      if (structKeyExists(arguments.body, "RETURNSURFACE") AND !isNull(arguments.body.RETURNSURFACE)) {
+        return lCase(trim(toString(arguments.body.RETURNSURFACE)));
+      }
+      return lCase(trim(arguments.returnSurfaceArg));
     </cfscript>
   </cffunction>
 

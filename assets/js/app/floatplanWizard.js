@@ -787,6 +787,10 @@
       : {};
     var initialPlanId = numeric(options.planId || 0);
     var contactStep = numeric(options.contactStep || 0);
+    var returnSurface = String(options.returnSurface || "standalone_wizard").trim().toLowerCase();
+    if (["dashboard_modal", "standalone_wizard"].indexOf(returnSurface) === -1) {
+      returnSurface = "standalone_wizard";
+    }
     if (!initialPlanId) {
       initialPlanId = getPlanIdFromQuery();
     }
@@ -844,6 +848,7 @@
         pdfPreviewLoading: false,
         pdfPreviewError: "",
         contactStep: contactStep,
+        returnSurface: returnSurface,
         initialPlanId: initialPlanId,
         manifestActiveTab: "passengers",
         passengerSearchQuery: "",
@@ -1851,7 +1856,11 @@
         }
         this.checkoutBusy = true;
         this.setStatus("Opening secure Stripe Checkout...", true);
-        window.Api.createPremiumCheckoutSession(selector, selector === "one_trip" ? this.getPlanId() : 0)
+        window.Api.createPremiumCheckoutSession(
+          selector,
+          selector === "one_trip" ? this.getPlanId() : 0,
+          selector === "one_trip" ? this.returnSurface : ""
+        )
           .then(function (response) {
             var checkoutUrl = response && (response.checkoutUrl || response.CHECKOUT_URL)
               ? String(response.checkoutUrl || response.CHECKOUT_URL)

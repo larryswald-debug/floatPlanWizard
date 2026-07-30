@@ -13,6 +13,7 @@
   var wizardModalEl = null;
   var wizardModal = null;
   var wizardMountEl = null;
+  var checkoutReturnOpened = false;
   var cloneModalEl = null;
   var cloneModal = null;
   var cloneMessageEl = null;
@@ -408,6 +409,7 @@
       startStep: startStep,
       contactStep: 4,
       totalSteps: 6,
+      returnSurface: "dashboard_modal",
       memberAccess: state.memberAccess || {},
       onSaved: function () {
         if (hasStandaloneFloatPlansPanel()) {
@@ -447,6 +449,54 @@
 
   function openWizardForPlan(planId, startStep) {
     return openWizard(planId, startStep);
+  }
+
+  function getOneTripCheckoutReturn() {
+    var search = window.location.search || "";
+    var result = { planId: 0, state: "" };
+    if (!search) return result;
+    if (typeof URLSearchParams === "undefined") {
+      var stateMatch = search.match(/[?&]stripe_checkout=(success|cancel)(?:&|$)/i);
+      var productMatch = search.match(/[?&]fpw_checkout=one_trip(?:&|$)/i);
+      var planMatch = search.match(/[?&]floatPlanId=([0-9]+)(?:&|$)/i);
+      if (stateMatch && productMatch && planMatch) {
+        result.state = String(stateMatch[1]).toLowerCase();
+        result.planId = parseInt(planMatch[1], 10) || 0;
+      }
+      return result;
+    }
+    var params = new URLSearchParams(search);
+    var stateValue = String(params.get("stripe_checkout") || "").trim().toLowerCase();
+    var productValue = String(params.get("fpw_checkout") || "").trim().toLowerCase();
+    if (productValue === "one_trip" && (stateValue === "success" || stateValue === "cancel")) {
+      result.state = stateValue;
+      result.planId = parseInt(params.get("floatPlanId") || "0", 10) || 0;
+    }
+    return result;
+  }
+
+  function clearDashboardOneTripCheckoutReturnFromLocation() {
+    if (!window.history || typeof window.history.replaceState !== "function" || typeof URLSearchParams === "undefined") return;
+    var params = new URLSearchParams(window.location.search || "");
+    ["stripe_checkout", "fpw_checkout", "floatPlanId"].forEach(function (key) {
+      params.delete(key);
+    });
+    var query = params.toString();
+    window.history.replaceState({}, document.title, window.location.pathname + (query ? "?" + query : "") + (window.location.hash || ""));
+  }
+
+  function openReturnedOneTripCheckout() {
+    if (checkoutReturnOpened) return false;
+    var checkoutReturn = getOneTripCheckoutReturn();
+    if (!(checkoutReturn.planId > 0) || !checkoutReturn.state) {
+      return false;
+    }
+    if (!openWizard(checkoutReturn.planId, 6)) {
+      return false;
+    }
+    checkoutReturnOpened = true;
+    clearDashboardOneTripCheckoutReturnFromLocation();
+    return true;
   }
 
   function handleFloatPlansListClick(event) {
@@ -637,6 +687,7 @@
       if (hasStandaloneFloatPlansPanel()) {
         loadFloatPlans(FLOAT_PLAN_LIMIT);
       }
+      openReturnedOneTripCheckout();
     });
     document.addEventListener("fpw:active-trip-updated", function () {
       if (!floatPlanState.all || !floatPlanState.all.length) return;

@@ -7,3 +7,4 @@ assets/uploads/vessels/
 logs/*.log
 tmp/stripe-*.json
 tmp/stripe-*.log
+testbox/
