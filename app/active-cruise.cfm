@@ -807,6 +807,9 @@
       align-items: center;
       gap: 12px;
     }
+    .ac-weather-panel--checked .ac-weather-status-badge {
+      display: none;
+    }
     .ac-weather-status-badge[aria-busy="true"] {
       border-color: rgba(67, 199, 255, .55);
     }
@@ -1984,6 +1987,9 @@
     }
     .active-cruise-map-wrap {
       position: relative;
+    }
+    #fpwActiveCruiseV2PositionNote {
+      margin-top: 18px;
     }
     .active-cruise-map-canvas,
     .map-canvas {
@@ -3170,6 +3176,9 @@
       border-top: 1px solid rgba(126,184,226,0.12);
       padding-top: 12px;
     }
+    #fpwV2DailyStartFeedback[hidden] {
+      display: none;
+    }
     .ac-action-ready-message::before {
       content: "";
       width: 26px;
@@ -3487,6 +3496,17 @@
         <cfset mapCenter = (structKeyExists(mapModel, "center") AND isStruct(mapModel.center) ? mapModel.center : {})>
         <cfset mapWarnings = (structKeyExists(mapModel, "warnings") AND isArray(mapModel.warnings) ? mapModel.warnings : [])>
         <cfset mapAvailable = (structKeyExists(mapModel, "available") AND isBoolean(mapModel.available) AND mapModel.available)>
+        <cfset mapCurrentPosition = (structKeyExists(mapModel, "currentPosition") AND isStruct(mapModel.currentPosition) ? mapModel.currentPosition : {})>
+        <cfset mapCurrentPositionAvailable = (
+          structKeyExists(mapCurrentPosition, "available")
+          AND isBoolean(mapCurrentPosition.available)
+          AND mapCurrentPosition.available
+        )>
+        <cfset mapCurrentPositionSourceLabel = fpwV2Text(fpwV2Get(mapCurrentPosition, "sourceLabel"), "Active Cruise GPS")>
+        <cfset mapCurrentPositionUpdatedLabel = fpwV2Text(
+          fpwV2Get(mapCurrentPosition, "capturedAtLocalLabel"),
+          fpwV2Text(fpwV2Get(mapCurrentPosition, "occurredAtLocalLabel"), "")
+        )>
         <cfset mapGeometryAuthority = fpwV2Text(fpwV2Get(mapModel, "geometryAuthority"), "Not available")>
         <cfset mapGeometryAuthorityLabel = replace(mapGeometryAuthority, "_", " ", "all")>
         <cfset weatherPoints = (structKeyExists(weatherModel, "points") AND isStruct(weatherModel.points) ? weatherModel.points : {})>
@@ -3622,8 +3642,12 @@
                     <div class="panel-note is-warning">Map geometry is not available from the V2 view model for this trip.</div>
                   </cfif>
                 </div>
-                <div class="panel-note is-warning" role="note">
-                  No position update has been reported yet. This map shows the planned route; FPW is not continuous live vessel tracking.
+                <div id="fpwActiveCruiseV2PositionNote" class="panel-note<cfif NOT mapCurrentPositionAvailable> is-warning</cfif>" role="note">
+                  <cfif mapCurrentPositionAvailable>
+                    Latest reported position: #encodeForHTML(mapCurrentPositionSourceLabel)#<cfif len(mapCurrentPositionUpdatedLabel)> &middot; Updated #encodeForHTML(mapCurrentPositionUpdatedLabel)#</cfif>. FPW is not continuous live vessel tracking.
+                  <cfelse>
+                    No position update has been reported yet. This map shows the planned route; FPW is not continuous live vessel tracking.
+                  </cfif>
                 </div>
               </div>
 
@@ -3712,10 +3736,6 @@
                       <div class="route-leg-estimate-progress-head"><span>Leg Progress</span><span data-fpw-field="currentLeg.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#</span></div>
                       <div class="route-leg-estimate-progress-row"><div class="bar-shell"><div class="bar-fill" data-fpw-field="currentLeg.progressBar" style="width:#encodeForHTMLAttribute(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))#;"></div></div></div>
                     </div>
-                    <div class="route-leg-estimate-foot">
-                      <div>Start Next Leg and Complete Leg remain controlled by the V2 action contracts.</div>
-                      <small>Display values come from activeCruiseV2Model.currentLeg.</small>
-                    </div>
                   </div>
                   <section class="ac-v2-panel ac-pace-command-panel" id="fpwV2PacePanel" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(paceUpdateAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(paceUpdateAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(paceUpdateAction, "payload", {})))#" data-enabled="#encodeForHTMLAttribute(paceUpdateEnabled ? "true" : "false")#" aria-label="Pace controls">
                     <div class="ac-panel-header">
@@ -3737,12 +3757,6 @@
                         <cfloop array="#paceOptions#" item="paceOption">
                           <span>#encodeForHTML(fpwV2Text(fpwV2Get(paceOption, "label"), "Pace"))#</span>
                         </cfloop>
-                      </div>
-                      <div class="ac-inline-control-row">
-                        <div class="ac-pace-selected" aria-live="polite">
-                          <span>Selected</span>
-                          <strong id="fpwV2PaceSelectedLabel">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</strong>
-                        </div>
                       </div>
                       <cfif len(paceUpdateReason)><p class="ac-muted-note">#encodeForHTML(paceUpdateReason)#</p></cfif>
                     </div>
@@ -3772,7 +3786,6 @@
                       </div>
                       <button type="submit" class="btn btn-secondary ac-weather-command-btn"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
                       <span class="ac-weather-status-chip" data-weather-chip="alerts">No alerts</span>
-                      <span class="ac-weather-status-chip" data-weather-chip="factor">0% factor</span>
                     </form>
                   </div>
                 </div>
@@ -3783,9 +3796,7 @@
                 </cfif>
                 <div class="ac-weather-summary-row" aria-live="polite">
                   <span>Point: <strong data-weather-field="point">Not checked</strong></span>
-                  <span>Summary: <strong data-weather-field="summary">Not checked</strong></span>
                   <span>Temperature: <strong data-weather-field="temperature">Not checked</strong></span>
-                  <span>Source: <strong>#encodeForHTML(fpwV2Text(fpwV2Get(weatherModel, "source"), "Not available"))#</strong></span>
                 </div>
                 <div id="fpwV2WeatherResult" class="weather-result is-empty" aria-live="polite">
                   <article class="ac-weather-metric-tile">
@@ -4906,6 +4917,19 @@
     setupFullMapModal();
   }
 
+  window.FPWActiveCruiseV2 = window.FPWActiveCruiseV2 || {};
+  window.FPWActiveCruiseV2.refreshMapPosition = function() {
+    const mapModel = readMapPayload();
+    const currentPosition = normalizePoint(mapModel.currentPosition);
+    if (currentPosition && window.FPWFollowMap && typeof window.FPWFollowMap.updateBoatMarker === 'function') {
+      window.FPWFollowMap.updateBoatMarker(
+        currentPosition.lat,
+        currentPosition.lng,
+        currentPosition.name || 'Latest reported position'
+      );
+    }
+  };
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeMaps);
   } else {
@@ -4920,6 +4944,8 @@ window.FPWActiveCruiseV2.fieldSelectorValue = function(value) {
 window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
   const settings = options || {};
   const replaceSelectors = Array.isArray(settings.replaceSelectors) ? settings.replaceSelectors : [];
+  const sourceMapPayloadEl = sourceDoc ? sourceDoc.getElementById('fpwActiveCruiseV2MapPayload') : null;
+  const targetMapPayloadEl = document.getElementById('fpwActiveCruiseV2MapPayload');
   const sourcePayloadEl = sourceDoc ? sourceDoc.getElementById('fpwActiveCruiseV2WeatherPayload') : null;
   const targetPayloadEl = document.getElementById('fpwActiveCruiseV2WeatherPayload');
 
@@ -4962,6 +4988,12 @@ window.FPWActiveCruiseV2.refreshFromDocument = function(sourceDoc, options) {
 
   if (targetPayloadEl && sourcePayloadEl) {
     targetPayloadEl.textContent = sourcePayloadEl.textContent || '{}';
+  }
+  if (targetMapPayloadEl && sourceMapPayloadEl) {
+    targetMapPayloadEl.textContent = sourceMapPayloadEl.textContent || '{}';
+  }
+  if (typeof window.FPWActiveCruiseV2.refreshMapPosition === 'function') {
+    window.FPWActiveCruiseV2.refreshMapPosition();
   }
 
   if (typeof window.FPWActiveCruiseV2.bindRouteProgressPanel === 'function') {
@@ -6177,7 +6209,6 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel();
 window.FPWActiveCruiseV2.bindPacePanel = function() {
   const panel = document.getElementById('fpwV2PacePanel');
   const slider = document.getElementById('fpwV2PaceSlider');
-  const selectedLabel = document.getElementById('fpwV2PaceSelectedLabel');
   const feedback = document.getElementById('fpwV2PaceFeedback');
   const initiallyDisabled = slider ? slider.disabled : true;
   let lastCommittedPaceValue = slider ? String(slider.getAttribute('data-current-value') || '').toUpperCase() : '';
@@ -6187,7 +6218,7 @@ window.FPWActiveCruiseV2.bindPacePanel = function() {
     { value: 'AGGRESSIVE', label: 'Max Speed' }
   ];
 
-  if (!panel || !slider || !selectedLabel || !feedback) {
+  if (!panel || !slider || !feedback) {
     return;
   }
   if (panel.getAttribute('data-ac-v2-pace-bound') === 'true') {
@@ -6244,13 +6275,8 @@ window.FPWActiveCruiseV2.bindPacePanel = function() {
     return 0;
   }
 
-  function syncSelectedLabel() {
-    selectedLabel.textContent = selectedPace().label;
-  }
-
   function restoreCommittedPace() {
     slider.value = String(paceIndexFromValue(lastCommittedPaceValue));
-    syncSelectedLabel();
   }
 
   function saveSelectedPace() {
@@ -6336,10 +6362,7 @@ window.FPWActiveCruiseV2.bindPacePanel = function() {
     slider.setAttribute('data-current-value', lastCommittedPaceValue);
   }
 
-  slider.addEventListener('input', syncSelectedLabel);
   slider.addEventListener('change', saveSelectedPace);
-
-  syncSelectedLabel();
 };
 window.FPWActiveCruiseV2.bindPacePanel();
 
@@ -6663,7 +6686,8 @@ window.FPWActiveCruiseV2.bindActionPanel = function() {
       return [
         '#fpwV2ActionPanel',
         '#fpwV2TimingPanel',
-        '#acV2RouteProgressPanel'
+        '#acV2RouteProgressPanel',
+        '#fpwActiveCruiseV2PositionNote'
       ];
     }
     return [];

@@ -58,11 +58,11 @@
 
       model.floatPlan = buildFloatPlanSection(qPlan);
       model.route = buildRouteSection(qPlan);
-      model.map = buildMapSection(qPlan);
+      model.checkInHistory = loadCheckInHistory(arguments.userId, arguments.floatPlanId, qPlan);
+      model.map = buildMapSection(qPlan, model.checkInHistory);
       model.floatPlanInfo = buildFloatPlanInfoSection(qPlan);
       model.contacts = loadContacts(arguments.floatPlanId);
       model.captainLog = loadCaptainLog(arguments.userId, arguments.floatPlanId);
-      model.checkInHistory = loadCheckInHistory(arguments.userId, arguments.floatPlanId, qPlan);
       model.privateTimeline = loadPrivateTimeline(arguments.userId, arguments.floatPlanId, qPlan);
 
       if (safeNumber(qPlan.route_instance_id[1]) LTE 0) {
@@ -1719,8 +1719,69 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="buildCurrentPositionFromCheckInHistory" access="private" returntype="struct" output="false">
+    <cfargument name="checkInHistory" type="struct" required="true">
+    <cfscript>
+      var out = {
+        "available" = false,
+        "authority" = "floatplan_events",
+        "message" = "No GPS-bearing Active Cruise check-in is available."
+      };
+      var i = 0;
+      var item = {};
+
+      if (
+        !structKeyExists(arguments.checkInHistory, "items")
+        OR !isArray(arguments.checkInHistory.items)
+      ) {
+        return out;
+      }
+
+      for (i = 1; i LTE arrayLen(arguments.checkInHistory.items); i++) {
+        item = arguments.checkInHistory.items[i];
+        if (
+          isStruct(item)
+          AND structKeyExists(item, "hasGps")
+          AND item.hasGps EQ true
+          AND structKeyExists(item, "latitude")
+          AND structKeyExists(item, "longitude")
+          AND isNumeric(item.latitude)
+          AND isNumeric(item.longitude)
+          AND abs(val(item.latitude)) LTE 90
+          AND abs(val(item.longitude)) LTE 180
+        ) {
+          return {
+            "available" = true,
+            "authority" = "floatplan_events",
+            "eventId" = (structKeyExists(item, "id") ? safeNumber(item.id) : 0),
+            "sourceCode" = "ACTIVE_CRUISE_WEB",
+            "sourceLabel" = (structKeyExists(item, "sourceLabel") ? safeString(item.sourceLabel) : "Active Cruise GPS"),
+            "lat" = val(item.latitude),
+            "lng" = val(item.longitude),
+            "name" = "Latest reported position",
+            "capturedAtUtc" = (structKeyExists(item, "capturedAtUtc") ? safeString(item.capturedAtUtc) : ""),
+            "capturedAtLocalLabel" = (structKeyExists(item, "capturedAtLocalLabel") ? safeString(item.capturedAtLocalLabel) : ""),
+            "occurredAtUtc" = (structKeyExists(item, "occurredAtUtc") ? safeString(item.occurredAtUtc) : ""),
+            "occurredAtLocalLabel" = (structKeyExists(item, "occurredLocalLabel") ? safeString(item.occurredLocalLabel) : ""),
+            "accuracyMeters" = (
+              structKeyExists(item, "accuracyMeters")
+              AND isNumeric(item.accuracyMeters)
+              AND val(item.accuracyMeters) GTE 0
+                ? val(item.accuracyMeters)
+                : ""
+            ),
+            "message" = "Latest GPS position reported with an Active Cruise check-in."
+          };
+        }
+      }
+
+      return out;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildMapSection" access="private" returntype="struct" output="false">
     <cfargument name="qPlan" type="query" required="true">
+    <cfargument name="checkInHistory" type="struct" required="true">
     <cfscript>
       var routeInstanceId = safeNumber(arguments.qPlan.route_instance_id[1]);
       var ownerUserId = safeNumber(arguments.qPlan.userId[1]);
@@ -1744,11 +1805,7 @@
       );
       var bounds = buildMapBounds(mapLegs);
       var warnings = [];
-      var currentPosition = {
-        "available" = false,
-        "authority" = "",
-        "message" = "No canonical current-position source is exposed to the Active Cruise V2 view model."
-      };
+      var currentPosition = buildCurrentPositionFromCheckInHistory(arguments.checkInHistory);
 
       if (arrayLen(mapLegs) EQ 0 AND !sharedGeometryAvailable) {
         arrayAppend(warnings, {
@@ -2011,6 +2068,11 @@
       var noteBody = "";
       var occurredUtc = "";
       var occurredLocal = "";
+      var timezone = resolveTimezone(arguments.qPlan);
+      var location = {};
+      var hasGps = false;
+      var capturedAtUtc = "";
+      var capturedAtLocal = "";
 
       qHistory = queryExecute("
         SELECT id, event_status, occurred_at_utc, source, payload_json
@@ -2033,7 +2095,30 @@
         statusLabel = formatCheckInHistoryStatusLabel(statusVal, payload);
         noteBody = (structKeyExists(payload, "note_body") ? safeString(payload.note_body) : "");
         occurredUtc = formatUtc(qHistory.occurred_at_utc[i]);
-        occurredLocal = formatLocalDisplay(qHistory.occurred_at_utc[i], resolveTimezone(arguments.qPlan));
+        occurredLocal = formatLocalDisplay(qHistory.occurred_at_utc[i], timezone);
+        location = (structKeyExists(payload, "location") AND isStruct(payload.location) ? payload.location : {});
+        hasGps = (
+          structKeyExists(location, "latitude")
+          AND structKeyExists(location, "longitude")
+          AND isNumeric(location.latitude)
+          AND isNumeric(location.longitude)
+          AND abs(val(location.latitude)) LTE 90
+          AND abs(val(location.longitude)) LTE 180
+        );
+        capturedAtUtc = (
+          hasGps
+          AND structKeyExists(location, "capturedAtUtc")
+            ? safeString(location.capturedAtUtc)
+            : ""
+        );
+        capturedAtLocal = (
+          hasGps AND len(capturedAtUtc)
+            ? formatPublicFollowLocalLabel(capturedAtUtc, timezone)
+            : ""
+        );
+        if (hasGps AND !len(capturedAtLocal)) {
+          capturedAtLocal = occurredLocal;
+        }
 
         arrayAppend(items, {
           "id" = safeNumber(qHistory.id[i]),
@@ -2045,6 +2130,20 @@
           "occurredLocalLabel" = occurredLocal,
           "checkinContext" = (structKeyExists(payload, "checkin_context") ? safeString(payload.checkin_context) : ""),
           "source" = safeString(qHistory.source[i]),
+          "sourceLabel" = (hasGps ? "Active Cruise GPS" : "Active Cruise Web"),
+          "hasGps" = hasGps,
+          "latitude" = (hasGps ? val(location.latitude) : ""),
+          "longitude" = (hasGps ? val(location.longitude) : ""),
+          "accuracyMeters" = (
+            hasGps
+            AND structKeyExists(location, "accuracyMeters")
+            AND isNumeric(location.accuracyMeters)
+            AND val(location.accuracyMeters) GTE 0
+              ? val(location.accuracyMeters)
+              : ""
+          ),
+          "capturedAtUtc" = capturedAtUtc,
+          "capturedAtLocalLabel" = capturedAtLocal,
           "storageAuthority" = "floatplan_events"
         });
       }

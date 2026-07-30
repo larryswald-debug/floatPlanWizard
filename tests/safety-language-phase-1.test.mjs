@@ -71,16 +71,23 @@ test("labels Follow route progress separately from actual reported check-in GPS"
   assert.match(mapService, /"Estimated route progress"/);
 });
 
-test("keeps Active Cruise on the planned-route source and uses shore-contact terminology", () => {
+test("keeps Active Cruise planned-route context separate from reported check-in GPS", () => {
   const activeCruise = read("app/active-cruise.cfm");
   const viewModel = read("api/v1/ActiveCruiseViewModelService.cfc");
 
   assert.match(activeCruise, /Planned route, reported progress, completed legs, and destination\./);
+  assert.match(activeCruise, /id="fpwActiveCruiseV2PositionNote"/);
+  assert.match(activeCruise, /Latest reported position:/);
   assert.match(activeCruise, /No position update has been reported yet\./);
+  assert.match(activeCruise, /FPW is not continuous live vessel tracking\./);
+  assert.match(activeCruise, /refreshMapPosition/);
   assert.match(activeCruise, /<h3>Shore Contact<\/h3>/);
   assert.match(activeCruise, /Shore contact not named/);
   assert.match(activeCruise, /aria-label="Shore contact actions"/);
-  assert.match(viewModel, /No canonical current-position source is exposed to the Active Cruise V2 view model\./);
+  assert.match(viewModel, /buildCurrentPositionFromCheckInHistory/);
+  assert.match(viewModel, /"authority" = "floatplan_events"/);
+  assert.match(viewModel, /"sourceLabel" = \(hasGps \? "Active Cruise GPS" : "Active Cruise Web"\)/);
+  assert.doesNotMatch(viewModel, /No canonical current-position source is exposed to the Active Cruise V2 view model\./);
   assert.match(viewModel, /Shore contact not named/);
 });
 
