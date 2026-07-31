@@ -336,8 +336,8 @@ fpwShowMemberRequiredNotice = (
 );
 
 fpwHomeCanonicalUrl = "https://floatplanwizard.com/";
-fpwHomePageTitle = "FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates";
-fpwHomePageDescription = "Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.";
+fpwHomePageTitle = "FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Pages";
+fpwHomePageDescription = "Plan boating trips, build routes, create float plans, manage check-ins, and share a private Trip Page so friends and family can follow the journey.";
 fpwHomeJsonLdText = "";
 fpwHomeSchemaGraph = [];
 fpwHomeSchemaOrg = structNew("ordered");
@@ -380,34 +380,34 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates</title>
+  <title>FloatPlanWizard | Boat Trip Planner, Float Plans &amp; Shared Trip Pages</title>
 
-<meta name="description" content="Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.">
+<meta name="description" content="Plan boating trips, build routes, create float plans, manage check-ins, and share a private Trip Page so friends and family can follow the journey.">
 
 <link rel="canonical" href="https://floatplanwizard.com/">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FloatPlanWizard">
 <meta property="og:url" content="https://floatplanwizard.com/">
-<meta property="og:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates">
-<meta property="og:description" content="Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.">
+<meta property="og:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans &amp; Shared Trip Pages">
+<meta property="og:description" content="Plan boating trips, build routes, create float plans, manage check-ins, and share a private Trip Page so friends and family can follow the journey.">
 
-<meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-<meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+<meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+<meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+<meta property="og:image:alt" content="FloatPlanWizard boat trip planning, private Trip Page, float plan, and check-in preview">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans & Shared Trip Updates">
-<meta name="twitter:description" content="Plan safer boat trips with float plans, route planning, check-ins, shared trip pages, and overdue monitoring for recreational boaters.">
-<meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-<meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
+<meta name="twitter:title" content="FloatPlanWizard | Boat Trip Planner, Float Plans &amp; Shared Trip Pages">
+<meta name="twitter:description" content="Plan boating trips, build routes, create float plans, manage check-ins, and share a private Trip Page so friends and family can follow the journey.">
+<meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+<meta name="twitter:image:alt" content="FloatPlanWizard boat trip planning, private Trip Page, float plan, and check-in preview">
 <script type="application/ld+json"><cfoutput>#fpwHomeJsonLdText#</cfoutput></script>
 
   <link rel="icon" type="image/svg+xml" href="<cfoutput>#landingBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg">
-  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260703-preview-light">
-  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/top-nav.css?v=20260630-mega-weight-minus1">
+  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260731-safety-heading-size-v1">
+  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/top-nav.css?v=20260730-collapse-1050">
   <style>
     .fpw-member-required-modal {
       position: fixed;
@@ -663,7 +663,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
       }
     })();
   </script>
-  <script src="<cfoutput>#landingBasePath#</cfoutput>/assets/js/fpw-conversion-landing.js?v=20260703-preview-tabs"></script>
+  <script src="<cfoutput>#landingBasePath#</cfoutput>/assets/js/fpw-conversion-landing.js?v=20260730-float-plan-monitoring-v2"></script>
 
 </body>
 </html>

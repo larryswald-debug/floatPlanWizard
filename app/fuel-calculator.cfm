@@ -382,7 +382,7 @@ fuelCalcCreditModelEnabled = (
   <header class="topbar">
     <div class="promo-strip">
       <div class="shell promo-strip-inner">
-        <p class="promo-strip-copy"><cfif fuelCalcCreditModelEnabled>Free membership &mdash; <strong>first complete Premium trip included</strong> for eligible new members<cfelse>Join prelaunch &mdash; get <strong>2 months of Premium free</strong></cfif></p>
+        <p class="promo-strip-copy"><cfif fuelCalcCreditModelEnabled>Free membership &mdash; <strong>first complete Premium trip included</strong> for new members<cfelse>Join prelaunch &mdash; get <strong>2 months of Premium free</strong></cfif></p>
       </div>
     </div>
     <div class="shell topbar-inner">

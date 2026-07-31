@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260725-welcome-route-setup">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260731-premium-action-text">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
@@ -1151,15 +1151,15 @@
                                 <button
                                     v-if="canSendPremiumFloatPlan"
                                     type="button"
-                                    class="btn-primary w-100"
+                                    class="btn-primary fpw-premium-send-action w-100"
                                     @click="submitPlanAndSend"
                                     :disabled="isSaving || checkoutBusy">
                                     {{ isSaving ? 'Sending...' : (hasCommittedPremiumSend ? 'Show Original Premium Send Result' : 'Premium Save &amp; Send') }}
                                 </button>
                                 <div v-else class="d-grid gap-2">
-                                    <button type="button" class="btn-primary" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy || !oneTripCheckoutAvailable">{{ oneTripCheckoutAvailable ? 'Buy One Trip' : 'Buy One Trip Unavailable' }}</button>
-                                    <button type="button" class="btn-secondary" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
-                                    <button type="button" class="btn-secondary" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
+                                    <button type="button" class="btn-primary fpw-checkout-action" @click="startPremiumCheckout('one_trip')" :disabled="isSaving || checkoutBusy || !oneTripCheckoutAvailable">{{ oneTripCheckoutAvailable ? 'Buy One Trip' : 'Buy One Trip Unavailable' }}</button>
+                                    <button type="button" class="btn-secondary fpw-checkout-action" @click="startPremiumCheckout('monthly')" :disabled="isSaving || checkoutBusy">Monthly Membership</button>
+                                    <button type="button" class="btn-secondary fpw-checkout-action" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
                                 </div>
                             </div>
                             <button type="button" class="btn-secondary w-100 mt-2" data-basic-floatplan-open :disabled="isSaving || checkoutBusy">
@@ -1383,7 +1383,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-phase3-cutover"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260731-vessel-loader"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260725-readiness-toggle"></script>

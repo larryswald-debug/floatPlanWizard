@@ -127,7 +127,7 @@
     <div class="pricing-hero-bg" aria-hidden="true"></div>
     <div class="pricing-container pricing-hero-content">
       <h1>Membership Is Free</h1>
-      <p class="pricing-subtitle">Plan routes, save boating information, keep multiple Drafts, and send Basic float plans at no cost. Eligible new members also receive their first complete Premium trip.</p>
+      <p class="pricing-subtitle">Plan routes, save boating information, keep multiple Drafts, and send Basic float plans at no cost. New members also receive their first complete Premium trip.</p>
     </div>
   </section>
 
@@ -141,7 +141,7 @@
         <li><span class="pricing-check"></span>Saved vessels, people, contacts, and waypoints</li>
         <li><span class="pricing-check"></span>Multiple saved Draft float plans</li>
         <li><span class="pricing-check"></span>Basic float-plan sending</li>
-        <li><span class="pricing-check"></span>One complimentary Premium trip for eligible new members</li>
+        <li><span class="pricing-check"></span>One complimentary Premium trip for new members</li>
       </ul>
       <a class="pricing-btn pricing-btn-outline" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create Free Account</a>
     </article>

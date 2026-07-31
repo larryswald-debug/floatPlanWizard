@@ -4969,24 +4969,12 @@
   }
 
   function fetchGeneratorVesselDefaults() {
-    var fallbackTemplateCode = "";
-    if (state.activeTemplateCode) {
-      return fetchOptions();
-    }
-    if (state.templates.length) {
-      fallbackTemplateCode = String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim();
-    }
-    if (!fallbackTemplateCode) return Promise.resolve();
-
     setStatus("Loading route defaults...");
-    return fetchJson(apiUrl("routegen_getOptions"), {
+    return fetchJson(apiUrl("routegen_getVessels"), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({
-        template_code: fallbackTemplateCode,
-        direction: getDirectionValue()
-      })
+      body: JSON.stringify({})
     })
       .then(function (payload) {
         if (!payload || payload.SUCCESS === false) {

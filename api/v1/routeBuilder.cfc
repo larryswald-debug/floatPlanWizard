@@ -242,6 +242,11 @@
                 })#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "routegen_getvessels">
+                <cfset var routegenVessels = routegenGetVessels(userId = userId) />
+                <cfoutput>#serializeJSON(routegenVessels)#</cfoutput>
+                <cfreturn>
+
             <cfelseif act EQ "routegen_getoptions">
                 <cfset var routegenTemplateCode = trim(pickArg(body, "template_code", "templateCode", "")) />
                 <cfset var routegenDirection = trim(pickArg(body, "direction", "direction", "CCW")) />
@@ -8655,6 +8660,29 @@
             }
 
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenGetVessels" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var vesselDefaults = routegenLoadPreferredVesselDefaults(arguments.userId);
+            var availableVessels = routegenLoadAvailableVessels(arguments.userId);
+
+            return {
+                "SUCCESS"=true,
+                "AUTH"=true,
+                "MESSAGE"="OK",
+                "DATA"={
+                    "vessels"=availableVessels,
+                    "defaults"={
+                        "vessel_max_speed_kn"=(structKeyExists(vesselDefaults, "vessel_max_speed_kn") ? roundTo2(vesselDefaults.vessel_max_speed_kn) : 0),
+                        "vessel_most_efficient_speed_kn"=(structKeyExists(vesselDefaults, "vessel_most_efficient_speed_kn") ? roundTo2(vesselDefaults.vessel_most_efficient_speed_kn) : 0),
+                        "vessel_gph_at_most_efficient_speed"=(structKeyExists(vesselDefaults, "vessel_gph_at_most_efficient_speed") ? roundTo2(vesselDefaults.vessel_gph_at_most_efficient_speed) : 0),
+                        "vessel_gph_at_max_speed"=(structKeyExists(vesselDefaults, "vessel_gph_at_max_speed") ? roundTo2(vesselDefaults.vessel_gph_at_max_speed) : 0)
+                    }
+                }
+            };
         </cfscript>
     </cffunction>
 

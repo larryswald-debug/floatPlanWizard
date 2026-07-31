@@ -849,6 +849,22 @@ main.dashboard-main{
   color: var(--text);
 }
 
+#floatPlanWizardModal .fpw-checkout-action,
+#floatPlanWizardModal .fpw-checkout-action:hover,
+#floatPlanWizardModal .fpw-checkout-action:focus,
+#floatPlanWizardModal .fpw-checkout-action:active,
+#floatPlanWizardModal .fpw-checkout-action:disabled{
+  color: #000;
+}
+
+#floatPlanWizardModal .fpw-premium-send-action,
+#floatPlanWizardModal .fpw-premium-send-action:hover,
+#floatPlanWizardModal .fpw-premium-send-action:focus,
+#floatPlanWizardModal .fpw-premium-send-action:active,
+#floatPlanWizardModal .fpw-premium-send-action:disabled{
+  color: #000;
+}
+
 /* ---------- Vessel modal sizing ---------- */
 #vesselModal .modal-dialog{
   max-width: 780px;

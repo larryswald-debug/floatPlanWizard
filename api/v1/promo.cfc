@@ -51,7 +51,7 @@
 
       <cfif act EQ "startlaunchtrial" AND premiumSendCreditModelEnabled>
         <cfheader statuscode="410">
-        <cfset response = buildErrorResponse(false, true, "LAUNCH_TRIAL_CUTOVER_ACTIVE", "The launch trial has ended. FPW membership is free, and eligible new members receive a complimentary Premium trip.")>
+        <cfset response = buildErrorResponse(false, true, "LAUNCH_TRIAL_CUTOVER_ACTIVE", "The launch trial has ended. FPW membership is free, and new members receive a complimentary Premium trip.")>
         <cfoutput>#serializeJSON(response)#</cfoutput>
         <cfreturn>
       </cfif>
@@ -85,7 +85,7 @@
             AND structKeyExists(serviceResult, "promoType")
             AND lCase(trim(toString(serviceResult.promoType))) EQ "stripe_free_months">
           <cfheader statuscode="410">
-          <cfset response = buildErrorResponse(false, true, "LAUNCH_TRIAL_CUTOVER_ACTIVE", "The launch trial has ended. FPW membership is free, and eligible new members receive a complimentary Premium trip.")>
+          <cfset response = buildErrorResponse(false, true, "LAUNCH_TRIAL_CUTOVER_ACTIVE", "The launch trial has ended. FPW membership is free, and new members receive a complimentary Premium trip.")>
           <cfoutput>#serializeJSON(response)#</cfoutput>
           <cfreturn>
         </cfif>

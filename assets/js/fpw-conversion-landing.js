@@ -5,34 +5,34 @@
     route: {
       image: 'preview-route-generator.jpg',
       alt: 'FloatPlanWizard route generator showing a planned boating route with waypoints.',
-      title: 'Build the route before you go.',
-      body: 'Add stops, estimate timing, and turn the trip into a plan someone ashore can actually follow.',
-      bullets: ['Plan by route legs and waypoints', 'Estimate distance and arrival times', 'Use the route inside your float plan', 'Estimate fuel usage and cost'],
-      link: 'Start Planning'
+      title: 'Plan the route before you leave.',
+      body: 'Build route legs and waypoints, organize stops and timing, and estimate the time and fuel behind the trip.',
+      bullets: ['Plan route legs, stops, and waypoints', 'Estimate time, distance, and fuel', 'Use the route in the float plan and Trip Page'],
+      link: 'Plan Your Trip'
     },
     active: {
       image: 'preview-active-cruise.jpg',
-      alt: 'FloatPlanWizard Active Cruise screen showing live trip tools and monitoring controls.',
-      title: 'Keep the trip current while underway.',
-      body: 'When timing changes, update the active trip without rebuilding the plan from scratch.',
-      bullets: ['Track the active route', 'Adjust delays and timing', 'Keep monitoring aligned with the real trip'],
-      link: 'Start a Live Trip'
+      alt: 'Representative FloatPlanWizard Active Cruise view showing trip status, check-in, and route-management controls.',
+      title: 'Manage your trip underway.',
+      body: 'Check in, record delays or changed plans, mark secure for the night, and manage route legs as the cruise progresses.',
+      bullets: ['Report On Track, Delayed, or Changed Plan', 'Manage route legs and overnight status', 'Stay on schedule with expected check-ins'],
+      link: 'Plan Your Trip'
     },
     follow: {
-      image: 'preview-follow-page.jpg',
-      alt: 'FloatPlanWizard shared trip status page showing a private trip status view for family and friends.',
-      title: 'Give family a private trip page.',
-      body: 'Share one private link so family or friends can see the plan, route, and trip status without needing an account.',
-      bullets: ['Private trip status page', 'No login needed for followers', 'Better than scattered text messages'],
-      link: 'Share a Trip Page'
+      image: 'preview-follow-page.png',
+      alt: 'Representative FloatPlanWizard private Trip Page showing a planned route, estimated trip progress, and latest check-in.',
+      title: 'Share the journey.',
+      body: 'Friends and family can use one invitation link to see the planned route, stops, estimated trip progress, latest check-in, and trip updates.',
+      bullets: ['Only people you invite can view the trip   ', 'No FPW account needed for followers', 'Latest check-ins, updates, photos, and comments'],
+      link: 'Plan Your Trip'
     },
     dashboard: {
       image: 'preview-dashboard.jpg',
       alt: 'FloatPlanWizard dashboard showing saved routes, trip setup readiness, and boating tools.',
-      title: 'Manage the whole trip from one place.',
-      body: 'Review routes, float plans, trip setup, monitoring, weather, and cruise tools from one clean dashboard.',
-      bullets: ['Saved routes and float plans', 'Trip setup readiness', 'Weather and monitoring tools'],
-      link: 'Create Your Account'
+      title: 'Your planning and trip-management home base.',
+      body: 'Review routes, float plans, trip readiness, weather, check-ins, and active-trip tools from one dashboard.',
+      bullets: ['Saved routes and float plans', 'Trip setup and readiness', 'Weather, check-in, and Active Cruise tools'],
+      link: 'Plan Your Trip'
     }
   };
 
@@ -110,16 +110,28 @@
     }
   }
 
+  function selectPreview(root, key) {
+    var tabs = Array.prototype.slice.call(root.querySelectorAll('[data-preview-tab]'));
+    var selectedTab = root.querySelector('[data-preview-tab="' + key + '"]');
+
+    tabs.forEach(function (tab) {
+      tab.setAttribute('aria-selected', 'false');
+    });
+
+    if (selectedTab) {
+      selectedTab.setAttribute('aria-selected', 'true');
+    }
+
+    setPreview(root, key);
+    return selectedTab;
+  }
+
   document.querySelectorAll('.fpw-preview-shell').forEach(function (root) {
     var tabs = Array.prototype.slice.call(root.querySelectorAll('[data-preview-tab]'));
 
     tabs.forEach(function (button) {
       button.addEventListener('click', function () {
-        tabs.forEach(function (tab) {
-          tab.setAttribute('aria-selected', 'false');
-        });
-        button.setAttribute('aria-selected', 'true');
-        setPreview(root, button.getAttribute('data-preview-tab'));
+        selectPreview(root, button.getAttribute('data-preview-tab'));
       });
 
       button.addEventListener('keydown', function (event) {
@@ -135,6 +147,36 @@
         event.preventDefault();
         tabs[nextIndex].focus();
         tabs[nextIndex].click();
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-fpw-open-preview]').forEach(function (link) {
+    link.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+
+      event.preventDefault();
+      link.click();
+    });
+
+    link.addEventListener('click', function (event) {
+      var root = document.querySelector('.fpw-preview-shell');
+      if (!root) return;
+
+      event.preventDefault();
+
+      var key = link.getAttribute('data-fpw-open-preview') || 'follow';
+      var selectedTab = selectPreview(root, key);
+      var section = root.closest('.fpw-product-preview') || root;
+      var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (event.detail === 0 && selectedTab) {
+        selectedTab.focus({ preventScroll: true });
+      }
+
+      section.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'start'
       });
     });
   });

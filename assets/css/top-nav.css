@@ -292,7 +292,7 @@
   transition: color 160ms ease, opacity 160ms ease;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1051px) {
   .fpw-site-header .fpw-nav-link,
   .fpw-site-header .fpw-dropdown-toggle {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji" !important;
@@ -912,7 +912,7 @@
   }
 }
 
-@media (max-width: 1240px) and (min-width: 1024px) {
+@media (max-width: 1240px) and (min-width: 1051px) {
   .fpw-nav-inner {
     width: calc(100% - 28px);
     gap: 16px;
@@ -960,7 +960,7 @@
   }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1050px) {
   .fpw-layout-rail {
     width: min(var(--fpw-nav-layout-max), calc(100% - 28px));
   }

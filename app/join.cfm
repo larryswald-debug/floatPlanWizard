@@ -122,7 +122,7 @@
                             FPW membership is free. Plan routes, save your boating information, and send Basic float plans at no cost.
                         </p>
                         <p class="fpw-form-header-note">
-                            Your first complete Premium trip is included for eligible new members, with Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access. Additional Premium trips are available individually or through monthly and annual membership.
+                            Your first complete Premium trip is included for new members, with Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access. Additional Premium trips are available individually or through monthly and annual membership.
                         </p>
                     <cfelse>
                         <p>

@@ -227,9 +227,9 @@ topNavShowAppSubnav = topNavIsLoggedIn
         <div class="fpw-launch-inner">
           <span class="fpw-launch-icon" aria-hidden="true">#renderFpwNavIcon("launch", "fpw-launch-svg")#</span>
           <cfif topNavCreditModelEnabled>
-            <span class="fpw-launch-copy"><strong>Free Membership</strong> &mdash; Full planning and Basic sending included <span aria-hidden="true">&bull;</span> First complete Premium trip included for eligible new members</span>
+            <span class="fpw-launch-copy"><strong>Free Membership</strong> &mdash; Full planning and Basic sending included <span aria-hidden="true">&bull;</span> First complete Premium trip included for new members</span>
           <cfelse>
-            <span class="fpw-launch-copy"><strong>Launch Offer</strong> &mdash; 1 Month of Premium Free for New Members <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
+            <span class="fpw-launch-copy"><strong>FloatPlanWizard</strong> &mdash; Plan routes, create float plans, and organize trip details <span aria-hidden="true">&bull;</span> No Credit Card Required</span>
           </cfif>
           <a class="fpw-launch-link" href="#topNavBasePath#/app/join.cfm">Learn More <span aria-hidden="true">&rarr;</span></a>
         </div>
@@ -278,7 +278,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 #renderFpwNavIcon("how", "fpw-nav-icon")#
                 <span>How It Works</span>
               </a>
-              <a class="fpw-nav-link" href="#topNavBasePath#/##fpwFeatures">
+              <a class="fpw-nav-link" href="#topNavBasePath#/##fpwProductPreview">
                 #renderFpwNavIcon("route", "fpw-nav-icon")#
                 <span>Features</span>
               </a>
