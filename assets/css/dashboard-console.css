@@ -865,6 +865,14 @@ main.dashboard-main{
   color: #000;
 }
 
+#floatPlanWizardModal .fpw-basic-send-action,
+#floatPlanWizardModal .fpw-basic-send-action:hover,
+#floatPlanWizardModal .fpw-basic-send-action:focus,
+#floatPlanWizardModal .fpw-basic-send-action:active,
+#floatPlanWizardModal .fpw-basic-send-action:disabled{
+  color: #000;
+}
+
 /* ---------- Vessel modal sizing ---------- */
 #vesselModal .modal-dialog{
   max-width: 780px;

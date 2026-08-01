@@ -119,6 +119,40 @@
                     <cfoutput>#serializeJSON(saveBasicResult)#</cfoutput>
                 </cfcase>
 
+                <cfcase value="getbasicreviewconfirmation">
+                    <cfset var basicReviewConfirmationId = 0>
+                    <cfif structKeyExists(body, "floatPlanId")>
+                        <cfset basicReviewConfirmationId = val(body.floatPlanId)>
+                    <cfelseif structKeyExists(url, "floatPlanId")>
+                        <cfset basicReviewConfirmationId = val(url.floatPlanId)>
+                    <cfelseif structKeyExists(url, "id")>
+                        <cfset basicReviewConfirmationId = val(url.id)>
+                    </cfif>
+
+                    <cfset var basicReviewConfirmationResult = getBasicReviewSendService().getConfirmation(
+                        userId = userId,
+                        floatPlanId = basicReviewConfirmationId
+                    )>
+                    <cfset basicReviewConfirmationResult.AUTH = true>
+                    <cfoutput>#serializeJSON(basicReviewConfirmationResult)#</cfoutput>
+                </cfcase>
+
+                <cfcase value="sendbasicreview">
+                    <cfset var basicReviewSendId = structKeyExists(body, "floatPlanId") ? val(body.floatPlanId) : 0>
+                    <cfset var basicReviewContactId = structKeyExists(body, "contactId") ? val(body.contactId) : 0>
+                    <cfset var basicReviewIdempotencyKey = structKeyExists(body, "idempotencyKey") ? trim(toString(body.idempotencyKey)) : "">
+                    <cfset var basicReviewRequestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : "">
+                    <cfset var basicReviewSendResult = getBasicReviewSendService().send(
+                        userId = userId,
+                        floatPlanId = basicReviewSendId,
+                        contactId = basicReviewContactId,
+                        idempotencyKey = basicReviewIdempotencyKey,
+                        requestCorrelationId = basicReviewRequestCorrelationId
+                    )>
+                    <cfset basicReviewSendResult.AUTH = true>
+                    <cfoutput>#serializeJSON(basicReviewSendResult)#</cfoutput>
+                </cfcase>
+
                 <cfcase value="getbasiccurrent">
                     <cfset var basicCurrentResult = getBasicOperationalCurrentPlan(userId)>
                     <cfset basicCurrentResult.AUTH = true>
@@ -7569,6 +7603,20 @@
                     return createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw");
                 } catch (any e2) {
                     return createObject("component", "api.v1.PremiumSendCreditService").init("fpw");
+                }
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getBasicReviewSendService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", resolveApiV1ComponentPath("BasicReviewSendService")).init("fpw");
+            } catch (any e1) {
+                try {
+                    return createObject("component", "fpw.api.v1.BasicReviewSendService").init("fpw");
+                } catch (any e2) {
+                    return createObject("component", "api.v1.BasicReviewSendService").init("fpw");
                 }
             }
         </cfscript>

@@ -484,6 +484,32 @@
       });
     },
 
+    getBasicReviewSendConfirmation: function (floatPlanId) {
+      var id = parseInt(floatPlanId, 10);
+      if (!(id > 0)) {
+        return Promise.reject({
+          SUCCESS: false,
+          MESSAGE: "Save the float plan before using Basic Send."
+        });
+      }
+      return request(
+        "/floatplan.cfc?method=handle&action=getbasicreviewconfirmation&id=" + encodeURIComponent(id),
+        { method: "GET" }
+      );
+    },
+
+    sendBasicReviewFloatPlan: function (floatPlanId, contactId, idempotencyKey) {
+      return request("/floatplan.cfc?method=handle", {
+        method: "POST",
+        body: {
+          action: "sendbasicreview",
+          floatPlanId: floatPlanId,
+          contactId: contactId,
+          idempotencyKey: idempotencyKey
+        }
+      });
+    },
+
     closeBasicFloatPlan: function (floatPlanId) {
       return request("/floatplan.cfc?method=handle", {
         method: "POST",

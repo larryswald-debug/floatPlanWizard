@@ -127,6 +127,115 @@
         </cftry>
     </cffunction>
 
+    <cffunction name="sendBasicReviewFloatPlanEmail" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="contactName" type="string" required="true">
+        <cfargument name="floatPlanName" type="string" required="true">
+        <cfargument name="captainName" type="string" required="true">
+        <cfargument name="pdfPath" type="string" required="true">
+
+        <cfset var result = {
+            success = false,
+            messageType = "BASIC_REVIEW_FLOAT_PLAN",
+            errorCode = "",
+            message = ""
+        }>
+        <cfset var toAddress = lcase(trim(arguments.toEmail))>
+        <cfset var recipientName = cleanBasicReviewTextValue(arguments.contactName)>
+        <cfset var planName = cleanBasicReviewTextValue(arguments.floatPlanName)>
+        <cfset var captain = cleanBasicReviewTextValue(arguments.captainName)>
+        <cfset var attachmentPath = trim(arguments.pdfPath)>
+        <cfset var subject = "">
+        <cfset var textBody = "">
+        <cfset var htmlContent = "">
+        <cfset var htmlBody = "">
+        <cfset var complianceFooter = {}>
+
+        <cfif int(arguments.userId) LTE 0>
+            <cfset result.errorCode = "INVALID_USER">
+            <cfset result.message = "Basic float-plan email member is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT isValid("email", toAddress)>
+            <cfset result.errorCode = "INVALID_RECIPIENT">
+            <cfset result.message = "The selected contact needs a valid email address.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT len(attachmentPath) OR NOT fileExists(attachmentPath) OR lcase(listLast(attachmentPath, ".")) NEQ "pdf">
+            <cfset result.errorCode = "INVALID_PDF_ATTACHMENT">
+            <cfset result.message = "The Basic float-plan PDF attachment is unavailable.">
+            <cfreturn result>
+        </cfif>
+
+        <cfif NOT len(recipientName)>
+            <cfset recipientName = "Float plan contact">
+        </cfif>
+        <cfif NOT len(planName)>
+            <cfset planName = "Float Plan">
+        </cfif>
+        <cfif NOT len(captain)>
+            <cfset captain = "FPW member">
+        </cfif>
+
+        <cfset subject = "Basic Float Plan: " & planName & " — " & captain>
+        <cfset complianceFooter = buildEmailComplianceFooter(footerType = "service")>
+        <cfset textBody = arrayToList([
+            "Hello " & recipientName & ",",
+            "",
+            captain & " selected you to receive the attached Basic float plan: " & planName & ".",
+            "",
+            "This Basic Send includes the completed float-plan PDF and email delivery only.",
+            "It does not include Active Cruise, Float Plan Monitoring, private Trip/Follow access, live check-ins, updates, photos, or comments.",
+            "",
+            "This float plan is precautionary trip information. Nothing in this email indicates that FPW has verified an emergency.",
+            "If you believe there may be an emergency, contact the appropriate emergency authority directly. FPW does not independently verify emergencies or dispatch assistance.",
+            "",
+            "Email delivery is not guaranteed, and FPW does not confirm that a recipient has received or read this message.",
+            "Please keep the attached PDF available with the trip information."
+        ], chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
+
+        <cfsavecontent variable="htmlContent"><cfoutput>
+<p style="margin:0 0 16px 0;">Hello #encodeForHtml(recipientName)#,</p>
+<p style="margin:0 0 16px 0;"><strong>#encodeForHtml(captain)#</strong> selected you to receive the attached Basic float plan: <strong>#encodeForHtml(planName)#</strong>.</p>
+<p style="margin:0 0 12px 0;">This Basic Send includes the completed float-plan PDF and email delivery only.</p>
+<p style="margin:0 0 16px 0;">It does not include Active Cruise, Float Plan Monitoring, private Trip/Follow access, live check-ins, updates, photos, or comments.</p>
+<p style="margin:0 0 16px 0;"><strong>This float plan is precautionary trip information.</strong> Nothing in this email indicates that FPW has verified an emergency.</p>
+<p style="margin:0 0 16px 0;">If you believe there may be an emergency, contact the appropriate emergency authority directly. FPW does not independently verify emergencies or dispatch assistance.</p>
+<p style="margin:0 0 16px 0;">Email delivery is not guaranteed, and FPW does not confirm that a recipient has received or read this message.</p>
+<p style="margin:0;">Please keep the attached PDF available with the trip information.</p>
+#complianceFooter.htmlBody#
+        </cfoutput></cfsavecontent>
+        <cfset htmlBody = renderBaseEmailLayout(title = subject, bodyHtml = htmlContent)>
+
+        <cftry>
+            <cfset sendMultipartEmail(
+                toEmail = toAddress,
+                subject = subject,
+                htmlBody = htmlBody,
+                textBody = textBody,
+                attachmentPath = attachmentPath,
+                spoolEnable = false,
+                rethrowOnFailure = true
+            )>
+            <cfset result.success = true>
+            <cfset result.message = "Basic float plan emailed to " & toAddress & ".">
+            <cfreturn result>
+
+            <cfcatch type="any">
+                <cfset logSafeEmailFailure(
+                    messageType = "BASIC_REVIEW_FLOAT_PLAN",
+                    userId = arguments.userId,
+                    toEmail = toAddress,
+                    exceptionType = (structKeyExists(cfcatch, "type") ? cfcatch.type : "any")
+                )>
+                <cfset result.errorCode = "SEND_FAILED">
+                <cfset result.message = "The Basic float-plan email could not be sent.">
+                <cfreturn result>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
     <cffunction name="buildWelcomeMemberEmail" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="toEmail" type="string" required="true">
@@ -402,13 +511,17 @@
         <cfargument name="subject" type="string" required="true">
         <cfargument name="htmlBody" type="string" required="true">
         <cfargument name="textBody" type="string" required="true">
+        <cfargument name="attachmentPath" type="string" required="false" default="">
+        <cfargument name="spoolEnable" type="boolean" required="false" default="true">
+        <cfargument name="rethrowOnFailure" type="boolean" required="false" default="false">
 
         <cfset var config = getEmailConfig()>
         <cfset var mailAttrs = {
             to = arguments.toEmail,
             from = config.fromValue,
             subject = arguments.subject,
-            charset = "utf-8"
+            charset = "utf-8",
+            spoolenable = arguments.spoolEnable
         }>
 
         <cfif len(config.replyToEmail)>
@@ -417,6 +530,9 @@
 
         <cftry>
             <cfmail attributeCollection="#mailAttrs#">
+                <cfif len(trim(arguments.attachmentPath))>
+                    <cfmailparam type="application/pdf" file="#arguments.attachmentPath#">
+                </cfif>
                 <cfmailpart type="text/plain" charset="utf-8">#arguments.textBody#</cfmailpart>
                 <cfmailpart type="text/html" charset="utf-8">#arguments.htmlBody#</cfmailpart>
             </cfmail>
@@ -460,6 +576,9 @@
                     <cfcatch type="any">
                     </cfcatch>
                 </cftry>
+                <cfif arguments.rethrowOnFailure>
+                    <cfrethrow>
+                </cfif>
             </cfcatch>
         </cftry>
     </cffunction>
@@ -582,6 +701,15 @@
         <cfreturn reReplace(trim(arguments.value), "[\\r\\n\\t]+", " ", "all")>
     </cffunction>
 
+    <cffunction name="cleanBasicReviewTextValue" access="private" returntype="string" output="false">
+        <cfargument name="value" type="string" required="false" default="">
+
+        <cfset var cleanValue = replace(arguments.value, chr(13), " ", "all")>
+        <cfset cleanValue = replace(cleanValue, chr(10), " ", "all")>
+        <cfset cleanValue = replace(cleanValue, chr(9), " ", "all")>
+        <cfreturn trim(cleanValue)>
+    </cffunction>
+
     <cffunction name="logSafeEmailFailure" access="private" returntype="void" output="false">
         <cfargument name="messageType" type="string" required="true">
         <cfargument name="userId" type="numeric" required="true">
@@ -596,7 +724,4 @@
     </cffunction>
 
 </cfcomponent>
-
-
-
 

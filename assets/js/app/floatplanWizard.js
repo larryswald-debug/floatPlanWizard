@@ -379,6 +379,23 @@
     };
   }
 
+  function normalizeBasicReviewContact(entry) {
+    entry = entry || {};
+    return {
+      CONTACTID: numeric(entry.CONTACTID || entry.contactId),
+      NAME: String(entry.NAME || entry.name || "").trim(),
+      EMAIL: String(entry.EMAIL || entry.email || "").trim(),
+      VALID_EMAIL: entry.VALID_EMAIL === true || entry.validEmail === true
+    };
+  }
+
+  function createBasicSendIdempotencyKey() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return "basic_review_" + window.crypto.randomUUID();
+    }
+    return "basic_review_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+
   function normalizeWaypointSelection(entry) {
     if (!entry) return null;
     var id = numeric(entry.WAYPOINTID || entry.waypointId || entry.wpId);
@@ -822,6 +839,12 @@
         isLoading: true,
         isSaving: false,
         checkoutBusy: false,
+        basicReviewConfirmationOpen: false,
+        basicReviewLoading: false,
+        basicReviewSending: false,
+        basicReviewContacts: [],
+        basicReviewSelectedContactId: 0,
+        basicReviewIdempotencyKey: "",
         statusMessage: null,
         memberAccess: initialMemberAccess,
         premiumSendReceipt: { found: false },
@@ -964,6 +987,25 @@
           });
         }
         return details;
+      },
+
+      basicReviewSelectedContact: function () {
+        var targetId = numeric(this.basicReviewSelectedContactId);
+        for (var i = 0; i < this.basicReviewContacts.length; i++) {
+          if (numeric(this.basicReviewContacts[i].CONTACTID) === targetId) {
+            return this.basicReviewContacts[i];
+          }
+        }
+        return null;
+      },
+
+      canContinueBasicReviewSend: function () {
+        return !!(
+          this.basicReviewSelectedContact
+          && this.basicReviewSelectedContact.VALID_EMAIL
+          && !this.basicReviewSending
+          && !this.isSaving
+        );
       },
 
       filteredPassengers: function () {
@@ -1827,6 +1869,136 @@
           self.isSaving = false;
           self.handleError(err, "Unable to save float plan.");
         });
+      },
+
+      openBasicReviewSend: function () {
+        var self = this;
+        if (this.isSaving || this.checkoutBusy || this.basicReviewLoading || this.basicReviewSending) {
+          return;
+        }
+        if (!window.Api || typeof window.Api.saveFloatPlan !== "function" || typeof window.Api.getBasicReviewSendConfirmation !== "function") {
+          this.handleError("API helper not available.", "Unable to prepare Basic Send.");
+          return;
+        }
+        if (!this.validateStepsThrough(this.totalSteps)) {
+          return;
+        }
+
+        applyClientUtcFields(this.fp.FLOATPLAN);
+        this.isSaving = true;
+        this.basicReviewLoading = true;
+        this.basicReviewConfirmationOpen = false;
+        this.basicReviewContacts = [];
+        this.basicReviewSelectedContactId = 0;
+        this.basicReviewIdempotencyKey = "";
+        this.setStatus("Saving your latest float-plan changes…", true);
+
+        window.Api.saveFloatPlan({
+          FLOATPLAN: this.fp.FLOATPLAN,
+          PASSENGERS: this.fp.PASSENGERS,
+          CONTACTS: this.fp.CONTACTS,
+          WAYPOINTS: this.fp.WAYPOINTS
+        })
+          .then(function (response) {
+            self.applySaveResponse(response);
+            return window.Api.getBasicReviewSendConfirmation(self.getPlanId());
+          })
+          .then(function (response) {
+            self.basicReviewContacts = toArray(response.CONTACTS || response.contacts)
+              .map(normalizeBasicReviewContact)
+              .filter(function (contact) { return contact.CONTACTID > 0; });
+            self.basicReviewSelectedContactId = numeric(
+              response.SELECTED_CONTACT_ID || response.selectedContactId
+            );
+            self.basicReviewConfirmationOpen = true;
+            self.isSaving = false;
+            self.basicReviewLoading = false;
+            self.setStatus("Your latest float-plan changes are saved. Confirm the Basic Send recipient.", true);
+            self.$nextTick(function () {
+              if (self.$refs.basicReviewPanel && typeof self.$refs.basicReviewPanel.focus === "function") {
+                self.$refs.basicReviewPanel.focus();
+              }
+            });
+          })
+          .catch(function (err) {
+            self.isSaving = false;
+            self.basicReviewLoading = false;
+            self.basicReviewConfirmationOpen = false;
+            self.handleError(err, "Unable to save and prepare Basic Send.");
+          });
+      },
+
+      closeBasicReviewSend: function () {
+        var self = this;
+        if (this.basicReviewSending) {
+          return;
+        }
+        this.basicReviewConfirmationOpen = false;
+        this.basicReviewContacts = [];
+        this.basicReviewSelectedContactId = 0;
+        this.basicReviewIdempotencyKey = "";
+        this.$nextTick(function () {
+          if (self.$refs.basicReviewOpenButton && typeof self.$refs.basicReviewOpenButton.focus === "function") {
+            self.$refs.basicReviewOpenButton.focus();
+          }
+        });
+      },
+
+      upgradeFromBasicReviewSend: function () {
+        if (this.basicReviewSending) {
+          return;
+        }
+        this.basicReviewConfirmationOpen = false;
+        this.basicReviewContacts = [];
+        this.basicReviewSelectedContactId = 0;
+        this.basicReviewIdempotencyKey = "";
+        this.submitPlanAndSend();
+      },
+
+      continueBasicReviewSend: function () {
+        var self = this;
+        var selectedContact = this.basicReviewSelectedContact;
+        if (this.basicReviewSending || !selectedContact || !selectedContact.VALID_EMAIL) {
+          this.setStatus("Choose one saved contact with a valid email address.", false);
+          return;
+        }
+        if (!window.Api || typeof window.Api.sendBasicReviewFloatPlan !== "function") {
+          this.handleError("API helper not available.", "Unable to send the Basic float plan.");
+          return;
+        }
+
+        if (!this.basicReviewIdempotencyKey) {
+          this.basicReviewIdempotencyKey = createBasicSendIdempotencyKey();
+        }
+        this.basicReviewSending = true;
+        this.setStatus("Sending the Basic float-plan PDF…", true);
+        window.Api.sendBasicReviewFloatPlan(
+          this.getPlanId(),
+          selectedContact.CONTACTID,
+          this.basicReviewIdempotencyKey
+        )
+          .then(function (response) {
+            self.basicReviewSending = false;
+            self.basicReviewConfirmationOpen = false;
+            self.basicReviewContacts = [];
+            self.basicReviewSelectedContactId = 0;
+            self.basicReviewIdempotencyKey = "";
+            self.setStatus(
+              response && response.MESSAGE
+                ? response.MESSAGE
+                : "Basic float plan emailed to " + selectedContact.EMAIL + ".",
+              true
+            );
+            self.$nextTick(function () {
+              if (self.$refs.basicReviewOpenButton && typeof self.$refs.basicReviewOpenButton.focus === "function") {
+                self.$refs.basicReviewOpenButton.focus();
+              }
+            });
+          })
+          .catch(function (err) {
+            self.basicReviewSending = false;
+            self.handleError(err, "Unable to send the Basic float plan.");
+          });
       },
 
       startPremiumCheckout: function (priceSelector) {

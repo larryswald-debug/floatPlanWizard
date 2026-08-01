@@ -12,7 +12,7 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260731-premium-action-text">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260731-basic-send-action-text">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard">
@@ -1162,10 +1162,66 @@
                                     <button type="button" class="btn-secondary fpw-checkout-action" @click="startPremiumCheckout('yearly')" :disabled="isSaving || checkoutBusy">Annual Membership</button>
                                 </div>
                             </div>
-                            <button type="button" class="btn-secondary w-100 mt-2" data-basic-floatplan-open :disabled="isSaving || checkoutBusy">
-                                Basic Save &amp; Send
+                            <button
+                                ref="basicReviewOpenButton"
+                                type="button"
+                                class="btn-secondary w-100 mt-2"
+                                :disabled="isSaving || checkoutBusy || basicReviewLoading || basicReviewSending"
+                                @click="openBasicReviewSend">
+                                {{ basicReviewLoading ? 'Saving latest changes…' : 'Basic Save &amp; Send' }}
                             </button>
-                            <p class="small text-muted mt-2 mb-0">Basic Save &amp; Send remains free and uses the separate Basic Float Plan flow. Your saved Draft is not removed.</p>
+                            <p class="small text-muted mt-2 mb-0">Send the completed Basic float-plan PDF to one selected notification contact. Your saved Draft will remain available.</p>
+
+                            <section
+                                v-if="basicReviewConfirmationOpen"
+                                ref="basicReviewPanel"
+                                class="alert alert-secondary mt-3 mb-0 fpw-basic-send-confirmation"
+                                tabindex="-1"
+                                aria-labelledby="basicReviewSendTitle">
+                                <h3 id="basicReviewSendTitle" class="h6 mb-3">Send Basic Float Plan?</h3>
+                                <p class="small mb-2">Your Basic float plan will be emailed to:</p>
+
+                                <div v-if="basicReviewContacts.length === 1" class="border rounded p-3 mb-3 fpw-basic-send-recipient">
+                                    <strong class="d-block">{{ basicReviewContacts[0].NAME || ('Contact #' + basicReviewContacts[0].CONTACTID) }}</strong>
+                                    <span class="d-block">{{ basicReviewContacts[0].EMAIL }}</span>
+                                </div>
+                                <div v-else class="mb-3">
+                                    <label for="basicReviewRecipient" class="form-label">Choose one saved contact</label>
+                                    <select id="basicReviewRecipient" class="form-select" v-model.number="basicReviewSelectedContactId">
+                                        <option :value="0">Select recipient</option>
+                                        <option
+                                            v-for="contact in basicReviewContacts"
+                                            :key="'basic-review-contact-' + contact.CONTACTID"
+                                            :value="contact.CONTACTID"
+                                            :disabled="!contact.VALID_EMAIL">
+                                            {{ contact.NAME || ('Contact #' + contact.CONTACTID) }} — {{ contact.EMAIL || 'Email required' }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <p class="small mb-2">Basic Send includes the completed float-plan PDF and email delivery.</p>
+                                <div class="small mb-3">
+                                    <p class="mb-1">It does not include:</p>
+                                    <ul class="mb-0 ps-3">
+                                        <li>Active Cruise trip management</li>
+                                        <li>Float Plan Monitoring</li>
+                                        <li>Private Trip/Follow access</li>
+                                        <li>Live check-ins, updates, photos, or comments</li>
+                                    </ul>
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    <button type="button" class="btn-primary fpw-basic-send-action" :disabled="basicReviewSending" @click="upgradeFromBasicReviewSend">
+                                        Upgrade to Premium Send
+                                    </button>
+                                    <button type="button" class="btn-secondary fpw-basic-send-action" :disabled="!canContinueBasicReviewSend" @click="continueBasicReviewSend">
+                                        {{ basicReviewSending ? 'Sending…' : 'Continue with Basic Send' }}
+                                    </button>
+                                    <button type="button" class="btn-secondary fpw-basic-send-action" :disabled="basicReviewSending" @click="closeBasicReviewSend">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </section>
                         </section>
 
                         <div class="wizard-nav">
@@ -1371,7 +1427,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260729-one-trip-return-context"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260731-basic-review-send"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
