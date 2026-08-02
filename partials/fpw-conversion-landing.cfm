@@ -117,6 +117,49 @@
       </div>
     </section>
 
+    <section class="fpw-origin-story" aria-labelledby="fpwOriginStoryTitle">
+      <div class="fpw-container fpw-origin-story__inner">
+        <div class="fpw-origin-story__content">
+          <p class="fpw-origin-story__eyebrow">THE STORY BEHIND FLOATPLANWIZARD</p>
+          <h2 id="fpwOriginStoryTitle">
+            Built by a Solo Boater,<br>
+            for Solo Boaters
+          </h2>
+          <p>FloatPlanWizard began with a simple personal need. I often went boating alone and wanted an easy way to let my family know where I planned to go and when I expected to return.</p>
+          <p>I created a system that let me save my float plan ahead of time. Whenever I took the boat out, I could send it to my family with one click, then text them to let them know it was on the way.</p>
+          <p>I cannot tell you how many times I had already left the dock and realized I had forgotten to send it. Instead of turning around, I could open the website, click a link, and have the saved plan sent for me.</p>
+          <p>No rewriting the same trip details. No searching for information at the dock. Just a ready-to-send plan that gave my family greater peace of mind.</p>
+          <footer class="fpw-origin-story__attribution">
+            <p class="fpw-origin-story__founder">— Larry Wald, Founder</p>
+            <p>Solo boater and retired professional web developer with more than 30 years of experience.</p>
+          </footer>
+          <div class="fpw-origin-story__actions">
+            <a class="fpw-btn fpw-btn-primary fpw-origin-story__cta" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" data-fpw-track="homepage_origin_story_cta_click" data-fpw-track-label="Create Your Float Plan" data-fpw-track-section="origin_story"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Create Your Float Plan</a>
+            <a class="fpw-origin-story__story-link" href="<cfoutput>#landingBasePath#</cfoutput>/about">Read the Story Behind FPW <span aria-hidden="true">&rarr;</span></a>
+          </div>
+        </div>
+
+        <aside class="fpw-origin-story__visual" aria-labelledby="fpwOriginStoryFlowTitle">
+          <p class="fpw-origin-story__visual-eyebrow">THE ORIGINAL DOCKSIDE ROUTINE</p>
+          <h3 id="fpwOriginStoryFlowTitle">Ready before it was time to leave.</h3>
+          <ol class="fpw-origin-story__flow">
+            <li>
+              <span class="fpw-origin-story__flow-icon" aria-hidden="true"><svg class="fpw-icon"><use href="#fpw-i-pencil"></use></svg></span>
+              <div><strong>Save Plan</strong><p>Prepare the route, boat, contacts, and timing ahead of time.</p></div>
+            </li>
+            <li>
+              <span class="fpw-origin-story__flow-icon" aria-hidden="true"><svg class="fpw-icon"><use href="#fpw-i-arrow"></use></svg></span>
+              <div><strong>Send Plan</strong><p>Send the saved float plan with one click when it is time to leave.</p></div>
+            </li>
+            <li>
+              <span class="fpw-origin-story__flow-icon" aria-hidden="true"><svg class="fpw-icon"><use href="#fpw-i-user"></use></svg></span>
+              <div><strong>Family Informed</strong><p>Text the people waiting at home so they know the plan is on its way.</p></div>
+            </li>
+          </ol>
+        </aside>
+      </div>
+    </section>
+
     <section class="fpw-product-preview" id="fpwProductPreview" aria-labelledby="fpwPreviewTitle">
       <div class="fpw-container">
         <div class="fpw-preview-shell" data-preview-asset-base="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/">

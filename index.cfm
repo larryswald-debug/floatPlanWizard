@@ -341,15 +341,21 @@ fpwHomePageDescription = "Plan boating trips, build routes, create float plans, 
 fpwHomeJsonLdText = "";
 fpwHomeSchemaGraph = [];
 fpwHomeSchemaOrg = structNew("ordered");
+fpwHomeSchemaLogo = structNew("ordered");
 fpwHomeSchemaWebsite = structNew("ordered");
 fpwHomeSchemaPage = structNew("ordered");
 fpwHomeJsonLd = structNew("ordered");
+
+structInsert(fpwHomeSchemaLogo, schemaTypeKey, "ImageObject", true);
+fpwHomeSchemaLogo["url"] = "https://floatplanwizard.com/assets/images/checkout/floatplanwizard-logo.jpg";
 
 structInsert(fpwHomeSchemaOrg, schemaTypeKey, "Organization", true);
 structInsert(fpwHomeSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
 fpwHomeSchemaOrg["name"] = "FloatPlanWizard";
 fpwHomeSchemaOrg["url"] = "https://floatplanwizard.com/";
-fpwHomeSchemaOrg["logo"] = "https://floatplanwizard.com/assets/images/checkout/floatplanwizard-logo.jpg";
+fpwHomeSchemaOrg["logo"] = fpwHomeSchemaLogo;
+fpwHomeSchemaOrg["description"] = "A boating trip-planning, float-plan sharing, trip-following, check-in, and monitoring platform.";
+fpwHomeSchemaOrg["founder"] = fpwHomeSchemaRef("https://floatplanwizard.com/about##larry-wald");
 arrayAppend(fpwHomeSchemaGraph, fpwHomeSchemaOrg);
 
 structInsert(fpwHomeSchemaWebsite, schemaTypeKey, "WebSite", true);
@@ -406,7 +412,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 <script type="application/ld+json"><cfoutput>#fpwHomeJsonLdText#</cfoutput></script>
 
   <link rel="icon" type="image/svg+xml" href="<cfoutput>#landingBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg">
-  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260731-safety-heading-size-v1">
+  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260801-origin-story-v2">
   <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/top-nav.css?v=20260730-collapse-1050">
   <style>
     .fpw-member-required-modal {

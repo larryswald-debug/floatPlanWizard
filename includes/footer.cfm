@@ -41,7 +41,7 @@ if (len(footerBasePath) AND left(footerBasePath, 1) NEQ "/") {
 footerCurrentScriptName = "";
 footerCurrentPagePath = "";
 footerModernVariantClass = "";
-footerModernPagePaths = "/index.cfm,/app/pricing.cfm,/why-use-a-float-plan.cfm,/terms_of_service.cfm,/privacy_policy.cfm";
+footerModernPagePaths = "/index.cfm,/about.cfm,/app/pricing.cfm,/why-use-a-float-plan.cfm,/terms_of_service.cfm,/privacy_policy.cfm";
 
 if (structKeyExists(cgi, "script_name")) {
   footerCurrentScriptName = "/" & reReplace(
@@ -331,6 +331,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 
       <nav class="fpw-footer-col" aria-label="Legal and safety">
         <h3>Legal</h3>
+        <a href="#footerBasePath#/about">About FPW</a>
         <a href="#footerBasePath#/terms_of_service.cfm">Terms of Service</a>
         <a href="#footerBasePath#/privacy_policy.cfm">Privacy Policy</a>
         <a href="#footerBasePath#/press.cfm">Press &amp; Media</a>
@@ -351,7 +352,6 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 </footer>
 
 </cfoutput>
-
 
 
 
