@@ -130,8 +130,8 @@
           <p>I cannot tell you how many times I had already left the dock and realized I had forgotten to send it. Instead of turning around, I could open the website, click a link, and have the saved plan sent for me.</p>
           <p>No rewriting the same trip details. No searching for information at the dock. Just a ready-to-send plan that gave my family greater peace of mind.</p>
           <footer class="fpw-origin-story__attribution">
-            <p class="fpw-origin-story__founder">— Larry Wald, Founder</p>
-            <p>Solo boater and retired professional web developer with more than 30 years of experience.</p>
+            <p class="fpw-origin-story__founder">— Larry W., Founder</p>
+            <p>Solo boater and retired professional web developer with more than 55 years of boating experience.</p>
           </footer>
           <div class="fpw-origin-story__actions">
             <a class="fpw-btn fpw-btn-primary fpw-origin-story__cta" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" data-fpw-track="homepage_origin_story_cta_click" data-fpw-track-label="Create Your Float Plan" data-fpw-track-section="origin_story"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Create Your Float Plan</a>

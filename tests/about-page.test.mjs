@@ -296,8 +296,8 @@ test("homepage founder story and schema link to the full About story", () => {
     "Built by a Solo Boater, for Solo Boaters",
     "I cannot tell you how many times I had already left the dock and realized I had forgotten to send it. Instead of turning around, I could open the website, click a link, and have the saved plan sent for me.",
     "No rewriting the same trip details. No searching for information at the dock. Just a ready-to-send plan that gave my family greater peace of mind.",
-    "— Larry Wald, Founder",
-    "Solo boater and retired professional web developer with more than 30 years of experience.",
+    "— Larry W., Founder",
+    "Solo boater and retired professional web developer with more than 55 years of boating experience.",
     "Create Your Float Plan"
   ]) {
     assertVisibleCopy(founderSection, copy);
