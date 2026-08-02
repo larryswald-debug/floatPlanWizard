@@ -92,6 +92,92 @@ SET @fpw_confirm_drop_getting_started_hidden =
 SOURCE database/migrations/20260724_003_add_getting_started_hidden.down.sql;
 ```
 
+## Single-trip access lifecycle Phase 1
+
+For `20260801_001_single_trip_access_lifecycle`, deploy the database migration
+before application code that reads or writes the new lifecycle fields. Use this
+order without the SQL client's `--force` option:
+
+1. Select the production `FPW` database.
+2. Take and verify a recoverable database backup or snapshot.
+3. Quiesce Premium Save & Send and float-plan lifecycle writes until verification
+   completes; the DDL is not transactional and the backfill must use one stable
+   deployment snapshot.
+4. Run `20260801_001_single_trip_access_lifecycle.preflight.sql` and stop unless
+   it reports `PASS`.
+5. Run `20260801_001_single_trip_access_lifecycle.up.sql` once.
+6. Run `20260801_001_single_trip_access_lifecycle.verify.sql` and stop unless it
+   reports `PASS`.
+7. Deploy and reload the matching application release, then restore writes.
+
+The forward migration repeats the exact source-column and CHECK-enforcement
+guards in its own database session. Its cross-table DDL still uses implicit
+commits. If any forward DDL statement fails, stop with writes quiesced: do not
+rerun the up migration and do not run the guarded down migration against a
+partial object set. Inspect the exact objects left in `information_schema` and
+restore the verified database snapshot or prepare an explicitly reviewed manual
+repair before continuing.
+
+The preflight reports safe internal IDs and refuses unsafe credit, receipt,
+member, float-plan, or active-authorization bindings. It reports historical
+general-Premium interval values as unproven rather than fabricating Monthly or
+Annual history. Canonical active Basic plans are excluded only when their latest
+monitoring record proves `monitoring_mode = 'basic'`.
+
+The forward migration extends `premium_send_receipts` with the separate access
+window, membership snapshot, and access-ending fields; adds `floatplans.expiredAt`
+and `floatplans.end_reason`; and adds the supporting indexes, CHECK constraints,
+and exact `(member_entitlement_id, user_id)` foreign-key binding. It does not
+change the existing `original_response_json` storage type. One database
+`UTC_TIMESTAMP(6)` value supplies the complete rollout grace period for every
+existing active credit-origin plan: start at deployment UTC and expire exactly
+21 days later. Ended credit-origin plans receive historical metadata and are not
+reactivated. General-Premium receipts receive no single-trip expiry, and their
+historical interval snapshot remains `NULL`.
+
+After the matching application release is live, configure a production
+ColdFusion scheduled task to request this token-protected endpoint every 15
+minutes:
+
+```text
+/app/scheduled/run-single-trip-expiration.cfm?token=<production monitor token>
+```
+
+The endpoint uses the existing application monitor token, defaults to a bounded
+batch of 100, and accepts an optional `limit` from 1 through 500. Keep the token
+out of the repository, deployment logs, and validation output. Repository code
+does not create the ColdFusion scheduled task; production scheduling is a
+separate operator action. Request-time authorization still enforces the exact
+database UTC expiration boundary between scheduled runs.
+
+Rollback is destructive to the new lifecycle metadata. First place Premium
+Save & Send and all trip-lifecycle request paths in maintenance, drain in-flight
+requests, and stop the expiration task. While that traffic remains quiesced,
+deploy and reload application code that does not require these columns, run the
+guarded down migration, verify the expected schema removal, and only then
+restore traffic. This avoids both old-code/new-schema receipt failures and
+in-flight Phase 1 requests reaching a schema whose lifecycle columns have been
+dropped. The down migration deliberately leaves every `EXPIRED` status
+unchanged and never restores, refunds, or deletes credits or receipts. It
+requires this exact same-session confirmation:
+
+```sql
+SET @fpw_confirm_drop_single_trip_access_lifecycle =
+  'DROP_SINGLE_TRIP_ACCESS_LIFECYCLE';
+SOURCE database/migrations/20260801_001_single_trip_access_lifecycle.down.sql;
+```
+
+Because each down-migration DDL statement commits independently, a partial down
+failure is not automatically rerunnable. Keep traffic quiesced, stop, and use
+the verified backup or an explicitly reviewed manual repair before continuing.
+
+Once any plan has become `EXPIRED`, this destructive schema rollback is not a
+reapplicable rollback path: it preserves the `EXPIRED` status while removing the
+timestamps and reason needed by the forward preflight and CHECK constraint.
+Reapplying then requires an explicitly reviewed forward repair using the
+verified pre-rollback backup; the migration intentionally will not guess or
+reconstruct those lifecycle timestamps.
+
 ## Verification
 
 Verification files must identify the selected database, expected tables, columns, indexes, foreign keys, and CHECK constraints. Application validation must use disposable local records and remove them afterward.

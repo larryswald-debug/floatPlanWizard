@@ -7372,11 +7372,17 @@
             var preservedInputs = (isStruct(arguments.newInputs) ? duplicate(arguments.newInputs) : {});
             var storedInputs = (isStruct(arguments.existingInputs) ? arguments.existingInputs : {});
             var keyName = "";
+            var newKeyNames = structKeyArray(preservedInputs);
+
+            for (keyName in newKeyNames) {
+                if (left(lCase(trim(toString(keyName))), 12) EQ "active_trip_") {
+                    structDelete(preservedInputs, keyName);
+                }
+            }
 
             for (keyName in storedInputs) {
                 if (
                     left(lCase(trim(toString(keyName))), 12) EQ "active_trip_"
-                    AND !structKeyExists(preservedInputs, keyName)
                     AND !isNull(storedInputs[keyName])
                 ) {
                     preservedInputs[keyName] = storedInputs[keyName];
@@ -7495,6 +7501,9 @@
             var candidateAccessGate = {};
             var routeInputsJson = "";
             var routeInstanceIdVal = 0;
+            var candidateFloatPlanId = 0;
+            var qLockedCandidate = queryNew("");
+            var candidateUpdated = false;
 
             if (
                 arguments.userId LTE 0
@@ -7548,6 +7557,7 @@
 
                     activeRouteId = val(structKeyExists(routeInputs, "route_id") ? routeInputs.route_id : 0);
                     activeFloatPlanId = val(structKeyExists(routeInputs, "active_trip_floatplan_id") ? routeInputs.active_trip_floatplan_id : 0);
+                    candidateFloatPlanId = val(qCandidates.floatPlanId[i]);
                     routeInstanceIdVal = val(qCandidates.route_instance_id[i]);
 
                     if (
@@ -7559,35 +7569,76 @@
                         continue;
                     }
 
-                    candidateAccessGate = getMemberAccessGateService().requireTripOperationalAccess(
-                        arguments.userId,
-                        activeFloatPlanId
-                    );
-                    if (!candidateAccessGate.allowed) {
+                    candidateAccessGate = {};
+                    qLockedCandidate = queryNew("");
+                    candidateUpdated = false;
+                    transaction {
+                        candidateAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                            arguments.userId,
+                            candidateFloatPlanId
+                        );
+                        if (candidateAccessGate.allowed) {
+                            qLockedCandidate = queryExecute(
+                                "SELECT ri.routegen_inputs_json
+                                 FROM floatplans fp
+                                 INNER JOIN route_instances ri
+                                   ON ri.id = fp.route_instance_id
+                                 WHERE fp.floatPlanId = :floatPlanId
+                                   AND fp.userId = :userId
+                                   AND UPPER(TRIM(fp.status)) = 'ACTIVE'
+                                   AND fp.route_instance_id = :routeInstanceId
+                                   AND ri.id = :routeInstanceId
+                                   AND ri.id <> :sourceRouteInstanceId
+                                   AND ri.user_id = :routeUserId
+                                 LIMIT 1
+                                 FOR UPDATE",
+                                {
+                                    floatPlanId = { value=candidateFloatPlanId, cfsqltype="cf_sql_integer" },
+                                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                                    routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                                    sourceRouteInstanceId = { value=arguments.sourceRouteInstanceId, cfsqltype="cf_sql_integer" },
+                                    routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                            if (
+                                qLockedCandidate.recordCount EQ 1
+                                AND !isNull(qLockedCandidate.routegen_inputs_json[1])
+                            ) {
+                                routeInputs = routegenParseStoredInputs(qLockedCandidate.routegen_inputs_json[1]);
+                                activeRouteId = val(structKeyExists(routeInputs, "route_id") ? routeInputs.route_id : 0);
+                                activeFloatPlanId = val(structKeyExists(routeInputs, "active_trip_floatplan_id") ? routeInputs.active_trip_floatplan_id : 0);
+                                if (
+                                    structCount(routeInputs)
+                                    AND activeRouteId EQ arguments.routeId
+                                    AND activeFloatPlanId EQ candidateFloatPlanId
+                                ) {
+                                    routeInputs.fuel_price_per_gal = storedFuelPrice;
+                                    routeInputsJson = routegenSerializeInputsForInstance(routeInputs);
+                                    if (len(trim(routeInputsJson))) {
+                                        queryExecute(
+                                            "UPDATE route_instances
+                                             SET routegen_inputs_json = :routegenInputsJson,
+                                                 updated_at = NOW()
+                                             WHERE id = :routeInstanceId
+                                               AND user_id = :routeUserId",
+                                            {
+                                                routegenInputsJson = { value=routeInputsJson, cfsqltype="cf_sql_longvarchar" },
+                                                routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
+                                                routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                                            },
+                                            { datasource = application.dsn }
+                                        );
+                                        candidateUpdated = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (!candidateAccessGate.allowed OR !candidateUpdated) {
                         out.skipped_count += 1;
                         continue;
                     }
-
-                    routeInputs.fuel_price_per_gal = storedFuelPrice;
-                    routeInputsJson = routegenSerializeInputsForInstance(routeInputs);
-                    if (!len(trim(routeInputsJson))) {
-                        out.skipped_count += 1;
-                        continue;
-                    }
-
-                    queryExecute(
-                        "UPDATE route_instances
-                         SET routegen_inputs_json = :routegenInputsJson,
-                             updated_at = NOW()
-                         WHERE id = :routeInstanceId
-                           AND user_id = :routeUserId",
-                        {
-                            routegenInputsJson = { value=routeInputsJson, cfsqltype="cf_sql_longvarchar" },
-                            routeInstanceId = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
-                            routeUserId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
-                        },
-                        { datasource = application.dsn }
-                    );
                     arrayAppend(out.updated_route_instance_ids, routeInstanceIdVal);
                 }
 
@@ -12486,31 +12537,6 @@
                 instanceInputs.start_date = trim(toString(arguments.input.start_date));
             }
             var hasInputsJsonCol = routegenHasInputsJsonColumn();
-            var qExistingRouteInstanceInputs = queryNew("");
-            if (hasInputsJsonCol) {
-                qExistingRouteInstanceInputs = queryExecute(
-                    "SELECT routegen_inputs_json
-                     FROM route_instances
-                     WHERE generated_route_id = :rid
-                       AND user_id = :uid
-                     ORDER BY id DESC
-                     LIMIT 1",
-                    {
-                        rid = { value=routeId, cfsqltype="cf_sql_integer" },
-                        uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
-                    },
-                    { datasource = application.dsn }
-                );
-                if (
-                    qExistingRouteInstanceInputs.recordCount GT 0
-                    AND !isNull(qExistingRouteInstanceInputs.routegen_inputs_json[1])
-                ) {
-                    instanceInputs = routegenPreserveActiveTripOverrideInputs(
-                        routegenParseStoredInputs(qExistingRouteInstanceInputs.routegen_inputs_json[1]),
-                        instanceInputs
-                    );
-                }
-            }
             var instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
             var totals = (structKeyExists(data, "totals") ? data.totals : {});
             var totalNmBind = toNullableNumber((structKeyExists(totals, "total_nm") ? totals.total_nm : ""), "numeric");
@@ -12524,6 +12550,7 @@
             var qActiveLinkedPlans = queryNew("");
             var qUserMutationLock = queryNew("");
             var routeMutationGate = {};
+            var activeLinkedFloatPlanId = 0;
             var preserveProgressOnRebuild = false;
             var activeFuelPriceSync = {
                 "success"=true,
@@ -12556,8 +12583,7 @@
                          WHERE generated_route_id = :rid
                            AND user_id = :uid
                          ORDER BY id DESC
-                         LIMIT 1
-                         FOR UPDATE",
+                         LIMIT 1",
                         {
                             rid = { value=routeId, cfsqltype="cf_sql_integer" },
                             uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
@@ -12583,8 +12609,7 @@
                                     'OVERDUE_24H'
                                )
                              ORDER BY floatplanId DESC
-                             LIMIT 1
-                             FOR UPDATE",
+                             LIMIT 1",
                             {
                                 userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
                                 routeInstanceId = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
@@ -12593,13 +12618,63 @@
                         );
                         preserveProgressOnRebuild = (qActiveLinkedPlans.recordCount GT 0);
                         if (preserveProgressOnRebuild) {
-                            routeMutationGate = getMemberAccessGateService().requireTripOperationalAccess(
+                            activeLinkedFloatPlanId = val(qActiveLinkedPlans.floatplanId[1]);
+                            routeMutationGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
                                 arguments.userId,
-                                val(qActiveLinkedPlans.floatplanId[1])
+                                activeLinkedFloatPlanId
                             );
                             if (!routeMutationGate.allowed) {
                                 return routeMutationGate.response;
                             }
+                            qActiveLinkedPlans = queryExecute(
+                                "SELECT floatPlanId
+                                 FROM floatplans
+                                 WHERE floatPlanId = :floatPlanId
+                                   AND userId = :userId
+                                   AND route_instance_id = :routeInstanceId
+                                   AND UPPER(TRIM(status)) = 'ACTIVE'
+                                 LIMIT 1",
+                                {
+                                    floatPlanId = { value=activeLinkedFloatPlanId, cfsqltype="cf_sql_integer" },
+                                    userId = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" },
+                                    routeInstanceId = { value=routeInstanceId, cfsqltype="cf_sql_integer" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                            if (qActiveLinkedPlans.recordCount NEQ 1) {
+                                out.MESSAGE = "Active route binding changed before it could be updated";
+                                out.ERROR = { "MESSAGE"="Retry the route update." };
+                                return out;
+                            }
+                        }
+                        qInst = queryExecute(
+                            "SELECT id" & (hasInputsJsonCol ? ", routegen_inputs_json" : "") & "
+                             FROM route_instances
+                             WHERE id = :routeInstanceId
+                               AND generated_route_id = :rid
+                               AND user_id = :uid
+                             LIMIT 1
+                             FOR UPDATE",
+                            {
+                                routeInstanceId = { value=routeInstanceId, cfsqltype="cf_sql_integer" },
+                                rid = { value=routeId, cfsqltype="cf_sql_integer" },
+                                uid = { value=toString(arguments.userId), cfsqltype="cf_sql_varchar" }
+                            },
+                            { datasource = application.dsn }
+                        );
+                        if (qInst.recordCount NEQ 1) {
+                            out.MESSAGE = "Route instance changed before it could be updated";
+                            out.ERROR = { "MESSAGE"="Retry the route update." };
+                            return out;
+                        }
+                        if (hasInputsJsonCol) {
+                            if (!isNull(qInst.routegen_inputs_json[1])) {
+                                instanceInputs = routegenPreserveActiveTripOverrideInputs(
+                                    routegenParseStoredInputs(qInst.routegen_inputs_json[1]),
+                                    instanceInputs
+                                );
+                            }
+                            instanceInputsJson = routegenSerializeInputsForInstance(instanceInputs);
                         }
                     }
 

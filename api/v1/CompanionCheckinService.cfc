@@ -16,6 +16,7 @@
       var validation = validatePayload(arguments.payload);
       var activePlan = {};
       var tripAccessGate = {};
+      var lockedTripAccessGate = {};
       var existingEvent = {};
       var insertedEvent = {};
       var canonicalPayload = {};
@@ -30,16 +31,16 @@
         return validation;
       }
 
-      activePlan = validateActivePlan(arguments.userId, validation.floatPlanId);
-      if (!activePlan.SUCCESS) {
-        return activePlan;
-      }
-
       tripAccessGate = createApiComponent("MemberAccessGateService")
         .init(variables.datasource)
         .requireTripOperationalAccess(arguments.userId, validation.floatPlanId);
       if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
         return tripAccessGate.response;
+      }
+
+      activePlan = validateActivePlan(arguments.userId, validation.floatPlanId);
+      if (!activePlan.SUCCESS) {
+        return activePlan;
       }
 
       validation.routeInstanceId = readNumber(activePlan, "routeInstanceId");
@@ -51,7 +52,17 @@
         return handleExistingEvent(arguments.userId, existingEvent);
       }
 
-      insertedEvent = insertReceivedEvent(arguments.userId, validation);
+      transaction {
+        lockedTripAccessGate = createApiComponent("MemberAccessGateService")
+          .init(variables.datasource)
+          .requireTripOperationalAccessForUpdate(arguments.userId, validation.floatPlanId);
+        if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+          insertedEvent = insertReceivedEvent(arguments.userId, validation);
+        }
+      }
+      if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
+        return lockedTripAccessGate.response;
+      }
       if (structKeyExists(insertedEvent, "DUPLICATE") AND insertedEvent.DUPLICATE) {
         existingEvent = getCompanionEvent(arguments.userId, validation.mobileSubmissionId);
         if (readNumber(existingEvent, "id") GT 0) {

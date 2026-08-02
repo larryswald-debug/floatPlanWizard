@@ -298,8 +298,10 @@
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
       var qReceipt = queryExecute(
-        "SELECT id, user_id, float_plan_id, credit_id, access_source, recipient_count,
-                original_response_json, committed_at_utc
+        "SELECT id, user_id, float_plan_id, credit_id, member_entitlement_id,
+                membership_interval_snapshot, access_source, recipient_count,
+                original_response_json, committed_at_utc, access_started_at_utc,
+                access_expires_at_utc, access_ended_at_utc, access_end_reason
          FROM premium_send_receipts
          WHERE user_id = :userId
            AND float_plan_id = :floatPlanId
@@ -319,8 +321,10 @@
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
       var qReceipt = queryExecute(
-        "SELECT id, user_id, float_plan_id, credit_id, access_source, recipient_count,
-                original_response_json, committed_at_utc
+        "SELECT id, user_id, float_plan_id, credit_id, member_entitlement_id,
+                membership_interval_snapshot, access_source, recipient_count,
+                original_response_json, committed_at_utc, access_started_at_utc,
+                access_expires_at_utc, access_ended_at_utc, access_end_reason
          FROM premium_send_receipts
          WHERE user_id = :userId
            AND float_plan_id = :floatPlanId
@@ -348,6 +352,8 @@
       var qBinding = queryNew("");
       var qPlan = queryNew("");
       var entitlementAccess = {};
+      var entitlementId = 0;
+      var membershipInterval = "";
 
       if (!listFindNoCase("general_premium,premium_send_credit", cleanAccessSource)) {
         return failure("INVALID_SEND_ACCESS_SOURCE", "The Premium send access source is invalid.");
@@ -383,7 +389,7 @@
 
       if (cleanAccessSource EQ "premium_send_credit") {
         qBinding = queryExecute(
-          "SELECT id
+          "SELECT id, consumed_at_utc
            FROM premium_send_credits
            WHERE id = :creditId
              AND user_id = :userId
@@ -406,38 +412,128 @@
         if (!structKeyExists(entitlementAccess, "hasPremium") OR !entitlementAccess.hasPremium) {
           return failure("GENERAL_PREMIUM_REQUIRED", "An active general Premium entitlement is required for this receipt.");
         }
+        entitlementId = structKeyExists(entitlementAccess, "premiumEntitlementId")
+          ? val(entitlementAccess.premiumEntitlementId)
+          : 0;
+        membershipInterval = structKeyExists(entitlementAccess, "stripeSubscriptionInterval")
+          ? lCase(trim(toString(entitlementAccess.stripeSubscriptionInterval)))
+          : "";
+        if (!listFindNoCase("monthly,annual", membershipInterval)) {
+          membershipInterval = "";
+        }
+        qBinding = queryExecute(
+          "SELECT id
+           FROM member_entitlements
+           WHERE id = :entitlementId
+             AND user_id = :userId
+             AND entitlement_type = 'premium'
+             AND status = 'active'
+             AND starts_at_utc <= UTC_TIMESTAMP(6)
+             AND (expires_at_utc IS NULL OR expires_at_utc >= UTC_TIMESTAMP(6))
+           LIMIT 1
+           FOR UPDATE",
+          {
+            entitlementId = { value = entitlementId, cfsqltype = "cf_sql_bigint" },
+            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = variables.datasource }
+        );
+        if (qBinding.recordCount NEQ 1) {
+          return failure("INVALID_SEND_ENTITLEMENT_BINDING", "The active Premium entitlement could not be bound to this receipt.");
+        }
       }
 
-      queryExecute(
-        "INSERT INTO premium_send_receipts (
-           user_id,
-           float_plan_id,
-           credit_id,
-           access_source,
-           recipient_count,
-           original_response_json,
-           committed_at_utc,
-           created_at_utc
-         ) VALUES (
-           :userId,
-           :floatPlanId,
-           :creditId,
-           :accessSource,
-           :recipientCount,
-           :originalResponseJson,
-           UTC_TIMESTAMP(6),
-           UTC_TIMESTAMP(6)
-         )",
-        {
-          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-          floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
-          creditId = nullableBigint(arguments.creditId),
-          accessSource = { value = cleanAccessSource, cfsqltype = "cf_sql_varchar" },
-          recipientCount = { value = arguments.recipientCount, cfsqltype = "cf_sql_integer" },
-          originalResponseJson = { value = serializeJSON(arguments.response), cfsqltype = "cf_sql_longvarchar" }
-        },
-        { datasource = variables.datasource }
-      );
+      if (cleanAccessSource EQ "premium_send_credit") {
+        queryExecute(
+          "INSERT INTO premium_send_receipts (
+             user_id,
+             float_plan_id,
+             credit_id,
+             member_entitlement_id,
+             membership_interval_snapshot,
+             access_source,
+             recipient_count,
+             original_response_json,
+             committed_at_utc,
+             access_started_at_utc,
+             access_expires_at_utc,
+             access_ended_at_utc,
+             access_end_reason,
+             created_at_utc
+           )
+           SELECT
+             :userId,
+             :floatPlanId,
+             c.id,
+             NULL,
+             NULL,
+             'premium_send_credit',
+             :recipientCount,
+             :originalResponseJson,
+             UTC_TIMESTAMP(6),
+             c.consumed_at_utc,
+             DATE_ADD(c.consumed_at_utc, INTERVAL 21 DAY),
+             NULL,
+             NULL,
+             UTC_TIMESTAMP(6)
+           FROM premium_send_credits c
+           WHERE c.id = :creditId
+             AND c.user_id = :userId
+             AND c.status = 'CONSUMED'
+             AND c.consumed_float_plan_id = :floatPlanId",
+          {
+            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+            floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+            creditId = { value = arguments.creditId, cfsqltype = "cf_sql_bigint" },
+            recipientCount = { value = arguments.recipientCount, cfsqltype = "cf_sql_integer" },
+            originalResponseJson = { value = serializeJSON(arguments.response), cfsqltype = "cf_sql_longvarchar" }
+          },
+          { datasource = variables.datasource }
+        );
+      } else {
+        queryExecute(
+          "INSERT INTO premium_send_receipts (
+             user_id,
+             float_plan_id,
+             credit_id,
+             member_entitlement_id,
+             membership_interval_snapshot,
+             access_source,
+             recipient_count,
+             original_response_json,
+             committed_at_utc,
+             access_started_at_utc,
+             access_expires_at_utc,
+             access_ended_at_utc,
+             access_end_reason,
+             created_at_utc
+           ) VALUES (
+             :userId,
+             :floatPlanId,
+             NULL,
+             :memberEntitlementId,
+             :membershipInterval,
+             'general_premium',
+             :recipientCount,
+             :originalResponseJson,
+             UTC_TIMESTAMP(6),
+             UTC_TIMESTAMP(6),
+             NULL,
+             NULL,
+             NULL,
+             UTC_TIMESTAMP(6)
+           )",
+          {
+            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+            floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+            memberEntitlementId = { value = entitlementId, cfsqltype = "cf_sql_bigint" },
+            membershipInterval = nullableVarchar(membershipInterval),
+            recipientCount = { value = arguments.recipientCount, cfsqltype = "cf_sql_integer" },
+            originalResponseJson = { value = serializeJSON(arguments.response), cfsqltype = "cf_sql_longvarchar" }
+          },
+          { datasource = variables.datasource }
+        );
+      }
 
       return loadCompletedReceipt(arguments.userId, arguments.floatPlanId);
     </cfscript>
@@ -447,62 +543,50 @@
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
-      var qAccess = queryExecute(
+      var access = createTripAccessService().getTripOperationalAccess(arguments.userId, arguments.floatPlanId, true);
+      return access.allowed AND access.accessSource EQ "premium_send_credit";
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="updateCompletedReceiptResponseInCurrentTransaction" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="response" type="struct" required="true">
+    <cfscript>
+      var qReceipt = queryExecute(
         "SELECT id
-         FROM premium_send_credits
+         FROM premium_send_receipts
          WHERE user_id = :userId
-           AND status = 'CONSUMED'
-           AND consumed_float_plan_id = :floatPlanId
-         LIMIT 1",
+           AND float_plan_id = :floatPlanId
+         LIMIT 1
+         FOR UPDATE",
         {
           userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
           floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
         },
         { datasource = variables.datasource }
       );
-      return qAccess.recordCount GT 0;
+      if (qReceipt.recordCount NEQ 1) {
+        return failure("SEND_RECEIPT_NOT_FOUND", "The committed Premium send receipt could not be finalized.");
+      }
+      queryExecute(
+        "UPDATE premium_send_receipts
+         SET original_response_json = :originalResponseJson
+         WHERE id = :receiptId",
+        {
+          originalResponseJson = { value = serializeJSON(arguments.response), cfsqltype = "cf_sql_longvarchar" },
+          receiptId = { value = val(qReceipt.id[1]), cfsqltype = "cf_sql_bigint" }
+        },
+        { datasource = variables.datasource }
+      );
+      return loadCompletedReceipt(arguments.userId, arguments.floatPlanId);
     </cfscript>
   </cffunction>
 
   <cffunction name="getActiveTripOperationalSummary" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfscript>
-      var qAccess = queryExecute(
-        "SELECT
-            c.id AS credit_id,
-            c.source,
-            c.consumed_float_plan_id
-         FROM premium_send_credits c
-         INNER JOIN floatplans fp
-           ON fp.floatPlanId = c.consumed_float_plan_id
-          AND fp.userId = :userIdText
-         WHERE c.user_id = :userId
-           AND c.status = 'CONSUMED'
-           AND UPPER(TRIM(fp.status)) = 'ACTIVE'
-         ORDER BY c.consumed_at_utc DESC, c.id DESC
-         LIMIT 2",
-        {
-          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-          userIdText = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" }
-        },
-        { datasource = variables.datasource }
-      );
-      var result = {
-        "hasActiveTripOperationalAccess" = false,
-        "ambiguous" = qAccess.recordCount GT 1,
-        "floatPlanId" = nullValue(),
-        "creditId" = nullValue(),
-        "creditSource" = ""
-      };
-
-      if (qAccess.recordCount EQ 1) {
-        result.hasActiveTripOperationalAccess = true;
-        result.floatPlanId = val(qAccess.consumed_float_plan_id[1]);
-        result.creditId = val(qAccess.credit_id[1]);
-        result.creditSource = lCase(trim(toString(qAccess.source[1])));
-      }
-
-      return result;
+      return createTripAccessService().getActiveTripOperationalSummary(arguments.userId);
     </cfscript>
   </cffunction>
 
@@ -510,27 +594,7 @@
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
-      var entitlementAccess = createEntitlementService().getCurrentAccess(arguments.userId);
-      var result = {
-        "allowed" = false,
-        "accessSource" = "none",
-        "hasGeneralPremium" = false,
-        "hasExactTripCredit" = false
-      };
-
-      if (structKeyExists(entitlementAccess, "hasPremium") AND entitlementAccess.hasPremium) {
-        result.allowed = true;
-        result.accessSource = "general_premium";
-        result.hasGeneralPremium = true;
-        return result;
-      }
-
-      result.hasExactTripCredit = hasExactTripOperationalAccess(arguments.userId, arguments.floatPlanId);
-      if (result.hasExactTripCredit) {
-        result.allowed = true;
-        result.accessSource = "premium_send_credit";
-      }
-      return result;
+      return createTripAccessService().getTripOperationalAccess(arguments.userId, arguments.floatPlanId, true);
     </cfscript>
   </cffunction>
 
@@ -557,9 +621,15 @@
         "receiptId" = val(arguments.qReceipt.id[1]),
         "floatPlanId" = val(arguments.qReceipt.float_plan_id[1]),
         "creditId" = isNull(arguments.qReceipt.credit_id[1]) ? 0 : val(arguments.qReceipt.credit_id[1]),
+        "memberEntitlementId" = isNull(arguments.qReceipt.member_entitlement_id[1]) ? 0 : val(arguments.qReceipt.member_entitlement_id[1]),
+        "membershipIntervalSnapshot" = isNull(arguments.qReceipt.membership_interval_snapshot[1]) ? "" : lCase(trim(toString(arguments.qReceipt.membership_interval_snapshot[1]))),
         "accessSource" = trim(arguments.qReceipt.access_source[1]),
         "recipientCount" = val(arguments.qReceipt.recipient_count[1]),
         "committedAtUtc" = arguments.qReceipt.committed_at_utc[1],
+        "accessStartedAtUtc" = isNull(arguments.qReceipt.access_started_at_utc[1]) ? nullValue() : arguments.qReceipt.access_started_at_utc[1],
+        "accessExpiresAtUtc" = isNull(arguments.qReceipt.access_expires_at_utc[1]) ? nullValue() : arguments.qReceipt.access_expires_at_utc[1],
+        "accessEndedAtUtc" = isNull(arguments.qReceipt.access_ended_at_utc[1]) ? nullValue() : arguments.qReceipt.access_ended_at_utc[1],
+        "accessEndReason" = isNull(arguments.qReceipt.access_end_reason[1]) ? "" : trim(toString(arguments.qReceipt.access_end_reason[1])),
         "originalResponse" = response
       };
     </cfscript>
@@ -631,6 +701,16 @@
         return createObject("component", "fpw.api.v1.MemberEntitlementService").init(variables.datasource);
       } catch (any e1) {
         return createObject("component", "api.v1.MemberEntitlementService").init(variables.datasource);
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="createTripAccessService" access="private" returntype="any" output="false">
+    <cfscript>
+      try {
+        return createObject("component", "fpw.api.v1.PremiumTripAccessService").init(variables.datasource);
+      } catch (any e1) {
+        return createObject("component", "api.v1.PremiumTripAccessService").init(variables.datasource);
       }
     </cfscript>
   </cffunction>

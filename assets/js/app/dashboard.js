@@ -5965,7 +5965,12 @@
             return;
           }
           if (target.classList.contains("js-expedition-active-cruise")) {
-            window.open(BASE_PATH + "/app/active-cruise.cfm", "_blank", "noopener");
+            var activeCruisePlanId = currentGroupPlanId || currentFloatPlanId;
+            var activeCruiseUrl = BASE_PATH + "/app/active-cruise.cfm";
+            if (activeCruisePlanId > 0) {
+              activeCruiseUrl += "?floatPlanId=" + encodeURIComponent(String(activeCruisePlanId));
+            }
+            window.open(activeCruiseUrl, "_blank", "noopener");
             return;
           }
           if (target.classList.contains("js-expedition-trip-page")) {

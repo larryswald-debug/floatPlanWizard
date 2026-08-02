@@ -1344,7 +1344,7 @@
                               hfp.activatedAt IS NOT NULL
                               OR hfp.initialSentAt IS NOT NULL
                               OR hfp.closedAt IS NOT NULL
-                              OR UPPER(TRIM(COALESCE(hfp.`status`, ''))) IN ('ACTIVE', 'CLOSED', 'CANCELLED', 'CANCELED')
+                              OR UPPER(TRIM(COALESCE(hfp.`status`, ''))) IN ('ACTIVE', 'CLOSED', 'CANCELLED', 'CANCELED', 'EXPIRED')
                           )
                     ) AS historical_plan_count
                  FROM route_instance_legs ril
@@ -3270,6 +3270,12 @@
                 return result;
             }
 
+            getPremiumTripAccessService().processDueExpirationsForUser(
+                arguments.userId,
+                10,
+                "request_gate"
+            );
+
             if (useRouteInstanceId GT 0) {
                 qDraft = loadCurrentPremiumDraftCandidates(
                     userId = arguments.userId,
@@ -4137,6 +4143,7 @@
             var currentGroup = {};
             var memberGateResult = {};
             var lockedPlanRow = queryNew("");
+            var activeStatusGated = false;
 
             if (planId GT 0) {
                 existingPlanRow = queryExecute(
@@ -4237,9 +4244,9 @@
                     }
                     return result;
                 }
-            } else if (listFindNoCase("CLOSED,CANCELLED,CANCELED", existingStatus) GT 0) {
+            } else if (listFindNoCase("CLOSED,CANCELLED,CANCELED,EXPIRED", existingStatus) GT 0) {
                 result.ERROR = "HISTORICAL_GROUP_READ_ONLY";
-                result.MESSAGE = "Closed or cancelled route-linked float plans are preserved as history and cannot be edited.";
+                result.MESSAGE = "Ended route-linked float plans are preserved as history and cannot be edited.";
                 return result;
             }
 
@@ -4296,6 +4303,16 @@
 
             transaction {
                 if (planId GT 0) {
+                    if (existingStatus EQ "ACTIVE") {
+                        memberGateResult = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                            arguments.userId,
+                            planId
+                        );
+                        if (!memberGateResult.allowed) {
+                            return memberGateResult.response;
+                        }
+                        activeStatusGated = true;
+                    }
                     lockedPlanRow = queryExecute(
                         "SELECT UPPER(TRIM(`status`)) AS statusValue
                            FROM floatplans
@@ -4316,17 +4333,14 @@
                     }
 
                     existingStatus = trim(toString(lockedPlanRow.statusValue[1]));
-                    if (existingStatus EQ "ACTIVE") {
-                        memberGateResult = getMemberAccessGateService().requireTripOperationalAccess(
-                            arguments.userId,
-                            planId
-                        );
-                        if (!memberGateResult.allowed) {
-                            return memberGateResult.response;
-                        }
-                    } else if (listFindNoCase("CLOSED,CANCELLED,CANCELED", existingStatus) GT 0) {
+                    if (existingStatus EQ "ACTIVE" AND !activeStatusGated) {
+                        result.ERROR = "FLOATPLAN_STATE_CHANGED";
+                        result.MESSAGE = "The float plan became active while it was being edited. Retry the update.";
+                        return result;
+                    }
+                    if (listFindNoCase("CLOSED,CANCELLED,CANCELED,EXPIRED", existingStatus) GT 0) {
                         result.ERROR = "HISTORICAL_GROUP_READ_ONLY";
-                        result.MESSAGE = "Closed or cancelled route-linked float plans are preserved as history and cannot be edited.";
+                        result.MESSAGE = "Ended route-linked float plans are preserved as history and cannot be edited.";
                         return result;
                     }
                 }
@@ -5685,6 +5699,9 @@
             var hasOpenMonitoring = false;
             var closeCanonicalActivityService = {};
             var closeCanonicalActivityResult = {};
+            var lockedAccessGate = {};
+            var planUpdateResult = {};
+            var accessEndResult = {};
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -5730,6 +5747,15 @@
             routeInstanceId = isNull(qPlan.route_instance_id[1]) ? 0 : val(qPlan.route_instance_id[1]);
             requiresRouteCloseValidation = (routeInstanceId GT 0);
             hasOpenMonitoring = (!isNull(qPlan.monitoringId[1]) AND val(qPlan.monitoringId[1]) GT 0);
+
+            transaction {
+            lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                arguments.userId,
+                arguments.floatPlanId
+            );
+            if (!lockedAccessGate.allowed) {
+                return lockedAccessGate.response;
+            }
 
             if (requiresRouteCloseValidation) {
                 if (!hasOpenMonitoring) {
@@ -5809,13 +5835,30 @@
                     lastUpdateStatus = UTC_TIMESTAMP()
                  WHERE floatplanId = :planId
                    AND userId = :userId
-                   AND UPPER(TRIM(`status`)) NOT IN ('DRAFT','CLOSED')";
+                   AND UPPER(TRIM(`status`)) = 'ACTIVE'";
 
-            transaction {
                 queryExecute(updateSql, {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-                }, { datasource = "fpw" });
+                }, { datasource = "fpw", result = "local.planUpdateResult" });
+
+                if (!structKeyExists(planUpdateResult, "recordCount") OR val(planUpdateResult.recordCount) NEQ 1) {
+                    throw(
+                        type = "FPW.TripCloseConflict",
+                        message = "Float plan close lost its active lifecycle lock."
+                    );
+                }
+
+                accessEndResult = getPremiumTripAccessService().endAccessForPlan(
+                    arguments.floatPlanId,
+                    "CLOSED"
+                );
+                if (!structKeyExists(accessEndResult, "SUCCESS") OR accessEndResult.SUCCESS NEQ true) {
+                    throw(
+                        type = "FPW.TripAccessEndFailed",
+                        message = "Premium trip access could not be ended for captain close."
+                    );
+                }
 
                 monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
                 monitoringResult = monitoringService.closeMonitoringForFloatPlan(arguments.floatPlanId, "final_arrival");
@@ -5894,6 +5937,9 @@
             var memberGateResult = {};
             var monitoringService = {};
             var monitoringResult = {};
+            var lockedAccessGate = {};
+            var cancelUpdateResult = {};
+            var accessEndResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -5926,6 +5972,13 @@
             }
 
             transaction {
+                lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (!lockedAccessGate.allowed) {
+                    return lockedAccessGate.response;
+                }
                 queryExecute(
                     "UPDATE floatplans
                         SET `status` = 'CANCELLED',
@@ -5939,8 +5992,26 @@
                         planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                         userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
                     },
-                    { datasource = "fpw" }
+                    { datasource = "fpw", result = "local.cancelUpdateResult" }
                 );
+
+                if (!structKeyExists(cancelUpdateResult, "recordCount") OR val(cancelUpdateResult.recordCount) NEQ 1) {
+                    throw(
+                        type = "FPW.TripCancelConflict",
+                        message = "Float plan cancellation lost its active lifecycle lock."
+                    );
+                }
+
+                accessEndResult = getPremiumTripAccessService().endAccessForPlan(
+                    arguments.floatPlanId,
+                    "CANCELLED"
+                );
+                if (!structKeyExists(accessEndResult, "SUCCESS") OR accessEndResult.SUCCESS NEQ true) {
+                    throw(
+                        type = "FPW.TripAccessEndFailed",
+                        message = "Premium trip access could not be ended for cancellation."
+                    );
+                }
 
                 monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
                 monitoringResult = monitoringService.closeMonitoringForFloatPlan(arguments.floatPlanId, "manual_cancel");
@@ -5986,6 +6057,7 @@
             var titleVal = "";
             var bodyVal = "";
             var qTotal = queryNew("");
+            var lockedAccessGate = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -6010,6 +6082,13 @@
             bodyVal = "Captain added " & minutesToAdd & " manual delay minutes to the trip timeline.";
 
             transaction {
+                lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (!lockedAccessGate.allowed) {
+                    return lockedAccessGate.response;
+                }
                 queryExecute(
                     "UPDATE floatplans
                      SET manual_delay_minutes_total = manual_delay_minutes_total + :minutesToAdd
@@ -6108,6 +6187,7 @@
             var ds = "fpw";
             var totalDelayMinutes = 0;
             var qTotal = queryNew("");
+            var lockedAccessGate = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -6116,6 +6196,13 @@
             }
 
             transaction {
+                lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (!lockedAccessGate.allowed) {
+                    return lockedAccessGate.response;
+                }
                 queryExecute(
                     "UPDATE floatplans
                      SET manual_delay_minutes_total = 0
@@ -6183,6 +6270,7 @@
             var voyagePostId = 0;
             var titleVal = "";
             var savedNote = {};
+            var lockedAccessGate = {};
 
             if (arguments.userId LTE 0) {
                 result.ERROR = "NOT_LOGGED_IN";
@@ -6224,6 +6312,13 @@
             titleVal = left(noteBody, 80);
 
             transaction {
+                lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    floatPlanId
+                );
+                if (!lockedAccessGate.allowed) {
+                    return lockedAccessGate.response;
+                }
                 queryExecute(
                     "INSERT INTO floatplan_captain_log_entries (
                         floatplan_id,
@@ -6470,6 +6565,8 @@
             var activeCruiseCapturedAtRaw = "";
             var activeCruiseCapturedAt = {};
             var activeCruiseCapturedAtDriftMinutes = 0;
+            var lockedAccessGate = {};
+            var checkinUpdateResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.SUCCESS = false;
@@ -6654,7 +6751,8 @@
                          checkin_context = :checkinContext,
                          lastUpdateStatus = UTC_TIMESTAMP()
                      WHERE floatplanId = :planId
-                       AND userId = :userId";
+                       AND userId = :userId
+                       AND UPPER(TRIM(`status`)) = 'ACTIVE'";
                 updateParams = {
                     checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -6667,7 +6765,8 @@
                          checkin_context = :checkinContext,
                          lastUpdateStatus = UTC_TIMESTAMP()
                      WHERE floatplanId = :planId
-                       AND userId = :userId";
+                       AND userId = :userId
+                       AND UPPER(TRIM(`status`)) = 'ACTIVE'";
                 updateParams = {
                     checkinContext = { value = contextVal, cfsqltype = "cf_sql_varchar", null = NOT len(contextVal) },
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -6676,6 +6775,13 @@
             }
 
             transaction {
+                lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (!lockedAccessGate.allowed) {
+                    return lockedAccessGate.response;
+                }
                 if (shouldStartOperationallyForCheckin) {
                     operationalStartResult = startOperationalTripNow(arguments.userId, arguments.floatPlanId, routeInstanceIdVal);
                     if (
@@ -6692,8 +6798,14 @@
                 queryExecute(
                     updateSql,
                     updateParams,
-                    { datasource = ds }
+                    { datasource = ds, result = "local.checkinUpdateResult" }
                 );
+                if (!structKeyExists(checkinUpdateResult, "recordCount") OR val(checkinUpdateResult.recordCount) NEQ 1) {
+                    throw(
+                        type = "FPW.ActiveCruiseCheckinConflict",
+                        message = "Active Cruise check-in lost its active lifecycle lock."
+                    );
+                }
 
                 if (isOvernightTransition) {
                     qUpdatedPlan = queryExecute(
@@ -7157,6 +7269,7 @@
             var normalizedDailyStart = overnightTimingService.normalizeLocalDayStartTime(arguments.dailyStartLocalTime);
             var monitoringService = {};
             var refreshResult = {};
+            var lockedAccessGate = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
@@ -7190,6 +7303,13 @@
             }
 
             transaction {
+                lockedAccessGate = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (!lockedAccessGate.allowed) {
+                    return lockedAccessGate.response;
+                }
                 queryExecute(
                     "UPDATE floatplans
                      SET dailyStartLocalTime = :dailyStartLocalTime,
@@ -7603,6 +7723,20 @@
                     return createObject("component", "fpw.api.v1.PremiumSendCreditService").init("fpw");
                 } catch (any e2) {
                     return createObject("component", "api.v1.PremiumSendCreditService").init("fpw");
+                }
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getPremiumTripAccessService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", resolveApiV1ComponentPath("PremiumTripAccessService")).init("fpw");
+            } catch (any e1) {
+                try {
+                    return createObject("component", "fpw.api.v1.PremiumTripAccessService").init("fpw");
+                } catch (any e2) {
+                    return createObject("component", "api.v1.PremiumTripAccessService").init("fpw");
                 }
             }
         </cfscript>
@@ -8234,6 +8368,7 @@
             var selectedCredit = {};
             var creditConsumption = {};
             var receiptResult = {};
+            var receiptFinalResult = {};
             var creditId = 0;
             var sendAccessSource = "none";
             var qUserLock = queryNew("");
@@ -8273,11 +8408,21 @@
                 result.idempotentReplay = true;
                 result.RECEIPT_ID = completedReceipt.receiptId;
                 result.receiptId = completedReceipt.receiptId;
+                result.ACCESS_STARTED_AT_UTC = completedReceipt.accessStartedAtUtc;
+                result.accessStartedAtUtc = completedReceipt.accessStartedAtUtc;
+                result.ACCESS_EXPIRES_AT_UTC = completedReceipt.accessExpiresAtUtc;
+                result.accessExpiresAtUtc = completedReceipt.accessExpiresAtUtc;
                 return result;
             }
             if (!completedReceipt.SUCCESS) {
                 return completedReceipt;
             }
+
+            getPremiumTripAccessService().processDueExpirationsForUser(
+                arguments.userId,
+                10,
+                "request_gate"
+            );
 
             queryExecute(
                 "SELECT floatPlanId
@@ -8514,6 +8659,44 @@
                 }
             }
 
+            result.SUCCESS = true;
+            result.success = true;
+            result.SENT_COUNT = sentCount;
+            result.sentCount = sentCount;
+            result.SKIPPED_COUNT = skippedCount;
+            result.skippedCount = skippedCount;
+            result.FLOATPLANID = arguments.floatPlanId;
+            result.floatPlanId = arguments.floatPlanId;
+            result.ACCESS_SOURCE = sendAccessSource;
+            result.accessSource = sendAccessSource;
+            result.CREDIT_CONSUMED = sendAccessSource EQ "premium_send_credit";
+            result.creditConsumed = result.CREDIT_CONSUMED;
+            result.MESSAGE = "Float plan sent to " & sentCount & " contact" & (sentCount EQ 1 ? "" : "s") & ".";
+            result.message = result.MESSAGE;
+
+            receiptResult = premiumSendCreditService.recordCompletedReceipt(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId,
+                creditId = creditId,
+                accessSource = sendAccessSource,
+                recipientCount = sentCount,
+                response = result
+            );
+            if (!receiptResult.SUCCESS) {
+                result = receiptResult;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
+            }
+            result.RECEIPT_ID = receiptResult.receiptId;
+            result.receiptId = receiptResult.receiptId;
+            result.ACCESS_STARTED_AT_UTC = receiptResult.accessStartedAtUtc;
+            result.accessStartedAtUtc = receiptResult.accessStartedAtUtc;
+            result.ACCESS_EXPIRES_AT_UTC = receiptResult.accessExpiresAtUtc;
+            result.accessExpiresAtUtc = receiptResult.accessExpiresAtUtc;
+
             monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
             try {
                 monitoringResult = monitoringService.startScheduledRouteMonitoringForFloatPlan(arguments.floatPlanId);
@@ -8544,40 +8727,20 @@
                 );
             }
 
-            result.SUCCESS = true;
-            result.success = true;
-            result.SENT_COUNT = sentCount;
-            result.sentCount = sentCount;
-            result.SKIPPED_COUNT = skippedCount;
-            result.skippedCount = skippedCount;
-            result.FLOATPLANID = arguments.floatPlanId;
-            result.floatPlanId = arguments.floatPlanId;
-            result.ACCESS_SOURCE = sendAccessSource;
-            result.accessSource = sendAccessSource;
-            result.CREDIT_CONSUMED = sendAccessSource EQ "premium_send_credit";
-            result.creditConsumed = result.CREDIT_CONSUMED;
             result.MONITORING_RESULT = monitoringResult;
-            result.MESSAGE = "Float plan sent to " & sentCount & " contact" & (sentCount EQ 1 ? "" : "s") & ".";
-            result.message = result.MESSAGE;
-
-            receiptResult = premiumSendCreditService.recordCompletedReceipt(
+            receiptFinalResult = premiumSendCreditService.updateCompletedReceiptResponseInCurrentTransaction(
                 userId = arguments.userId,
                 floatPlanId = arguments.floatPlanId,
-                creditId = creditId,
-                accessSource = sendAccessSource,
-                recipientCount = sentCount,
                 response = result
             );
-            if (!receiptResult.SUCCESS) {
-                result = receiptResult;
+            if (!receiptFinalResult.SUCCESS) {
+                result = receiptFinalResult;
                 throw(
                     type = "FPW.PremiumSendAbort",
                     message = result.MESSAGE,
                     detail = serializeJSON(result)
                 );
             }
-            result.RECEIPT_ID = receiptResult.receiptId;
-            result.receiptId = receiptResult.receiptId;
         </cfscript>
 
         <cfloop list="#emailList#" index="emailAddr">
@@ -8699,7 +8862,7 @@
                 return result;
             }
 
-            if (listFindNoCase("DRAFT,CLOSED", result.STATUS) GT 0) {
+            if (listFindNoCase("DRAFT,CLOSED,CANCELLED,CANCELED,EXPIRED", result.STATUS) GT 0) {
                 result.MESSAGE = "Float plan is not in an operational monitoring state.";
                 return result;
             }
@@ -9078,6 +9241,7 @@
             var monitoringService = {};
             var monitoringResult = {};
             var operationalStartAtUtc = "";
+            var startPlanUpdateResult = {};
 
             qStartClock = queryExecute(
                 "SELECT UTC_TIMESTAMP() AS operational_start_at_utc",
@@ -9104,14 +9268,20 @@
                      activatedAt = COALESCE(activatedAt, :operationalStartAtUtc)
                  WHERE floatplanId = :planId
                    AND userId = :userId
-                   AND UPPER(TRIM(`status`)) NOT IN ('DRAFT','CLOSED')",
+                   AND UPPER(TRIM(`status`)) = 'ACTIVE'",
                 {
                     planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                     userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
                     operationalStartAtUtc = { value = operationalStartAtUtc, cfsqltype = "cf_sql_timestamp" }
                 },
-                { datasource = "fpw" }
+                { datasource = "fpw", result = "local.startPlanUpdateResult" }
             );
+
+            if (!structKeyExists(startPlanUpdateResult, "recordCount") OR val(startPlanUpdateResult.recordCount) NEQ 1) {
+                result.ERROR = "TRIP_NOT_ACTIVE";
+                result.MESSAGE = "This float plan is not active.";
+                return result;
+            }
 
             if (arguments.routeInstanceId GT 0) {
                 qActivationLeg = queryExecute(

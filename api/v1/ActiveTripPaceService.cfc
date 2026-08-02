@@ -21,9 +21,13 @@
             };
             var paceVal = uCase(trim(toString(arguments.pace)));
             var qPlan = queryNew("");
+            var qRouteLock = queryNew("");
             var routeInputs = {};
             var merged = {};
             var updatedJson = "";
+            var accessGateService = {};
+            var tripAccessGate = {};
+            var lockedTripAccessGate = {};
 
             if (arguments.userId LTE 0) {
                 result.ERROR = "NOT_LOGGED_IN";
@@ -38,6 +42,18 @@
             if (!isValidPace(paceVal)) {
                 result.ERROR = "INVALID_PACE";
                 result.MESSAGE = "Pace must be RELAXED, BALANCED, or AGGRESSIVE.";
+                return result;
+            }
+
+            accessGateService = getMemberAccessGateService();
+            tripAccessGate = accessGateService.requireTripOperationalAccess(
+                arguments.userId,
+                arguments.floatPlanId
+            );
+            if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+                result.ERROR = tripAccessGate.response.ERROR.CODE;
+                result.MESSAGE = tripAccessGate.response.MESSAGE;
+                result.tripAccess = tripAccessGate.tripAccess;
                 return result;
             }
 
@@ -65,32 +81,82 @@
                 result.MESSAGE = "A route-backed active float plan is required.";
                 return result;
             }
-            if (isDate(qPlan.closedAt[1]) OR compareNoCase(safeString(qPlan.status[1]), "CLOSED") EQ 0) {
+            if (isDate(qPlan.closedAt[1])) {
                 result.ERROR = "FLOATPLAN_CLOSED";
                 result.MESSAGE = "Float plan is closed.";
                 return result;
             }
+            if (compareNoCase(safeString(qPlan.status[1]), "ACTIVE") NEQ 0) {
+                tripAccessGate = accessGateService.requireTripOperationalAccess(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                result.ERROR = tripAccessGate.allowed ? "TRIP_NOT_ACTIVE" : tripAccessGate.response.ERROR.CODE;
+                result.MESSAGE = tripAccessGate.allowed ? "This float plan is not active." : tripAccessGate.response.MESSAGE;
+                if (structKeyExists(tripAccessGate, "tripAccess")) {
+                    result.tripAccess = tripAccessGate.tripAccess;
+                }
+                return result;
+            }
 
-            routeInputs = parseJsonStruct(qPlan.routegen_inputs_json[1]);
-            merged = mergeActiveTripOverride(routeInputs, arguments.floatPlanId, paceVal);
-            updatedJson = serializeJSON(merged.inputs);
-
-            queryExecute("
-                UPDATE route_instances
-                SET routegen_inputs_json = :routeInputsJson
-                WHERE id = :routeInstanceId
-                  AND user_id = :userIdText
-            ", {
-                routeInputsJson = { value = updatedJson, cfsqltype = "cf_sql_longvarchar" },
-                routeInstanceId = { value = safeNumber(qPlan.route_instance_id[1]), cfsqltype = "cf_sql_integer" },
-                userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
-            }, { datasource = variables.datasource });
+            transaction {
+                lockedTripAccessGate = accessGateService.requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+                    qRouteLock = queryExecute("
+                        SELECT ri.id, ri.routegen_inputs_json
+                        FROM floatplans fp
+                        INNER JOIN route_instances ri
+                            ON ri.id = fp.route_instance_id
+                        WHERE fp.floatPlanId = :floatPlanId
+                          AND fp.userId = :userIdText
+                          AND UPPER(TRIM(fp.status)) = 'ACTIVE'
+                          AND fp.closedAt IS NULL
+                          AND fp.route_instance_id = :routeInstanceId
+                          AND ri.user_id = :userIdText
+                        LIMIT 1
+                        FOR UPDATE
+                    ", {
+                        floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                        routeInstanceId = { value = safeNumber(qPlan.route_instance_id[1]), cfsqltype = "cf_sql_integer" },
+                        userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                    }, { datasource = variables.datasource });
+                    if (qRouteLock.recordCount EQ 1) {
+                        routeInputs = parseJsonStruct(qRouteLock.routegen_inputs_json[1]);
+                        merged = mergeActiveTripOverride(routeInputs, arguments.floatPlanId, paceVal);
+                        updatedJson = serializeJSON(merged.inputs);
+                        queryExecute("
+                            UPDATE route_instances
+                            SET routegen_inputs_json = :routeInputsJson
+                            WHERE id = :routeInstanceId
+                              AND user_id = :userIdText
+                        ", {
+                            routeInputsJson = { value = updatedJson, cfsqltype = "cf_sql_longvarchar" },
+                            routeInstanceId = { value = safeNumber(qRouteLock.id[1]), cfsqltype = "cf_sql_integer" },
+                            userIdText = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                        }, { datasource = variables.datasource });
+                    }
+                }
+            }
+            if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
+                result.ERROR = lockedTripAccessGate.response.ERROR.CODE;
+                result.MESSAGE = lockedTripAccessGate.response.MESSAGE;
+                result.tripAccess = lockedTripAccessGate.tripAccess;
+                return result;
+            }
+            if (qRouteLock.recordCount NEQ 1) {
+                result.ERROR = "ACTIVE_ROUTE_FLOATPLAN_CHANGED";
+                result.MESSAGE = "The active route changed before its pace could be updated. Please retry.";
+                return result;
+            }
 
             result.SUCCESS = true;
             result.success = true;
             result.MESSAGE = "Active-trip pace updated.";
             result.FLOATPLANID = arguments.floatPlanId;
-            result.ROUTE_INSTANCE_ID = safeNumber(qPlan.route_instance_id[1]);
+            result.ROUTE_INSTANCE_ID = safeNumber(qRouteLock.id[1]);
             result.PACE = paceVal;
             result.pace = paceVal;
             result.PACE_META = merged.paceMeta;
@@ -254,6 +320,16 @@
             if (paceVal EQ "BALANCED") return "Efficient Speed";
             if (paceVal EQ "AGGRESSIVE") return "Max Speed";
             return "Relaxed";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init(variables.datasource);
+            } catch (any primaryPathError) {
+                return createObject("component", "api.v1.MemberAccessGateService").init(variables.datasource);
+            }
         </cfscript>
     </cffunction>
 

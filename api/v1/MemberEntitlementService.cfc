@@ -47,6 +47,8 @@
         "canUseFollowPage" = false,
         "activeTripOperationalFloatPlanId" = nullValue(),
         "activeTripOperationalAccessSource" = "none",
+        "activeTripOperationalAccessStartedAtUtc" = nullValue(),
+        "activeTripOperationalAccessExpiresAtUtc" = nullValue(),
         "activeTripOperationalAmbiguous" = false,
         "basicSendLimits" = getBasicSendLimits(),
         "limits" = getBasicLimits()
@@ -83,7 +85,13 @@
         access.canUseTripPage = true;
         access.canUseFollowPage = true;
         access.activeTripOperationalFloatPlanId = activeTripSummary.floatPlanId;
-        access.activeTripOperationalAccessSource = "premium_send_credit";
+        access.activeTripOperationalAccessSource = activeTripSummary.accessSource;
+        if (structKeyExists(activeTripSummary, "accessStartedAtUtc")) {
+          access.activeTripOperationalAccessStartedAtUtc = activeTripSummary.accessStartedAtUtc;
+        }
+        if (structKeyExists(activeTripSummary, "accessExpiresAtUtc")) {
+          access.activeTripOperationalAccessExpiresAtUtc = activeTripSummary.accessExpiresAtUtc;
+        }
       }
       access.premiumSources = loadCurrentPremiumSources(arguments.userId);
       access.hasStripeBilling = hasStripeBilling(arguments.userId);

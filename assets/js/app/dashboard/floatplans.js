@@ -62,6 +62,9 @@
     } else if (["CANCELLED", "CANCELED"].indexOf(normalized) !== -1) {
       badgeClass = "badge bg-dark";
       label = "Cancelled";
+    } else if (normalized === "EXPIRED") {
+      badgeClass = "badge bg-danger";
+      label = "Expired";
     }
 
     return '<span class="' + badgeClass + '">' + utils.escapeHtml(label) + "</span>";
@@ -81,6 +84,9 @@
     }
     if (["CANCELLED", "CANCELED"].indexOf(normalized) !== -1) {
       return "Cancelled";
+    }
+    if (normalized === "EXPIRED") {
+      return "Expired";
     }
     return status;
   }
@@ -174,6 +180,7 @@
       if (isNaN(waypointCount)) waypointCount = 0;
       var statusText = getStatusLabel(status);
       var normalizedStatus = String(status || "").trim().toUpperCase();
+      var expiredStatusBadge = (normalizedStatus === "EXPIRED") ? renderStatusBadge(status) : "";
       var checkInButton = (normalizedStatus === "ACTIVE")
         ? '<button class="btn-success" type="button" data-action="checkin" data-plan-id="' + utils.escapeHtml(id) + '">Check-In</button>'
         : "";
@@ -199,7 +206,7 @@
       return (
         '<div class="list-item" data-plan-id="' + utils.escapeHtml(id) + '">' +
           '<div class="list-main">' +
-            '<div class="list-title">' + utils.escapeHtml(name || "Untitled Plan") + ":</div>" +
+            '<div class="list-title">' + utils.escapeHtml(name || "Untitled Plan") + ": " + expiredStatusBadge + "</div>" +
             metaInline +
           "</div>" +
           '<div class="list-actions">' +

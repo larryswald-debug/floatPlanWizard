@@ -40,9 +40,16 @@
         arguments.userId,
         arguments.floatPlanId
       );
+      if (structKeyExists(memberGateResult, "tripAccess") AND isStruct(memberGateResult.tripAccess)) {
+        model.tripAccess = duplicate(memberGateResult.tripAccess);
+      }
       if (!memberGateResult.allowed) {
         model.message = memberGateResult.response.MESSAGE;
         model.errorCode = memberGateResult.response.ERROR.CODE;
+        if (model.errorCode EQ "TRIP_ACCESS_EXPIRED") {
+          model.tripState = "expired_access";
+          model.floatPlan = { "id" = arguments.floatPlanId };
+        }
         addWarning(model, memberGateResult.response.ERROR.CODE, memberGateResult.response.MESSAGE, "member_entitlements");
         finalizeAuthorityWarnings(model);
         return model;
@@ -322,10 +329,12 @@
       return {
         "success" = false,
         "message" = "",
+        "errorCode" = "",
         "generatedAtUtc" = "",
         "tripState" = "unknown_error",
         "motionState" = "unknown",
         "safetyState" = "normal",
+        "tripAccess" = {},
         "displayAuthority" = {
           "primary" = "unavailable",
           "routeTimeline" = "unavailable",

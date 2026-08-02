@@ -6,6 +6,7 @@
       variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
       variables.entitlementService = "";
       variables.premiumSendCreditService = "";
+      variables.premiumTripAccessService = "";
       return this;
     </cfscript>
   </cffunction>
@@ -90,6 +91,7 @@
     <cfscript>
       var access = getCurrentAccess(arguments.userId);
       var tripAccess = {};
+      var gateResult = {};
 
       if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
         return denied(
@@ -112,24 +114,64 @@
         );
       }
 
-      tripAccess = getPremiumSendCreditService().getTripOperationalAccess(
+      tripAccess = getPremiumTripAccessService().getTripOperationalAccess(
+        arguments.userId,
+        arguments.floatPlanId,
+        true
+      );
+      access.tripOperationalAccess = tripAccess;
+      access.tripOperationalFloatPlanId = val(arguments.floatPlanId);
+      if (tripAccess.allowed) {
+        access.tripOperationalAccessSource = tripAccess.accessSource;
+        gateResult = allowed(access);
+        gateResult.tripAccess = tripAccess;
+        return gateResult;
+      }
+
+      gateResult = denied(
+        errorCode = tripAccess.reasonCode,
+        message = tripAccess.userMessage,
+        auth = true,
+        statusCode = 403,
+        includeUpgradeOptions = listFindNoCase("TRIP_ACCESS_EXPIRED,MEMBERSHIP_REQUIRED", tripAccess.reasonCode) GT 0,
+        access = access
+      );
+      gateResult.tripAccess = tripAccess;
+      gateResult.response.tripAccess = tripAccess;
+      return gateResult;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="requireTripOperationalAccessForUpdate" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var access = getCurrentAccess(arguments.userId);
+      var tripAccess = getPremiumTripAccessService().getTripOperationalAccessForUpdate(
         arguments.userId,
         arguments.floatPlanId
       );
+      var gateResult = {};
+
+      access.tripOperationalAccess = tripAccess;
+      access.tripOperationalFloatPlanId = val(arguments.floatPlanId);
       if (tripAccess.allowed) {
         access.tripOperationalAccessSource = tripAccess.accessSource;
-        access.tripOperationalFloatPlanId = val(arguments.floatPlanId);
-        return allowed(access);
+        gateResult = allowed(access);
+        gateResult.tripAccess = tripAccess;
+        return gateResult;
       }
-
-      return denied(
-        errorCode = "TRIP_OPERATION_ACCESS_REQUIRED",
-        message = "This float plan requires a Premium Trip credit or active monthly or annual membership.",
+      gateResult = denied(
+        errorCode = tripAccess.reasonCode,
+        message = tripAccess.userMessage,
         auth = true,
         statusCode = 403,
-        includeUpgradeOptions = true,
+        includeUpgradeOptions = listFindNoCase("TRIP_ACCESS_EXPIRED,MEMBERSHIP_REQUIRED", tripAccess.reasonCode) GT 0,
         access = access
       );
+      gateResult.tripAccess = tripAccess;
+      gateResult.response.tripAccess = tripAccess;
+      return gateResult;
     </cfscript>
   </cffunction>
 
@@ -370,6 +412,20 @@
         variables.entitlementService = createObject("component", "api.v1.MemberEntitlementService").init(variables.datasource);
       }
       return variables.entitlementService;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getPremiumTripAccessService" access="private" returntype="any" output="false">
+    <cfscript>
+      if (isObject(variables.premiumTripAccessService)) {
+        return variables.premiumTripAccessService;
+      }
+      try {
+        variables.premiumTripAccessService = createObject("component", "fpw.api.v1.PremiumTripAccessService").init(variables.datasource);
+      } catch (any primaryErr) {
+        variables.premiumTripAccessService = createObject("component", "api.v1.PremiumTripAccessService").init(variables.datasource);
+      }
+      return variables.premiumTripAccessService;
     </cfscript>
   </cffunction>
 

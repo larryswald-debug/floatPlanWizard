@@ -87,6 +87,18 @@
     return result;
   }
 
+  function fpwV2LoadActiveCruiseModel(required numeric userId, required numeric floatPlanId, required string datasource) {
+    try {
+      return createObject("component", "fpw.api.v1.ActiveCruiseViewModelService")
+        .init(arguments.datasource)
+        .getActiveCruiseViewModel(arguments.userId, arguments.floatPlanId);
+    } catch (any viewModelPathErr) {
+      return createObject("component", "api.v1.ActiveCruiseViewModelService")
+        .init(arguments.datasource)
+        .getActiveCruiseViewModel(arguments.userId, arguments.floatPlanId);
+    }
+  }
+
   function fpwV2Get(required struct source, required string key, any defaultValue="") {
     if (structKeyExists(arguments.source, arguments.key) AND !isNull(arguments.source[arguments.key])) {
       return arguments.source[arguments.key];
@@ -293,7 +305,7 @@
 
   function fpwV2StateClass(any value="") {
     var stateValue = lCase(trim(toString(arguments.value)));
-    if (listFindNoCase("late,missed,escalated,assistance_needed,unknown_error", stateValue)) {
+    if (listFindNoCase("late,missed,escalated,assistance_needed,unknown_error,expired_access", stateValue)) {
       return "is-alert";
     }
     if (listFindNoCase("paused_overnight,paused_delayed", stateValue)) {
@@ -334,6 +346,8 @@
   activeCruiseV2FloatPlanId = 0;
   activeCruiseV2RouteInstanceId = 0;
   activeCruiseV2AccessValid = false;
+  activeCruiseV2ExpiredAccess = false;
+  activeCruiseV2RequestedModelLoaded = false;
   activeCruiseV2AccessMessage = "Active Cruise V2 is available only for your current active route-backed float plan.";
   activeCruiseV2AccessDetail = "";
   activeCruiseV2CurrentGroup = {};
@@ -349,38 +363,76 @@
     activeCruiseV2AccessMessage = "Sign in to view Active Cruise V2.";
     activeCruiseV2AccessDetail = "The V2 shell uses the authenticated session user as its access authority.";
   } else {
-    activeCruiseV2CurrentGroup = fpwV2ResolveCurrentActiveCruiseGroup(activeCruiseV2UserId);
-    if (
-      isStruct(activeCruiseV2CurrentGroup)
-      AND structKeyExists(activeCruiseV2CurrentGroup, "ERROR")
-      AND trim(toString(activeCruiseV2CurrentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS"
-    ) {
-      activeCruiseV2AccessMessage = "Active Cruise V2 is unavailable because more than one active route/float-plan group exists.";
-      activeCruiseV2AccessDetail = "Resolve the extra active group before using this page.";
-    } else if (!structKeyExists(activeCruiseV2CurrentGroup, "SUCCESS") OR !activeCruiseV2CurrentGroup.SUCCESS OR !activeCruiseV2CurrentGroup.IS_ACTIVE) {
-      activeCruiseV2AccessMessage = "No active trip is available for this account.";
-      activeCruiseV2AccessDetail = "Active Cruise V2 only loads the current active route-backed float plan.";
-    } else {
-      activeCruiseV2FloatPlanId = val(structKeyExists(activeCruiseV2CurrentGroup, "FLOATPLANID") ? activeCruiseV2CurrentGroup.FLOATPLANID : 0);
-      activeCruiseV2RouteInstanceId = val(structKeyExists(activeCruiseV2CurrentGroup, "ROUTE_INSTANCE_ID") ? activeCruiseV2CurrentGroup.ROUTE_INSTANCE_ID : 0);
+    if (activeCruiseV2RequestedFloatPlanId GT 0) {
+      activeCruiseV2Model = fpwV2LoadActiveCruiseModel(
+        activeCruiseV2UserId,
+        activeCruiseV2RequestedFloatPlanId,
+        activeCruiseV2Datasource
+      );
+      activeCruiseV2RequestedModelLoaded = true;
+      activeCruiseV2ExpiredAccess = (
+        isStruct(activeCruiseV2Model)
+        AND fpwV2Text(fpwV2Get(activeCruiseV2Model, "errorCode"), "") EQ "TRIP_ACCESS_EXPIRED"
+      );
+      if (activeCruiseV2ExpiredAccess) {
+        activeCruiseV2FloatPlanId = activeCruiseV2RequestedFloatPlanId;
+        activeCruiseV2AccessMessage = fpwV2Text(
+          fpwV2Get(activeCruiseV2Model, "message"),
+          "This Premium Trip has reached its 21-day access limit."
+        );
+        activeCruiseV2AccessDetail = "Active Cruise controls are unavailable because this trip's Premium operational access has ended.";
+      }
+    }
 
-      if (activeCruiseV2RequestedFloatPlanId GT 0 AND activeCruiseV2RequestedFloatPlanId NEQ activeCruiseV2FloatPlanId) {
-        activeCruiseV2AccessMessage = "This Active Cruise V2 link does not match your current active trip.";
-        activeCruiseV2AccessDetail = "Open Active Cruise V2 from the canonical active float plan only.";
-      } else if (activeCruiseV2RouteInstanceId LTE 0) {
-        activeCruiseV2AccessMessage = "The current active float plan is missing its route link.";
-        activeCruiseV2AccessDetail = "Active Cruise V2 requires a route-linked active float plan.";
+    if (!activeCruiseV2ExpiredAccess) {
+      activeCruiseV2CurrentGroup = fpwV2ResolveCurrentActiveCruiseGroup(activeCruiseV2UserId);
+      if (
+        isStruct(activeCruiseV2CurrentGroup)
+        AND structKeyExists(activeCruiseV2CurrentGroup, "ERROR")
+        AND trim(toString(activeCruiseV2CurrentGroup.ERROR)) EQ "MULTIPLE_ACTIVE_GROUPS"
+      ) {
+        activeCruiseV2AccessMessage = "Active Cruise V2 is unavailable because more than one active route/float-plan group exists.";
+        activeCruiseV2AccessDetail = "Resolve the extra active group before using this page.";
+      } else if (!structKeyExists(activeCruiseV2CurrentGroup, "SUCCESS") OR !activeCruiseV2CurrentGroup.SUCCESS OR !activeCruiseV2CurrentGroup.IS_ACTIVE) {
+        activeCruiseV2AccessMessage = "No active trip is available for this account.";
+        activeCruiseV2AccessDetail = "Active Cruise V2 only loads the current active route-backed float plan.";
       } else {
-        try {
-          activeCruiseV2Model = createObject("component", "fpw.api.v1.ActiveCruiseViewModelService")
-            .init(activeCruiseV2Datasource)
-            .getActiveCruiseViewModel(activeCruiseV2UserId, activeCruiseV2FloatPlanId);
-        } catch (any viewModelPathErr) {
-          activeCruiseV2Model = createObject("component", "api.v1.ActiveCruiseViewModelService")
-            .init(activeCruiseV2Datasource)
-            .getActiveCruiseViewModel(activeCruiseV2UserId, activeCruiseV2FloatPlanId);
+        activeCruiseV2FloatPlanId = val(structKeyExists(activeCruiseV2CurrentGroup, "FLOATPLANID") ? activeCruiseV2CurrentGroup.FLOATPLANID : 0);
+        activeCruiseV2RouteInstanceId = val(structKeyExists(activeCruiseV2CurrentGroup, "ROUTE_INSTANCE_ID") ? activeCruiseV2CurrentGroup.ROUTE_INSTANCE_ID : 0);
+
+        if (activeCruiseV2RequestedFloatPlanId GT 0 AND activeCruiseV2RequestedFloatPlanId NEQ activeCruiseV2FloatPlanId) {
+          activeCruiseV2AccessMessage = "This Active Cruise V2 link does not match your current active trip.";
+          activeCruiseV2AccessDetail = "Open Active Cruise V2 from the canonical active float plan only.";
+        } else if (activeCruiseV2RouteInstanceId LTE 0) {
+          activeCruiseV2AccessMessage = "The current active float plan is missing its route link.";
+          activeCruiseV2AccessDetail = "Active Cruise V2 requires a route-linked active float plan.";
+        } else {
+          if (!activeCruiseV2RequestedModelLoaded) {
+            activeCruiseV2Model = fpwV2LoadActiveCruiseModel(
+              activeCruiseV2UserId,
+              activeCruiseV2FloatPlanId,
+              activeCruiseV2Datasource
+            );
+          }
+          activeCruiseV2AccessValid = (
+            isStruct(activeCruiseV2Model)
+            AND structKeyExists(activeCruiseV2Model, "success")
+            AND activeCruiseV2Model.success EQ true
+          );
+          if (!activeCruiseV2AccessValid) {
+            activeCruiseV2ExpiredAccess = (
+              isStruct(activeCruiseV2Model)
+              AND fpwV2Text(fpwV2Get(activeCruiseV2Model, "errorCode"), "") EQ "TRIP_ACCESS_EXPIRED"
+            );
+            activeCruiseV2AccessMessage = fpwV2Text(
+              fpwV2Get(activeCruiseV2Model, "message"),
+              "Active Cruise V2 could not be loaded for this trip."
+            );
+            activeCruiseV2AccessDetail = activeCruiseV2ExpiredAccess
+              ? "Active Cruise controls are unavailable because this trip's Premium operational access has ended."
+              : "Active Cruise controls remain unavailable until the active trip model can be loaded.";
+          }
         }
-        activeCruiseV2AccessValid = true;
       }
     }
   }
@@ -389,10 +441,12 @@
     activeCruiseV2Model = {
       success = false,
       message = activeCruiseV2AccessMessage,
+      errorCode = "",
       generatedAtUtc = "",
       tripState = "unknown_error",
       motionState = "unknown",
       safetyState = "normal",
+      tripAccess = {},
       displayAuthority = {
         primary = "unavailable",
         routeTimeline = "unavailable",
@@ -3467,7 +3521,7 @@
               <h2>#encodeForHTML(activeCruiseV2AccessMessage)#</h2>
               <p>#encodeForHTML(activeCruiseV2AccessDetail)#</p>
             </div>
-            <div class="badge badge-warn">Active Cruise Unavailable</div>
+            <div class="badge badge-warn">#activeCruiseV2ExpiredAccess ? "Trip Access Expired" : "Active Cruise Unavailable"#</div>
           </div>
           <div class="floatplan-box">
             <p style="margin:0; color:var(--muted); line-height:1.6;">The V2 page uses the authenticated session user as its access authority.</p>

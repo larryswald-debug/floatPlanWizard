@@ -12,6 +12,7 @@
 <cfset isJsonReporter = lCase(trim(toString(url.reporter))) EQ "json">
 <cfset testboxSystemPath = expandPath("/testbox/system")>
 <cfset fixtureEmailPattern = "codex-premium-send-contract-%">
+<cfset lifecycleFixtureEmailPattern = "codex-premium-trip-lifecycle-%">
 
 <cfif trim(toString(url.confirm)) NEQ expectedConfirmation>
   <cfheader statuscode="404">
@@ -31,6 +32,40 @@
     SUCCESS = false,
     ERROR = "LOCAL_TEST_RUNNER_ONLY",
     message = "This test runner accepts only localhost requests on the local development port."
+  })#</cfoutput>
+  <cfabort>
+</cfif>
+
+<cfquery name="qLifecycleColumns" datasource="fpw">
+  SELECT COUNT(*) AS column_count
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND (
+      (
+        TABLE_NAME = 'premium_send_receipts'
+        AND COLUMN_NAME IN (
+          'member_entitlement_id',
+          'membership_interval_snapshot',
+          'access_started_at_utc',
+          'access_expires_at_utc',
+          'access_ended_at_utc',
+          'access_end_reason'
+        )
+      )
+      OR (
+        TABLE_NAME = 'floatplans'
+        AND COLUMN_NAME IN ('expiredAt', 'end_reason')
+      )
+    )
+</cfquery>
+
+<cfif qLifecycleColumns.recordCount NEQ 1 OR val(qLifecycleColumns.column_count[1]) NEQ 8>
+  <cfheader statuscode="409">
+  <cfcontent type="application/json; charset=utf-8" reset="true">
+  <cfoutput>#serializeJSON({
+    SUCCESS = false,
+    ERROR = "SINGLE_TRIP_LIFECYCLE_MIGRATION_REQUIRED",
+    message = "Apply and verify the approved single-trip lifecycle migration before running these contract tests."
   })#</cfoutput>
   <cfabort>
 </cfif>
@@ -88,7 +123,7 @@
 
 <cftry>
   <cfset testboxRunner = createObject("component", "testbox.system.TestBox").init(
-    bundles = "fpw.tests.specs.PremiumSendCreditContractSpec"
+    bundles = "fpw.tests.specs.PremiumSendCreditContractSpec,fpw.tests.specs.PremiumTripAccessLifecycleSpec"
   )>
   <cfset rawResults = testboxRunner.runRaw()>
   <cfset resultMemento = rawResults.getMemento()>
@@ -121,6 +156,59 @@
 
   <cffinally>
     <cftry>
+      <cfquery datasource="fpw">
+        DELETE FROM floatplan_monitor_events
+        WHERE user_id IN (
+          SELECT userId FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM floatplan_monitoring
+        WHERE user_id IN (
+          SELECT userId FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM premium_send_receipts
+        WHERE user_id IN (
+          SELECT userId FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM premium_send_credits
+        WHERE user_id IN (
+          SELECT userId FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM member_entitlements
+        WHERE user_id IN (
+          SELECT userId FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM floatplans
+        WHERE userId IN (
+          SELECT CAST(userId AS CHAR) FROM users
+          WHERE email LIKE
+            <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+        )
+      </cfquery>
+      <cfquery datasource="fpw">
+        DELETE FROM users
+        WHERE email LIKE
+          <cfqueryparam value="#lifecycleFixtureEmailPattern#" cfsqltype="cf_sql_varchar">
+      </cfquery>
       <cfquery datasource="fpw">
         DELETE FROM premium_send_receipts
         WHERE user_id IN (

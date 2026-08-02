@@ -61,12 +61,16 @@
         OR !structKeyExists(activeCruiseModel, "success")
         OR activeCruiseModel.success NEQ true
       ) {
-        result.ERROR = "ACTIVE_CRUISE_MODEL_UNAVAILABLE";
+        result.ERROR = firstNonEmpty([
+          readString(activeCruiseModel, "errorCode"),
+          "ACTIVE_CRUISE_MODEL_UNAVAILABLE"
+        ]);
         result.MESSAGE = firstNonEmpty([
           readString(activeCruiseModel, "message"),
           "The active trip model is unavailable."
         ]);
-        result.HAS_ACTIVE_PLAN = true;
+        result.HAS_ACTIVE_PLAN = (result.ERROR NEQ "TRIP_ACCESS_EXPIRED");
+        result.tripAccess = duplicate(readStruct(activeCruiseModel, "tripAccess"));
         result.activeFloatPlan = buildActiveFloatPlan(activeCruiseModel);
         result.warnings = readArray(activeCruiseModel, "warnings");
         return result;
@@ -80,6 +84,7 @@
       result.tripState = readString(activeCruiseModel, "tripState");
       result.motionState = readString(activeCruiseModel, "motionState");
       result.safetyState = readString(activeCruiseModel, "safetyState");
+      result.tripAccess = duplicate(readStruct(activeCruiseModel, "tripAccess"));
       result.activeFloatPlan = buildActiveFloatPlan(activeCruiseModel);
       result.route = buildRoute(activeCruiseModel);
       result.currentLeg = buildCurrentLeg(activeCruiseModel);
@@ -117,6 +122,7 @@
         "tripState" = "",
         "motionState" = "",
         "safetyState" = "",
+        "tripAccess" = {},
         "activeFloatPlan" = {},
         "route" = {},
         "currentLeg" = {},

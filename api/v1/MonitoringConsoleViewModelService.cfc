@@ -21,6 +21,7 @@
       var gpsHistory = [];
       var routeMap = {};
       var tripAccessGate = {};
+      var tripAccessErrorCode = "";
       var timezone = "UTC";
 
       dto.generatedAtUtc = formatUtc(nowUtc);
@@ -34,6 +35,22 @@
       }
 
       try {
+        if (arguments.floatPlanId GT 0) {
+          tripAccessGate = createApiComponent("MemberAccessGateService")
+            .init(variables.datasource)
+            .requireTripOperationalAccess(arguments.userId, arguments.floatPlanId);
+          if (structKeyExists(tripAccessGate, "tripAccess") AND isStruct(tripAccessGate.tripAccess)) {
+            dto.tripAccess = duplicate(tripAccessGate.tripAccess);
+          }
+          if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+            dto.success = false;
+            tripAccessErrorCode = tripAccessGate.response.ERROR.CODE;
+            setEmptyState(dto, tripAccessErrorCode);
+            dto.emptyState.message = tripAccessGate.response.MESSAGE;
+            return dto;
+          }
+        }
+
         context = resolveActiveMonitoringContext(arguments.userId, arguments.floatPlanId);
         if (!context.success) {
           dto.success = false;
@@ -41,13 +58,20 @@
           return dto;
         }
 
-        tripAccessGate = createApiComponent("MemberAccessGateService")
-          .init(variables.datasource)
-          .requireTripOperationalAccess(arguments.userId, context.floatPlanId);
-        if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
-          dto.success = false;
-          setEmptyState(dto, "TRIP_OPERATION_ACCESS_REQUIRED");
-          return dto;
+        if (!structKeyExists(tripAccessGate, "allowed")) {
+          tripAccessGate = createApiComponent("MemberAccessGateService")
+            .init(variables.datasource)
+            .requireTripOperationalAccess(arguments.userId, context.floatPlanId);
+          if (structKeyExists(tripAccessGate, "tripAccess") AND isStruct(tripAccessGate.tripAccess)) {
+            dto.tripAccess = duplicate(tripAccessGate.tripAccess);
+          }
+          if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+            dto.success = false;
+            tripAccessErrorCode = tripAccessGate.response.ERROR.CODE;
+            setEmptyState(dto, tripAccessErrorCode);
+            dto.emptyState.message = tripAccessGate.response.MESSAGE;
+            return dto;
+          }
         }
 
         qPlan = loadPlanContext(arguments.userId, context.floatPlanId);
@@ -143,6 +167,7 @@
         "source" = "MonitoringConsoleViewModelService.getMonitoringConsoleViewModel",
         "generatedAtUtc" = "",
         "generatedAtLocalLabel" = "",
+        "tripAccess" = {},
         "identity" = buildDefaultIdentity(),
         "tripState" = buildDefaultTripState(),
         "monitoring" = buildDefaultMonitoring(),
@@ -1073,6 +1098,10 @@
         case "TRIP_OPERATION_ACCESS_REQUIRED":
           out.title = "Premium trip access required";
           out.message = "This monitored trip requires an applied Premium Trip credit or active monthly or annual membership.";
+          break;
+        case "TRIP_ACCESS_EXPIRED":
+          out.title = "Trip access expired";
+          out.message = "This Premium Trip has reached its 21-day access limit.";
           break;
         case "NO_ACTIVE_ROUTE":
           out.title = "No active route";

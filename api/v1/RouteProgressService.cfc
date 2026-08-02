@@ -20,11 +20,23 @@
                 MESSAGE = "No segment match found."
             };
             var modeVal = lCase(trim(arguments.completionMode));
+            var accessGateService = {};
+            var tripAccessGate = {};
+            var lockedTripAccessGate = {};
 
             if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
                 out.SUCCESS = false;
                 out.MESSAGE = "Invalid userId or floatPlanId.";
                 return out;
+            }
+
+            accessGateService = getMemberAccessGateService(arguments.datasource);
+            tripAccessGate = accessGateService.requireTripOperationalAccess(
+                arguments.userId,
+                arguments.floatPlanId
+            );
+            if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+                return applyTripAccessDenial(out, tripAccessGate);
             }
 
             if (modeVal EQ "active_leg") {
@@ -55,11 +67,11 @@
                 var routeInstanceId = val(qPlanActive.route_instance_id[1]);
                 out.ROUTE_INSTANCE_ID = routeInstanceId;
 
-                if (planStatus EQ "CLOSED") {
-                    out.SUCCESS = false;
-                    out.ERROR = "TRIP_CLOSED";
-                    out.MESSAGE = "Trip is already closed.";
-                    return out;
+                if (planStatus NEQ "ACTIVE") {
+                    return applyTripAccessDenial(
+                        out,
+                        accessGateService.requireTripOperationalAccess(arguments.userId, arguments.floatPlanId)
+                    );
                 }
 
                 if (routeInstanceId LTE 0) {
@@ -173,17 +185,28 @@
                     return out;
                 }
 
-                queryExecute("
-                    INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
-                    VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
-                    ON DUPLICATE KEY UPDATE
-                        status = 'COMPLETED',
-                        completed_at = NOW()
-                ", {
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
-                    legOrder = { value = activeLegOrder, cfsqltype = "cf_sql_integer" }
-                }, { datasource = arguments.datasource });
+                transaction {
+                    lockedTripAccessGate = accessGateService.requireTripOperationalAccessForUpdate(
+                        arguments.userId,
+                        arguments.floatPlanId
+                    );
+                    if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+                        queryExecute("
+                            INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
+                            VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
+                            ON DUPLICATE KEY UPDATE
+                                status = 'COMPLETED',
+                                completed_at = NOW()
+                        ", {
+                            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                            routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                            legOrder = { value = activeLegOrder, cfsqltype = "cf_sql_integer" }
+                        }, { datasource = arguments.datasource });
+                    }
+                }
+                if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
+                    return applyTripAccessDenial(out, lockedTripAccessGate);
+                }
 
                 out.MATCHED = true;
                 out.COMPLETED = true;
@@ -223,9 +246,11 @@
             var progressStatusByLegClose = {};
             var progressStartedByLegClose = {};
 
-            if (planStatusClose EQ "CLOSED") {
-                out.MESSAGE = "Trip already closed.";
-                return out;
+            if (planStatusClose NEQ "ACTIVE") {
+                return applyTripAccessDenial(
+                    out,
+                    accessGateService.requireTripOperationalAccess(arguments.userId, arguments.floatPlanId)
+                );
             }
 
             if (routeInstanceIdClose LTE 0) {
@@ -306,17 +331,28 @@
                 return out;
             }
 
-            queryExecute("
-                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
-                VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
-                ON DUPLICATE KEY UPDATE
-                    status = 'COMPLETED',
-                    completed_at = NOW()
-            ", {
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                routeInstanceId = { value = routeInstanceIdClose, cfsqltype = "cf_sql_integer" },
-                legOrder = { value = activeLegOrderClose, cfsqltype = "cf_sql_integer" }
-            }, { datasource = arguments.datasource });
+            transaction {
+                lockedTripAccessGate = accessGateService.requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+                    queryExecute("
+                        INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
+                        VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
+                        ON DUPLICATE KEY UPDATE
+                            status = 'COMPLETED',
+                            completed_at = NOW()
+                    ", {
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        routeInstanceId = { value = routeInstanceIdClose, cfsqltype = "cf_sql_integer" },
+                        legOrder = { value = activeLegOrderClose, cfsqltype = "cf_sql_integer" }
+                    }, { datasource = arguments.datasource });
+                }
+            }
+            if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
+                return applyTripAccessDenial(out, lockedTripAccessGate);
+            }
 
             out.MATCHED = true;
             out.MESSAGE = "Final leg marked complete from close trip.";
@@ -352,11 +388,23 @@
             var legOrder = 0;
             var legStatus = "";
             var legStartedAt = "";
+            var accessGateService = {};
+            var tripAccessGate = {};
+            var lockedTripAccessGate = {};
 
             if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
                 out.ERROR = "INVALID_ARGUMENTS";
                 out.MESSAGE = "Invalid userId or floatPlanId.";
                 return out;
+            }
+
+            accessGateService = getMemberAccessGateService(arguments.datasource);
+            tripAccessGate = accessGateService.requireTripOperationalAccess(
+                arguments.userId,
+                arguments.floatPlanId
+            );
+            if (!structKeyExists(tripAccessGate, "allowed") OR !tripAccessGate.allowed) {
+                return applyTripAccessDenial(out, tripAccessGate);
             }
 
             qPlan = queryExecute("
@@ -380,10 +428,11 @@
             routeInstanceId = val(qPlan.route_instance_id[1]);
             out.ROUTE_INSTANCE_ID = routeInstanceId;
 
-            if (planStatus EQ "CLOSED") {
-                out.ERROR = "TRIP_CLOSED";
-                out.MESSAGE = "Trip is already closed.";
-                return out;
+            if (planStatus NEQ "ACTIVE") {
+                return applyTripAccessDenial(
+                    out,
+                    accessGateService.requireTripOperationalAccess(arguments.userId, arguments.floatPlanId)
+                );
             }
 
             if (routeInstanceId LTE 0) {
@@ -484,24 +533,65 @@
                 return out;
             }
 
-            queryExecute("
-                INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at)
-                VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', NOW())
-                ON DUPLICATE KEY UPDATE
-                    status = 'STARTED',
-                    leg_started_at = VALUES(leg_started_at),
-                    completed_at = NULL
-            ", {
-                userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
-                routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
-                legOrder = { value = pendingLegOrder, cfsqltype = "cf_sql_integer" }
-            }, { datasource = arguments.datasource });
+            transaction {
+                lockedTripAccessGate = accessGateService.requireTripOperationalAccessForUpdate(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
+                if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+                    queryExecute("
+                        INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at)
+                        VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', NOW())
+                        ON DUPLICATE KEY UPDATE
+                            status = 'STARTED',
+                            leg_started_at = VALUES(leg_started_at),
+                            completed_at = NULL
+                    ", {
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                        legOrder = { value = pendingLegOrder, cfsqltype = "cf_sql_integer" }
+                    }, { datasource = arguments.datasource });
+                }
+            }
+            if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
+                return applyTripAccessDenial(out, lockedTripAccessGate);
+            }
 
             out.SUCCESS = true;
             out.STARTED = true;
             out.LEG_ORDER = pendingLegOrder;
             out.MESSAGE = "Next pending leg started.";
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            try {
+                return createObject("component", "fpw.api.v1.MemberAccessGateService").init(arguments.datasource);
+            } catch (any primaryPathError) {
+                return createObject("component", "api.v1.MemberAccessGateService").init(arguments.datasource);
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="applyTripAccessDenial" access="private" returntype="struct" output="false">
+        <cfargument name="result" type="struct" required="true">
+        <cfargument name="gateResult" type="struct" required="true">
+        <cfscript>
+            arguments.result.SUCCESS = false;
+            if (structKeyExists(arguments.gateResult, "allowed") AND arguments.gateResult.allowed) {
+                arguments.result.ERROR = "TRIP_NOT_ACTIVE";
+                arguments.result.MESSAGE = "This float plan is not active.";
+                return arguments.result;
+            }
+            arguments.result.ERROR = arguments.gateResult.response.ERROR.CODE;
+            arguments.result.MESSAGE = arguments.gateResult.response.MESSAGE;
+            if (structKeyExists(arguments.gateResult, "tripAccess")) {
+                arguments.result.tripAccess = arguments.gateResult.tripAccess;
+            }
+            return arguments.result;
         </cfscript>
     </cffunction>
 

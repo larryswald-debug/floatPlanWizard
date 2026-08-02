@@ -47,6 +47,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         var availableAccess = {};
         var selected = {};
         var consumed = {};
+        var unboundAccess = {};
+        var unboundGate = {};
+        var receipt = {};
         var consumedAccess = {};
         var exactGate = {};
         var unrelatedGate = {};
@@ -88,6 +91,26 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(consumed.status).toBe("CONSUMED");
           expect(consumed.consumedFloatPlanId).toBe(fixture.planAId);
 
+          unboundAccess = variables.gateService.getCurrentAccess(fixture.userId);
+          unboundGate = variables.gateService.requireTripOperationalAccess(
+            fixture.userId,
+            fixture.planAId
+          );
+          expect(unboundAccess.canUseActiveCruise).toBeFalse();
+          expect(unboundAccess.canUseMonitoring).toBeFalse();
+          expect(unboundGate.allowed).toBeFalse();
+          expect(unboundGate.response.errorCode).toBe("TRIP_ACCESS_RECORD_MISSING");
+
+          receipt = variables.creditService.recordCompletedReceipt(
+            userId = fixture.userId,
+            floatPlanId = fixture.planAId,
+            creditId = selected.creditId,
+            accessSource = "premium_send_credit",
+            recipientCount = 1,
+            response = { SUCCESS = true, marker = fixture.marker }
+          );
+          expect(receipt.SUCCESS).toBeTrue();
+
           consumedAccess = variables.gateService.getCurrentAccess(fixture.userId);
           expect(consumedAccess.hasPremium).toBeFalse();
           expect(consumedAccess.hasGeneralPremium).toBeFalse();
@@ -111,7 +134,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(exactGate.allowed).toBeTrue();
           expect(exactGate.access.tripOperationalAccessSource).toBe("premium_send_credit");
           expect(unrelatedGate.allowed).toBeFalse();
-          expect(unrelatedGate.response.errorCode).toBe("TRIP_OPERATION_ACCESS_REQUIRED");
+          expect(unrelatedGate.response.errorCode).toBe("TRIP_ACCESS_RECORD_MISSING");
         }
       });
 
@@ -360,7 +383,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           other.userId,
           owner.planAId
         );
-        expect(exactGate.allowed).toBeTrue();
+        expect(exactGate.allowed).toBeFalse();
+        expect(exactGate.response.errorCode).toBe("TRIP_ACCESS_RECORD_MISSING");
         expect(unrelatedGate.allowed).toBeFalse();
         expect(crossUserGate.allowed).toBeFalse();
       });
@@ -547,6 +571,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         var sendGate = {};
         var firstTripGate = {};
         var secondTripGate = {};
+        var boundTripGate = {};
+        var unrelatedTripGate = {};
         var receipt = {};
         var qState = queryNew("");
         var qReceipt = queryNew("");
@@ -572,10 +598,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(access.premiumSendAccessSource).toBe("general_premium");
         expect(access.premiumSendCreditCount).toBe(1);
         expect(sendGate.allowed).toBeTrue();
-        expect(firstTripGate.allowed).toBeTrue();
-        expect(firstTripGate.access.tripOperationalAccessSource).toBe("general_premium");
-        expect(secondTripGate.allowed).toBeTrue();
-        expect(secondTripGate.access.tripOperationalAccessSource).toBe("general_premium");
+        expect(firstTripGate.allowed).toBeFalse();
+        expect(firstTripGate.response.errorCode).toBe("TRIP_ACCESS_RECORD_MISSING");
+        expect(secondTripGate.allowed).toBeFalse();
+        expect(secondTripGate.response.errorCode).toBe("TRIP_ACCESS_RECORD_MISSING");
 
         receipt = variables.creditService.recordCompletedReceipt(
           userId = fixture.userId,
@@ -588,6 +614,14 @@ component extends="testbox.system.BaseSpec" output="false" {
             marker = fixture.marker,
             sentCount = 2
           }
+        );
+        boundTripGate = variables.gateService.requireTripOperationalAccess(
+          fixture.userId,
+          fixture.planAId
+        );
+        unrelatedTripGate = variables.gateService.requireTripOperationalAccess(
+          fixture.userId,
+          fixture.planBId
         );
         qState = loadCreditState(granted.creditId);
         qReceipt = queryExecute(
@@ -606,6 +640,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(receipt.SUCCESS).toBeTrue();
         expect(receipt.accessSource).toBe("general_premium");
         expect(receipt.creditId).toBe(0);
+        expect(boundTripGate.allowed).toBeTrue();
+        expect(boundTripGate.access.tripOperationalAccessSource).toBe("general_premium");
+        expect(unrelatedTripGate.allowed).toBeFalse();
+        expect(unrelatedTripGate.response.errorCode).toBe("TRIP_ACCESS_RECORD_MISSING");
         expect(qState.status[1]).toBe("AVAILABLE");
         expect(val(qState.plan_is_null[1])).toBe(1);
         expect(val(qState.consumed_at_is_null[1])).toBe(1);
