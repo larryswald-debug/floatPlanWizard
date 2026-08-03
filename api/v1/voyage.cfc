@@ -553,6 +553,9 @@
             var qTripStart = queryNew("");
             var journeyDepartedDt = "";
             var journeyDepartedUtc = "";
+            var journeyDepartedLabel = "";
+            var actualDepartureAtUtcRaw = "";
+            var hasActualDeparture = false;
             var qMilesTodayTiming = queryNew("");
             var scheduledDepartureRawDt = "";
             var hasOperationalCheckIn = false;
@@ -695,7 +698,13 @@
                     fp.status,
                     fp.departing,
                     fp.departureTime,
+                    DATE_FORMAT(fp.departureTime, '%Y-%m-%d %H:%i:%s') AS departureTimeLocalRaw,
                     fp.departureTimeUTC,
+                    DATE_FORMAT(ri.started_at, '%Y-%m-%d %H:%i:%s') AS actualDepartureAtUtcRaw,
+                    CASE
+                        WHEN ri.started_at IS NULL THEN NULL
+                        ELSE GREATEST(0, TIMESTAMPDIFF(MINUTE, ri.started_at, UTC_TIMESTAMP()))
+                    END AS actualDepartureElapsedMinutes,
                     fp.departTimezone,
                     fp.departureTZ,
                     fp.`returning`,
@@ -733,6 +742,9 @@
                     v.vesselName
                  FROM floatplans fp
                  LEFT JOIN vessels v ON v.vesselId = fp.vesselId
+                 LEFT JOIN route_instances ri
+                   ON ri.id = fp.route_instance_id
+                  AND ri.user_id = fp.userId
                  WHERE fp.floatplanId = :planId
                  LIMIT 1";
 
@@ -786,6 +798,11 @@
             ) {
                 tripStarted = (tripStartState.TRIP_STARTED EQ true);
             }
+            if (!isNull(qPlan.actualDepartureAtUtcRaw[1])) {
+                actualDepartureAtUtcRaw = trim(toString(qPlan.actualDepartureAtUtcRaw[1]));
+            }
+            hasActualDeparture = len(actualDepartureAtUtcRaw) GT 0;
+            tripStarted = hasActualDeparture;
 
             streamTitle = trim(toString(isNull(qPlan.floatPlanName[1]) ? "" : qPlan.floatPlanName[1]));
             if (!isNull(qPlan.monitor_state[1])) {
@@ -834,16 +851,19 @@
                 scheduledDepartureRawDt = qPlan.departureTime[1];
                 journeyDepartedDt = qPlan.departureTime[1];
             }
+            if (!isNull(qPlan.departureTimeLocalRaw[1])) {
+                journeyDepartedLabel = formatVoyageLocalWallClockDisplayLabel(qPlan.departureTimeLocalRaw[1]);
+            }
+            if (!len(journeyDepartedLabel) AND isDate(journeyDepartedDt)) {
+                journeyDepartedLabel = dateTimeFormat(journeyDepartedDt, "mmm d, yyyy h:nn tt");
+            }
             if (!isNull(qPlan.departureTimeUTC[1]) AND isDate(qPlan.departureTimeUTC[1])) {
                 journeyDepartedUtc = formatUtcDate(qPlan.departureTimeUTC[1]);
             }
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
             }
-            hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
-            if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
-                hasOperationalCheckIn = (dateCompare(checkedInAtVal, scheduledDepartureRawDt, "s") GTE 0);
-            }
+            hasOperationalCheckIn = (hasActualDeparture AND isDate(checkedInAtVal));
             if (hasOperationalCheckIn) {
                 actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
                 actualCheckInUtc = formatUtcDate(checkedInAtVal);
@@ -1237,15 +1257,13 @@
                 }
             }
 
-            if (
-                qPlan.recordCount GT 0
-                AND !isNull(qPlan.departureTime[1])
-                AND isDate(qPlan.departureTime[1])
-            ) {
-                elapsedTripMinutes = dateDiff("n", qPlan.departureTime[1], confidenceNowDt);
-                if (elapsedTripMinutes LT 0) {
-                    elapsedTripMinutes = 0;
-                }
+            if (hasActualDeparture) {
+                elapsedTripMinutes = (
+                    !isNull(qPlan.actualDepartureElapsedMinutes[1])
+                    AND isNumeric(qPlan.actualDepartureElapsedMinutes[1])
+                        ? val(qPlan.actualDepartureElapsedMinutes[1])
+                        : 0
+                );
                 elapsedTripHours = roundTo2(elapsedTripMinutes / 60);
                 comparisonElapsedHours = elapsedTripHours;
                 if (timelineTotalHours GT 0 AND comparisonElapsedHours GT timelineTotalHours) {
@@ -1472,7 +1490,7 @@
                 "page_subtitle"="Follow the planned route, reported progress, trip updates, comments, and latest check-in.",
                 "journey_subtitle"="Current leg is active.",
                 "journey_departed_value"=(qPlan.recordCount GT 0 AND !isNull(qPlan.departing[1]) ? trim(toString(qPlan.departing[1])) : ""),
-                "journey_departed_meta"=(isDate(journeyDepartedDt) ? dateTimeFormat(journeyDepartedDt, "mmm d, yyyy h:nn tt") : ""),
+                "journey_departed_meta"=journeyDepartedLabel,
                 "journey_departed_meta_utc"=journeyDepartedUtc,
                 "journey_checkin_value"=(len(actualCheckInLabel) ? "Checked in at " & actualCheckInLabel : "Checked in at --"),
                 "journey_checkin_meta"=(isOvernightCheckIn ? "Arrived and secure for the night. Next update expected tomorrow morning." : elapsedCheckInLabel),
@@ -1516,7 +1534,12 @@
             out.map = {
                 "routeGeo"=routeMap.route_geo,
                 "pins"=routeMap.pins,
-                "current"=routeMap.current
+                "current"=routeMap.current,
+                "geometryAuthority"=(structKeyExists(routeMap, "geometry_authority") ? routeMap.geometry_authority : "live_route_geometry_resolver"),
+                "snapshotStatus"=(structKeyExists(routeMap, "snapshot_status") ? routeMap.snapshot_status : "not_checked"),
+                "operationalSnapshotUsed"=(structKeyExists(routeMap, "operational_snapshot_used") AND routeMap.operational_snapshot_used EQ true),
+                "legacyGeometryFallback"=(structKeyExists(routeMap, "legacy_geometry_fallback") AND routeMap.legacy_geometry_fallback EQ true),
+                "legacyEndpointFallbackUsed"=(structKeyExists(routeMap, "legacy_endpoint_fallback_used") AND routeMap.legacy_endpoint_fallback_used EQ true)
             };
 	            out.legWeather = legWeather;
 	            out.pinned = pinned;
@@ -1654,6 +1677,7 @@
             var qLocalTripStart = queryNew("");
             var qLocalLegArrival = queryNew("");
             var scheduledDepartureRawDt = "";
+            var hasActualDeparture = false;
             var hasOperationalCheckIn = false;
             var hasValidCurrentLegStart = false;
             var hasValidPriorLegCompletion = false;
@@ -1701,6 +1725,16 @@
                     userId,
                     status,
                     route_instance_id,
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM route_instances ri
+                            WHERE ri.id = floatplans.route_instance_id
+                              AND ri.user_id = floatplans.userId
+                              AND ri.started_at IS NOT NULL
+                        ) THEN 1
+                        ELSE 0
+                    END AS has_actual_departure,
                     departureTime,
                     departureTimeUTC,
                     departTimezone,
@@ -1751,6 +1785,8 @@
             if (!isNull(qPlan.departureTime[1]) AND isDate(qPlan.departureTime[1])) {
                 scheduledDepartureRawDt = qPlan.departureTime[1];
             }
+            hasActualDeparture = val(qPlan.has_actual_departure[1]) EQ 1;
+            tripStarted = hasActualDeparture;
             if (!isNull(qPlan.monitor_state[1])) {
                 monitorStateVal = uCase(trim(toString(qPlan.monitor_state[1])));
             }
@@ -1802,10 +1838,7 @@
             if (!isNull(qPlan.checkedInAt[1]) AND isDate(qPlan.checkedInAt[1])) {
                 checkedInAtVal = qPlan.checkedInAt[1];
             }
-            hasOperationalCheckIn = (tripStarted AND isDate(checkedInAtVal));
-            if (hasOperationalCheckIn AND isDate(scheduledDepartureRawDt)) {
-                hasOperationalCheckIn = (dateCompare(checkedInAtVal, scheduledDepartureRawDt, "s") GTE 0);
-            }
+            hasOperationalCheckIn = (hasActualDeparture AND isDate(checkedInAtVal));
             if (hasOperationalCheckIn) {
                 actualCheckInLabel = dateTimeFormat(checkedInAtVal, "mmm d, yyyy h:nn tt");
                 actualCheckInUtc = formatUtcDate(checkedInAtVal);
@@ -7440,6 +7473,70 @@
             } catch (any voyageUtcDisplayLabelErr) {
                 return "";
             }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="formatVoyageLocalWallClockDisplayLabel" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="false">
+        <cfscript>
+            var raw = "";
+            var dateParts = [];
+            var timeParts = [];
+            var yearValue = 0;
+            var monthValue = 0;
+            var dayValue = 0;
+            var hourValue = 0;
+            var minuteValue = 0;
+            var displayHour = 0;
+            var meridiem = "AM";
+            var monthNames = [
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+            ];
+
+            if (isNull(arguments.value)) {
+                return "";
+            }
+            raw = trim(toString(arguments.value));
+            if (!reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", raw)) {
+                return "";
+            }
+
+            dateParts = listToArray(listFirst(raw, " "), "-");
+            timeParts = listToArray(listLast(raw, " "), ":");
+            if (arrayLen(dateParts) NEQ 3 OR arrayLen(timeParts) NEQ 3) {
+                return "";
+            }
+
+            yearValue = val(dateParts[1]);
+            monthValue = val(dateParts[2]);
+            dayValue = val(dateParts[3]);
+            hourValue = val(timeParts[1]);
+            minuteValue = val(timeParts[2]);
+            if (
+                yearValue LT 1000
+                OR monthValue LT 1 OR monthValue GT 12
+                OR dayValue LT 1 OR dayValue GT 31
+                OR hourValue LT 0 OR hourValue GT 23
+                OR minuteValue LT 0 OR minuteValue GT 59
+            ) {
+                return "";
+            }
+
+            displayHour = hourValue MOD 12;
+            if (displayHour EQ 0) {
+                displayHour = 12;
+            }
+            if (hourValue GTE 12) {
+                meridiem = "PM";
+            }
+
+            return monthNames[monthValue]
+                & " " & dayValue
+                & ", " & yearValue
+                & " " & displayHour
+                & ":" & numberFormat(minuteValue, "00")
+                & " " & meridiem;
         </cfscript>
     </cffunction>
 

@@ -3682,10 +3682,10 @@
                     <h3>Map Overview</h3>
                     <p>Planned route, reported progress, completed legs, and destination.</p>
                   </div>
-                  <button class="btn btn-secondary" id="fpwActiveCruiseV2OpenFullMapBtn" type="button"<cfif NOT (mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs))> disabled aria-disabled="true"</cfif>>Open Full Map</button>
+                  <button class="btn btn-secondary" id="fpwActiveCruiseV2OpenFullMapBtn" type="button"<cfif NOT mapAvailable> disabled aria-disabled="true"</cfif>>Open Full Map</button>
                 </div>
                 <div class="active-cruise-map-wrap" data-ac-v2-map-authority="#encodeForHTMLAttribute(mapGeometryAuthority)#">
-                  <cfif mapAvailable AND structKeyExists(mapBounds, "available") AND mapBounds.available EQ true AND arrayLen(mapLegs)>
+                  <cfif mapAvailable>
                     <div class="active-cruise-map-canvas map-leaflet-canvas" aria-label="Read-only route map from Active Cruise V2 view model">
                       <div id="fpwActiveCruiseV2Map" data-ac-v2-map-canvas="true"></div>
                       <div id="fpwActiveCruiseV2MapStatus" class="map-load-state is-visible" aria-live="polite">

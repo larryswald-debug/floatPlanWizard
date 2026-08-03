@@ -272,6 +272,16 @@
       };
 
       out.timing = {
+        "scheduledDepartureAtUtc" = safeString(floatPlan.scheduledDepartureAtUtc),
+        "scheduledDepartureLocalLabel" = safeString(floatPlan.scheduledDepartureLocalLabel),
+        "actualDepartureAtUtc" = (
+          structKeyExists(floatPlan, "hasActualDeparture")
+          AND floatPlan.hasActualDeparture EQ true
+            ? safeString(floatPlan.actualDepartureAtUtc)
+            : javacast("null", "")
+        ),
+        "actualDepartureLocalLabel" = safeString(floatPlan.actualDepartureLocalLabel),
+        "hasActualDeparture" = (structKeyExists(floatPlan, "hasActualDeparture") AND floatPlan.hasActualDeparture EQ true),
         "etaUtc" = out.currentLeg.etaUtc,
         "etaLocalLabel" = out.currentLeg.etaLocalLabel,
         "finalArrivalUtc" = (structKeyExists(routeSummary, "finalArrivalUtc") ? safeString(routeSummary.finalArrivalUtc) : ""),
@@ -420,6 +430,7 @@
           fp.opHasPfd,
           ri.status AS route_status,
           ri.started_at AS route_started_at,
+          DATE_FORMAT(ri.started_at, '%Y-%m-%d %H:%i:%s') AS routeStartedAtUtcRaw,
           ri.completed_at AS route_completed_at,
           ri.generated_route_code,
           ri.template_route_code,
@@ -479,8 +490,9 @@
             WHERE ril.route_instance_id = fp.route_instance_id
           ) AS total_legs
         FROM floatplans fp
-        LEFT JOIN route_instances ri
-          ON ri.id = fp.route_instance_id
+      LEFT JOIN route_instances ri
+        ON ri.id = fp.route_instance_id
+       AND ri.user_id = fp.userId
         LEFT JOIN loop_routes lr
           ON lr.code = ri.template_route_code
         LEFT JOIN voyage_streams vs
@@ -681,6 +693,8 @@
     <cfargument name="qPlan" type="query" required="true">
     <cfscript>
       var tz = resolveTimezone(arguments.qPlan);
+      var scheduledDepartureAtUtc = formatRawUtc(arguments.qPlan.departureTimeUtcRaw[1]);
+      var actualDepartureAtUtc = formatRawUtc(arguments.qPlan.routeStartedAtUtcRaw[1]);
       return {
         "id" = safeNumber(arguments.qPlan.floatPlanId[1]),
         "status" = safeString(arguments.qPlan.status[1]),
@@ -689,6 +703,11 @@
         "scheduledDepartureLocalRaw" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
         "scheduledDepartureLocal" = safeString(arguments.qPlan.departureTimeLocalRaw[1]),
         "scheduledDepartureTimezone" = tz,
+        "scheduledDepartureAtUtc" = scheduledDepartureAtUtc,
+        "scheduledDepartureLocalLabel" = formatPublicFollowLocalLabel(scheduledDepartureAtUtc, tz),
+        "actualDepartureAtUtc" = (len(actualDepartureAtUtc) ? actualDepartureAtUtc : javacast("null", "")),
+        "actualDepartureLocalLabel" = formatPublicFollowLocalLabel(actualDepartureAtUtc, tz),
+        "hasActualDeparture" = (len(actualDepartureAtUtc) GT 0),
         "timezone" = tz,
         "checkedInAtUtc" = formatUtc(arguments.qPlan.checkedInAt[1]),
         "checkinContext" = safeString(arguments.qPlan.checkin_context[1]),
@@ -1835,9 +1854,38 @@
         "routeInstanceId" = routeInstanceId,
         "streamId" = safeNumber(arguments.qPlan.stream_id[1]),
         "authority" = "route_instance",
-        "geometryAuthority" = "route_map_geometry_service",
-        "overrideAuthority" = "route_leg_user_overrides",
-        "fallbackGeometryAuthority" = "segment_geometries",
+        "geometryAuthority" = (
+          structKeyExists(routeMap, "geometry_authority")
+            ? safeString(routeMap.geometry_authority)
+            : "live_route_geometry_resolver"
+        ),
+        "overrideAuthority" = (
+          structKeyExists(routeMap, "override_authority")
+            ? safeString(routeMap.override_authority)
+            : "route_leg_user_overrides"
+        ),
+        "fallbackGeometryAuthority" = (
+          structKeyExists(routeMap, "fallback_authority")
+            ? safeString(routeMap.fallback_authority)
+            : "segment_geometries"
+        ),
+        "snapshotStatus" = (
+          structKeyExists(routeMap, "snapshot_status")
+            ? safeString(routeMap.snapshot_status)
+            : "not_checked"
+        ),
+        "operationalSnapshotUsed" = (
+          structKeyExists(routeMap, "operational_snapshot_used")
+          AND routeMap.operational_snapshot_used EQ true
+        ),
+        "legacyGeometryFallback" = (
+          structKeyExists(routeMap, "legacy_geometry_fallback")
+          AND routeMap.legacy_geometry_fallback EQ true
+        ),
+        "legacyEndpointFallbackUsed" = (
+          structKeyExists(routeMap, "legacy_endpoint_fallback_used")
+          AND routeMap.legacy_endpoint_fallback_used EQ true
+        ),
         "bounds" = bounds,
         "center" = buildMapCenter(bounds),
         "legs" = mapLegs,

@@ -264,6 +264,8 @@
       DEPARTURE_TIME: "",
       DEPARTURE_TIMEZONE: "",
       DEPARTURE_TIME_UTC: "",
+      ACTUAL_DEPARTURE_AT_UTC: "",
+      HAS_ACTUAL_DEPARTURE: false,
       RETURNING_TO: "",
       RETURN_TIME: "",
       RETURN_TIMEZONE: "",
@@ -325,6 +327,8 @@
     plan.OPERATOR_HAS_PFD = !!plan.OPERATOR_HAS_PFD;
     plan.RESCUE_CENTERID = numeric(plan.RESCUE_CENTERID);
     plan.DEPARTURE_TIME = toDateTimeLocal(plan.DEPARTURE_TIME);
+    plan.ACTUAL_DEPARTURE_AT_UTC = String(plan.ACTUAL_DEPARTURE_AT_UTC == null ? "" : plan.ACTUAL_DEPARTURE_AT_UTC).trim();
+    plan.HAS_ACTUAL_DEPARTURE = truthyAccessValue(plan.HAS_ACTUAL_DEPARTURE) || !!plan.ACTUAL_DEPARTURE_AT_UTC;
     plan.RETURN_TIME = toDateTimeLocal(plan.RETURN_TIME);
     return plan;
   }
@@ -775,9 +779,17 @@
     return parsed && !isNaN(parsed.getTime()) ? parsed.toISOString() : "";
   }
 
+  function hasActualDeparture(plan) {
+    if (!plan) return false;
+    return truthyAccessValue(plan.HAS_ACTUAL_DEPARTURE)
+      || !!String(plan.ACTUAL_DEPARTURE_AT_UTC == null ? "" : plan.ACTUAL_DEPARTURE_AT_UTC).trim();
+  }
+
   function applyClientUtcFields(plan) {
     if (!plan) return;
-    plan.DEPARTURE_TIME_UTC = toClientUtcIso(plan.DEPARTURE_TIME, plan.DEPARTURE_TIMEZONE);
+    if (!hasActualDeparture(plan)) {
+      plan.DEPARTURE_TIME_UTC = toClientUtcIso(plan.DEPARTURE_TIME, plan.DEPARTURE_TIMEZONE);
+    }
     plan.RETURN_TIME_UTC = toClientUtcIso(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
   }
 
@@ -894,6 +906,10 @@
     },
 
     computed: {
+      isScheduledDepartureReadOnly: function () {
+        return hasActualDeparture(this.fp.FLOATPLAN);
+      },
+
       premiumSendCreditCount: function () {
         return numeric(memberAccessValue(this.memberAccess, "premiumSendCreditCount", 0));
       },

@@ -931,6 +931,7 @@
             var userIdText = toString(arguments.userId);
             var floatPlanService = "";
             var currentGroup = {};
+            var uniqueCurrentDraft = {};
             var qRoutes = queryExecute(
                 "SELECT
                     lr.id,
@@ -995,6 +996,21 @@
                 return out;
             }
 
+            if (!currentGroup.SUCCESS OR !currentGroup.HAS_CURRENT_GROUP) {
+                uniqueCurrentDraft = floatPlanService.resolveUniqueCurrentPremiumDraft(arguments.userId);
+                if (
+                    uniqueCurrentDraft.SUCCESS
+                    AND uniqueCurrentDraft.HAS_DRAFT
+                    AND structKeyExists(uniqueCurrentDraft, "ROUTE_INSTANCE_ID")
+                    AND val(uniqueCurrentDraft.ROUTE_INSTANCE_ID) GT 0
+                ) {
+                    currentGroup = floatPlanService.resolveCurrentRouteFloatPlanGroup(
+                        arguments.userId,
+                        val(uniqueCurrentDraft.ROUTE_INSTANCE_ID)
+                    );
+                }
+            }
+
             if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP) {
                 out.CURRENT_GROUP = {
                     "HAS_CURRENT_GROUP"=true,
@@ -1008,7 +1024,7 @@
                     "IS_DRAFT"=currentGroup.IS_DRAFT,
                     "IS_ACTIVE"=currentGroup.IS_ACTIVE
                 };
-                if (currentGroup.IS_ACTIVE AND currentGroup.ROUTE_INSTANCE_ID GT 0) {
+                if (currentGroup.ROUTE_INSTANCE_ID GT 0) {
                     activeRouteSource = loadActiveOperationalRouteSource(arguments.userId, currentGroup.ROUTE_INSTANCE_ID);
                 }
             }
@@ -1050,7 +1066,7 @@
                         "IS_DRAFT"=routeScopedGroup.IS_DRAFT,
                         "IS_ACTIVE"=routeScopedGroup.IS_ACTIVE
                     };
-                } else if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND currentGroup.IS_ACTIVE AND structCount(activeRouteSource) GT 0) {
+                } else if (currentGroup.SUCCESS AND currentGroup.HAS_CURRENT_GROUP AND structCount(activeRouteSource) GT 0) {
                     savedRouteInputs = routegenParseStoredInputs(isNull(qRoutes.routegen_inputs_json[i]) ? "" : qRoutes.routegen_inputs_json[i]);
                     if (isSavedRouteSourceForActiveOperationalRoute(
                         loopRouteId = val(qRoutes.id[i]),
@@ -3191,6 +3207,7 @@
                 "AUTH"=true,
                 "MESSAGE"="Unable to build float plans from route.",
                 "ROUTE_INSTANCE_ID"=0,
+                "SOURCE_ROUTE_INSTANCE_ID"=0,
                 "ROUTE_CODE"="",
                 "MODE"="DAILY",
                 "CREATED_COUNT"=0,
@@ -3206,7 +3223,12 @@
             var vesselIdVal = val(arguments.vesselId);
             var floatPlanService = "";
             var currentGroup = {};
+            var fallbackCurrentGroup = {};
+            var uniqueCurrentDraft = {};
+            var currentRouteSource = {};
+            var sourceRouteInputs = {};
             var qRouteInstance = queryNew("");
+            var qUserBuildLock = queryNew("");
             var qPreferredVessel = queryNew("");
             var generatedRouteId = 0;
             var qRoute = queryNew("");
@@ -3226,6 +3248,8 @@
             var newPlanId = 0;
             var draftPlanIdsToRemove = [];
             var removedDraftCount = 0;
+            var sourceRouteInstanceIdVal = 0;
+            var draftRoutePreparation = {};
 
             if (routeInstanceIdVal LTE 0 AND !len(routeCodeVal)) {
                 out.MESSAGE = "Missing required fields";
@@ -3233,13 +3257,33 @@
                 return out;
             }
 
+            try {
+            transaction {
+            qUserBuildLock = queryExecute(
+                "SELECT userId
+                 FROM users
+                 WHERE userId = :userId
+                 LIMIT 1
+                 FOR UPDATE",
+                {
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+            if (qUserBuildLock.recordCount NEQ 1) {
+                out.MESSAGE = "Member not found";
+                out.ERROR = { "CODE"="INVALID_USER_ID", "MESSAGE"="A valid member is required." };
+                return out;
+            }
+
             if (routeInstanceIdVal GT 0) {
                 qRouteInstance = queryExecute(
-                    "SELECT id, generated_route_id, generated_route_code
+                    "SELECT id, generated_route_id, generated_route_code, routegen_inputs_json
                      FROM route_instances
                      WHERE id = :rid
                        AND user_id = :uid
-                     LIMIT 1",
+                     LIMIT 1
+                     FOR UPDATE",
                     {
                         rid = { value=routeInstanceIdVal, cfsqltype="cf_sql_integer" },
                         uid = { value=userIdText, cfsqltype="cf_sql_varchar" }
@@ -3248,12 +3292,13 @@
                 );
             } else {
                 qRouteInstance = queryExecute(
-                    "SELECT id, generated_route_id, generated_route_code
+                    "SELECT id, generated_route_id, generated_route_code, routegen_inputs_json
                      FROM route_instances
                      WHERE generated_route_code = :rcode
                        AND user_id = :uid
                      ORDER BY id DESC
-                     LIMIT 1",
+                     LIMIT 1
+                     FOR UPDATE",
                     {
                         rcode = { value=routeCodeVal, cfsqltype="cf_sql_varchar" },
                         uid = { value=userIdText, cfsqltype="cf_sql_varchar" }
@@ -3269,6 +3314,8 @@
             }
 
             routeInstanceIdVal = val(qRouteInstance.id[1]);
+            sourceRouteInstanceIdVal = routeInstanceIdVal;
+            out.SOURCE_ROUTE_INSTANCE_ID = sourceRouteInstanceIdVal;
             generatedRouteId = val(qRouteInstance.generated_route_id[1]);
             if (!len(routeCodeVal)) {
                 routeCodeVal = trim(toString(qRouteInstance.generated_route_code[1]));
@@ -3298,6 +3345,49 @@
             }
 
             currentGroup = floatPlanService.resolveCurrentRouteFloatPlanGroup(arguments.userId, routeInstanceIdVal);
+            if (!currentGroup.SUCCESS OR !currentGroup.HAS_CURRENT_GROUP) {
+                fallbackCurrentGroup = floatPlanService.resolveCurrentRouteFloatPlanGroup(arguments.userId);
+                if (!fallbackCurrentGroup.SUCCESS OR !fallbackCurrentGroup.HAS_CURRENT_GROUP) {
+                    uniqueCurrentDraft = floatPlanService.resolveUniqueCurrentPremiumDraft(arguments.userId);
+                    if (
+                        uniqueCurrentDraft.SUCCESS
+                        AND uniqueCurrentDraft.HAS_DRAFT
+                        AND structKeyExists(uniqueCurrentDraft, "ROUTE_INSTANCE_ID")
+                        AND val(uniqueCurrentDraft.ROUTE_INSTANCE_ID) GT 0
+                    ) {
+                        fallbackCurrentGroup = floatPlanService.resolveCurrentRouteFloatPlanGroup(
+                            arguments.userId,
+                            val(uniqueCurrentDraft.ROUTE_INSTANCE_ID)
+                        );
+                    }
+                }
+
+                if (
+                    fallbackCurrentGroup.SUCCESS
+                    AND fallbackCurrentGroup.HAS_CURRENT_GROUP
+                    AND fallbackCurrentGroup.ROUTE_INSTANCE_ID GT 0
+                ) {
+                    currentRouteSource = loadActiveOperationalRouteSource(
+                        arguments.userId,
+                        fallbackCurrentGroup.ROUTE_INSTANCE_ID
+                    );
+                    sourceRouteInputs = routegenParseStoredInputs(
+                        isNull(qRouteInstance.routegen_inputs_json[1])
+                            ? ""
+                            : qRouteInstance.routegen_inputs_json[1]
+                    );
+                    if (isSavedRouteSourceForActiveOperationalRoute(
+                        loopRouteId = generatedRouteId,
+                        routeShortCode = routeCodeVal,
+                        routeInstanceId = routeInstanceIdVal,
+                        routeInputs = sourceRouteInputs,
+                        activeRouteSource = currentRouteSource
+                    )) {
+                        currentGroup = fallbackCurrentGroup;
+                        currentGroup.IS_ROUTE_MATCH = true;
+                    }
+                }
+            }
             if (
                 structKeyExists(currentGroup, "ERROR")
                 AND listFindNoCase("MULTIPLE_CURRENT_DRAFT_GROUPS,MULTIPLE_ACTIVE_GROUPS,CURRENT_GROUP_CONFLICT", trim(toString(currentGroup.ERROR))) GT 0
@@ -3336,6 +3426,10 @@
                 }
 
                 if (!rebuildVal) {
+                    out.ROUTE_INSTANCE_ID = currentGroup.ROUTE_INSTANCE_ID;
+                    if (len(trim(toString(currentGroup.ROUTE_CODE)))) {
+                        out.ROUTE_CODE = trim(toString(currentGroup.ROUTE_CODE));
+                    }
                     out.SUCCESS = true;
                     out.MESSAGE = "Loaded the existing draft route/float-plan group.";
                     out.CREATED_COUNT = 1;
@@ -3543,7 +3637,6 @@
                 return out;
             }
 
-            transaction {
                 if (arrayLen(draftPlanIdsToRemove)) {
                     floatPlanService.purgeFloatPlansByIds(arguments.userId, draftPlanIdsToRemove);
                 }
@@ -3573,6 +3666,32 @@
                         { datasource = application.dsn, result = "fpInsert" }
                     );
                     newPlanId = val(fpInsert.generatedKey);
+                    if (i EQ 1) {
+                        draftRoutePreparation = floatPlanService.prepareDraftRouteInstanceForEditing(
+                            userId = arguments.userId,
+                            floatPlanId = newPlanId,
+                            routeInstanceId = routeInstanceIdVal
+                        );
+                        if (!draftRoutePreparation.SUCCESS) {
+                            throw(
+                                type = "FPW.DraftRoutePreparationAbort",
+                                message = (
+                                    structKeyExists(draftRoutePreparation, "MESSAGE")
+                                        ? toString(draftRoutePreparation.MESSAGE)
+                                        : "Unable to prepare a clean route instance for this Draft."
+                                ),
+                                detail = serializeJSON(draftRoutePreparation)
+                            );
+                        }
+                        routeInstanceIdVal = val(draftRoutePreparation.ROUTE_INSTANCE_ID);
+                        out.ROUTE_INSTANCE_ID = routeInstanceIdVal;
+                        if (
+                            structKeyExists(draftRoutePreparation, "ROUTE_CODE")
+                            AND len(trim(toString(draftRoutePreparation.ROUTE_CODE)))
+                        ) {
+                            out.ROUTE_CODE = trim(toString(draftRoutePreparation.ROUTE_CODE));
+                        }
+                    }
                     arrayAppend(out.FLOATPLAN_IDS, newPlanId);
                     arrayAppend(out.FLOATPLANS, {
                         "FLOATPLAN_ID"=newPlanId,
@@ -3584,6 +3703,21 @@
                         "TOTAL_LOCKS"=dayObj.TOTAL_LOCKS
                     });
                 }
+            }
+            } catch (any draftBuildErr) {
+                if (draftBuildErr.type EQ "FPW.DraftRoutePreparationAbort") {
+                    out.MESSAGE = draftBuildErr.message;
+                    out.ERROR = {
+                        "CODE"=(
+                            structKeyExists(draftRoutePreparation, "ERROR")
+                                ? toString(draftRoutePreparation.ERROR)
+                                : "DRAFT_ROUTE_PREPARATION_FAILED"
+                        ),
+                        "MESSAGE"=draftBuildErr.message
+                    };
+                    return out;
+                }
+                rethrow;
             }
 
             out.SUCCESS = true;

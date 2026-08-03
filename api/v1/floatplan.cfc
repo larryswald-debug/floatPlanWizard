@@ -1271,6 +1271,7 @@
                 ROUTE_LEG_COUNT = 0,
                 PROGRESS_ROW_COUNT = 0,
                 OPERATIONAL_PROGRESS_COUNT = 0,
+                ROUTE_STARTED_COUNT = 0,
                 VALID_MONITORING_FOR_PLAN_COUNT = 0,
                 OTHER_MONITORING_COUNT = 0,
                 ACTIVITY_SEGMENT_COUNT = 0,
@@ -1301,6 +1302,13 @@
                             THEN 1 ELSE 0
                         END
                     ) AS operational_progress_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM route_instances started_ri
+                        WHERE started_ri.id = :routeInstanceId
+                          AND started_ri.user_id = :userId
+                          AND started_ri.started_at IS NOT NULL
+                    ) AS route_started_count,
                     (
                         SELECT COUNT(*)
                         FROM floatplan_monitoring fm
@@ -1371,13 +1379,15 @@
             result.ROUTE_LEG_COUNT = val(qHistory.route_leg_count[1]);
             result.PROGRESS_ROW_COUNT = val(qHistory.progress_row_count[1]);
             result.OPERATIONAL_PROGRESS_COUNT = val(qHistory.operational_progress_count[1]);
+            result.ROUTE_STARTED_COUNT = val(qHistory.route_started_count[1]);
             result.VALID_MONITORING_FOR_PLAN_COUNT = val(qHistory.valid_monitoring_for_plan_count[1]);
             result.OTHER_MONITORING_COUNT = val(qHistory.other_monitoring_count[1]);
             result.ACTIVITY_SEGMENT_COUNT = val(qHistory.activity_segment_count[1]);
             result.ROUTE_EVENT_COUNT = val(qHistory.route_event_count[1]);
             result.HISTORICAL_PLAN_COUNT = val(qHistory.historical_plan_count[1]);
             result.HAS_OPERATIONAL_HISTORY = (
-                result.OPERATIONAL_PROGRESS_COUNT GT 0
+                result.ROUTE_STARTED_COUNT GT 0
+                OR result.OPERATIONAL_PROGRESS_COUNT GT 0
                 OR result.OTHER_MONITORING_COUNT GT 0
                 OR result.ACTIVITY_SEGMENT_COUNT GT 0
                 OR result.ROUTE_EVENT_COUNT GT 0
@@ -1793,21 +1803,25 @@
                                 startLat = {
                                     value = (startLatIsNull ? 0 : val(qLegs.start_lat[legIndex])),
                                     cfsqltype = "cf_sql_decimal",
+                                    scale = 7,
                                     null = startLatIsNull
                                 },
                                 startLng = {
                                     value = (startLngIsNull ? 0 : val(qLegs.start_lng[legIndex])),
                                     cfsqltype = "cf_sql_decimal",
+                                    scale = 7,
                                     null = startLngIsNull
                                 },
                                 endLat = {
                                     value = (endLatIsNull ? 0 : val(qLegs.end_lat[legIndex])),
                                     cfsqltype = "cf_sql_decimal",
+                                    scale = 7,
                                     null = endLatIsNull
                                 },
                                 endLng = {
                                     value = (endLngIsNull ? 0 : val(qLegs.end_lng[legIndex])),
                                     cfsqltype = "cf_sql_decimal",
+                                    scale = 7,
                                     null = endLngIsNull
                                 },
                                 baseDistNm = {
@@ -1861,6 +1875,60 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="prepareDraftRouteInstanceForEditing" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="routeInstanceId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                SUCCESS = false,
+                ROUTE_INSTANCE_ID = arguments.routeInstanceId,
+                ORIGINAL_ROUTE_INSTANCE_ID = arguments.routeInstanceId,
+                CREATED_FRESH = false,
+                ROUTE_CODE = ""
+            };
+            var qDraft = queryNew("");
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0 OR arguments.routeInstanceId LTE 0) {
+                result.ERROR = "INVALID_DRAFT_ROUTE_PREPARATION_INPUT";
+                result.MESSAGE = "A valid member, Draft float plan, and route instance are required.";
+                return result;
+            }
+
+            qDraft = queryExecute(
+                "SELECT floatPlanId
+                 FROM floatplans
+                 WHERE floatPlanId = :floatPlanId
+                   AND userId = :userId
+                   AND route_instance_id = :routeInstanceId
+                   AND UPPER(TRIM(`status`)) = 'DRAFT'
+                   AND activatedAt IS NULL
+                   AND initialSentAt IS NULL
+                   AND checkedInAt IS NULL
+                   AND closedAt IS NULL
+                 LIMIT 1
+                 FOR UPDATE",
+                {
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qDraft.recordCount NEQ 1) {
+                result.ERROR = "DRAFT_ROUTE_PREPARATION_CONFLICT";
+                result.MESSAGE = "The Draft route binding changed before it could be prepared.";
+                return result;
+            }
+
+            return ensureCleanRouteInstanceForActivation(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId,
+                routeInstanceId = arguments.routeInstanceId
+            );
+        </cfscript>
+    </cffunction>
+
     <cffunction name="ensureCleanRouteInstanceForActivation" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
@@ -1873,14 +1941,36 @@
                 CREATED_FRESH = false,
                 ROUTE_CODE = ""
             };
-            var history = loadRouteInstanceActivationHistory(
+            var history = {};
+            var freshRoute = {};
+            var cleanProgress = {};
+            var qRouteLock = queryNew("");
+            var qVerify = queryNew("");
+
+            qRouteLock = queryExecute(
+                "SELECT id
+                 FROM route_instances
+                 WHERE id = :routeInstanceId
+                   AND user_id = :userId
+                 LIMIT 1
+                 FOR UPDATE",
+                {
+                    routeInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = "fpw" }
+            );
+            if (qRouteLock.recordCount NEQ 1) {
+                result.ERROR = "SOURCE_ROUTE_INSTANCE_NOT_FOUND";
+                result.MESSAGE = "The source route instance could not be found.";
+                return result;
+            }
+
+            history = loadRouteInstanceActivationHistory(
                 userId = arguments.userId,
                 floatPlanId = arguments.floatPlanId,
                 routeInstanceId = arguments.routeInstanceId
             );
-            var freshRoute = {};
-            var cleanProgress = {};
-            var qVerify = queryNew("");
 
             if (!history.SUCCESS) {
                 return history;
@@ -1902,9 +1992,11 @@
                          lastUpdate = UTC_TIMESTAMP()
                      WHERE floatPlanId = :floatPlanId
                        AND userId = :userId
+                       AND route_instance_id = :originalRouteInstanceId
                        AND UPPER(TRIM(`status`)) = 'DRAFT'",
                     {
                         routeInstanceId = { value = freshRoute.ROUTE_INSTANCE_ID, cfsqltype = "cf_sql_integer" },
+                        originalRouteInstanceId = { value = arguments.routeInstanceId, cfsqltype = "cf_sql_integer" },
                         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
                         userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
                     },
@@ -4143,7 +4235,15 @@
             var currentGroup = {};
             var memberGateResult = {};
             var lockedPlanRow = queryNew("");
+            var lockedRouteRow = queryNew("");
             var activeStatusGated = false;
+            var lockedRouteInstanceId = 0;
+            var lockedDepartureTimeLocal = "";
+            var lockedDepartureTimeUtc = "";
+            var lockedDepartureTimezone = "";
+            var hasActualDeparture = false;
+            var scheduledDepartureChanged = false;
+            var preserveLockedDepartureSchedule = false;
 
             if (planId GT 0) {
                 existingPlanRow = queryExecute(
@@ -4314,7 +4414,13 @@
                         activeStatusGated = true;
                     }
                     lockedPlanRow = queryExecute(
-                        "SELECT UPPER(TRIM(`status`)) AS statusValue
+                        "SELECT
+                            UPPER(TRIM(`status`)) AS statusValue,
+                            route_instance_id,
+                            DATE_FORMAT(departureTime, '%Y-%m-%d %H:%i:%s') AS departureTimeValue,
+                            DATE_FORMAT(departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUtcValue,
+                            departTimezone,
+                            departureTZ
                            FROM floatplans
                           WHERE floatplanId = :planId
                             AND userId = :userId
@@ -4343,6 +4449,69 @@
                         result.MESSAGE = "Ended route-linked float plans are preserved as history and cannot be edited.";
                         return result;
                     }
+
+                    lockedRouteInstanceId = isNull(lockedPlanRow.route_instance_id[1])
+                        ? 0
+                        : val(lockedPlanRow.route_instance_id[1]);
+                    lockedDepartureTimeLocal = isNull(lockedPlanRow.departureTimeValue[1])
+                        ? ""
+                        : trim(toString(lockedPlanRow.departureTimeValue[1]));
+                    lockedDepartureTimeUtc = isNull(lockedPlanRow.departureTimeUtcValue[1])
+                        ? ""
+                        : trim(toString(lockedPlanRow.departureTimeUtcValue[1]));
+                    lockedDepartureTimezone = isNull(lockedPlanRow.departureTZ[1])
+                        ? ""
+                        : trim(toString(lockedPlanRow.departureTZ[1]));
+                    if (!len(lockedDepartureTimezone)) {
+                        lockedDepartureTimezone = isNull(lockedPlanRow.departTimezone[1])
+                            ? ""
+                            : trim(toString(lockedPlanRow.departTimezone[1]));
+                    }
+                } else {
+                    lockedRouteInstanceId = routeInstanceId;
+                }
+
+                lockedRouteRow = queryExecute(
+                    "SELECT started_at
+                       FROM route_instances
+                      WHERE id = :routeInstanceId
+                        AND user_id = :userId
+                      LIMIT 1
+                      FOR UPDATE",
+                    {
+                        routeInstanceId = { value = lockedRouteInstanceId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = ds }
+                );
+                if (lockedRouteRow.recordCount EQ 0) {
+                    result.ERROR = "INVALID_ROUTE";
+                    result.MESSAGE = "A valid route is required to save this float plan.";
+                    return result;
+                }
+
+                hasActualDeparture = (
+                    !isNull(lockedRouteRow.started_at[1])
+                    AND isDate(lockedRouteRow.started_at[1])
+                );
+                if (hasActualDeparture) {
+                    if (planId LTE 0) {
+                        result.ERROR = "SCHEDULED_DEPARTURE_LOCKED_AFTER_START";
+                        result.MESSAGE = "Scheduled departure cannot be changed after the trip has started.";
+                        return result;
+                    }
+
+                    scheduledDepartureChanged = (
+                        compare(left(departureTimeLocal, 16), left(lockedDepartureTimeLocal, 16)) NEQ 0
+                        OR compare(left(departureTimeUtcStore, 16), left(lockedDepartureTimeUtc, 16)) NEQ 0
+                        OR compareNoCase(departureTzStore, lockedDepartureTimezone) NEQ 0
+                    );
+                    if (scheduledDepartureChanged) {
+                        result.ERROR = "SCHEDULED_DEPARTURE_LOCKED_AFTER_START";
+                        result.MESSAGE = "Scheduled departure cannot be changed after the trip has started.";
+                        return result;
+                    }
+                    preserveLockedDepartureSchedule = true;
                 }
 
                 submittedOwnershipResult = validateSubmittedPlanResourceOwnership(
@@ -4462,10 +4631,10 @@
                                rescueAuthorityPhone= :rescuePhone,
                                rescueCenterId      = :rescueCenterId,
                                departing           = :departingFrom,
-                               departureTime       = :departureTime,
-                               departureTimeUTC    = :departureTimeUtc,
-                               departTimezone      = :departureTz,
-                               departureTZ         = :departureSourceTz,
+                               departureTime       = CASE WHEN :preserveDepartureSchedule = 1 THEN departureTime ELSE :departureTime END,
+                               departureTimeUTC    = CASE WHEN :preserveDepartureSchedule = 1 THEN departureTimeUTC ELSE :departureTimeUtc END,
+                               departTimezone      = CASE WHEN :preserveDepartureSchedule = 1 THEN departTimezone ELSE :departureTz END,
+                               departureTZ         = CASE WHEN :preserveDepartureSchedule = 1 THEN departureTZ ELSE :departureSourceTz END,
                                `returning`         = :returningTo,
                                returnTime          = :returnTime,
                                returnTimeUTC       = :returnTimeUtc,
@@ -4495,6 +4664,7 @@
                         departureTimeUtc = { value = departureTimeUtcStore, cfsqltype = "cf_sql_varchar", null = NOT len(departureTimeUtcStore) },
                         departureTz = { value = departureTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(departureTzStore) },
                         departureSourceTz = { value = departureSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureSourceTz) },
+                        preserveDepartureSchedule = { value = preserveLockedDepartureSchedule ? 1 : 0, cfsqltype = "cf_sql_integer" },
                         returningTo = { value = returningTo, cfsqltype = "cf_sql_varchar", null = NOT len(returningTo) },
                         returnTime = { value = returnTimeLocal, cfsqltype = "cf_sql_varchar", null = NOT len(returnTimeLocal) },
                         returnTimeUtc = { value = returnTimeUtcStore, cfsqltype = "cf_sql_varchar", null = NOT len(returnTimeUtcStore) },
@@ -7466,6 +7636,13 @@
                     notes,
                     route_instance_id,
                     route_day_number,
+                    DATE_FORMAT((
+                        SELECT ri.started_at
+                        FROM route_instances ri
+                        WHERE ri.id = floatplans.route_instance_id
+                          AND ri.user_id = floatplans.userId
+                        LIMIT 1
+                    ), '%Y-%m-%d %H:%i:%s') AS actualDepartureAtUtc,
                     status
                 FROM floatplans
                 WHERE floatplanId = :planId
@@ -7520,6 +7697,8 @@
                     NOTES                = qPlan.notes,
                     ROUTE_INSTANCE_ID    = qPlan.route_instance_id,
                     ROUTE_DAY_NUMBER     = qPlan.route_day_number,
+                    ACTUAL_DEPARTURE_AT_UTC = isNull(qPlan.actualDepartureAtUtc[1]) ? "" : trim(toString(qPlan.actualDepartureAtUtc[1])),
+                    HAS_ACTUAL_DEPARTURE = (!isNull(qPlan.actualDepartureAtUtc[1]) AND len(trim(toString(qPlan.actualDepartureAtUtc[1]))) GT 0),
                     DO_NOT_SEND          = false,
                     STATUS               = qPlan.status
                 };
@@ -8374,6 +8553,7 @@
             var qUserLock = queryNew("");
             var qActivePlan = queryNew("");
             var planUpdateResult = {};
+            var operationalGeometrySnapshotResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -8547,6 +8727,37 @@
                 );
             }
             routeInstanceId = routeActivationResult.ROUTE_INSTANCE_ID;
+
+            operationalGeometrySnapshotResult = createObject(
+                "component",
+                resolveApiV1ComponentPath("RouteMapGeometryService")
+            ).init("fpw").ensureOperationalGeometrySnapshot(
+                routeInstanceId = routeInstanceId,
+                ownerUserId = arguments.userId
+            );
+            if (
+                !structKeyExists(operationalGeometrySnapshotResult, "SUCCESS")
+                OR operationalGeometrySnapshotResult.SUCCESS NEQ true
+            ) {
+                result.ERROR = (
+                    structKeyExists(operationalGeometrySnapshotResult, "ERROR")
+                        ? operationalGeometrySnapshotResult.ERROR
+                        : "OPERATIONAL_GEOMETRY_SNAPSHOT_FAILED"
+                );
+                result.errorCode = result.ERROR;
+                result.MESSAGE = (
+                    structKeyExists(operationalGeometrySnapshotResult, "MESSAGE")
+                        ? operationalGeometrySnapshotResult.MESSAGE
+                        : "Operational route geometry could not be captured before activation."
+                );
+                result.message = result.MESSAGE;
+                result.OPERATIONAL_GEOMETRY_SNAPSHOT_RESULT = operationalGeometrySnapshotResult;
+                throw(
+                    type = "FPW.PremiumSendAbort",
+                    message = result.MESSAGE,
+                    detail = serializeJSON(result)
+                );
+            }
 
             var floatPlanUtils = createObject("component", resolveFloatPlanUtilsComponentPath()).init();
             var pdfFileName = floatPlanUtils.createPDF(arguments.floatPlanId, arguments.userId);
@@ -8900,6 +9111,8 @@
                 NOTES                = "",
                 ROUTE_INSTANCE_ID    = 0,
                 ROUTE_DAY_NUMBER     = 0,
+                ACTUAL_DEPARTURE_AT_UTC = "",
+                HAS_ACTUAL_DEPARTURE = false,
                 DO_NOT_SEND          = false,
                 STATUS               = "Draft"
             };

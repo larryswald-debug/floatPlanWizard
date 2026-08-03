@@ -432,10 +432,28 @@
     return label || authorityText(fallback);
   }
 
+  function explicitActualDepartureState(payload) {
+    var timing = getAuthoritySection(payload, "timing");
+    var rawValue;
+    var normalized;
+
+    if (!Object.prototype.hasOwnProperty.call(timing, "hasActualDeparture")) {
+      return null;
+    }
+
+    rawValue = timing.hasActualDeparture;
+    if (rawValue === true || rawValue === 1) return true;
+    if (rawValue === false || rawValue === 0) return false;
+
+    normalized = authorityText(rawValue).toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+
   function isScheduledTrip(payload) {
     var body = payload && payload.body ? payload.body : {};
     var topCards = payload && payload.topCards ? payload.topCards : {};
     var tripState = getAuthoritySection(payload, "tripState");
+    var actualDepartureState = explicitActualDepartureState(payload);
     var code = authorityText(tripState.code).toLowerCase();
     var label = authorityText(tripState.label).toLowerCase();
     var fallbackText = [
@@ -445,6 +463,10 @@
       authorityText(body.trip_summary_mode),
       authorityText(body.family_confidence_subtitle)
     ].join(" ");
+
+    if (actualDepartureState !== null) {
+      return !actualDepartureState;
+    }
 
     return code === "scheduled"
       || label === "scheduled"
@@ -810,7 +832,12 @@
     var effectiveSpeedKn = safeNum(summary.effective_speed_kn);
     var progressPct = safeNum(authorityProgress.routeProgressPercent);
     var legProgressPct = safeNum(authorityProgress.legProgressPercent);
-    var departedLocalMeta = String(body.journey_departed_meta || "").trim() || formatSidebarLastCheckinLabel(body.journey_departed_meta_utc || "") || "—";
+    var actualDepartureState = explicitActualDepartureState(payload);
+    var hasActualDepartureContract = actualDepartureState !== null;
+    var scheduledDepartureLocalLabel = authorityText(authorityTiming.scheduledDepartureLocalLabel);
+    var actualDepartureLocalLabel = authorityText(authorityTiming.actualDepartureLocalLabel);
+    var legacyDepartureValue = authorityText(body.journey_departed_value);
+    var legacyDepartureMeta = authorityText(body.journey_departed_meta) || "—";
     var nextStopLocalEta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var finalArrivalLabel = authorityLocalLabel(authorityTiming.finalArrivalLocalLabel, authorityTiming.finalArrivalUtc, "");
     var routeProgressLabel = "";
@@ -890,8 +917,15 @@
       dom.journeyStatusPill.classList.toggle("good", voyageProgressStatusVariant !== "danger" && voyageProgressStatusVariant !== "warning");
     }
     setHookWidth("journey-progress-fill", progressPct);
-    setHookText("journey-departed-value", isScheduled ? "Trip scheduled" : body.journey_departed_value);
-    setHookText("journey-departed-meta", isScheduled ? scheduledDepartureMeta(body) : departedLocalMeta);
+    if (hasActualDepartureContract) {
+      setHookText("journey-departure-label", actualDepartureState ? "Actual Departure" : "Scheduled Departure");
+      setHookText("journey-departed-value", actualDepartureState ? (actualDepartureLocalLabel || "—") : (scheduledDepartureLocalLabel || "—"));
+      setHookText("journey-departed-meta", actualDepartureState ? ("Scheduled for " + (scheduledDepartureLocalLabel || "—")) : "Trip scheduled");
+    } else {
+      setHookText("journey-departure-label", isScheduled ? "Scheduled Departure" : "Departed");
+      setHookText("journey-departed-value", isScheduled ? "Trip scheduled" : legacyDepartureValue);
+      setHookText("journey-departed-meta", isScheduled ? scheduledDepartureMeta(body) : legacyDepartureMeta);
+    }
     setHookText("journey-current-leg-value", isScheduled ? "Trip scheduled" : (isAwaitingDeparture ? "Awaiting Departure" : activeLegLabel));
     if (isScheduled) {
       setHookText("journey-current-leg-meta", firstPlannedLegMeta(currentLocation, nextStop));
