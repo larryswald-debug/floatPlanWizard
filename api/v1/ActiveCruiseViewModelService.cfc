@@ -3119,25 +3119,53 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var rawUtc = normalizeUtcSqlString(arguments.utcSqlValue);
-      var tzId = trim(safeString(arguments.timezone));
-      var formatter = "";
-      var displayFormatter = "";
-      var localDateTime = "";
-      var zoneId = "";
-      var instant = "";
-      var zonedDateTime = "";
+      var tzId = normalizePublicFollowTimezone(arguments.timezone);
+      var utcDateTime = "";
       if (!len(rawUtc) OR !len(tzId)) {
         return "";
       }
       try {
-        formatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
-        displayFormatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("MMM d, yyyy h:mm a");
-        localDateTime = createObject("java", "java.time.LocalDateTime").parse(rawUtc, formatter);
-        instant = localDateTime.atOffset(createObject("java", "java.time.ZoneOffset").UTC).toInstant();
-        zoneId = createObject("java", "java.time.ZoneId").of(tzId);
-        zonedDateTime = createObject("java", "java.time.ZonedDateTime").ofInstant(instant, zoneId);
-        return toString(displayFormatter.format(zonedDateTime));
+        utcDateTime = parseDateTime(replace(rawUtc, " ", "T", "one") & "Z");
+        return dateTimeFormat(utcDateTime, "mmm d, yyyy h:nn tt", tzId);
       } catch (any utcLocalDisplayErr) {
+        return "";
+      }
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="normalizePublicFollowTimezone" access="private" returntype="string" output="false">
+    <cfargument name="timezone" type="string" required="true">
+    <cfscript>
+      var tzId = trim(safeString(arguments.timezone));
+      var tzKey = uCase(tzId);
+
+      switch (tzKey) {
+        case "US/EASTERN":
+          return "America/New_York";
+        case "US/CENTRAL":
+          return "America/Chicago";
+        case "US/MOUNTAIN":
+          return "America/Denver";
+        case "US/PACIFIC":
+          return "America/Los_Angeles";
+        case "US/ALASKA":
+          return "America/Anchorage";
+        case "US/HAWAII":
+          return "Pacific/Honolulu";
+        case "+00:00":
+        case "UTC":
+        case "ETC/UTC":
+        case "GMT":
+          return "UTC";
+      }
+
+      if (!len(tzId)) {
+        return "";
+      }
+      try {
+        dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss", tzId);
+        return tzId;
+      } catch (any invalidPublicFollowTimezoneErr) {
         return "";
       }
     </cfscript>

@@ -74,6 +74,37 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("AND ri.user_id = fp.userId", source)).toBeGT(0);
       });
 
+      it("formats UTC departure labels without java.time and preserves Eastern DST", function() {
+        var summerModel = variables.activeCruiseService.buildFloatPlanSectionForContractTest(
+          buildPlanQuery(
+            "2026-08-02 15:00:00",
+            "2026-08-02 11:00:00",
+            "2026-08-02 17:55:41",
+            "",
+            "US/Eastern"
+          )
+        );
+        var winterModel = variables.activeCruiseService.buildFloatPlanSectionForContractTest(
+          buildPlanQuery(
+            "2026-01-15 15:00:00",
+            "2026-01-15 10:00:00",
+            "2026-01-15 17:55:41",
+            "",
+            "US/Eastern"
+          )
+        );
+        var source = readRepoFile("api/v1/ActiveCruiseViewModelService.cfc");
+
+        expect(findNoCase("Aug 2, 2026 1:55 PM", summerModel.actualDepartureLocalLabel)).toBeGT(0);
+        expect(findNoCase("Aug 2, 2026 11:00 AM", summerModel.scheduledDepartureLocalLabel)).toBeGT(0);
+        expect(findNoCase("Jan 15, 2026 12:55 PM", winterModel.actualDepartureLocalLabel)).toBeGT(0);
+        expect(findNoCase("Jan 15, 2026 10:00 AM", winterModel.scheduledDepartureLocalLabel)).toBeGT(0);
+        expect(findNoCase('createObject("java"', source)).toBe(0);
+        expect(findNoCase('parseDateTime(replace(rawUtc, " ", "T", "one") & "Z")', source)).toBeGT(0);
+        expect(findNoCase('case "US/EASTERN":', source)).toBeGT(0);
+        expect(findNoCase('return "America/New_York"', source)).toBeGT(0);
+      });
+
       it("publishes the same five fields through the public Follow timing authority", function() {
         var source = readRepoFile("api/v1/ActiveCruiseViewModelService.cfc");
 
@@ -201,7 +232,8 @@ component extends="testbox.system.BaseSpec" output="false" {
     required string scheduledUtc,
     required string scheduledLocal,
     string actualRouteStartUtc = "",
-    string firstLegStartUtc = ""
+    string firstLegStartUtc = "",
+    string timezone = "America/New_York"
   ) {
     var qPlan = queryNew(
       "floatPlanId,status,floatPlanName,departureTimeUtcRaw,departureTimeLocalRaw,departureTZ,departTimezone,vessel_timezone,routeStartedAtUtcRaw,leg_started_at,checkedInAt,checkin_context,activatedAt,closedAt",
@@ -214,9 +246,9 @@ component extends="testbox.system.BaseSpec" output="false" {
     querySetCell(qPlan, "floatPlanName", "Scheduled and Actual Departure Contract", 1);
     querySetCell(qPlan, "departureTimeUtcRaw", arguments.scheduledUtc, 1);
     querySetCell(qPlan, "departureTimeLocalRaw", arguments.scheduledLocal, 1);
-    querySetCell(qPlan, "departureTZ", "America/New_York", 1);
-    querySetCell(qPlan, "departTimezone", "America/New_York", 1);
-    querySetCell(qPlan, "vessel_timezone", "America/New_York", 1);
+    querySetCell(qPlan, "departureTZ", arguments.timezone, 1);
+    querySetCell(qPlan, "departTimezone", arguments.timezone, 1);
+    querySetCell(qPlan, "vessel_timezone", arguments.timezone, 1);
     querySetCell(qPlan, "routeStartedAtUtcRaw", arguments.actualRouteStartUtc, 1);
     querySetCell(qPlan, "leg_started_at", arguments.firstLegStartUtc, 1);
     querySetCell(qPlan, "checkedInAt", "", 1);

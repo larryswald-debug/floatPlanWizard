@@ -7359,9 +7359,7 @@
 
   function bindEvents() {
     if (dom.openBtn) {
-      dom.openBtn.addEventListener("click", function () {
-        openModal("generator", "", { freshStart: true });
-      });
+      dom.openBtn.addEventListener("click", requestOpenNewRouteBuilder);
     }
 
     if (dom.closeBtn) {
