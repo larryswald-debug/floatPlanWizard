@@ -98,6 +98,31 @@ arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaFaq);
 structInsert(fpwFuelJsonLd, schemaContextKey, "https://schema.org", true);
 structInsert(fpwFuelJsonLd, schemaGraphKey, fpwFuelSchemaGraph, true);
 fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
+
+fpwFuelCtaUserId = 0;
+if (structKeyExists(session, "user") AND isStruct(session.user)) {
+  for (fpwFuelCtaUserIdKey in [ "userId", "id", "USERID", "ID" ]) {
+    if (structKeyExists(session.user, fpwFuelCtaUserIdKey) AND isNumeric(session.user[fpwFuelCtaUserIdKey])) {
+      fpwFuelCtaUserId = val(session.user[fpwFuelCtaUserIdKey]);
+      break;
+    }
+  }
+}
+fpwFuelCtaSignedIn = fpwFuelCtaUserId GT 0;
+fpwCtaConfig = {
+  "id" = "boat-fuel-calculator-plan-route-cta",
+  "headline" = "Turn your fuel estimate into a trip plan",
+  "supportingText" = "Use FloatPlanWizard to organize your route, stops, schedule, vessel details, and shore contact.",
+  "buttonLabel" = "Plan a Route",
+  "destinationUrl" = fpwFuelCtaSignedIn ? "../app/dashboard.cfm" : "../app/join.cfm",
+  "ctaType" = "plan_route",
+  "sourcePage" = "boat_fuel_calculator",
+  "section" = "calculator_results",
+  "authState" = fpwFuelCtaSignedIn ? "signed_in" : "signed_out",
+  "destinationKey" = fpwFuelCtaSignedIn ? "dashboard" : "join",
+  "analyticsEvent" = "boat_fuel_calculator_plan_route_cta_click",
+  "ariaLabel" = "Plan a Route with FloatPlanWizard from the Boat Fuel Calculator results"
+};
 </cfscript>
 
 <!doctype html>
@@ -1087,6 +1112,8 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
   </style>
 <link rel="stylesheet" href="../assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="../assets/css/top-nav.css?v=20260630-mega-weight-minus1">
+<link rel="stylesheet" href="../assets/css/fpw-action-cta.css?v=20260804-pilot">
+<cfinclude template="../includes/analytics_ga4.cfm">
 <cfinclude template="../includes/trustedsite.cfm">
 </head>
 <body class="fuelcalc-page">
@@ -1154,27 +1181,6 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
           </div>
         </article>
       </div>
-    </section>
-
-    <section class="fpw-fuel-cta fpw-fuel-cta--midpage" aria-labelledby="fuel-midpage-cta-title">
-      <div class="fpw-fuel-cta__icon" aria-hidden="true">
-        <svg viewBox="0 0 64 64" focusable="false">
-          <circle cx="32" cy="32" r="22"></circle>
-          <path d="M32 8 40 32 32 56 24 32z"></path>
-          <path d="M32 20v24"></path>
-          <path d="M20 32h24"></path>
-        </svg>
-      </div>
-
-      <div>
-        <h2 id="fuel-midpage-cta-title">Fuel is only one part of the plan.</h2>
-        <p>Create a free float plan, organize your route, and share trip details before leaving the dock.</p>
-      </div>
-
-      <a class="fpw-cta fpw-cta-primary" href="../app/join.cfm">
-        <span>Create a Free Float Plan</span>
-        <span aria-hidden="true">&rarr;</span>
-      </a>
     </section>
 
     <section class="fpw-fuel-calculator-panel" aria-labelledby="fuel-planning-inputs-title">
@@ -1432,6 +1438,8 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
       </details>
     </section>
 
+    <cfinclude template="../partials/fpw-action-cta.cfm">
+
     <section class="fpw-fuel-education" aria-label="Boat fuel planning information">
       <article class="fpw-info-card">
         <h2>How to Estimate Boat Fuel Usage</h2>
@@ -1475,30 +1483,10 @@ fpwFuelJsonLdText = replace(serializeJSON(fpwFuelJsonLd), "</", "<\/", "all");
       </article>
     </section>
 
-    <section class="fpw-fuel-cta" aria-labelledby="fuel-cta-title">
-      <div class="fpw-fuel-cta__icon" aria-hidden="true">
-        <svg viewBox="0 0 64 64" focusable="false">
-          <circle cx="32" cy="32" r="22"></circle>
-          <path d="M32 8 40 32 32 56 24 32z"></path>
-          <path d="M8 32 32 24 56 32 32 40z"></path>
-        </svg>
-      </div>
-
-      <div>
-        <h2 id="fuel-cta-title">Plan more than fuel.</h2>
-        <p>Organize your route, float plan, and trusted-contact sharing with FloatPlanWizard.</p>
-      </div>
-
-      <a class="fpw-cta fpw-cta-primary" href="../app/join.cfm">
-        <span>Join For Free</span>
-        <span class="fpw-cta-arrow" aria-hidden="true">→</span>
-      </a>
-
-      <p class="fpw-fuel-cta__small">No credit card required.</p>
-    </section>
   </main>
 
   <cfinclude template="../includes/footer.cfm">
+  <script src="../assets/js/fpw-action-cta.js?v=20260804-pilot"></script>
 
   <script>
     (function () {

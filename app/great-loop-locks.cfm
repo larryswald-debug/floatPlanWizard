@@ -5,6 +5,30 @@
 
 <cfscript>
 request.fpwTopNavActive = "great-loop-locks";
+fpwLocksCtaUserId = 0;
+if (structKeyExists(session, "user") AND isStruct(session.user)) {
+  for (fpwLocksCtaUserIdKey in [ "userId", "id", "USERID", "ID" ]) {
+    if (structKeyExists(session.user, fpwLocksCtaUserIdKey) AND isNumeric(session.user[fpwLocksCtaUserIdKey])) {
+      fpwLocksCtaUserId = val(session.user[fpwLocksCtaUserIdKey]);
+      break;
+    }
+  }
+}
+fpwLocksCtaSignedIn = fpwLocksCtaUserId GT 0;
+fpwCtaConfig = {
+  "id" = "great-loop-locks-plan-route-cta",
+  "headline" = "Planning your Great Loop route?",
+  "supportingText" = "Use FloatPlanWizard to organize your route, stops, timing, and trip details.",
+  "buttonLabel" = "Plan a Route",
+  "destinationUrl" = request.fpwBase & (fpwLocksCtaSignedIn ? "/app/dashboard.cfm" : "/app/join.cfm"),
+  "ctaType" = "plan_route",
+  "sourcePage" = "great_loop_locks",
+  "section" = "hub_summary",
+  "authState" = fpwLocksCtaSignedIn ? "signed_in" : "signed_out",
+  "destinationKey" = fpwLocksCtaSignedIn ? "dashboard" : "join",
+  "analyticsEvent" = "great_loop_locks_plan_route_cta_click",
+  "ariaLabel" = "Plan a Route with FloatPlanWizard from the Great Loop Locks hub"
+};
 filters = {
   "q" = structKeyExists(url, "q") ? trim(toString(url.q)) : "",
   "state" = structKeyExists(url, "state") ? trim(toString(url.state)) : "",
@@ -335,8 +359,9 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
   </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260630-mega-weight-minus1">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/fpw-action-cta.css?v=20260804-pilot">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260707-nav-map-zindex">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260804-cta-pilot">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -365,14 +390,9 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
   </section>
 
   <cfif isLockHubRoute>
-    <section class="fpw-lock-cta fpw-lock-panel" aria-labelledby="fpwLockCtaTitle">
-      <div>
-        <p class="fpw-lock-eyebrow">Plan With FPW</p>
-        <h2 id="fpwLockCtaTitle">Planning a route with locks?</h2>
-        <p>Add lock timing context to your route and create a free float plan before departure.</p>
-      </div>
-      <a class="fpw-lock-btn fpw-lock-btn--primary" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm"><span>Plan Your Route</span><span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span></a>
-    </section>
+    <div class="fpw-lock-cta">
+      <cfinclude template="../partials/fpw-action-cta.cfm">
+    </div>
   </cfif>
 
   <section class="fpw-lock-shell" id="fpwLockFinder" aria-labelledby="fpwLockFinderTitle">
@@ -539,6 +559,6 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260619-nautical-charts"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-locks.js?v=20260619-noaa-charts"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/fpw-action-cta.js?v=20260804-pilot"></script>
 </body>
 </html>
-
