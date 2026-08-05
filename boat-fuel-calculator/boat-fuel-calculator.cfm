@@ -38,7 +38,7 @@ function fpwFuelSchemaQuestion(required string questionText, required string ans
 
 fpwFuelCanonicalUrl = "https://floatplanwizard.com/boat-fuel-calculator/";
 fpwFuelPageTitle = "Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost";
-fpwFuelPageDescription = "Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.";
+fpwFuelPageDescription = "Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.";
 fpwFuelFaqId = fpwFuelCanonicalUrl & "##faq";
 fpwFuelJsonLdText = "";
 fpwFuelSchemaGraph = [];
@@ -133,14 +133,14 @@ fpwCtaConfig = {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost</title>
 
-<meta name="description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
+<meta name="description" content="Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.">
 
 <link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FloatPlanWizard">
 <meta property="og:url" content="https://floatplanwizard.com/boat-fuel-calculator/">
 <meta property="og:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
-<meta property="og:description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
+<meta property="og:description" content="Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.">
 <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:type" content="image/png">
@@ -149,7 +149,7 @@ fpwCtaConfig = {
 <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
-<meta name="twitter:description" content="Estimate boat fuel use, reserve fuel, travel time, and trip cost with a free planning calculator for recreational boating trips.">
+<meta name="twitter:description" content="Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.">
 <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <script type="application/ld+json"><cfoutput>#fpwFuelJsonLdText#</cfoutput></script>
@@ -593,6 +593,10 @@ fpwCtaConfig = {
       line-height: 1.45;
     }
 
+    .field-note.fpw-field-error {
+      color: #ffcc5c;
+    }
+
     .calc-actions {
       display: flex;
       flex-wrap: wrap;
@@ -676,7 +680,7 @@ fpwCtaConfig = {
     }
 
     .fpw-results-grid {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-columns: repeat(7, minmax(0, 1fr));
     }
 
     .fpw-result-card {
@@ -716,6 +720,16 @@ fpwCtaConfig = {
       color: var(--fuel-soft);
       font-size: 0.86rem;
       line-height: 1.4;
+    }
+
+    .fpw-result-card--range .value {
+      font-size: clamp(1.35rem, 2.2vw, 2rem);
+      line-height: 1.1;
+    }
+
+    .fpw-result-card--cost .value {
+      font-size: clamp(1.35rem, 1.8vw, 1.75rem);
+      overflow-wrap: anywhere;
     }
 
     .fpw-fuel-education {
@@ -972,6 +986,10 @@ fpwCtaConfig = {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
+      .fpw-result-card--range {
+        grid-column: 1 / -1;
+      }
+
       .fpw-fuel-education {
         grid-template-columns: 1fr;
       }
@@ -1100,6 +1118,10 @@ fpwCtaConfig = {
         grid-template-columns: 1fr;
       }
 
+      .fpw-result-card--range {
+        grid-column: auto;
+      }
+
       .fpw-fuel-cta {
         grid-template-columns: 1fr;
         text-align: left;
@@ -1125,7 +1147,7 @@ fpwCtaConfig = {
         <p class="fpw-compact-tool-hero__eyebrow">BOAT PLANNING TOOL</p>
         <h1 id="fuel-calculator-title">Boat Fuel Calculator</h1>
         <p class="fpw-compact-tool-hero__intro">
-          Estimate fuel needs, range, and reserve before your next boating trip.
+          Estimate travel time, fuel use, reserve fuel, estimated range, and trip cost for a recreational boating trip. Enter your planned distance, cruising speed, fuel burn, fuel price, and optional usable fuel capacity.
         </p>
         <p class="fpw-compact-tool-hero__accent">Plan smarter. Leave with reserve.</p>
       </div>
@@ -1335,6 +1357,20 @@ fpwCtaConfig = {
 
           <div class="field fpw-field">
             <div class="fpw-label-row">
+              <label for="usableFuelCapacityGallons">Usable Fuel Capacity</label>
+              <button type="button" class="fpw-help" aria-label="More information about Usable Fuel Capacity" aria-expanded="false" aria-describedby="tip-usableFuelCapacityGallons" data-tooltip-target="tip-usableFuelCapacityGallons">?</button>
+            </div>
+            <span class="fpw-field__control">
+              <input id="usableFuelCapacityGallons" name="usableFuelCapacityGallons" type="number" inputmode="decimal" step="0.01" min="0.01" value="" placeholder="Optional" aria-describedby="usableFuelCapacityHelp usableFuelCapacityError">
+              <em class="fpw-field__unit">gal</em>
+            </span>
+            <div class="fpw-tooltip" id="tip-usableFuelCapacityGallons" role="tooltip">Enter the amount of fuel you consider usable for trip planning before applying your reserve.</div>
+            <div class="field-note" id="usableFuelCapacityHelp">Usable fuel can be less than nominal tank capacity.</div>
+            <div class="field-note fpw-field-error" id="usableFuelCapacityError" role="status" hidden>Enter a usable fuel capacity of at least 0.01 gallon.</div>
+          </div>
+
+          <div class="field fpw-field">
+            <div class="fpw-label-row">
               <label for="reservePct">Reserve (%)</label>
               <button type="button" class="fpw-help" aria-label="More information about Reserve" aria-expanded="false" aria-describedby="tip-reservePct" data-tooltip-target="tip-reservePct">?</button>
             </div>
@@ -1362,7 +1398,7 @@ fpwCtaConfig = {
 
           <div class="fpw-fuel-note">
             <span aria-hidden="true">i</span>
-            <p>Fuel planning is important because wind, current, sea state, idling, and speed changes all affect real-world fuel burn.</p>
+            <p>Estimated range is a planning value. Actual range can vary with sea conditions, current, wind, vessel load, engine condition, throttle use, and the amount of fuel that is practically usable.</p>
           </div>
         </div>
       </form>
@@ -1413,7 +1449,14 @@ fpwCtaConfig = {
           <p class="sub" id="cardExpectedAvgGphSub">Across all running time</p>
         </article>
 
-        <article class="card fpw-result-card">
+        <article class="card fpw-result-card fpw-result-card--range">
+          <span class="fpw-result-card__icon" aria-hidden="true">NM</span>
+          <h3 class="label">Estimated Range with Reserve</h3>
+          <strong class="value" id="cardEstimatedRange" aria-label="Enter fuel capacity">Enter fuel capacity</strong>
+          <p class="sub" id="cardEstimatedRangeSub">Optional usable-fuel estimate</p>
+        </article>
+
+        <article class="card fpw-result-card fpw-result-card--cost">
           <span class="fpw-result-card__icon" aria-hidden="true">$</span>
           <h3 class="label">Fuel Cost</h3>
           <strong class="value" id="cardFuelCost">--</strong>
@@ -1629,6 +1672,12 @@ fpwCtaConfig = {
         });
       }
 
+      function formatEstimatedRangeNm(value, fallbackText) {
+        var n = safeNum(value);
+        if (n === null || n <= 0) return (fallbackText !== undefined ? String(fallbackText) : "--");
+        return formatNum(n, n < 100 ? 1 : 0, fallbackText);
+      }
+
       function normalizePaceKey(value) {
         var key = String(value || "").trim().toUpperCase();
         if (key === "BALANCED") return "BALANCED";
@@ -1784,7 +1833,28 @@ fpwCtaConfig = {
         return safeNum(raw);
       }
 
+      function readUsableFuelCapacityInput() {
+        var el = q("usableFuelCapacityGallons");
+        var raw = el ? String(el.value || "").trim() : "";
+        var value = null;
+
+        if (!raw.length) {
+          return {
+            value: null,
+            status: (el && el.validity && el.validity.badInput) ? "invalid" : "empty"
+          };
+        }
+
+        value = Number(raw);
+        if (!Number.isFinite(value) || value < 0.01) {
+          return { value: null, status: "invalid" };
+        }
+
+        return { value: value, status: "valid" };
+      }
+
       function getInputs() {
+        var usableFuelCapacityInput = readUsableFuelCapacityInput();
         return {
           distanceNm: readInputNumber("totalNm"),
           pace: normalizePaceKey(q("pace") ? q("pace").value : "RELAXED"),
@@ -1796,6 +1866,8 @@ fpwCtaConfig = {
           idleHoursTotal: readInputNumber("idleHoursTotal"),
           weatherPct: readInputNumber("weatherPct"),
           reservePct: readInputNumber("reservePct"),
+          usableFuelCapacityGallons: usableFuelCapacityInput.value,
+          usableFuelCapacityStatus: usableFuelCapacityInput.status,
           underwayHoursPerDay: readInputNumber("underwayHoursPerDay"),
           fuelPricePerGal: readInputNumber("fuelPricePerGal")
         };
@@ -1814,6 +1886,8 @@ fpwCtaConfig = {
         var idleHoursTotal = normalizeIdleHoursTotal(inputs.idleHoursTotal);
         var weatherPct = normalizeWeatherFactorPct(inputs.weatherPct);
         var reservePct = normalizeReservePct(inputs.reservePct, DEFAULT_RESERVE_PCT);
+        var usableFuelCapacityStatus = String(inputs.usableFuelCapacityStatus || "");
+        var usableFuelCapacityGallons = safeNum(inputs.usableFuelCapacityGallons);
         var fuelPricePerGal = normalizeFuelPricePerGal(inputs.fuelPricePerGal);
         var underwayHoursPerDay = normalizeUnderwayHours(inputs.underwayHoursPerDay);
         var missingRequiredInputs = [];
@@ -1831,11 +1905,24 @@ fpwCtaConfig = {
         var totalFuelCost = null;
         var totalTravelHours = null;
         var estimatedDays = null;
+        var fuelAvailableAfterReserveGallons = null;
+        var estimatedEnduranceHours = null;
+        var estimatedRangeNauticalMiles = null;
         var weatherAdj = weatherPct / 100;
         var hasRequiredInputs = false;
         var usesAnchoredBurn = false;
         var canEstimateFuel = false;
+        var canEstimateRange = false;
         var fuelMode = "required inputs missing";
+
+        if (!usableFuelCapacityStatus) {
+          usableFuelCapacityStatus = (usableFuelCapacityGallons === null)
+            ? "empty"
+            : (usableFuelCapacityGallons >= 0.01 ? "valid" : "invalid");
+        }
+        if (usableFuelCapacityStatus !== "valid") {
+          usableFuelCapacityGallons = null;
+        }
 
         if (mostEfficientSpeedKn <= 0) missingRequiredInputs.push("Most Efficient Speed (kn)");
         if (efficientBurnGph <= 0) missingRequiredInputs.push("GPH @ Efficient");
@@ -1886,6 +1973,23 @@ fpwCtaConfig = {
           weatherAdjustedSpeedKn = roundTo2(effectiveSpeedKn * (1 - weatherAdj));
           if (weatherAdjustedSpeedKn < 0.5) weatherAdjustedSpeedKn = 0.5;
 
+          if (
+            usableFuelCapacityStatus === "valid" &&
+            usableFuelCapacityGallons >= 0.01 &&
+            weatherAdjustedBurn > 0 &&
+            weatherAdjustedSpeedKn > 0
+          ) {
+            fuelAvailableAfterReserveGallons = usableFuelCapacityGallons * (1 - (reservePct / 100));
+            if (fuelAvailableAfterReserveGallons > 0) {
+              estimatedEnduranceHours = fuelAvailableAfterReserveGallons / weatherAdjustedBurn;
+              estimatedRangeNauticalMiles = estimatedEnduranceHours * weatherAdjustedSpeedKn;
+              canEstimateRange = Number.isFinite(estimatedEnduranceHours)
+                && Number.isFinite(estimatedRangeNauticalMiles)
+                && estimatedEnduranceHours > 0
+                && estimatedRangeNauticalMiles > 0;
+            }
+          }
+
           if (distanceNm !== null && distanceNm > 0 && canEstimateFuel) {
             cruiseHours = roundTo2(distanceNm / weatherAdjustedSpeedKn);
             cruiseFuelGallons = roundTo2(cruiseHours * weatherAdjustedBurn);
@@ -1926,6 +2030,8 @@ fpwCtaConfig = {
             idleHoursTotal: idleHoursTotal,
             weatherPct: weatherPct,
             reservePct: reservePct,
+            usableFuelCapacityGallons: usableFuelCapacityGallons,
+            usableFuelCapacityStatus: usableFuelCapacityStatus,
             underwayHoursPerDay: underwayHoursPerDay,
             fuelPricePerGal: fuelPricePerGal
           },
@@ -1945,9 +2051,13 @@ fpwCtaConfig = {
             totalFuelCost: (totalFuelCost === null ? null : roundTo2(totalFuelCost)),
             totalTravelHours: totalTravelHours,
             estimatedDays: estimatedDays,
+            fuelAvailableAfterReserveGallons: fuelAvailableAfterReserveGallons,
+            estimatedEnduranceHours: estimatedEnduranceHours,
+            estimatedRangeNauticalMiles: estimatedRangeNauticalMiles,
             usesAnchoredBurn: usesAnchoredBurn,
             fuelMode: fuelMode,
             canEstimateFuel: canEstimateFuel,
+            canEstimateRange: canEstimateRange,
             missingRequiredInputs: missingRequiredInputs
           }
         };
@@ -1984,6 +2094,15 @@ fpwCtaConfig = {
         q("fuelBurnEfficientGph").setAttribute("aria-invalid", efficientBurnMissing ? "true" : "false");
         q("maxSpeedKn").setAttribute("aria-invalid", maxSpeedMissing ? "true" : "false");
         q("fuelBurnGph").setAttribute("aria-invalid", maxBurnMissing ? "true" : "false");
+      }
+
+      function renderUsableFuelCapacityInputState(model) {
+        var inputs = model.inputs || {};
+        var inputEl = q("usableFuelCapacityGallons");
+        var errorEl = q("usableFuelCapacityError");
+        var isInvalid = inputs.usableFuelCapacityStatus === "invalid";
+        if (inputEl) inputEl.setAttribute("aria-invalid", isInvalid ? "true" : "false");
+        if (errorEl) errorEl.hidden = !isInvalid;
       }
 
       function renderCards(model) {
@@ -2033,6 +2152,28 @@ fpwCtaConfig = {
             : "Provide the burn inputs for this pace";
         }
 
+        if (inputs.usableFuelCapacityStatus === "invalid") {
+          q("cardEstimatedRange").textContent = "Range unavailable";
+          q("cardEstimatedRange").setAttribute("aria-label", "Estimated range unavailable because usable fuel capacity is invalid");
+          q("cardEstimatedRangeSub").textContent = "Enter a usable fuel capacity of at least 0.01 gallon";
+        } else if (inputs.usableFuelCapacityStatus === "empty") {
+          q("cardEstimatedRange").textContent = "Enter fuel capacity";
+          q("cardEstimatedRange").setAttribute("aria-label", "Enter usable fuel capacity to estimate range");
+          q("cardEstimatedRangeSub").textContent = "Optional usable-fuel estimate";
+        } else if (derived.canEstimateRange) {
+          var displayedRange = formatEstimatedRangeNm(derived.estimatedRangeNauticalMiles, "--");
+          q("cardEstimatedRange").textContent = displayedRange + " NM";
+          q("cardEstimatedRange").setAttribute("aria-label", displayedRange + " nautical miles");
+          q("cardEstimatedRangeSub").textContent = "Endurance with reserve: "
+            + formatNum(derived.estimatedEnduranceHours, 1, "--") + " h";
+        } else {
+          q("cardEstimatedRange").textContent = "Range unavailable";
+          q("cardEstimatedRange").setAttribute("aria-label", "Estimated range unavailable");
+          q("cardEstimatedRangeSub").textContent = hasFuelEstimate
+            ? "Reserve leaves no fuel available"
+            : "Complete the speed and fuel-burn inputs";
+        }
+
         if (hasDistance && hasFuelEstimate && inputs.fuelPricePerGal > 0) {
           q("cardFuelCost").textContent = formatCurrency(derived.totalFuelCost, "--");
           q("cardFuelCostSub").textContent = "Required fuel x $" + formatNum(inputs.fuelPricePerGal, 2, "0.00") + "/gal";
@@ -2057,6 +2198,10 @@ fpwCtaConfig = {
           ["GPH @ efficient", formatNum(inputs.fuelBurnEfficientGph, 2, "--"), "Required on this standalone calculator"],
           ["Pace-adjusted burn (GPH)", formatNum(derived.paceAdjustedBurnGph, 2, "--"), derived.usesAnchoredBurn ? "Anchored interpolation between low, efficient, and max-speed burn anchors" : "Max burn x pace ratio^3 or Balanced efficient burn"],
           ["Weather-adjusted burn (GPH)", formatNum(derived.weatherAdjustedBurnGph, 2, "--"), "pace-adjusted burn x (1 + weather factor)"],
+          ["Usable fuel capacity (gal)", formatNum(inputs.usableFuelCapacityGallons, 2, "--"), "caller-entered usable fuel before reserve"],
+          ["Fuel available after reserve (gal)", formatNum(derived.fuelAvailableAfterReserveGallons, 2, "--"), "usable fuel x (1 - reserve percent)"],
+          ["Estimated endurance with reserve (h)", formatNum(derived.estimatedEnduranceHours, 2, "--"), "fuel available after reserve / weather-adjusted burn"],
+          ["Estimated range with reserve (NM)", formatNum(derived.estimatedRangeNauticalMiles, 2, "--"), "endurance with reserve x weather-adjusted speed"],
           ["Cruise hours", formatNum(derived.cruiseHours, 2, "--"), "distance / weather-adjusted speed"],
           ["Idle fuel (gal)", formatNum(derived.idleFuelGallons, 2, "--"), "idle burn x idle hours, rounded to the Route Generator preview precision"],
           ["Base fuel (gal)", formatNum(derived.baseFuelGallons, 2, "--"), "cruise fuel + idle fuel"],
@@ -2103,6 +2248,8 @@ fpwCtaConfig = {
             estimated_fuel_gallons: model.derived.requiredFuelGallons,
             adjusted_speed_kn: model.derived.weatherAdjustedSpeedKn,
             expected_avg_gph: model.derived.weatherAdjustedBurnGph,
+            estimated_range_with_reserve_nm: model.derived.estimatedRangeNauticalMiles,
+            estimated_endurance_with_reserve_hours: model.derived.estimatedEnduranceHours,
             fuel_cost_usd: model.derived.totalFuelCost
           }
         }, null, 2);
@@ -2113,6 +2260,7 @@ fpwCtaConfig = {
         q("maxSpeedKn").placeholder = (model.inputs && model.inputs.pace === "BALANCED") ? "" : "Required";
         renderRequiredEfficientInputsMessage(model);
         renderRequiredEfficientInputState(model);
+        renderUsableFuelCapacityInputState(model);
         renderCards(model);
         renderBreakdown(model);
         renderJson(model);
@@ -2129,6 +2277,7 @@ fpwCtaConfig = {
         q("idleHoursTotal").value = "";
         q("weatherPct").value = "0";
         q("reservePct").value = "33";
+        q("usableFuelCapacityGallons").value = "";
         q("underwayHoursPerDay").value = "6.5";
         q("fuelPricePerGal").value = "";
         run();
@@ -2156,6 +2305,7 @@ fpwCtaConfig = {
         "idleHoursTotal",
         "weatherPct",
         "reservePct",
+        "usableFuelCapacityGallons",
         "underwayHoursPerDay",
         "fuelPricePerGal"
       ].forEach(function (id) {
