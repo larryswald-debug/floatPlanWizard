@@ -240,7 +240,7 @@
             <article class="fpw-trust-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-shield"></use></svg><div><h3>Useful information ashore</h3><p>The float plan gives the shore contact organized trip details, and planned departure and return times.</p></div></article>
             <article class="fpw-trust-card fpw-monitoring-card"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-clock"></use></svg><div><h3>Float Plan Monitoring</h3><p>FPW watches the expected check-in schedule. If a check-in is missed or remains unresolved, the trip may need attention and FPW can notify the captain or selected trip contacts.</p><p class="fpw-monitoring-note">Automated schedule monitoring—not emergency dispatch or rescue monitoring.</p></div></article>
           </div>
-          <p class="fpw-audience-safety-note">FloatPlanWizard organizes and shares trip information. It is not a rescue, dispatch, or emergency response service.</p>
+          <p class="fpw-audience-safety-note">FloatPlanWizard organizes and shares trip information. It is not a rescue, dispatch, or emergency response service. <a class="fpw-audience-safety-note__link" href="<cfoutput>#landingBasePath#</cfoutput>/shore-contact-overdue-boater/">Read the Shore Contact Guide</a></p>
         </div>
       </div>
     </section>

@@ -308,6 +308,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
         <div class="fpw-footer-plan-links">
           <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
           <a href="#footerBasePath#/app/help.cfm">Help Center</a>
+          <a href="#footerBasePath#/shore-contact-overdue-boater/">Shore Contact Guide</a>
           <a href="#footerBasePath#/great-loop/locks/">Great Loop Locks</a>
           <a href="#footerBasePath#/great-loop/bridges/">Great Loop Bridges</a>
           <a href="#footerBasePath#/great-loop/ports/">Great Loop Ports</a>
@@ -352,7 +353,6 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 </footer>
 
 </cfoutput>
-
 
 
 

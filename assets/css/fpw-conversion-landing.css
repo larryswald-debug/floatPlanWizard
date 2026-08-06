@@ -1043,6 +1043,20 @@ body.fpw-home-page {
   font-size: 12px;
 }
 
+.fpw-landing-page .fpw-audience-safety-note__link {
+  color: var(--fpw-blue-700);
+  font-weight: 850;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.fpw-landing-page .fpw-audience-safety-note__link:hover,
+.fpw-landing-page .fpw-audience-safety-note__link:focus-visible {
+  color: var(--fpw-blue-900);
+  outline-offset: 3px;
+}
+
 .fpw-use-cases {
   padding: 18px 0 38px;
   background: #fff;
