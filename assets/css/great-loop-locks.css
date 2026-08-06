@@ -102,6 +102,29 @@
   line-height: 1.55;
 }
 
+.fpw-lock-hero__context {
+  max-width: 880px;
+  margin: 0.75rem 0 0;
+  color: #b8cbe0;
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.fpw-lock-hero__context strong {
+  color: #f7fbff;
+}
+
+.fpw-lock-hero__context a {
+  color: #8ff4ff;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.fpw-lock-hero__context a:hover,
+.fpw-lock-hero__context a:focus-visible {
+  color: #ffffff;
+}
+
 .fpw-lock-compact-hero p {
   max-width: 880px;
   margin: 22px 0 0;

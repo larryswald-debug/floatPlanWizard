@@ -67,7 +67,7 @@ pageTitle = "Great Loop Lock Reference Library | VHF, Phone & Planning Notes";
 pageDescription = "Browse Great Loop lock locations, VHF channels, phone numbers, approach notes, and planning details for safer recreational cruising.";
 pageOgDescription = pageDescription;
 pageHeading = "Great Loop Lock Reference Library";
-pageLede = "Find lock locations, phone numbers, VHF channels, operating notes, approach details, and boater-friendly guidance for locks along the Great Loop.";
+pageLede = "Use this searchable Great Loop lock reference library to find lock locations, VHF channels, phone numbers, approach notes, and practical trip-planning details. Browse by state or waterway to help organize your route and prepare for each lock along the way.";
 
 if (structKeyExists(request, "fpwLockTaxonomyCanonicalUrl") AND len(trim(toString(request.fpwLockTaxonomyCanonicalUrl)))) {
   lockCanonicalUrl = trim(toString(request.fpwLockTaxonomyCanonicalUrl));
@@ -378,6 +378,16 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
         <p class="fpw-lock-hero__lede">
           <cfoutput>#encodeForHTML(pageLede)#</cfoutput>
         </p>
+        <cfif isLockHubRoute>
+          <cfoutput>
+            <p class="fpw-lock-hero__context">
+              This library currently includes <strong>#encodeForHTML(stats.PUBLIC_ROWS)#</strong> reviewed Great Loop locks and related navigation structures. The number you actually encounter depends on your route, optional waterways, Canadian or U.S. alternatives, detours, and seasonal conditions.
+            </p>
+            <p class="fpw-lock-hero__context">
+              Continue planning with the <a href="#encodeForHTMLAttribute(request.fpwBase & '/great-loop/bridges/')#">Great Loop bridge library</a> and <a href="#encodeForHTMLAttribute(request.fpwBase & '/great-loop/ports/')#">Great Loop ports directory</a>.
+            </p>
+          </cfoutput>
+        </cfif>
       </div>
     </div>
   </section>
