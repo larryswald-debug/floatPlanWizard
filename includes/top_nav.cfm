@@ -13,6 +13,13 @@ topNavFirstName = "";
 topNavLastName = "";
 topNavEmail = "";
 topNavHowHref = "";
+topNavRequestPath = "";
+topNavResourcesActive = false;
+topNavShoreContactGuideActive = false;
+topNavWhyFloatPlanActive = false;
+topNavFaqActive = false;
+topNavFuelActive = false;
+topNavWeatherActive = false;
 topNavCreditModelEnabled = (
   structKeyExists(application, "premiumSendCreditModelEnabled")
   AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
@@ -46,6 +53,39 @@ if (len(topNavBasePath) AND left(topNavBasePath, 1) NEQ "/") {
 if (structKeyExists(request, "fpwTopNavActive")) {
   topNavActive = lCase(trim(toString(request.fpwTopNavActive)));
 }
+
+if (structKeyExists(cgi, "request_uri")) {
+  topNavRequestPath = toString(cgi.request_uri);
+} else if (structKeyExists(cgi, "script_name")) {
+  topNavRequestPath = toString(cgi.script_name);
+}
+topNavRequestPath = lCase(replace(trim(topNavRequestPath), "\", "/", "all"));
+topNavRequestPath = reReplace(topNavRequestPath, "[?##].*$", "");
+
+topNavResourceRouteMap = [
+  { "pattern" = "/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide" },
+  { "pattern" = "/why-use-a-float-plan", "active" = "resources-why-float-plan" },
+  { "pattern" = "/faq/", "active" = "resources-faq" }
+];
+
+if (!len(topNavActive)) {
+  for (topNavResourceRouteIndex = 1; topNavResourceRouteIndex LTE arrayLen(topNavResourceRouteMap); topNavResourceRouteIndex++) {
+    if (findNoCase(topNavResourceRouteMap[topNavResourceRouteIndex].pattern, topNavRequestPath)) {
+      topNavActive = topNavResourceRouteMap[topNavResourceRouteIndex].active;
+      break;
+    }
+  }
+}
+
+topNavResourcesActive = listFindNoCase(
+  "resources,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
+  topNavActive
+) GT 0;
+topNavShoreContactGuideActive = topNavActive EQ "resources-shore-contact-guide";
+topNavWhyFloatPlanActive = topNavActive EQ "resources-why-float-plan";
+topNavFaqActive = topNavActive EQ "resources-faq";
+topNavFuelActive = topNavActive EQ "fuel";
+topNavWeatherActive = topNavActive EQ "weather";
 
 topNavHowHref = topNavBasePath & "/##fpwHowItWorks";
 
@@ -334,38 +374,104 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 </div>
               </div>
             </div>
-            <div class="fpw-dropdown fpw-dropdown--tools" data-fpw-dropdown>
-              <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwToolsMenu" data-fpw-dropdown-toggle>
-                #renderFpwNavIcon("tools", "fpw-nav-icon")#
-                <span class="fpw-nav-label-desktop">Tools</span>
-                <span class="fpw-nav-label-mobile">Trip Tools</span>
-                <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
-              </button>
-              <div class="fpw-dropdown-menu fpw-tools-menu" id="fpwToolsMenu" role="menu">
-                <div class="fpw-menu-header">
-                  #renderFpwNavIcon("tools", "fpw-menu-header-icon")#
-                  <div>
-                    <h2>Trip Tools</h2>
-                    <p>Practical tools for every boat trip</p>
+            <cfif topNavIsLoggedIn>
+              <div class="fpw-dropdown fpw-dropdown--tools" data-fpw-dropdown>
+                <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwToolsMenu" data-fpw-dropdown-toggle>
+                  #renderFpwNavIcon("tools", "fpw-nav-icon")#
+                  <span class="fpw-nav-label-desktop">Tools</span>
+                  <span class="fpw-nav-label-mobile">Trip Tools</span>
+                  <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
+                <div class="fpw-dropdown-menu fpw-tools-menu" id="fpwToolsMenu" role="menu">
+                  <div class="fpw-menu-header">
+                    #renderFpwNavIcon("tools", "fpw-menu-header-icon")#
+                    <div>
+                      <h2>Trip Tools</h2>
+                      <p>Practical tools for every boat trip</p>
+                    </div>
+                  </div>
+                  <a class="fpw-tool-row" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
+                    #renderFpwNavIcon("fuel", "fpw-tool-icon")#
+                    <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </a>
+                  <a class="fpw-tool-row" href="#topNavBasePath#/app/weather.cfm" role="menuitem">
+                    #renderFpwNavIcon("weather", "fpw-tool-icon")#
+                    <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </a>
+                  <a class="fpw-tool-row" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem">
+                    #renderFpwNavIcon("checklist", "fpw-tool-icon")#
+                    <span><strong>Float Plan Basics</strong><em>Learn what to include in your float plan.</em></span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </a>
+                </div>
+              </div>
+            <cfelse>
+              <div class="fpw-dropdown fpw-dropdown--resources" data-fpw-dropdown>
+                <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavResourcesActive> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" aria-controls="fpwResourcesMenu" data-fpw-dropdown-toggle>
+                  #renderFpwNavIcon("checklist", "fpw-nav-icon")#
+                  <span>Resources</span>
+                  <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
+                <div class="fpw-dropdown-menu fpw-resources-menu" id="fpwResourcesMenu" role="menu">
+                  <div class="fpw-resources-grid">
+                    <div class="fpw-resource-feature" role="group" aria-labelledby="fpwResourceFeaturedTitle">
+                      <span class="fpw-resource-section-label">Featured Guide</span>
+                      #renderFpwNavIcon("checklist", "fpw-resource-feature-icon")#
+                      <h2 id="fpwResourceFeaturedTitle">Shore Contact Guide</h2>
+                      <p>What to do when a boater misses a check-in or expected return.</p>
+                      <a
+                        class="fpw-resource-feature-link<cfif topNavShoreContactGuideActive> is-active</cfif>"
+                        href="#topNavBasePath#/shore-contact-overdue-boater/"
+                        role="menuitem"
+                        <cfif topNavShoreContactGuideActive>aria-current="page"</cfif>
+                        data-fpw-nav-track="public_nav_shore_contact_guide_click"
+                        data-fpw-nav-track-location="public_header"
+                        data-fpw-nav-track-menu-group="resources"
+                        data-fpw-nav-track-label="Shore Contact Guide"
+                        data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
+                        data-fpw-nav-track-auth-state="signed_out">
+                        <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
+                      </a>
+                    </div>
+
+                    <div class="fpw-resource-groups">
+                      <div class="fpw-resource-group" role="group" aria-labelledby="fpwPlanningToolsTitle">
+                        <h2 id="fpwPlanningToolsTitle">Planning Tools</h2>
+                        <div class="fpw-resource-items">
+                          <a class="fpw-tool-row<cfif topNavFuelActive> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem"<cfif topNavFuelActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("fuel", "fpw-tool-icon")#
+                            <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
+                            <b aria-hidden="true">&rarr;</b>
+                          </a>
+                          <a class="fpw-tool-row<cfif topNavWeatherActive> is-active</cfif>" href="#topNavBasePath#/app/weather.cfm" role="menuitem"<cfif topNavWeatherActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("weather", "fpw-tool-icon")#
+                            <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
+                            <b aria-hidden="true">&rarr;</b>
+                          </a>
+                        </div>
+                      </div>
+
+                      <div class="fpw-resource-group" role="group" aria-labelledby="fpwBoatingResourcesTitle">
+                        <h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>
+                        <div class="fpw-resource-items">
+                          <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
+                            <span>Why Use a Float Plan</span><b aria-hidden="true">&rarr;</b>
+                          </a>
+                          <a class="fpw-resource-link" href="#topNavHowHref#" role="menuitem">
+                            <span>How It Works</span><b aria-hidden="true">&rarr;</b>
+                          </a>
+                          <a class="fpw-resource-link<cfif topNavFaqActive> is-active</cfif>" href="#topNavBasePath#/faq/" role="menuitem"<cfif topNavFaqActive> aria-current="page"</cfif>>
+                            <span>FAQ</span><b aria-hidden="true">&rarr;</b>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <a class="fpw-tool-row" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
-                  #renderFpwNavIcon("fuel", "fpw-tool-icon")#
-                  <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
-                  <b aria-hidden="true">&rarr;</b>
-                </a>
-                <a class="fpw-tool-row" href="#topNavBasePath#/app/weather.cfm" role="menuitem">
-                  #renderFpwNavIcon("weather", "fpw-tool-icon")#
-                  <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
-                  <b aria-hidden="true">&rarr;</b>
-                </a>
-                <a class="fpw-tool-row" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem">
-                  #renderFpwNavIcon("checklist", "fpw-tool-icon")#
-                  <span><strong>Float Plan Basics</strong><em>Learn what to include in your float plan.</em></span>
-                  <b aria-hidden="true">&rarr;</b>
-                </a>
               </div>
-            </div>
+            </cfif>
             <cfif NOT topNavIsLoggedIn>
               <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
                 #renderFpwNavIcon("pricing", "fpw-nav-icon")#
@@ -459,7 +565,10 @@ topNavShowAppSubnav = topNavIsLoggedIn
       var navMenu = shell.querySelector("[data-fpw-nav-menu]");
       var dropdowns = Array.prototype.slice.call(shell.querySelectorAll("[data-fpw-dropdown]"));
       var logoutLinks = shell.querySelectorAll("[data-fpw-member-logout]");
-      var mobileQuery = window.matchMedia("(max-width: 1023px)");
+      var trackedNavLinks = shell.querySelectorAll("[data-fpw-nav-track]");
+      var mobileQuery = window.matchMedia(
+        shell.classList.contains("fpw-site-header--logged-in") ? "(max-width: 1023px)" : "(max-width: 1050px)"
+      );
       var previousBodyOverflow = "";
 
       function isMobileNav() {
@@ -566,6 +675,33 @@ topNavShowAppSubnav = topNavIsLoggedIn
           .finally(redirectAfterLogout);
       }
 
+      function trackPublicNavClick(link) {
+        var eventName = link ? link.getAttribute("data-fpw-nav-track") : "";
+        if (!eventName) {
+          return;
+        }
+
+        try {
+          var fields = {
+            source_page: window.location.pathname || "",
+            nav_location: link.getAttribute("data-fpw-nav-track-location") || "",
+            menu_group: link.getAttribute("data-fpw-nav-track-menu-group") || "",
+            label: link.getAttribute("data-fpw-nav-track-label") || "",
+            destination_key: link.getAttribute("data-fpw-nav-track-destination-key") || "",
+            auth_state: link.getAttribute("data-fpw-nav-track-auth-state") || ""
+          };
+
+          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track(eventName, fields);
+          } else if (typeof window.gtag === "function") {
+            window.gtag("event", eventName, fields);
+          } else if (Array.isArray(window.dataLayer)) {
+            fields.event = eventName;
+            window.dataLayer.push(fields);
+          }
+        } catch (error) {}
+      }
+
       if (menuButton && navMenu) {
         menuButton.addEventListener("click", function () {
           setMenuOpen(!shell.classList.contains("is-menu-open"));
@@ -641,6 +777,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
       Array.prototype.forEach.call(logoutLinks, function (logoutLink) {
         logoutLink.addEventListener("click", runLogout);
+      });
+
+      Array.prototype.forEach.call(trackedNavLinks, function (trackedNavLink) {
+        trackedNavLink.addEventListener("click", function () {
+          trackPublicNavClick(trackedNavLink);
+        });
       });
 
       document.addEventListener("click", function (event) {

@@ -94,9 +94,12 @@ test("guide emits exact metadata and a consistent Article graph", async ({ page 
   expect(new Set(graph.map((entity) => entity["@id"])).size).toBe(4);
 
   const article = graph.find((entity) => entity["@type"] === "Article");
+  expect(article.url).toBe("https://floatplanwizard.com/shore-contact-overdue-boater/");
   expect(article.headline).toBe("What a Shore Contact Should Do When a Boater Is Overdue");
-  expect(article.datePublished).toBe("2026-08-06");
-  expect(article.dateModified).toBe("2026-08-06");
+  expect(article.datePublished).toBe("2026-08-06T11:29:36-04:00");
+  expect(article.dateModified).toBe("2026-08-06T11:29:36-04:00");
+  expect(article.inLanguage).toBe("en");
+  expect(article).not.toHaveProperty("image");
   expect(article.author).toEqual({ "@id": "https://floatplanwizard.com/#organization" });
   expect(article.publisher).toEqual({ "@id": "https://floatplanwizard.com/#organization" });
   expect(article.mainEntityOfPage).toEqual({

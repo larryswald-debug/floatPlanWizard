@@ -45,9 +45,11 @@ test("guide uses the existing schema graph pattern with Article and breadcrumbs"
     assert.match(page, new RegExp(`structInsert\\([^\\n]+schemaTypeKey, "${type}"`));
   }
   for (const property of [
+    "url",
     "headline",
     "datePublished",
     "dateModified",
+    "inLanguage",
     "author",
     "publisher",
     "mainEntityOfPage",
@@ -55,7 +57,10 @@ test("guide uses the existing schema graph pattern with Article and breadcrumbs"
   ]) {
     assert.equal(page.includes(`["${property}"]`), true, `Missing schema property ${property}`);
   }
-  assert.match(page, /fpwOverduePublishedDate = "2026-08-06";/);
+  assert.match(page, /fpwOverduePublishedDate = "2026-08-06T11:29:36-04:00";/);
+  assert.match(page, /fpwOverdueSchemaArticle\["url"\] = fpwOverdueCanonicalUrl;/);
+  assert.match(page, /fpwOverdueSchemaArticle\["inLanguage"\] = "en";/);
+  assert.doesNotMatch(page, /fpwOverdueSchemaArticle\["image"\]/);
   assert.match(page, /serializeJSON\(fpwOverdueJsonLd\)/);
   assert.equal(countMatches(page, /type="application\/ld\+json"/g), 1);
 });

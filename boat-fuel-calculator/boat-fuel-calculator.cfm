@@ -1133,7 +1133,7 @@ fpwCtaConfig = {
     }
   </style>
 <link rel="stylesheet" href="../assets/css/layout.css?v=20260620-page-width">
-<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260630-mega-weight-minus1">
+<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260806-resources-mega-v3">
 <link rel="stylesheet" href="../assets/css/fpw-action-cta.css?v=20260804-pilot">
 <cfinclude template="../includes/analytics_ga4.cfm">
 <cfinclude template="../includes/trustedsite.cfm">

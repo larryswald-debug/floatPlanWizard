@@ -57,7 +57,7 @@ fpwOverduePageTitle = "What to Do When a Boater Is Overdue | Shore Contact Guide
 fpwOverduePageDescription = "Learn what a shore contact should do when a boater misses a check-in or expected return, what information to gather, and when to contact authorities.";
 fpwOverdueHeadline = "What a Shore Contact Should Do When a Boater Is Overdue";
 fpwOverdueSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png";
-fpwOverduePublishedDate = "2026-08-06";
+fpwOverduePublishedDate = "2026-08-06T11:29:36-04:00";
 fpwOverdueArticleId = fpwOverdueCanonicalUrl & "##article";
 fpwOverdueWebPageId = fpwOverdueCanonicalUrl & "##webpage";
 fpwOverdueOrganizationId = "https://floatplanwizard.com/##organization";
@@ -96,12 +96,13 @@ arrayAppend(fpwOverdueSchemaGraph, fpwOverdueSchemaPage);
 
 structInsert(fpwOverdueSchemaArticle, schemaTypeKey, "Article", true);
 structInsert(fpwOverdueSchemaArticle, schemaIdKey, fpwOverdueArticleId, true);
+fpwOverdueSchemaArticle["url"] = fpwOverdueCanonicalUrl;
 fpwOverdueSchemaArticle["headline"] = fpwOverdueHeadline;
 fpwOverdueSchemaArticle["description"] = fpwOverduePageDescription;
 fpwOverdueSchemaArticle["datePublished"] = fpwOverduePublishedDate;
 fpwOverdueSchemaArticle["dateModified"] = fpwOverduePublishedDate;
 fpwOverdueSchemaArticle["articleSection"] = "Boating Safety";
-fpwOverdueSchemaArticle["image"] = fpwOverdueSocialImage;
+fpwOverdueSchemaArticle["inLanguage"] = "en";
 fpwOverdueSchemaArticle["author"] = fpwOverdueSchemaRef(fpwOverdueOrganizationId);
 fpwOverdueSchemaArticle["publisher"] = fpwOverdueSchemaRef(fpwOverdueOrganizationId);
 fpwOverdueSchemaArticle["mainEntityOfPage"] = fpwOverdueSchemaRef(fpwOverdueWebPageId);
@@ -165,7 +166,7 @@ fpwCtaConfig = {
   <script type="application/ld+json"><cfoutput>#fpwOverdueJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwOverdueBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/top-nav.css?v=20260630-mega-weight-minus1"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/top-nav.css?v=20260806-resources-mega-v3"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
