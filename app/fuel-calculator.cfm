@@ -399,7 +399,7 @@ fuelCalcCreditModelEnabled = (
       </a>
       <nav class="nav" aria-label="Primary">
         <cfif fuelCalcCreditModelEnabled>
-          <a href="<cfoutput>#request.fpwBase#</cfoutput>/#fpwHowItWorks">How It Works</a>
+          <a href="<cfoutput>#request.fpwBase#</cfoutput>/how-it-works/">How It Works</a>
           <a href="<cfoutput>#request.fpwBase#</cfoutput>/#fpwFeatures">Features</a>
           <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/pricing.cfm">Pricing</a>
           <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>

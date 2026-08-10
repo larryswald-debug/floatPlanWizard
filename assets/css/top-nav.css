@@ -455,7 +455,7 @@
 .fpw-account-dropdown > .fpw-dropdown-menu {
   left: auto;
   right: 0;
-  width: min(300px, calc(100vw - 32px));
+  width: min(250px, calc(100vw - 32px));
   transform: translateY(-6px);
 }
 
@@ -832,9 +832,9 @@
 .fpw-resource-link {
   min-height: 48px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 16px;
+  gap: 13px;
   padding: 13px 10px;
   color: var(--fpw-nav-white);
   font-size: 14px;

@@ -43,17 +43,16 @@ fpwHowFaqItems = [
   },
   {
     "id": "what-is-the-floatplanwizard-route-builder",
-    "question": "What is the FloatPlanWizard Route Builder?",
+    "question": "How is FloatPlanWizard different from a navigation app?",
     "answer": [
-      "The Route Builder helps you create a more complete boating trip plan by organizing your route, stops, timing, notes, and supporting float-plan details in one workflow.",
-      "Instead of only writing a destination and return time, you can build a route that better reflects how boat trips actually work: departure point, destination, possible stops, timing, fuel considerations, route notes, and information your family and friends may need while following the trip."
+      "FloatPlanWizard doesn’t replace your chartplotter or navigation app. It organizes your planned route, vessel and passenger information, float plan, shore-contact updates, and trip status in one place."
     ]
   },
   {
     "id": "do-my-contacts-need-an-account",
-    "question": "Do my contacts need an account?",
+    "question": "Does my shore contact need an account?",
     "answer": [
-      "No. Family and friends do not need a FloatPlanWizard account to view the trip information you share with them.",
+      "No. Your shore contact does not need a FloatPlanWizard account to view the trip information you share.",
       "Only the captain or trip planner needs an account to create, manage, update, and share the float plan."
     ]
   },
@@ -980,19 +979,19 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
       <p class="fpw-eyebrow">FloatPlanWizard</p>
       <h1>How It Works</h1>
       <p class="fpw-how-hero__lead">
-        Plan your route, create a float plan, and keep trusted contacts informed &mdash; all in one simple workflow.
+        Plan your route, create your float plan, and keep trusted contacts informed from departure through safe return.
       </p>
 
       <div class="fpw-how-actions">
         <a class="fpw-btn fpw-btn--primary" href="<cfoutput>#fpwHowBasePath#/app/join.cfm</cfoutput>">
-          <span>Claim Your Free Account</span>
+          <span>Start Free</span>
           <svg class="fpw-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path class="fpw-icon-stroke" d="M5 12h13M13 6l6 6-6 6" stroke-width="2"></path>
           </svg>
         </a>
 
         <a class="fpw-btn fpw-btn--secondary" href="<cfoutput>#fpwHowFuelUrl#</cfoutput>">
-          <span>Try Free Fuel Calculator</span>
+          <span>Try the Fuel Calculator</span>
           <svg class="fpw-btn__icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect class="fpw-icon-stroke" x="5" y="3" width="14" height="18" rx="2" stroke-width="1.8"></rect>
             <path class="fpw-icon-stroke" d="M8 8h8M8 12h2M12 12h2M16 12h0M8 16h2M12 16h2M16 16h0" stroke-width="1.8"></path>
@@ -1055,7 +1054,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
           </div>
 
           <a class="fpw-trip-details__button" href="<cfoutput>#fpwHowNotifyUrl#</cfoutput>">
-            Try it For Free
+            Start Free
             <span aria-hidden="true">&nearr;</span>
           </a>
         </div>
@@ -1082,7 +1081,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
           <svg viewBox="0 0 120 90"><path d="M38 18h44v58H38zM50 18v-8h20v8M50 34l6 6 12-13M50 52l6 6 12-13M50 68h24M33 24h10M33 42h10M33 60h10"></path></svg>
         </div>
         <h3>Create a Float Plan</h3>
-        <p>Turn trip details into a clear, shareable safety plan.</p>
+        <p>Turn your trip details into a clear float plan your shore contact can use.</p>
       </article>
 
       <article class="fpw-step-card">
@@ -1090,8 +1089,8 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         <div class="fpw-step-card__icon" aria-hidden="true">
           <svg viewBox="0 0 120 90"><circle cx="60" cy="30" r="13"></circle><circle cx="34" cy="38" r="11"></circle><circle cx="86" cy="38" r="11"></circle><path d="M36 78c1-19 9-30 24-30s23 11 24 30M15 78c1-15 7-24 19-24M86 54c12 0 18 9 19 24"></path></svg>
         </div>
-        <h3>Share with Trusted Contacts</h3>
-        <p>Send a simple trip status page to family or friends.</p>
+        <h3>Send to Your Shore Contact</h3>
+        <p>Send a simple trip-status page your family or shore contact can follow without an account.</p>
       </article>
 
       <article class="fpw-step-card">
@@ -1100,7 +1099,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
           <svg viewBox="0 0 120 90"><rect x="42" y="12" width="36" height="66" rx="5"></rect><path d="M54 19h12M58 71h4"></path><circle cx="60" cy="47" r="18"></circle><path d="M51 47l7 7 13-16"></path></svg>
         </div>
         <h3>Check In Underway</h3>
-        <p>Update progress, add delays, secure for the night, and close the trip when done.</p>
+        <p>Check in, report delays, secure for the night, and close your float plan when you return.</p>
       </article>
     </div>
   </section>
@@ -1129,7 +1128,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         <div class="fpw-timeline-card__icon" aria-hidden="true">
           <svg viewBox="0 0 70 60"><circle cx="35" cy="30" r="22"></circle><path d="M35 13v17l10 8M17 8l5 5M53 8l-5 5"></path><circle cx="51" cy="44" r="12"></circle><path d="M46 44h10M51 39v10"></path></svg>
         </div>
-        <h3>Lunch Delay <span>+30 min</span></h3>
+        <h3>Report Delay <span>+30 min</span></h3>
         <time>12:00 PM</time>
       </article>
 
@@ -1161,7 +1160,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         </div>
         <div>
           <h3>Route + Float Plan Together</h3>
-          <p>Share your route, timing, and vessel details in one place.</p>
+          <p>Your route, timing, vessel, passengers, and safety details stay together in one plan.</p>
         </div>
       </article>
 
@@ -1171,7 +1170,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         </div>
         <div>
           <h3>Simple for Non-Boaters</h3>
-          <p>Your contacts get an easy trip status page&mdash;no account or app required.</p>
+          <p>Your shore contact gets a simple trip-status page &mdash; no boating knowledge, account, or app required.</p>
         </div>
       </article>
 
@@ -1181,7 +1180,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         </div>
         <div>
           <h3>Live Check-Ins &amp; Delay Updates</h3>
-          <p>Keep everyone informed with real-time updates if plans change.</p>
+          <p>Keep your shore contact informed when you&rsquo;re on track, delayed, or stopping for the night.</p>
         </div>
       </article>
 
@@ -1190,8 +1189,8 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
           <svg viewBox="0 0 80 70"><rect x="14" y="16" width="52" height="42" rx="4"></rect><path d="M14 28h52M26 10v12M54 10v12M28 39h.1M40 39h.1M52 39h.1M28 49h.1M40 49h.1M52 49h.1"></path></svg>
         </div>
         <div>
-          <h3>Organized Before, During, and After the Trip</h3>
-          <p>Everything in one place from planning to safe return.</p>
+          <h3>One Trip. One Record.</h3>
+          <p>Plan before departure, update while underway, and close the trip when you return safely.</p>
         </div>
       </article>
     </div>
@@ -1214,22 +1213,21 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
 
       <article class="fpw-faq-item">
         <button class="fpw-faq-row" id="fpw-faq-question-what-is-the-floatplanwizard-route-builder" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-what-is-the-floatplanwizard-route-builder">
-          <span>What is the FloatPlanWizard Route Builder?</span>
+          <span>How is FloatPlanWizard different from a navigation app?</span>
           <span class="fpw-faq-icon" aria-hidden="true">+</span>
         </button>
         <div class="fpw-faq-answer" id="fpw-faq-answer-what-is-the-floatplanwizard-route-builder" role="region" aria-labelledby="fpw-faq-question-what-is-the-floatplanwizard-route-builder" hidden>
-          <p>The Route Builder helps you create a more complete boating trip plan by organizing your route, stops, timing, notes, and supporting float-plan details in one workflow.</p>
-          <p>Instead of only writing a destination and return time, you can build a route that better reflects how boat trips actually work: departure point, destination, possible stops, timing, fuel considerations, route notes, and information your family and friends may need while following the trip.</p>
+          <p>FloatPlanWizard doesn&rsquo;t replace your chartplotter or navigation app. It organizes your planned route, vessel and passenger information, float plan, shore-contact updates, and trip status in one place.</p>
         </div>
       </article>
 
       <article class="fpw-faq-item">
         <button class="fpw-faq-row" id="fpw-faq-question-do-my-contacts-need-an-account" type="button" aria-expanded="false" aria-controls="fpw-faq-answer-do-my-contacts-need-an-account">
-          <span>Do my contacts need an account?</span>
+          <span>Does my shore contact need an account?</span>
           <span class="fpw-faq-icon" aria-hidden="true">+</span>
         </button>
         <div class="fpw-faq-answer" id="fpw-faq-answer-do-my-contacts-need-an-account" role="region" aria-labelledby="fpw-faq-question-do-my-contacts-need-an-account" hidden>
-          <p>No. Family and friends do not need a FloatPlanWizard account to view the trip information you share with them.</p>
+          <p>No. Your shore contact does not need a FloatPlanWizard account to view the trip information you share.</p>
           <p>Only the captain or trip planner needs an account to create, manage, update, and share the float plan.</p>
         </div>
       </article>
@@ -1268,7 +1266,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
     </div>
 
     <div class="fpw-faq-full-link">
-      <a class="fpw-btn fpw-btn--secondary" href="<cfoutput>#fpwHowBasePath#/faq/</cfoutput>">View all frequently asked questions</a>
+      <a class="fpw-btn fpw-btn--secondary" href="<cfoutput>#fpwHowBasePath#/faq/</cfoutput>">View All FAQs</a>
     </div>
   </section>
 
@@ -1280,11 +1278,11 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
       </svg>
     </div>
     <div>
-      <h2>Ready to plan safer, smarter boating trips?</h2>
-      <!---<p>Be the first to know when FloatPlanWizard launches.</p>--->
+      <h2>Ready to plan your next trip?</h2>
+      <p>Build your route and float plan for free.</p>
     </div>
     <a class="fpw-btn fpw-btn--primary" href="<cfoutput>#fpwHowNotifyUrl#</cfoutput>">
-      <span>Claim Your Free Account</span>
+      <span>Start Free</span>
       <svg class="fpw-arrow-icon" viewBox="0 0 24 24" aria-hidden="true">
         <path class="fpw-icon-stroke" d="M5 12h13M13 6l6 6-6 6" stroke-width="2"></path>
       </svg>

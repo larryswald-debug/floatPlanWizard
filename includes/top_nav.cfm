@@ -87,7 +87,7 @@ topNavFaqActive = topNavActive EQ "resources-faq";
 topNavFuelActive = topNavActive EQ "fuel";
 topNavWeatherActive = topNavActive EQ "weather";
 
-topNavHowHref = topNavBasePath & "/##fpwHowItWorks";
+topNavHowHref = topNavBasePath & "/how-it-works/";
 
 if (structKeyExists(session, "user") AND isStruct(session.user)) {
   if (structKeyExists(session.user, "firstName")) {
@@ -184,6 +184,10 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
     case "how":
       iconClass = iconClass & " fpw-icon-how";
       iconPaths = '<circle cx="24" cy="24" r="15"></circle><path d="M14 34L34 14"></path><path d="M19 16h7"></path><path d="M22 32h7"></path>';
+      break;
+    case "help":
+      iconClass = iconClass & " fpw-icon-help";
+      iconPaths = '<circle cx="24" cy="24" r="18"></circle><path d="M18 18a6 6 0 1 1 9 5c-2 1-3 2-3 5"></path><circle cx="24" cy="35" r="1"></circle>';
       break;
     case "route":
       iconClass = iconClass & " fpw-icon-route";
@@ -374,41 +378,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 </div>
               </div>
             </div>
-            <cfif topNavIsLoggedIn>
-              <div class="fpw-dropdown fpw-dropdown--tools" data-fpw-dropdown>
-                <button class="fpw-nav-link fpw-dropdown-toggle" type="button" aria-expanded="false" aria-controls="fpwToolsMenu" data-fpw-dropdown-toggle>
-                  #renderFpwNavIcon("tools", "fpw-nav-icon")#
-                  <span class="fpw-nav-label-desktop">Tools</span>
-                  <span class="fpw-nav-label-mobile">Trip Tools</span>
-                  <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
-                </button>
-                <div class="fpw-dropdown-menu fpw-tools-menu" id="fpwToolsMenu" role="menu">
-                  <div class="fpw-menu-header">
-                    #renderFpwNavIcon("tools", "fpw-menu-header-icon")#
-                    <div>
-                      <h2>Trip Tools</h2>
-                      <p>Practical tools for every boat trip</p>
-                    </div>
-                  </div>
-                  <a class="fpw-tool-row" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem">
-                    #renderFpwNavIcon("fuel", "fpw-tool-icon")#
-                    <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
-                    <b aria-hidden="true">&rarr;</b>
-                  </a>
-                  <a class="fpw-tool-row" href="#topNavBasePath#/app/weather.cfm" role="menuitem">
-                    #renderFpwNavIcon("weather", "fpw-tool-icon")#
-                    <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
-                    <b aria-hidden="true">&rarr;</b>
-                  </a>
-                  <a class="fpw-tool-row" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem">
-                    #renderFpwNavIcon("checklist", "fpw-tool-icon")#
-                    <span><strong>Float Plan Basics</strong><em>Learn what to include in your float plan.</em></span>
-                    <b aria-hidden="true">&rarr;</b>
-                  </a>
-                </div>
-              </div>
-            <cfelse>
-              <div class="fpw-dropdown fpw-dropdown--resources" data-fpw-dropdown>
+            <div class="fpw-dropdown fpw-dropdown--resources" data-fpw-dropdown>
                 <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavResourcesActive> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" aria-controls="fpwResourcesMenu" data-fpw-dropdown-toggle>
                   #renderFpwNavIcon("checklist", "fpw-nav-icon")#
                   <span>Resources</span>
@@ -426,12 +396,14 @@ topNavShowAppSubnav = topNavIsLoggedIn
                         href="#topNavBasePath#/shore-contact-overdue-boater/"
                         role="menuitem"
                         <cfif topNavShoreContactGuideActive>aria-current="page"</cfif>
-                        data-fpw-nav-track="public_nav_shore_contact_guide_click"
-                        data-fpw-nav-track-location="public_header"
-                        data-fpw-nav-track-menu-group="resources"
-                        data-fpw-nav-track-label="Shore Contact Guide"
-                        data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
-                        data-fpw-nav-track-auth-state="signed_out">
+                        <cfif NOT topNavIsLoggedIn>
+                          data-fpw-nav-track="public_nav_shore_contact_guide_click"
+                          data-fpw-nav-track-location="public_header"
+                          data-fpw-nav-track-menu-group="resources"
+                          data-fpw-nav-track-label="Shore Contact Guide"
+                          data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
+                          data-fpw-nav-track-auth-state="signed_out"
+                        </cfif>>
                         <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
                       </a>
                     </div>
@@ -457,12 +429,15 @@ topNavShowAppSubnav = topNavIsLoggedIn
                         <h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>
                         <div class="fpw-resource-items">
                           <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("checklist", "fpw-tool-icon")#
                             <span>Why Use a Float Plan</span><b aria-hidden="true">&rarr;</b>
                           </a>
                           <a class="fpw-resource-link" href="#topNavHowHref#" role="menuitem">
+                            #renderFpwNavIcon("how", "fpw-tool-icon")#
                             <span>How It Works</span><b aria-hidden="true">&rarr;</b>
                           </a>
                           <a class="fpw-resource-link<cfif topNavFaqActive> is-active</cfif>" href="#topNavBasePath#/faq/" role="menuitem"<cfif topNavFaqActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("help", "fpw-tool-icon")#
                             <span>FAQ</span><b aria-hidden="true">&rarr;</b>
                           </a>
                         </div>
@@ -470,8 +445,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                     </div>
                   </div>
                 </div>
-              </div>
-            </cfif>
+            </div>
             <cfif NOT topNavIsLoggedIn>
               <a class="fpw-nav-link" href="#topNavBasePath#/app/pricing.cfm">
                 #renderFpwNavIcon("pricing", "fpw-nav-icon")#
@@ -566,9 +540,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
       var dropdowns = Array.prototype.slice.call(shell.querySelectorAll("[data-fpw-dropdown]"));
       var logoutLinks = shell.querySelectorAll("[data-fpw-member-logout]");
       var trackedNavLinks = shell.querySelectorAll("[data-fpw-nav-track]");
-      var mobileQuery = window.matchMedia(
-        shell.classList.contains("fpw-site-header--logged-in") ? "(max-width: 1023px)" : "(max-width: 1050px)"
-      );
+      var mobileQuery = window.matchMedia("(max-width: 1050px)");
       var previousBodyOverflow = "";
 
       function isMobileNav() {
