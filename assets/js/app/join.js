@@ -17,6 +17,65 @@
   };
   var fetchJson = AuthUtils.fetchJson;
   var PHONE_ERROR_MESSAGE = "Please enter a valid US phone number or leave the phone field blank.";
+  var SIGNUP_ATTRIBUTION_STORAGE_KEY = "fpw_signup_attribution";
+  var SIGNUP_ATTRIBUTION_CONTENT_TYPES = {
+    boat_fuel_calculator: "seo_tool",
+    great_loop_locks: "seo_hub"
+  };
+
+  function normalizeSignupAttribution(value) {
+    var landingKey;
+    var sourceContentType;
+    var ctaType;
+
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+    landingKey = typeof value.landing_key === "string" ? value.landing_key : "";
+    sourceContentType = typeof value.source_content_type === "string" ? value.source_content_type : "";
+    ctaType = typeof value.cta_type === "string" ? value.cta_type : "";
+
+    if (
+      !SIGNUP_ATTRIBUTION_CONTENT_TYPES[landingKey]
+      || sourceContentType !== SIGNUP_ATTRIBUTION_CONTENT_TYPES[landingKey]
+      || ctaType !== "plan_route"
+    ) {
+      return null;
+    }
+
+    return {
+      landing_key: landingKey,
+      source_content_type: sourceContentType,
+      cta_type: ctaType
+    };
+  }
+
+  function readSignupAttribution() {
+    try {
+      return normalizeSignupAttribution(JSON.parse(
+        window.sessionStorage.getItem(SIGNUP_ATTRIBUTION_STORAGE_KEY) || "null"
+      ));
+    } catch (storageError) {
+      return null;
+    }
+  }
+
+  function addSignupAttribution(target, attribution) {
+    if (!attribution) return target;
+    target.landing_key = attribution.landing_key;
+    target.source_content_type = attribution.source_content_type;
+    target.cta_type = attribution.cta_type;
+    return target;
+  }
+
+  function clearSignupAttribution() {
+    try {
+      window.sessionStorage.removeItem(SIGNUP_ATTRIBUTION_STORAGE_KEY);
+    } catch (storageError) {}
+  }
+
+  function isConfirmedSignupResponse(data) {
+    return !!(data && data.AUTH === true && Number(data.USERID) > 0);
+  }
 
   function formatUsPhoneDigits(digits) {
     digits = String(digits || "").slice(0, 10);
@@ -117,6 +176,8 @@
     var termsAcceptedEl = $("termsAccepted");
     var btn = $("joinButton");
     var btnLabel = btn ? btn.querySelector(".fpw-submit-label") : null;
+    var signupAttribution = readSignupAttribution();
+    var signupStartTracked = false;
 
     if (!form || !firstNameEl || !lastNameEl || !emailEl || !passwordEl || !confirmPasswordEl || !termsAcceptedEl || !btn) {
       console.error("join.js: required elements missing", {
@@ -207,6 +268,18 @@
           website: website
         };
 
+        addSignupAttribution(payload, signupAttribution);
+
+        if (!signupStartTracked) {
+          signupStartTracked = true;
+          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track("signup_start", addSignupAttribution({
+              method: "email",
+              source: "join_page"
+            }, signupAttribution));
+          }
+        }
+
         var data = await fetchJson(API_BASE + "/join.cfc?method=handle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -215,13 +288,17 @@
 
         var msg = (data && data.MESSAGE) ? data.MESSAGE : "User created.";
         var redirectUrl = data && (data.redirectUrl || data.REDIRECT_URL);
+        var confirmedSignup = isConfirmedSignupResponse(data);
 
         showAlert(msg, "success");
-        if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
-          window.FPWAnalytics.track("sign_up", {
-            method: "email",
-            source: "join_page"
-          });
+        if (confirmedSignup) {
+          if (window.FPWAnalytics && typeof window.FPWAnalytics.track === "function") {
+            window.FPWAnalytics.track("sign_up", addSignupAttribution({
+              method: "email",
+              source: "join_page"
+            }, signupAttribution));
+          }
+          clearSignupAttribution();
         }
         if (redirectUrl) {
           window.location.href = redirectUrl;

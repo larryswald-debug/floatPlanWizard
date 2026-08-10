@@ -53,6 +53,15 @@
             <cfif NOT structKeyExists(body, "website") AND structKeyExists(form, "website")>
                 <cfset body.website = form.website>
             </cfif>
+            <cfif NOT structKeyExists(body, "landing_key") AND structKeyExists(form, "landing_key")>
+                <cfset body.landing_key = form.landing_key>
+            </cfif>
+            <cfif NOT structKeyExists(body, "source_content_type") AND structKeyExists(form, "source_content_type")>
+                <cfset body.source_content_type = form.source_content_type>
+            </cfif>
+            <cfif NOT structKeyExists(body, "cta_type") AND structKeyExists(form, "cta_type")>
+                <cfset body.cta_type = form.cta_type>
+            </cfif>
 
             <cfset firstName = trim(body.firstName ?: body.fName ?: "")>
             <cfset lastName  = trim(body.lastName  ?: body.lName ?: "")>
@@ -79,6 +88,7 @@
                 <cfset termsValue = body.terms>
             </cfif>
             <cfset termsAccepted = isTruthy(termsValue)>
+            <cfset signupAttribution = normalizeSignupAttribution(body)>
 
             <cfif len(website)>
                 <cfset response = {
@@ -315,6 +325,16 @@
                 LASTLOGIN = nowStamp
             }>
 
+            <cfset signUpEventMetadata = {
+                signup_method = "password",
+                account_tier = "basic",
+                onboarding_model = premiumSendCreditModelEnabled ? "premium_send_credit" : "legacy_trial",
+                complimentary_premium_send_credit = premiumSendCreditModelEnabled
+            }>
+            <cfif NOT structIsEmpty(signupAttribution)>
+                <cfset structAppend(signUpEventMetadata, signupAttribution, true)>
+            </cfif>
+
             <cftry>
                 <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
                     userId = newUserId,
@@ -322,12 +342,7 @@
                     entityType = "user",
                     entityId = newUserId,
                     eventSource = "member_signup",
-                    metadata = {
-                        signup_method = "password",
-                        account_tier = "basic",
-                        onboarding_model = premiumSendCreditModelEnabled ? "premium_send_credit" : "legacy_trial",
-                        complimentary_premium_send_credit = premiumSendCreditModelEnabled
-                    },
+                    metadata = signUpEventMetadata,
                     idempotencyKey = "sign_up:user:" & newUserId,
                     requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
                 )>
@@ -400,6 +415,47 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
+    </cffunction>
+
+    <cffunction name="normalizeSignupAttribution" access="private" returntype="struct" output="false">
+        <cfargument name="body" type="struct" required="true">
+
+        <cfset var landingKey = "">
+        <cfset var sourceContentType = "">
+        <cfset var ctaType = "">
+
+        <cfif
+            NOT structKeyExists(arguments.body, "landing_key")
+            OR NOT structKeyExists(arguments.body, "source_content_type")
+            OR NOT structKeyExists(arguments.body, "cta_type")
+            OR NOT isSimpleValue(arguments.body.landing_key)
+            OR NOT isSimpleValue(arguments.body.source_content_type)
+            OR NOT isSimpleValue(arguments.body.cta_type)
+        >
+            <cfreturn {}>
+        </cfif>
+
+        <cfset landingKey = lCase(trim(toString(arguments.body.landing_key)))>
+        <cfset sourceContentType = lCase(trim(toString(arguments.body.source_content_type)))>
+        <cfset ctaType = lCase(trim(toString(arguments.body.cta_type)))>
+
+        <cfif ctaType NEQ "plan_route">
+            <cfreturn {}>
+        </cfif>
+        <cfif
+            NOT (
+                (landingKey EQ "boat_fuel_calculator" AND sourceContentType EQ "seo_tool")
+                OR (landingKey EQ "great_loop_locks" AND sourceContentType EQ "seo_hub")
+            )
+        >
+            <cfreturn {}>
+        </cfif>
+
+        <cfreturn {
+            landing_key = landingKey,
+            source_content_type = sourceContentType,
+            cta_type = ctaType
+        }>
     </cffunction>
 
     <cffunction name="buildInsert" access="private" returntype="struct" output="false">

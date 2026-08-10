@@ -271,7 +271,10 @@ component output="false" {
         signup_method = [ "password" ],
         account_tier = [ "basic" ],
         onboarding_model = [ "legacy_trial", "premium_send_credit" ],
-        complimentary_premium_send_credit = [ "true", "false" ]
+        complimentary_premium_send_credit = [ "true", "false" ],
+        landing_key = [ "boat_fuel_calculator", "great_loop_locks" ],
+        source_content_type = [ "seo_tool", "seo_hub" ],
+        cta_type = [ "plan_route" ]
       }
     };
     definitions["complimentary_credit_granted"] = {
