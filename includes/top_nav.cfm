@@ -15,6 +15,7 @@ topNavEmail = "";
 topNavHowHref = "";
 topNavRequestPath = "";
 topNavResourcesActive = false;
+topNavSoloBoatingGuideActive = false;
 topNavShoreContactGuideActive = false;
 topNavWhyFloatPlanActive = false;
 topNavFaqActive = false;
@@ -63,6 +64,7 @@ topNavRequestPath = lCase(replace(trim(topNavRequestPath), "\", "/", "all"));
 topNavRequestPath = reReplace(topNavRequestPath, "[?##].*$", "");
 
 topNavResourceRouteMap = [
+  { "pattern" = "/solo-boating-safety-guide", "active" = "resources-solo-boating-guide" },
   { "pattern" = "/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide" },
   { "pattern" = "/why-use-a-float-plan", "active" = "resources-why-float-plan" },
   { "pattern" = "/faq/", "active" = "resources-faq" }
@@ -78,9 +80,10 @@ if (!len(topNavActive)) {
 }
 
 topNavResourcesActive = listFindNoCase(
-  "resources,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
+  "resources,resources-solo-boating-guide,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
   topNavActive
 ) GT 0;
+topNavSoloBoatingGuideActive = topNavActive EQ "resources-solo-boating-guide";
 topNavShoreContactGuideActive = topNavActive EQ "resources-shore-contact-guide";
 topNavWhyFloatPlanActive = topNavActive EQ "resources-why-float-plan";
 topNavFaqActive = topNavActive EQ "resources-faq";
@@ -428,6 +431,10 @@ topNavShowAppSubnav = topNavIsLoggedIn
                       <div class="fpw-resource-group" role="group" aria-labelledby="fpwBoatingResourcesTitle">
                         <h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>
                         <div class="fpw-resource-items">
+                          <a class="fpw-resource-link<cfif topNavSoloBoatingGuideActive> is-active</cfif>" href="#topNavBasePath#/solo-boating-safety-guide/" role="menuitem"<cfif topNavSoloBoatingGuideActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("checklist", "fpw-tool-icon")#
+                            <span>Solo Boating Safety Guide</span><b aria-hidden="true">&rarr;</b>
+                          </a>
                           <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
                             #renderFpwNavIcon("checklist", "fpw-tool-icon")#
                             <span>Why Use a Float Plan</span><b aria-hidden="true">&rarr;</b>

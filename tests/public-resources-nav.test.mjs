@@ -58,12 +58,14 @@ test("Resources uses the approved two-column taxonomy with one float-plan resour
   assert.match(resourcesBlock, /Read the Guide/);
   assert.match(resourcesBlock, /Fuel Calculator/);
   assert.match(resourcesBlock, /Marine Weather/);
+  assert.match(resourcesBlock, /Solo Boating Safety Guide/);
+  assert.match(resourcesBlock, /#topNavBasePath#\/solo-boating-safety-guide\//);
   assert.match(resourcesBlock, /Why Use a Float Plan/);
   assert.match(resourcesBlock, /href="#topNavHowHref#"/);
   assert.match(resourcesBlock, /#topNavBasePath#\/faq\//);
   assert.equal(count(resourcesBlock, /#topNavBasePath#\/why-use-a-float-plan\.cfm/g), 1);
   assert.doesNotMatch(resourcesBlock, /Float Plan Basics/);
-  assert.doesNotMatch(resourcesBlock, /Delayed vs\.|Solo Boater|Captain and Shore Contact Checklist/);
+  assert.doesNotMatch(resourcesBlock, /Delayed vs\.|Captain and Shore Contact Checklist/);
 });
 
 test("Boating Resources use the shared icon-row treatment without changing their links", () => {
@@ -73,6 +75,7 @@ test("Boating Resources use the shared icon-row treatment without changing their
   );
 
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("checklist", "fpw-tool-icon"\)#\s+<span>Why Use a Float Plan<\/span>/);
+  assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("checklist", "fpw-tool-icon"\)#\s+<span>Solo Boating Safety Guide<\/span>/);
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("how", "fpw-tool-icon"\)#\s+<span>How It Works<\/span>/);
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("help", "fpw-tool-icon"\)#\s+<span>FAQ<\/span>/);
   assert.match(topNav, /case "help":[\s\S]*?fpw-icon-help[\s\S]*?<circle cx="24" cy="24" r="18"><\/circle>/);
@@ -82,10 +85,12 @@ test("Boating Resources use the shared icon-row treatment without changing their
 
 test("Resources uses one route map and accessible item-level selected states", () => {
   assert.match(topNav, /topNavResourceRouteMap = \[/);
+  assert.match(topNav, /"pattern" = "\/solo-boating-safety-guide", "active" = "resources-solo-boating-guide"/);
   assert.match(topNav, /"pattern" = "\/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide"/);
   assert.match(topNav, /"pattern" = "\/why-use-a-float-plan", "active" = "resources-why-float-plan"/);
   assert.match(topNav, /"pattern" = "\/faq\/", "active" = "resources-faq"/);
   assert.match(topNav, /topNavResourcesActive = listFindNoCase\(/);
+  assert.match(topNav, /topNavSoloBoatingGuideActive> is-active/);
   assert.match(topNav, /topNavShoreContactGuideActive> is-active/);
   assert.match(topNav, /topNavWhyFloatPlanActive> is-active/);
   assert.match(topNav, /topNavFaqActive> is-active/);
