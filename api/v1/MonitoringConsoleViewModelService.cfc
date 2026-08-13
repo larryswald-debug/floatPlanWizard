@@ -1215,7 +1215,7 @@
       if (!isDate(arguments.value)) {
         return "";
       }
-      return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+      return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'", "UTC");
     </cfscript>
   </cffunction>
 
@@ -1420,21 +1420,19 @@
     <cfargument name="value" type="any" required="true">
     <cfscript>
       var raw = safeString(arguments.value);
-      var normalized = "";
+      var parsedValue = "";
       if (isDate(arguments.value)) {
         return arguments.value;
       }
       if (!len(raw)) {
         return "";
       }
-      normalized = replace(raw, "T", " ", "one");
-      normalized = reReplace(normalized, "Z$", "", "one");
-      normalized = reReplace(normalized, "\.\d+", "", "one");
-      normalized = reReplace(normalized, "([+-]\d{2}:\d{2})$", "", "one");
-      if (!isDate(normalized)) {
+      try {
+        parsedValue = parseDateTime(raw);
+      } catch (any storedUtcParseErr) {
         return "";
       }
-      return parseDateTime(normalized);
+      return isDate(parsedValue) ? parsedValue : "";
     </cfscript>
   </cffunction>
 

@@ -7146,7 +7146,7 @@
                             ) {
                                 activeCruiseCapturedAtDriftMinutes = dateDiff("n", activeCruiseCapturedAt.value, updatedCheckInDt);
                                 if (activeCruiseCapturedAtDriftMinutes GT 1440 OR activeCruiseCapturedAtDriftMinutes LT -5) {
-                                    canonicalPayload.location.capturedAtUtc = dateTimeFormat(updatedCheckInDt, "yyyy-mm-dd'T'HH:nn:ss'Z'");
+                                    canonicalPayload.location.capturedAtUtc = dateTimeFormat(updatedCheckInDt, "yyyy-mm-dd'T'HH:nn:ss'Z'", "UTC");
                                 }
                             }
                         }
@@ -7272,7 +7272,7 @@
                 "source" = "ACTIVE_CRUISE_WEB",
                 "latitude" = val(rawLocation.latitude),
                 "longitude" = val(rawLocation.longitude),
-                "capturedAtUtc" = dateTimeFormat(capturedAt.value, "yyyy-mm-dd'T'HH:nn:ss'Z'")
+                "capturedAtUtc" = dateTimeFormat(capturedAt.value, "yyyy-mm-dd'T'HH:nn:ss'Z'", "UTC")
             };
 
             if (hasActiveCruiseOptionalValue(rawLocation, "accuracyMeters")) {
@@ -7356,22 +7356,23 @@
         <cfargument name="rawValue" type="string" required="true">
         <cfscript>
             var raw = trim(arguments.rawValue);
-            var normalized = "";
+            var parsedValue = "";
 
             if (!len(raw)) {
                 return { "SUCCESS" = false, "success" = false, "value" = "" };
             }
 
-            normalized = replace(raw, "T", " ", "one");
-            normalized = reReplace(normalized, "Z$", "", "one");
-            normalized = reReplace(normalized, "\.\d+", "", "one");
-            normalized = reReplace(normalized, "([+-]\d{2}:\d{2})$", "", "one");
-
-            if (!isDate(normalized)) {
+            try {
+                parsedValue = parseDateTime(raw);
+            } catch (any activeCruiseUtcParseErr) {
                 return { "SUCCESS" = false, "success" = false, "value" = "" };
             }
 
-            return { "SUCCESS" = true, "success" = true, "value" = parseDateTime(normalized) };
+            if (!isDate(parsedValue)) {
+                return { "SUCCESS" = false, "success" = false, "value" = "" };
+            }
+
+            return { "SUCCESS" = true, "success" = true, "value" = parsedValue };
         </cfscript>
     </cffunction>
 
