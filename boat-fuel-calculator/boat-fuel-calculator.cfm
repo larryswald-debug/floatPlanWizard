@@ -737,6 +737,43 @@ fpwCtaConfig = {
       margin-top: 24px;
     }
 
+    .fpw-fuel-safety-resources {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+      padding: 14px 4px;
+      border-block: 1px solid rgba(126, 205, 220, 0.22);
+    }
+
+    .fpw-fuel-safety-resources p {
+      margin: 0;
+      color: var(--fuel-muted);
+      line-height: 1.6;
+    }
+
+    .fpw-fuel-safety-resources strong {
+      color: var(--fuel-text);
+    }
+
+    .fpw-fuel-safety-resources a {
+      padding-block: 0.15em;
+      color: #7df7f0;
+      font-weight: 800;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    .fpw-fuel-safety-resources a:hover {
+      color: #ffffff;
+    }
+
+    .fpw-fuel-safety-resources a:focus-visible {
+      border-radius: 2px;
+      outline: 2px solid #ffffff;
+      outline-offset: 3px;
+    }
+
     .fpw-info-card {
       min-height: 210px;
       position: relative;
@@ -1482,6 +1519,11 @@ fpwCtaConfig = {
     </section>
 
     <cfinclude template="../partials/fpw-action-cta.cfm">
+
+    <aside class="fpw-fuel-safety-resources" aria-label="Related boating safety resources">
+      <p><strong>Boating alone?</strong> Review the <a href="../solo-boating-safety-guide/">Solo Boating Safety Guide</a> before departure.</p>
+      <p>Make sure your <a href="../shore-contact-overdue-boater/">shore contact knows what to do if you become overdue</a>.</p>
+    </aside>
 
     <section class="fpw-fuel-education" aria-label="Boat fuel planning information">
       <article class="fpw-info-card">
