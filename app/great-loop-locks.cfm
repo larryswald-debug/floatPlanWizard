@@ -358,10 +358,10 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
     <script type="application/ld+json"><cfoutput>#pageJsonLdText#</cfoutput></script>
   </cfif>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260806-resources-mega-v3">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/fpw-action-cta.css?v=20260804-pilot">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260804-cta-pilot">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260814-safety-resources">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -403,6 +403,10 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
     <div class="fpw-lock-cta">
       <cfinclude template="../partials/fpw-action-cta.cfm">
     </div>
+
+    <aside class="fpw-lock-safety-resources" aria-label="Related boating safety resources">
+      <p><strong>Running the Loop solo?</strong> Review the <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/solo-boating-safety-guide/')#</cfoutput>">Solo Boating Safety Guide</a> before departure, and make sure your <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/shore-contact-overdue-boater/')#</cfoutput>">shore contact knows what to do if you become overdue</a>.</p>
+    </aside>
   </cfif>
 
   <section class="fpw-lock-shell" id="fpwLockFinder" aria-labelledby="fpwLockFinderTitle">

@@ -840,7 +840,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
     }
   </style>
 <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-<cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260806-resources-mega-v3"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1"></cfoutput>
 <cfinclude template="includes/analytics_clarity.cfm">
 <cfinclude template="includes/trustedsite.cfm">
 </head>

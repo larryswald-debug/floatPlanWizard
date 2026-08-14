@@ -226,6 +226,43 @@
   margin: 0;
 }
 
+.fpw-lock-safety-resources {
+  width: min(var(--fpw-lock-page-max), calc(100% - (var(--fpw-lock-page-gutter) * 2)));
+  margin: 0 auto 1rem;
+  padding: 0.9rem 0.25rem;
+  border-block: 1px solid rgba(113, 165, 206, 0.24);
+  color: #b8cbe0;
+}
+
+.fpw-lock-safety-resources p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.fpw-lock-safety-resources strong {
+  color: #f7fbff;
+}
+
+.fpw-lock-library-page .fpw-lock-safety-resources a {
+  padding-block: 0.15em;
+  color: #8ff4ff;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.fpw-lock-library-page .fpw-lock-safety-resources a:hover {
+  color: #ffffff;
+}
+
+.fpw-lock-library-page .fpw-lock-safety-resources a:focus-visible {
+  color: #ffffff;
+  border-radius: 2px;
+  outline: 2px solid #67e8f9;
+  outline-offset: 3px;
+}
+
 .fpw-lock-featured {
   padding: 1rem var(--fpw-lock-page-gutter);
 }

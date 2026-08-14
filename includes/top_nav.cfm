@@ -247,6 +247,11 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
       iconViewBox = "0 0 64 64";
       iconPaths = '<path d="M18 12h28v44H18z"></path><path d="M26 12a6 6 0 0 1 12 0"></path><path d="M24 26l4 4 8-9"></path><path d="M24 40h16"></path><path d="M24 48h12"></path>';
       break;
+    case "kayak":
+      iconClass = iconClass & " fpw-icon-kayak";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<circle cx="25" cy="14" r="4"></circle><path d="M25 18l5 9 10 3"></path><path d="M29 23l-8 8 11 6"></path><path d="M42 20L25 40"></path><path d="M43 17l5 4-4 5-5-4z"></path><path d="M22 39l-4 6-5-4 5-5z"></path><path d="M8 40h48c-5 8-13 12-24 12S13 48 8 40z"></path><path d="M6 57c4 0 4-3 8-3s4 3 8 3 4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3"></path>';
+      break;
     case "route-cta":
       iconClass = iconClass & " fpw-icon-route-cta";
       iconViewBox = "0 0 64 64";
@@ -389,27 +394,66 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 </button>
                 <div class="fpw-dropdown-menu fpw-resources-menu" id="fpwResourcesMenu" role="menu">
                   <div class="fpw-resources-grid">
-                    <div class="fpw-resource-feature" role="group" aria-labelledby="fpwResourceFeaturedTitle">
-                      <span class="fpw-resource-section-label">Featured Guide</span>
-                      #renderFpwNavIcon("checklist", "fpw-resource-feature-icon")#
-                      <h2 id="fpwResourceFeaturedTitle">Shore Contact Guide</h2>
-                      <p>What to do when a boater misses a check-in or expected return.</p>
-                      <a
-                        class="fpw-resource-feature-link<cfif topNavShoreContactGuideActive> is-active</cfif>"
-                        href="#topNavBasePath#/shore-contact-overdue-boater/"
-                        role="menuitem"
-                        <cfif topNavShoreContactGuideActive>aria-current="page"</cfif>
-                        <cfif NOT topNavIsLoggedIn>
-                          data-fpw-nav-track="public_nav_shore_contact_guide_click"
-                          data-fpw-nav-track-location="public_header"
-                          data-fpw-nav-track-menu-group="resources"
-                          data-fpw-nav-track-label="Shore Contact Guide"
-                          data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
-                          data-fpw-nav-track-auth-state="signed_out"
-                        </cfif>>
-                        <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
-                      </a>
-                    </div>
+                    <section class="fpw-resource-feature fpw-resource-featured" aria-labelledby="fpwResourceFeaturedTitle">
+                      <h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceFeaturedTitle">Featured Guides</h2>
+                      <article class="fpw-resource-feature-card fpw-featured-guide">
+                        <div class="fpw-resource-feature-summary fpw-featured-guide__main">
+                          <div class="fpw-featured-guide__icon">
+                            #renderFpwNavIcon("checklist", "fpw-resource-feature-icon")#
+                          </div>
+                          <div class="fpw-resource-feature-copy fpw-featured-guide__content">
+                            <h3 class="fpw-featured-guide__title">Shore Contact Guide</h3>
+                            <p class="fpw-featured-guide__description">What to do when a boater misses a check-in or expected return.</p>
+                          </div>
+                        </div>
+                        <a
+                          class="fpw-resource-feature-link fpw-featured-guide__button<cfif topNavShoreContactGuideActive> is-active</cfif>"
+                          href="#topNavBasePath#/shore-contact-overdue-boater/"
+                          role="menuitem"
+                          aria-label="Read the Shore Contact Guide"
+                          <cfif topNavShoreContactGuideActive>aria-current="page"</cfif>
+                          <cfif NOT topNavIsLoggedIn>
+                            data-fpw-nav-track="public_nav_shore_contact_guide_click"
+                            data-fpw-nav-track-location="public_header"
+                            data-fpw-nav-track-menu-group="resources"
+                            data-fpw-nav-track-label="Shore Contact Guide"
+                            data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
+                            data-fpw-nav-track-auth-state="signed_out"
+                          </cfif>>
+                          <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
+                        </a>
+                      </article>
+
+                      <div class="fpw-featured-guide__divider" aria-hidden="true"></div>
+
+                      <article class="fpw-resource-feature-card fpw-featured-guide">
+                        <div class="fpw-resource-feature-summary fpw-featured-guide__main">
+                          <div class="fpw-featured-guide__icon">
+                            #renderFpwNavIcon("kayak", "fpw-resource-feature-icon")#
+                          </div>
+                          <div class="fpw-resource-feature-copy fpw-featured-guide__content">
+                            <h3 class="fpw-featured-guide__title">Solo Boating Safety Guide</h3>
+                            <p class="fpw-featured-guide__description">Practical solo boating safety guidance from kayaks to cruisers, with preparation tips and checklists.</p>
+                          </div>
+                        </div>
+                        <a
+                          class="fpw-resource-feature-link fpw-featured-guide__button<cfif topNavSoloBoatingGuideActive> is-active</cfif>"
+                          href="#topNavBasePath#/solo-boating-safety-guide/"
+                          role="menuitem"
+                          aria-label="Read the Solo Boating Safety Guide"
+                          <cfif topNavSoloBoatingGuideActive>aria-current="page"</cfif>
+                          <cfif NOT topNavIsLoggedIn>
+                            data-fpw-nav-track="public_nav_solo_boating_safety_guide_click"
+                            data-fpw-nav-track-location="public_header"
+                            data-fpw-nav-track-menu-group="resources"
+                            data-fpw-nav-track-label="Solo Boating Safety Guide"
+                            data-fpw-nav-track-destination-key="solo_boating_safety_guide"
+                            data-fpw-nav-track-auth-state="signed_out"
+                          </cfif>>
+                          <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
+                        </a>
+                      </article>
+                    </section>
 
                     <div class="fpw-resource-groups">
                       <div class="fpw-resource-group" role="group" aria-labelledby="fpwPlanningToolsTitle">
@@ -431,10 +475,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
                       <div class="fpw-resource-group" role="group" aria-labelledby="fpwBoatingResourcesTitle">
                         <h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>
                         <div class="fpw-resource-items">
-                          <a class="fpw-resource-link<cfif topNavSoloBoatingGuideActive> is-active</cfif>" href="#topNavBasePath#/solo-boating-safety-guide/" role="menuitem"<cfif topNavSoloBoatingGuideActive> aria-current="page"</cfif>>
-                            #renderFpwNavIcon("checklist", "fpw-tool-icon")#
-                            <span>Solo Boating Safety Guide</span><b aria-hidden="true">&rarr;</b>
-                          </a>
                           <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
                             #renderFpwNavIcon("checklist", "fpw-tool-icon")#
                             <span>Why Use a Float Plan</span><b aria-hidden="true">&rarr;</b>

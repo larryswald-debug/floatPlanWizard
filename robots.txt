@@ -44,6 +44,7 @@ Allow: /downloads/solo-boater-weather-guide.pdf
 Allow: /downloads/solo-boater-communications-guide.pdf
 Allow: /downloads/solo-boater-boat-readiness-guide.pdf
 Allow: /downloads/solo-boater-precautions-guide.pdf
+Allow: /downloads/floatplanwizard-solo-boating-safety-guide.pdf
 Disallow: /downloads/
 Disallow: /documents/
 Disallow: /outputs/

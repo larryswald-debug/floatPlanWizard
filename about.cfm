@@ -106,7 +106,7 @@ fpwAboutIsLoggedIn = fpwAboutUserId GT 0;
 
   <link rel="icon" type="image/svg+xml" href="<cfoutput>#fpwAboutBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg">
   <link rel="stylesheet" href="<cfoutput>#fpwAboutBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260801-origin-story-v2">
-  <link rel="stylesheet" href="<cfoutput>#fpwAboutBasePath#</cfoutput>/assets/css/top-nav.css?v=20260806-resources-mega-v3">
+  <link rel="stylesheet" href="<cfoutput>#fpwAboutBasePath#</cfoutput>/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1">
   <link rel="stylesheet" href="<cfoutput>#fpwAboutBasePath#</cfoutput>/assets/css/about.css?v=20260801-about-page-v3">
 </head>
 

@@ -166,7 +166,7 @@ fpwCtaConfig = {
   <script type="application/ld+json"><cfoutput>#fpwOverdueJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwOverdueBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/top-nav.css?v=20260806-resources-mega-v3"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwOverdueBasePath#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
