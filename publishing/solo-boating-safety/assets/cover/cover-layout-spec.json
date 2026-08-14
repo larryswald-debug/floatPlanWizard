@@ -1,0 +1,25 @@
+{
+  "canvas": {
+    "width": 1600,
+    "height": 2560,
+    "colorProfile": "sRGB",
+    "format": "JPEG"
+  },
+  "artwork": "cover-art-original.png",
+  "overlay": {
+    "topColor": "#04192e",
+    "topOpacity": 0.18,
+    "bottomColor": "#021424",
+    "bottomOpacity": 0.12
+  },
+  "title": "SOLO BOATING SAFETY",
+  "subtitle": "A Practical Guide from Kayaks to Cruisers",
+  "topics": "FLOAT PLANS  |  COMMUNICATIONS  |  SELF-RECOVERY\nWEATHER  |  BOAT READINESS  |  CHECKLISTS",
+  "author": "Larry W.",
+  "authorRole": "Founder, FloatPlanWizard",
+  "publisher": "FloatPlanWizard.com",
+  "typography": {
+    "sansRegular": "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "sansBold": "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+  }
+}

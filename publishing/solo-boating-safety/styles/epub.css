@@ -1,0 +1,106 @@
+@charset "UTF-8";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  color: #173043;
+  background: #fff;
+  font-family: serif;
+  line-height: 1.55;
+  margin: 5%;
+}
+
+h1,
+h2,
+h3 {
+  color: #062743;
+  font-family: sans-serif;
+  line-height: 1.2;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h1 { font-size: 1.75em; margin: 1.6em 0 .7em; }
+h2 { font-size: 1.35em; margin: 1.35em 0 .55em; }
+h3 { font-size: 1.12em; margin: 1.1em 0 .45em; }
+
+p,
+li { orphans: 2; widows: 2; }
+
+a { color: #087f8c; }
+
+img {
+  display: block;
+  height: auto;
+  margin: 1em auto .6em;
+  max-width: 100%;
+}
+
+figure { margin: 1.5em 0; }
+figcaption {
+  color: #526b7d;
+  font-family: sans-serif;
+  font-size: .88em;
+  line-height: 1.4;
+}
+
+blockquote {
+  border-left: .3em solid #e6a93d;
+  margin: 1.75em 0;
+  padding: .5em 1em;
+}
+
+.warning { border-left-color: #9c3f42; }
+.principle { background: #f2f7f8; }
+
+ul,
+ol { padding-left: 1.4em; }
+li { margin-bottom: .35em; }
+
+.checklist { list-style: none; padding-left: 0; }
+.checklist li {
+  align-items: flex-start;
+  display: flex;
+  gap: .45em;
+  padding-left: 0;
+  text-indent: 0;
+}
+.checklist label { flex: 1 1 auto; }
+.checklist-checkbox {
+  flex: 0 0 auto;
+  height: 1em;
+  margin: .2em 0 0;
+  width: 1em;
+}
+.checklist-print-box { display: none; }
+
+.title-page {
+  margin-top: 18%;
+  text-align: center;
+}
+.title-page h1 { font-size: 2.2em; }
+.subtitle { font-family: sans-serif; font-size: 1.3em; }
+.deck { color: #526b7d; font-style: italic; }
+.author { margin-top: 3em; }
+.signature { margin-top: 2em; }
+
+nav ol { list-style: none; padding-left: 0; }
+nav li { margin: .55em 0; }
+
+@media print {
+  .checklist-checkbox { display: none; }
+  .checklist-print-box {
+    border: 1pt solid #173043;
+    display: inline-block;
+    flex: 0 0 auto;
+    height: .8em;
+    margin-top: .25em;
+    width: .8em;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body { color: #173043; background: #fff; }
+}

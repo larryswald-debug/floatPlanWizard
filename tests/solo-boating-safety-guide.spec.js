@@ -62,6 +62,11 @@ test("solo boating guide renders at every required width without new overflow", 
     await expect(page.locator('#solo-boater-checklist input[type="checkbox"]')).toHaveCount(84);
     await expect(page.locator(".fpw-solo-checklist-why")).toHaveCount(7);
     await expect(page.locator("[data-fpw-solo-pdf-download]")).toHaveCount(7);
+    await expect(page.locator("[data-fpw-solo-ebook-download]")).toHaveCount(2);
+    await expect(page.getByRole("heading", {
+      level: 2,
+      name: "Download the Complete Solo Boating Safety E-Book"
+    })).toBeVisible();
     await expect(page.getByRole("link", {
       name: "Plan a Route with FloatPlanWizard after reading the solo boating safety guide"
     })).toBeVisible();
@@ -113,6 +118,55 @@ test("all seven pamphlets are direct public PDF responses", async ({ request }) 
     expect(response.headers()["content-type"], filename).toContain("application/pdf");
     expect((await response.body()).subarray(0, 4).toString("ascii"), filename).toBe("%PDF");
   }
+});
+
+test("the complete e-book PDF and EPUB are direct public responses", async ({ request }) => {
+  const pdf = await request.get(`${baseUrl}/downloads/floatplanwizard-solo-boating-safety-guide.pdf`, { maxRedirects: 0 });
+  expect(pdf.status()).toBe(200);
+  expect(pdf.headers()["content-type"]).toContain("application/pdf");
+  expect((await pdf.body()).subarray(0, 4).toString("ascii")).toBe("%PDF");
+
+  const epub = await request.get(`${baseUrl}/downloads/solo-boating-safety-a-practical-guide.epub`, { maxRedirects: 0 });
+  expect(epub.status()).toBe(200);
+  expect(epub.headers()["content-type"]).toContain("application/epub+zip");
+  expect((await epub.body()).subarray(0, 2).toString("ascii")).toBe("PK");
+});
+
+test("complete e-book links fire format-specific analytics without blocking downloads", async ({ page }) => {
+  await page.goto(cleanGuideUrl, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    window.__fpwEbookEvents = [];
+    window.FPWAnalytics.track = (name, fields) => window.__fpwEbookEvents.push({ name, fields });
+    window.__fpwEbookPreventDownload = (event) => {
+      if (event.target.closest("[data-fpw-solo-ebook-download]")) event.preventDefault();
+    };
+    document.addEventListener("click", window.__fpwEbookPreventDownload, true);
+  });
+
+  await page.getByRole("link", { name: "Download PDF" }).click();
+  await page.getByRole("link", { name: "Download EPUB" }).click();
+  expect(await page.evaluate(() => window.__fpwEbookEvents)).toEqual([
+    {
+      name: "solo_boating_ebook_download",
+      fields: {
+        source_page: "solo_boating_safety_guide",
+        section: "ebook_download",
+        document_key: "complete_solo_boating_safety_ebook",
+        label: "Download the Complete Solo Boating Safety E-Book PDF",
+        format: "pdf"
+      }
+    },
+    {
+      name: "solo_boating_ebook_download",
+      fields: {
+        source_page: "solo_boating_safety_guide",
+        section: "ebook_download",
+        document_key: "complete_solo_boating_safety_ebook",
+        label: "Download the Complete Solo Boating Safety E-Book EPUB",
+        format: "epub"
+      }
+    }
+  ]);
 });
 
 test("each pamphlet link fires one event and analytics failure does not block download", async ({ page }) => {

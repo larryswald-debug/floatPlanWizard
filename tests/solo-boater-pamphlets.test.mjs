@@ -81,7 +81,7 @@ test("the seven checklist panels expose direct, free PDF downloads with topic-sp
   assert.equal((guide.match(/class="fpw-solo-checklist-why"/g) || []).length, 7);
   assert.equal((guide.match(/data-fpw-solo-pdf-download/g) || []).length, 7);
   assert.equal((guide.match(/<span class="fpw-solo-pdf-badge" aria-hidden="true">PDF<\/span>/g) || []).length, 7);
-  assert.match(guide, /assets\/js\/solo-boating-safety-guide\.js\?v=20260810-pdf-downloads/);
+  assert.match(guide, /assets\/js\/solo-boating-safety-guide\.js\?v=20260813-ebook-downloads/);
 
   for (const pamphlet of pamphlets) {
     const linkPattern = new RegExp(
@@ -125,7 +125,7 @@ test("the deterministic generator derives all checklist wording from the public 
 test("download analytics are delegated, single-bound, failure-safe, and never block the link", () => {
   assert.match(analyticsScript, /window\.__fpwSoloPdfDownloadsBound/);
   assert.match(analyticsScript, /document\.addEventListener\("click"/);
-  assert.match(analyticsScript, /closest\("\[data-fpw-solo-pdf-download\]\[data-fpw-track\]"\)/);
+  assert.match(analyticsScript, /\[data-fpw-solo-pdf-download\]\[data-fpw-track\], \[data-fpw-solo-ebook-download\]\[data-fpw-track\]/);
   for (const field of ["source_page", "section", "document_key", "label"]) {
     assert.match(analyticsScript, new RegExp(`${field}:`));
   }

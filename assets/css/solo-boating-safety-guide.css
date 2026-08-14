@@ -109,6 +109,80 @@ body.fpw-solo-body {
   line-height: 1.7;
 }
 
+.fpw-solo-ebook {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  margin-top: 24px;
+  padding: clamp(22px, 3.5vw, 34px);
+  border: 1px solid rgba(69, 222, 215, 0.38);
+  border-radius: 16px;
+  background:
+    linear-gradient(110deg, rgba(8, 40, 57, 0.96), rgba(5, 24, 40, 0.96)),
+    radial-gradient(circle at 92% 20%, rgba(230, 169, 61, 0.14), transparent 18rem);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.fpw-solo-ebook h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.35rem, 2.4vw, 1.9rem);
+  line-height: 1.2;
+}
+
+.fpw-solo-ebook-copy > p:last-child {
+  margin: 10px 0 0;
+  color: var(--fpw-solo-muted);
+  line-height: 1.6;
+}
+
+.fpw-solo-ebook-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.fpw-solo-ebook-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  gap: 9px;
+  padding: 10px 14px;
+  border: 1px solid rgba(140, 234, 229, 0.58);
+  border-radius: 9px;
+  color: #e9ffff;
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 800;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.fpw-solo-ebook-download--primary {
+  border-color: var(--fpw-solo-cyan);
+  color: #031823;
+  background: var(--fpw-solo-cyan);
+}
+
+.fpw-solo-ebook-download:hover {
+  border-color: #ffffff;
+  color: #ffffff;
+  background: rgba(69, 222, 215, 0.18);
+}
+
+.fpw-solo-ebook-download--primary:hover {
+  color: #031823;
+  background: #91f5ef;
+}
+
+.fpw-solo-ebook-badge {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
 .fpw-solo-layout {
   display: grid;
   grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
@@ -385,6 +459,7 @@ body.fpw-solo-body {
 }
 
 .fpw-solo-checklist input[type="checkbox"]:focus-visible,
+.fpw-solo-ebook-download:focus-visible,
 .fpw-solo-toc a:focus-visible,
 .fpw-solo-content a:focus-visible,
 .fpw-solo-breadcrumbs a:focus-visible {
@@ -424,6 +499,15 @@ body.fpw-solo-body {
     columns: 1;
   }
 
+  .fpw-solo-ebook {
+    grid-template-columns: 1fr;
+    padding: 24px 20px;
+  }
+
+  .fpw-solo-ebook-actions {
+    justify-content: flex-start;
+  }
+
   .fpw-solo-readiness-grid,
   .fpw-solo-checklist-grid {
     grid-template-columns: 1fr;
@@ -449,6 +533,10 @@ body.fpw-solo-body {
   .fpw-solo-pdf-download {
     width: 100%;
   }
+
+  .fpw-solo-ebook-download {
+    width: 100%;
+  }
 }
 
 @media print {
@@ -465,6 +553,7 @@ body.fpw-solo-body {
   .fpw-solo-breadcrumbs,
   .fpw-solo-toc,
   .fpw-solo-cta-wrap,
+  .fpw-solo-ebook,
   .fpw-solo-pdf-download {
     display: none !important;
   }

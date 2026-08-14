@@ -166,7 +166,7 @@ fpwCtaConfig = {
   <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/top-nav.css?v=20260806-resources-mega-v3"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/solo-boating-safety-guide.css?v=20260810"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/solo-boating-safety-guide.css?v=20260813-ebook"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
   <cfinclude template="includes/trustedsite.cfm">
@@ -188,6 +188,18 @@ fpwCtaConfig = {
         <h1 id="fpw-solo-title">Solo Boating Safety: A Practical Guide from Kayaks to Cruisers</h1>
         <p class="fpw-solo-lede">When you boat alone, there is no second person aboard to take over, call for help, explain your route, or assist with recovery. Good solo-boating preparation therefore emphasizes staying aboard, self-recovery, conservative decision-making, redundant communication, and leaving a useful plan with someone ashore.</p>
       </header>
+
+      <section class="fpw-solo-ebook" aria-labelledby="fpw-solo-ebook-title">
+        <div class="fpw-solo-ebook-copy">
+          <p class="fpw-solo-eyebrow">Complete Offline Edition</p>
+          <h2 id="fpw-solo-ebook-title">Download the Complete Solo Boating Safety E-Book</h2>
+          <p>Take the complete guide with you for offline reading.</p>
+        </div>
+        <div class="fpw-solo-ebook-actions" aria-label="Complete e-book download formats">
+          <a class="fpw-solo-ebook-download fpw-solo-ebook-download--primary" href="<cfoutput>#fpwSoloBasePath#</cfoutput>/downloads/floatplanwizard-solo-boating-safety-guide.pdf" download type="application/pdf" aria-label="Download PDF" data-fpw-solo-ebook-download data-fpw-track="solo_boating_ebook_download" data-fpw-track-source-page="solo_boating_safety_guide" data-fpw-track-section="ebook_download" data-fpw-track-document-key="complete_solo_boating_safety_ebook" data-fpw-track-label="Download the Complete Solo Boating Safety E-Book PDF" data-fpw-track-format="pdf"><span class="fpw-solo-ebook-badge" aria-hidden="true">PDF</span><span>Download</span></a>
+          <a class="fpw-solo-ebook-download" href="<cfoutput>#fpwSoloBasePath#</cfoutput>/downloads/solo-boating-safety-a-practical-guide.epub" download type="application/epub+zip" aria-label="Download EPUB" data-fpw-solo-ebook-download data-fpw-track="solo_boating_ebook_download" data-fpw-track-source-page="solo_boating_safety_guide" data-fpw-track-section="ebook_download" data-fpw-track-document-key="complete_solo_boating_safety_ebook" data-fpw-track-label="Download the Complete Solo Boating Safety E-Book EPUB" data-fpw-track-format="epub"><span class="fpw-solo-ebook-badge" aria-hidden="true">EPUB</span><span>Download</span></a>
+        </div>
+      </section>
 
       <div class="fpw-solo-layout">
         <nav class="fpw-solo-toc" aria-labelledby="fpw-solo-toc-title">
@@ -1051,6 +1063,6 @@ fpwCtaConfig = {
 
 <cfinclude template="includes/footer.cfm">
 <script src="<cfoutput>#fpwSoloBasePath#</cfoutput>/assets/js/fpw-action-cta.js?v=20260804-pilot"></script>
-<script src="<cfoutput>#fpwSoloBasePath#</cfoutput>/assets/js/solo-boating-safety-guide.js?v=20260810-pdf-downloads"></script>
+<script src="<cfoutput>#fpwSoloBasePath#</cfoutput>/assets/js/solo-boating-safety-guide.js?v=20260813-ebook-downloads"></script>
 </body>
 </html>
