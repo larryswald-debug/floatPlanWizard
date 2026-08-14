@@ -213,7 +213,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260708-lock-plan-spacing-balanced">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260814-detail-context-links-v3">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -346,6 +346,11 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
               <section class="fpw-lock-panel"><h3>Special Instructions</h3><p><cfoutput>#encodeForHTML(lockItem.special_instructions)#</cfoutput></p></section>
             </cfif>
 
+            <p class="fpw-lock-continue-planning">
+              <strong>Continue planning:</strong>
+              Check <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/weather.cfm')#</cfoutput>">Marine Weather</a>, estimate your trip with the <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/boat-fuel-calculator/')#</cfoutput>">Boat Fuel Calculator</a>, or review the <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/solo-boating-safety-guide/')#</cfoutput>">Solo Boating Safety Guide</a>.
+            </p>
+
             <section class="fpw-lock-panel fpw-lock-nav-pager">
               <cfif structKeyExists(detailModel.PREVIOUS, "slug")>
                 <a href="<cfoutput>#encodeForHTMLAttribute(detailLockDetailUrl(detailModel.PREVIOUS.slug))#</cfoutput>">&larr; <cfoutput>#encodeForHTML(detailModel.PREVIOUS.lock_name)#</cfoutput></a>
@@ -378,6 +383,28 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
           <h3>Plan With FPW</h3>
           <p>Add lock planning context to your route and account for lock delays in your float plan.</p>
           <a class="fpw-lock-btn fpw-lock-btn--primary fpw-lock-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Plan Your Route</a>
+        </section>
+
+        <section class="fpw-lock-panel fpw-lock-related-resources" aria-labelledby="fpwLockRelatedResourcesTitle">
+          <h3 id="fpwLockRelatedResourcesTitle">Related Safety Resources</h3>
+          <div class="fpw-lock-related-resource-list">
+            <a class="fpw-lock-related-resource" href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/solo-boating-safety-guide/')#</cfoutput>">
+              <span class="fpw-lock-related-resource__icon" aria-hidden="true"><cfoutput>#renderFpwNavIcon("kayak", "fpw-lock-related-resource__icon-svg")#</cfoutput></span>
+              <span class="fpw-lock-related-resource__copy">
+                <strong>Solo Boating Safety Guide</strong>
+                <span>Running the Loop solo? Review practical preparation, communications, self-recovery, and trip-planning guidance before departure.</span>
+              </span>
+              <span class="fpw-lock-related-resource__arrow" aria-hidden="true">&rarr;</span>
+            </a>
+            <a class="fpw-lock-related-resource" href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/shore-contact-overdue-boater/')#</cfoutput>">
+              <span class="fpw-lock-related-resource__icon" aria-hidden="true"><cfoutput>#renderFpwNavIcon("checklist", "fpw-lock-related-resource__icon-svg")#</cfoutput></span>
+              <span class="fpw-lock-related-resource__copy">
+                <strong>Shore Contact Guide</strong>
+                <span>Leaving a float plan with someone ashore? Make sure they know what to do if you miss a check-in or become overdue.</span>
+              </span>
+              <span class="fpw-lock-related-resource__arrow" aria-hidden="true">&rarr;</span>
+            </a>
+          </div>
         </section>
 
         <section class="fpw-lock-panel">
