@@ -37,8 +37,8 @@ function fpwFuelSchemaQuestion(required string questionText, required string ans
 }
 
 fpwFuelCanonicalUrl = "https://floatplanwizard.com/boat-fuel-calculator/";
-fpwFuelPageTitle = "Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost";
-fpwFuelPageDescription = "Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.";
+fpwFuelPageTitle = "Free Boat Fuel Calculator – Fuel Needed, Range & Trip Cost";
+fpwFuelPageDescription = "Free boat fuel calculator. Enter trip distance, cruising speed and fuel burn to estimate gallons needed, safe reserve, cruising range, travel time and trip cost.";
 fpwFuelFaqId = fpwFuelCanonicalUrl & "##faq";
 fpwFuelJsonLdText = "";
 fpwFuelSchemaGraph = [];
@@ -131,16 +131,16 @@ fpwCtaConfig = {
 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost</title>
+  <title>Free Boat Fuel Calculator – Fuel Needed, Range & Trip Cost</title>
 
-<meta name="description" content="Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.">
+<meta name="description" content="Free boat fuel calculator. Enter trip distance, cruising speed and fuel burn to estimate gallons needed, safe reserve, cruising range, travel time and trip cost.">
 
 <link rel="canonical" href="https://floatplanwizard.com/boat-fuel-calculator/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FloatPlanWizard">
 <meta property="og:url" content="https://floatplanwizard.com/boat-fuel-calculator/">
-<meta property="og:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
-<meta property="og:description" content="Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.">
+<meta property="og:title" content="Free Boat Fuel Calculator – Fuel Needed, Range & Trip Cost">
+<meta property="og:description" content="Free boat fuel calculator. Enter trip distance, cruising speed and fuel burn to estimate gallons needed, safe reserve, cruising range, travel time and trip cost.">
 <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta property="og:image:type" content="image/png">
@@ -148,8 +148,8 @@ fpwCtaConfig = {
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost">
-<meta name="twitter:description" content="Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.">
+<meta name="twitter:title" content="Free Boat Fuel Calculator – Fuel Needed, Range & Trip Cost">
+<meta name="twitter:description" content="Free boat fuel calculator. Enter trip distance, cruising speed and fuel burn to estimate gallons needed, safe reserve, cruising range, travel time and trip cost.">
 <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
 <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <script type="application/ld+json"><cfoutput>#fpwFuelJsonLdText#</cfoutput></script>
@@ -257,16 +257,33 @@ fpwCtaConfig = {
       text-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
     }
 
+    .fpw-compact-tool-hero__supporting {
+      max-width: 620px;
+      margin: 12px 0 0;
+      color: #7ffaf5;
+      font-size: clamp(1.25rem, 1.8vw, 1.55rem);
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
     .fpw-compact-tool-hero__intro {
       max-width: 620px;
-      margin: 14px 0 0;
+      margin: 10px 0 0;
       color: rgba(226, 236, 246, 0.86);
-      font-size: clamp(1.05rem, 1.45vw, 1.28rem);
+      font-size: clamp(1rem, 1.3vw, 1.16rem);
       line-height: 1.42;
     }
 
+    .fpw-compact-tool-hero__intent {
+      max-width: 620px;
+      margin: 10px 0 0;
+      color: rgba(226, 236, 246, 0.78);
+      font-size: 0.98rem;
+      line-height: 1.45;
+    }
+
     .fpw-compact-tool-hero__accent {
-      margin: 18px 0 0;
+      margin: 14px 0 0;
       color: #39f4ee;
       font-weight: 800;
     }
@@ -1110,12 +1127,20 @@ fpwCtaConfig = {
       }
 
       .fpw-compact-tool-hero__intro {
-        margin-top: 12px;
+        margin-top: 10px;
         font-size: 1rem;
       }
 
+      .fpw-compact-tool-hero__supporting {
+        font-size: 1.2rem;
+      }
+
+      .fpw-compact-tool-hero__intent {
+        font-size: 0.94rem;
+      }
+
       .fpw-compact-tool-hero__accent {
-        margin-top: 14px;
+        margin-top: 12px;
       }
 
       .fpw-section-rule {
@@ -1183,10 +1208,14 @@ fpwCtaConfig = {
       <div class="fpw-compact-tool-hero__content">
         <p class="fpw-compact-tool-hero__eyebrow">BOAT PLANNING TOOL</p>
         <h1 id="fuel-calculator-title">Boat Fuel Calculator</h1>
+        <h2 class="fpw-compact-tool-hero__supporting">How much fuel will your boat need?</h2>
         <p class="fpw-compact-tool-hero__intro">
-          Estimate travel time, fuel use, reserve fuel, estimated range, and trip cost for a recreational boating trip. Enter your planned distance, cruising speed, fuel burn, fuel price, and optional usable fuel capacity.
+          Calculate the fuel required for your trip, safe reserve, cruising range, travel time and estimated cost using your boat's actual fuel burn.
         </p>
-        <p class="fpw-compact-tool-hero__accent">Plan smarter. Leave with reserve.</p>
+        <p class="fpw-compact-tool-hero__intent">
+          Use the boat fuel calculator to estimate how many gallons of fuel you'll need for a trip based on distance, cruising speed and your boat's gallons-per-hour fuel burn.
+        </p>
+        <p class="fpw-compact-tool-hero__accent">Free. No account required.</p>
       </div>
       <div class="fpw-compact-tool-hero__image" aria-hidden="true"></div>
     </section>

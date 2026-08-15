@@ -3,8 +3,8 @@
 <cfcontent type="text/html; charset=utf-8">
 
 <cfscript>
-pressTitle = "FloatPlanWizard Press & Media Kit | Boating Safety & Float Plans";
-pressDescription = "Media resources for FloatPlanWizard, a boating trip-planning and float plan service created to promote safer recreational boating.";
+pressTitle = "FloatPlanWizard Press & Media Kit | Free Float Plans & Boating Safety";
+pressDescription = "Media resources for FloatPlanWizard, a solo-boater-built trip-planning platform with free membership, Basic float-plan sending, optional Premium trips, and public boating-safety resources.";
 pressCanonical = "https://floatplanwizard.com/press.cfm";
 pressSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png";
 pressContactEmail = "support@floatplanwizard.com";
@@ -37,7 +37,7 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
   <cfinclude template="includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/press.css?v=20260607-press-media">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/press.css?v=20260815-membership-update">
 </head>
 
 <body class="fpw-press-body">
@@ -48,12 +48,13 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
       <p class="fpw-press-eyebrow">Press &amp; Media</p>
       <h1 id="pressKitTitle">FloatPlanWizard Press &amp; Media Kit</h1>
       <p>
-        FloatPlanWizard.com is a boating trip-planning and float plan service built to help recreational boaters
-        create monitored float plans, organize trip details, and share trip information with trusted contacts.
+        FloatPlanWizard.com is a recreational-boating trip-planning and float-plan platform with free membership,
+        Basic float-plan sending, optional Premium trips, and free public boating-safety resources.
       </p>
       <p>
-        FloatPlanWizard was created by Gulf Harbors resident, longtime boater, and web developer Larry Wald to
-        promote safer recreational boating by making float plans easier, more accessible, and affordable.
+        Gulf Harbors resident Larry Wald, a longtime recreational and solo boater, created FloatPlanWizard so his
+        family or shore contact could know where he planned to go and have useful information if he became overdue.
+        That personal safety need grew into a broader planning and safety platform for recreational boaters.
       </p>
 
       <div class="fpw-press-actions" aria-label="Press kit actions">
@@ -67,8 +68,8 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
       <section class="fpw-press-card" aria-labelledby="shortDescriptionTitle">
         <h2 id="shortDescriptionTitle">Short Description</h2>
         <p>
-          FloatPlanWizard helps recreational boaters create monitored float plans, plan boating trips, and share
-          trip details with trusted contacts.
+          FloatPlanWizard helps recreational boaters plan routes, organize trip details, send float plans, and keep
+          trusted contacts informed, with free membership and optional Premium trip features.
         </p>
       </section>
 
@@ -76,7 +77,7 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
         <h2 id="includedTitle">What's Included in the Media Kit</h2>
         <ul class="fpw-press-list">
           <li>Launch press release PDF</li>
-          <li>One-page fact sheet</li>
+          <li>Fact sheet PDF</li>
           <li>FPW logo files</li>
           <li>Product screenshots</li>
           <li>Media contact information</li>
@@ -86,10 +87,10 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
       <section class="fpw-press-card" aria-labelledby="whyBuiltTitle">
         <h2 id="whyBuiltTitle">Why FloatPlanWizard Was Built</h2>
         <p>
-          FloatPlanWizard was built from a sincere belief that more recreational boaters should be using float plans.
-          Many boaters head out for a simple day on the water, a fishing trip, a sandbar trip, or a longer cruise
-          without leaving clear trip details with someone on shore. FloatPlanWizard was created to make that process
-          easier.
+          As a solo boater, Larry wanted a quick, practical way to tell his family or a shore contact where he was
+          going, when he expected to return, and what information they would need if he failed to return. He built
+          the original FloatPlanWizard around that need, then expanded it into a broader recreational-boating
+          planning and safety platform.
         </p>
         <blockquote class="fpw-press-quote">
           &ldquo;Boating safety tools only help if people actually use them. I do not want cost to be the reason someone
@@ -107,7 +108,11 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
           </div>
           <div class="fpw-press-fact">
             <strong>Founder</strong>
-            <span>Larry Wald</span>
+            <span>Larry Wald, longtime recreational and solo boater</span>
+          </div>
+          <div class="fpw-press-fact">
+            <strong>Founder Experience</strong>
+            <span>Approximately 55 years on the water and 30 years in professional web development</span>
           </div>
           <div class="fpw-press-fact">
             <strong>Location</strong>
@@ -125,17 +130,31 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
             <strong>Mission</strong>
             <span>Promote safer recreational boating by making float plans easier, more accessible, and affordable</span>
           </div>
+          <div class="fpw-press-fact">
+            <strong>Membership</strong>
+            <span>Free planning and Basic sending, with optional Premium trips</span>
+          </div>
         </div>
+      </section>
+
+      <section class="fpw-press-card" aria-labelledby="publicResourcesTitle">
+        <h2 id="publicResourcesTitle">Free Public Boating Resources</h2>
+        <ul class="fpw-press-list">
+          <li><a href="<cfoutput>#request.fpwBase#</cfoutput>/solo-boating-safety-guide/">Solo Boating Safety Guide</a></li>
+          <li><a href="<cfoutput>#request.fpwBase#</cfoutput>/shore-contact-overdue-boater/">Shore Contact / Overdue Boater Guide</a></li>
+          <li><a href="<cfoutput>#request.fpwBase#</cfoutput>/boat-fuel-calculator/">Boat Fuel Calculator</a></li>
+          <li><a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/locks/">Great Loop Lock Library</a></li>
+        </ul>
       </section>
 
       <section class="fpw-press-card" aria-labelledby="storyAnglesTitle">
         <h2 id="storyAnglesTitle">Suggested Story Angles</h2>
         <ul class="fpw-press-list">
-          <li>Gulf Harbors resident launches boating safety website</li>
-          <li>Local boater builds low-cost float plan tool for recreational captains</li>
+          <li>Solo boater builds a float-plan platform from a personal family-safety need</li>
+          <li>Free membership removes cost as a barrier to planning and Basic float-plan sending</li>
           <li>FloatPlanWizard helps boaters leave better trip details before leaving the dock</li>
-          <li>New boating trip-planning service focuses on safer recreational boating habits</li>
-          <li>Mobile-friendly float plans for everyday boaters</li>
+          <li>Free public guides help solo boaters and shore contacts prepare for overdue situations</li>
+          <li>Great Loop planning libraries bring lock, bridge, port, and anchorage information together</li>
         </ul>
       </section>
 

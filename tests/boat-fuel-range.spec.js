@@ -122,7 +122,11 @@ test("decimal, missing, invalid, unavailable, reserve-boundary, and reset states
 
 test("metadata, structured data, accessible input, responsive layout, and reusable CTA remain intact", async ({ page }) => {
   const pageErrors = collectPageErrors(page);
-  const expectedDescription = "Estimate boat fuel use, reserve fuel, travel time, range, and trip cost with a free planning calculator for recreational boating trips.";
+  const expectedTitle = "Free Boat Fuel Calculator – Fuel Needed, Range & Trip Cost";
+  const expectedDescription = "Free boat fuel calculator. Enter trip distance, cruising speed and fuel burn to estimate gallons needed, safe reserve, cruising range, travel time and trip cost.";
+  const expectedSupportingHeading = "How much fuel will your boat need?";
+  const expectedIntro = "Calculate the fuel required for your trip, safe reserve, cruising range, travel time and estimated cost using your boat's actual fuel burn.";
+  const expectedIntent = "Use the boat fuel calculator to estimate how many gallons of fuel you'll need for a trip based on distance, cruising speed and your boat's gallons-per-hour fuel burn.";
 
   for (const viewport of [
     { width: 1440, height: 1000, columns: 7 },
@@ -143,33 +147,54 @@ test("metadata, structured data, accessible input, responsive layout, and reusab
       "usableFuelCapacityHelp usableFuelCapacityError"
     );
     await expect(page.locator("#cardEstimatedRange")).toHaveText("160 NM");
+    await expect(page.locator("h1")).toHaveCount(1);
+    await expect(page.locator("h1")).toHaveText("Boat Fuel Calculator");
+    await expect(page.getByRole("heading", { level: 2, name: expectedSupportingHeading, exact: true })).toBeVisible();
+    await expect(page.getByText(expectedIntro, { exact: true })).toBeVisible();
+    await expect(page.getByText(expectedIntent, { exact: true })).toBeVisible();
+    await expect(page.getByText("Free. No account required.", { exact: true })).toBeVisible();
+    await expect(page.locator(".fpw-fuel-calculator-panel")).toBeVisible();
 
     const layout = await page.evaluate(() => {
       const main = document.querySelector(".fpw-fuel-page");
+      const hero = document.querySelector(".fpw-compact-tool-hero");
+      const heroContent = document.querySelector(".fpw-compact-tool-hero__content");
+      const h1 = document.querySelector("h1");
+      const supportingHeading = document.querySelector(".fpw-compact-tool-hero__supporting");
       const grid = document.querySelector(".fpw-results-grid");
       const input = document.querySelector("#usableFuelCapacityGallons");
       const rangeCard = document.querySelector(".fpw-result-card--range");
       const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
-      const elementsStayInsideViewport = [main, input, rangeCard].every((element) => {
+      const elementsStayInsideViewport = [main, hero, heroContent, supportingHeading, input, rangeCard].every((element) => {
         const rect = element.getBoundingClientRect();
         return rect.left >= -1 && rect.right <= window.innerWidth + 1;
       });
       return {
         columns,
+        supportingHeadingFollowsH1: h1.nextElementSibling === supportingHeading,
         mainHasOverflow: main.scrollWidth > main.clientWidth + 1,
+        heroHasOverflow: hero.scrollWidth > hero.clientWidth + 1,
+        heroContentFits: heroContent.scrollHeight <= hero.clientHeight + 1,
         elementsStayInsideViewport,
         rangeCardHasOverflow: rangeCard.scrollWidth > rangeCard.clientWidth + 1
       };
     });
     expect(layout.columns).toBe(viewport.columns);
+    expect(layout.supportingHeadingFollowsH1).toBe(true);
     expect(layout.mainHasOverflow).toBe(false);
+    expect(layout.heroHasOverflow).toBe(false);
+    expect(layout.heroContentFits).toBe(true);
     expect(layout.elementsStayInsideViewport).toBe(true);
     expect(layout.rangeCardHasOverflow).toBe(false);
   }
 
-  await expect(page).toHaveTitle("Boat Fuel Calculator | Estimate Fuel Use, Range & Trip Cost");
+  await expect(page.locator("head title")).toHaveCount(1);
+  await expect(page).toHaveTitle(expectedTitle);
+  await expect(page.locator('meta[name="description"]')).toHaveCount(1);
   await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", expectedDescription);
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", expectedTitle);
   await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", expectedDescription);
+  await expect(page.locator('meta[name="twitter:title"]')).toHaveAttribute("content", expectedTitle);
   await expect(page.locator('meta[name="twitter:description"]')).toHaveAttribute("content", expectedDescription);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
@@ -179,6 +204,7 @@ test("metadata, structured data, accessible input, responsive layout, and reusab
   const schema = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
   const webPage = schema["@graph"].find((entity) => entity["@type"] === "WebPage");
   expect(webPage.url).toBe("https://floatplanwizard.com/boat-fuel-calculator/");
+  expect(webPage.name).toBe(expectedTitle);
   expect(webPage.description).toBe(expectedDescription);
   expect(schema["@graph"].some((entity) => entity.aggregateRating || entity.review || entity.offers)).toBe(false);
 

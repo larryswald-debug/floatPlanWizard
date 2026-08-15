@@ -237,6 +237,10 @@
   color: #91a9bb;
 }
 
+.fpw-press-fact span {
+  overflow-wrap: anywhere;
+}
+
 .fpw-press-asset img {
   width: 100%;
   aspect-ratio: 16 / 9;

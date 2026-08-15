@@ -18,8 +18,8 @@ const publicPdfs = [
   { path: "/downloads/solo-boater-boat-readiness-guide.pdf", lastmod: "2026-08-10" },
   { path: "/downloads/solo-boater-precautions-guide.pdf", lastmod: "2026-08-10" },
   { path: "/downloads/uscg-float-plan.pdf", lastmod: "2026-07-21" },
-  { path: "/assets/press/floatplanwizard-fact-sheet.pdf", lastmod: "2026-07-21" },
-  { path: "/assets/press/floatplanwizard-launch-press-release.pdf", lastmod: "2026-07-21" }
+  { path: "/assets/press/floatplanwizard-fact-sheet.pdf", lastmod: "2026-08-15" },
+  { path: "/assets/press/floatplanwizard-launch-press-release.pdf", lastmod: "2026-08-15" }
 ];
 
 function escapeRegExp(value) {
