@@ -36,7 +36,7 @@ Disallow: /sql/
 Disallow: /db/
 Disallow: /tmp/
 
-# Public Solo Boater reference PDFs (exact exceptions to the downloads block)
+# Public reference PDFs (exact exceptions to the downloads block)
 Allow: /downloads/solo-boater-trip-planning-guide.pdf
 Allow: /downloads/solo-boater-vessel-information-guide.pdf
 Allow: /downloads/solo-boater-personal-safety-guide.pdf
@@ -45,7 +45,7 @@ Allow: /downloads/solo-boater-communications-guide.pdf
 Allow: /downloads/solo-boater-boat-readiness-guide.pdf
 Allow: /downloads/solo-boater-precautions-guide.pdf
 Allow: /downloads/floatplanwizard-solo-boating-safety-guide.pdf
-Disallow: /downloads/
+Allow: /downloads/uscg-float-plan.pdf
 Disallow: /documents/
 Disallow: /outputs/
 Disallow: /snapshots/

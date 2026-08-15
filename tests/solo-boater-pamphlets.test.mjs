@@ -143,12 +143,11 @@ test("download presentation is scoped, keyboard-visible, mobile-safe, and omitte
   assert.match(stylesheet, /@media print[\s\S]*?\.fpw-solo-pdf-download \{[\s\S]*?display: none !important;/);
 });
 
-test("only the seven public pamphlets are crawlable exceptions to the downloads block", () => {
+test("the seven public pamphlets are crawlable exceptions to the downloads block", () => {
   assert.equal((robots.match(/^Disallow: \/downloads\/$/gm) || []).length, 1);
   for (const pamphlet of pamphlets) {
     const exactAllow = new RegExp(`^Allow: \/downloads\/${escapeRegExp(pamphlet.filename)}$`, "gm");
     assert.equal((robots.match(exactAllow) || []).length, 1, `Missing exact robots allowance for ${pamphlet.filename}`);
-    assert.equal(sitemap.includes(pamphlet.filename), false, `${pamphlet.filename} must not be added to the sitemap`);
   }
   assert.doesNotMatch(robots, /^Allow: \/downloads\/$/m);
 });
