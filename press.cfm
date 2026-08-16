@@ -93,9 +93,9 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
           planning and safety platform.
         </p>
         <blockquote class="fpw-press-quote">
-          &ldquo;Boating safety tools only help if people actually use them. I do not want cost to be the reason someone
-          skips creating a float plan. FloatPlanWizard is built to give everyday boaters an easy way to plan a trip,
-          share important details, and keep trusted contacts informed.&rdquo;
+          &ldquo;Boating safety tools only help if people actually use them. I wanted a faster way to prepare and share a
+          float plan without recreating the same information for every trip. FloatPlanWizard is built to give everyday
+          boaters an easy way to plan a trip, share important details, and keep trusted contacts informed.&rdquo;
         </blockquote>
       </section>
 
@@ -128,7 +128,7 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
           </div>
           <div class="fpw-press-fact">
             <strong>Mission</strong>
-            <span>Promote safer recreational boating by making float plans easier, more accessible, and affordable</span>
+            <span>Promote safer recreational boating by making float plans easier to prepare, update, and share</span>
           </div>
           <div class="fpw-press-fact">
             <strong>Membership</strong>
@@ -151,7 +151,7 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
         <h2 id="storyAnglesTitle">Suggested Story Angles</h2>
         <ul class="fpw-press-list">
           <li>Solo boater builds a float-plan platform from a personal family-safety need</li>
-          <li>Free membership removes cost as a barrier to planning and Basic float-plan sending</li>
+          <li>Free membership includes planning and Basic sending, while saved information makes future float plans faster to prepare</li>
           <li>FloatPlanWizard helps boaters leave better trip details before leaving the dock</li>
           <li>Free public guides help solo boaters and shore contacts prepare for overdue situations</li>
           <li>Great Loop planning libraries bring lock, bridge, port, and anchorage information together</li>

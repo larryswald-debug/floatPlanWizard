@@ -47,6 +47,40 @@ fpwFuelSchemaBreadcrumb = structNew("ordered");
 fpwFuelSchemaPage = structNew("ordered");
 fpwFuelSchemaFaq = structNew("ordered");
 fpwFuelJsonLd = structNew("ordered");
+fpwFuelFaqItems = [
+  {
+    "question" = "How much fuel does a boat use per hour?",
+    "answer" = "Boat fuel use is measured in gallons per hour, but there is no single number that applies to all boats. GPH depends on the engine, RPM, hull, load, propeller, trim and operating conditions. For trip planning, use measured fuel-flow data or manufacturer performance data for your boat and engine whenever possible."
+  },
+  {
+    "question" = "Can I estimate boat fuel burn from horsepower?",
+    "answer" = "Horsepower alone is not enough to accurately predict cruise fuel burn. Generic horsepower formulas can produce rough theoretical estimates, especially near maximum engine output, but they do not account for hull efficiency, engine load, RPM, propeller, weight or conditions. Use actual GPH whenever possible."
+  },
+  {
+    "question" = "Does slowing down always save fuel?",
+    "answer" = "It normally lowers gallons burned per hour, but it does not automatically produce the best fuel economy per mile. The most economical cruise is the operating point that provides the best useful distance per gallon at an appropriate speed for the boat and trip."
+  },
+  {
+    "question" = "How do I calculate how much boat fuel I need?",
+    "answer" = "Divide trip distance by cruising speed to estimate running time, then multiply running time by your expected GPH. Add appropriate fuel for idling, changing conditions and reserve."
+  },
+  {
+    "question" = "What is the best cruising speed for fuel economy?",
+    "answer" = "It depends on the boat and engine combination. Compare GPH and speed at several normal operating RPM settings and look for the best distance-per-gallon result. Manufacturer performance bulletins and onboard fuel-flow data are the best places to start."
+  },
+  {
+    "question" = "How much reserve fuel should I carry?",
+    "answer" = "The U.S. Coast Guard recommends the One-Third Rule: one-third of the fuel for the outbound leg, one-third for the return and one-third held in reserve. Conditions and trip complexity may justify additional margin."
+  },
+  {
+    "question" = "Should I use wide-open-throttle GPH in the calculator?",
+    "answer" = "Only if you actually expect to operate at that fuel-burn rate. For normal trip planning, use the GPH associated with the speed and RPM you expect to cruise."
+  },
+  {
+    "question" = "How accurate is the FloatPlanWizard fuel calculator?",
+    "answer" = "The arithmetic is based on the values you enter. Its real-world accuracy therefore depends heavily on the accuracy of your speed, GPH, distance, idle-time and reserve assumptions. Weather, current, sea state, load and engine condition can change actual fuel use."
+  }
+];
 
 structInsert(fpwFuelSchemaOrg, schemaTypeKey, "Organization", true);
 structInsert(fpwFuelSchemaOrg, schemaIdKey, "https://floatplanwizard.com/##organization", true);
@@ -75,24 +109,13 @@ arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaPage);
 
 structInsert(fpwFuelSchemaFaq, schemaTypeKey, "FAQPage", true);
 structInsert(fpwFuelSchemaFaq, schemaIdKey, fpwFuelFaqId, true);
-fpwFuelSchemaFaq["mainEntity"] = [
-  fpwFuelSchemaQuestion(
-    "How accurate is this calculator?",
-    "It provides an estimate based on your inputs. Actual fuel use can vary with conditions, load, speed, and engine performance."
-  ),
-  fpwFuelSchemaQuestion(
-    "What is a good reserve percentage?",
-    "Many boaters plan with a meaningful reserve such as the rule of thirds, but the right reserve depends on the trip and conditions."
-  ),
-  fpwFuelSchemaQuestion(
-    "Should I plan using max speed?",
-    "For conservative planning, compare efficient cruise numbers with higher burn scenarios so you understand your margin."
-  ),
-  fpwFuelSchemaQuestion(
-    "How does weather factor work?",
-    "The weather factor increases estimated fuel use to account for wind, current, chop, and less efficient real-world operation."
-  )
-];
+fpwFuelSchemaFaq["mainEntity"] = [];
+for (fpwFuelFaqItem in fpwFuelFaqItems) {
+  arrayAppend(
+    fpwFuelSchemaFaq["mainEntity"],
+    fpwFuelSchemaQuestion(fpwFuelFaqItem["question"], fpwFuelFaqItem["answer"])
+  );
+}
 arrayAppend(fpwFuelSchemaGraph, fpwFuelSchemaFaq);
 
 structInsert(fpwFuelJsonLd, schemaContextKey, "https://schema.org", true);
@@ -614,6 +637,16 @@ fpwCtaConfig = {
       color: #ffcc5c;
     }
 
+    .field-note.fpw-capacity-status {
+      margin-top: 0;
+      color: rgba(220, 234, 246, 0.94);
+      font-weight: 700;
+    }
+
+    .field-note.fpw-capacity-status[data-capacity-state="shortfall"] {
+      color: #ffcc5c;
+    }
+
     .calc-actions {
       display: flex;
       flex-wrap: wrap;
@@ -903,6 +936,355 @@ fpwCtaConfig = {
       font-size: 0.84rem;
     }
 
+    .fpw-visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .fpw-fuel-guide {
+      display: grid;
+      gap: 20px;
+      margin-top: 24px;
+    }
+
+    .fpw-guide-section {
+      border: 1px solid var(--fuel-line);
+      border-radius: 12px;
+      padding: clamp(22px, 3vw, 32px);
+      background:
+        linear-gradient(180deg, rgba(8, 26, 44, 0.82), rgba(3, 14, 26, 0.94));
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    }
+
+    .fpw-guide-section h2,
+    .fpw-guide-section h3,
+    .fpw-guide-card h3 {
+      color: #ffffff;
+      letter-spacing: 0;
+    }
+
+    .fpw-guide-section h2 {
+      margin: 0 0 16px;
+      font-size: clamp(1.45rem, 2.4vw, 2rem);
+      line-height: 1.14;
+    }
+
+    .fpw-guide-section h3,
+    .fpw-guide-card h3 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+      line-height: 1.25;
+    }
+
+    .fpw-guide-section p,
+    .fpw-guide-section li,
+    .fpw-guide-card p,
+    .fpw-guide-card li {
+      color: var(--fuel-muted);
+      line-height: 1.62;
+    }
+
+    .fpw-guide-section p {
+      margin: 0;
+    }
+
+    .fpw-guide-section p + p {
+      margin-top: 12px;
+    }
+
+    .fpw-guide-section strong {
+      color: var(--fuel-text);
+    }
+
+    .fpw-guide-section a {
+      color: #7df7f0;
+      font-weight: 800;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+      overflow-wrap: anywhere;
+    }
+
+    .fpw-guide-section a:hover {
+      color: #ffffff;
+    }
+
+    .fpw-guide-section a:focus-visible,
+    .fpw-guide-faq summary:focus-visible {
+      border-radius: 3px;
+      outline: 2px solid #ffffff;
+      outline-offset: 3px;
+    }
+
+    .fpw-guide-callout,
+    .fpw-guide-note,
+    .fpw-reserve-callout {
+      margin-top: 20px;
+      border: 1px solid rgba(35, 215, 207, 0.36);
+      border-left: 4px solid var(--fuel-cyan);
+      border-radius: 9px;
+      padding: 20px 22px;
+      background: linear-gradient(135deg, rgba(8, 83, 97, 0.24), rgba(3, 18, 33, 0.72));
+    }
+
+    .fpw-guide-callout h3,
+    .fpw-reserve-callout h3 {
+      color: #7df7f0;
+    }
+
+    .fpw-guide-source-note {
+      margin-top: 12px !important;
+      color: var(--fuel-soft) !important;
+      font-size: 0.86rem;
+    }
+
+    .fpw-fuel-data-table-wrap {
+      margin-top: 18px;
+      border: 1px solid rgba(126, 205, 220, 0.22);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+
+    .fpw-fuel-data-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 0.88rem;
+    }
+
+    .fpw-fuel-data-table th,
+    .fpw-fuel-data-table td {
+      border-bottom: 1px solid rgba(126, 205, 220, 0.16);
+      padding: 13px 12px;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    .fpw-fuel-data-table th {
+      color: #7df7f0;
+      background: rgba(255, 255, 255, 0.045);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .fpw-fuel-data-table td {
+      color: var(--fuel-muted);
+      line-height: 1.45;
+    }
+
+    .fpw-fuel-data-table th:first-child {
+      width: 27%;
+    }
+
+    .fpw-fuel-data-table th:last-child {
+      width: 13%;
+    }
+
+    .fpw-fuel-data-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .fpw-fuel-data-table strong,
+    .fpw-fuel-data-table small {
+      display: block;
+    }
+
+    .fpw-fuel-data-table small {
+      margin-top: 4px;
+      color: var(--fuel-soft);
+      line-height: 1.35;
+    }
+
+    .fpw-guide-card-grid,
+    .fpw-formula-grid,
+    .fpw-factor-grid,
+    .fpw-example-grid,
+    .fpw-step-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .fpw-formula-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .fpw-factor-grid,
+    .fpw-step-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .fpw-example-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .fpw-guide-card,
+    .fpw-step-list > li,
+    .fpw-example-leg {
+      min-width: 0;
+      border: 1px solid rgba(126, 205, 220, 0.19);
+      border-radius: 9px;
+      padding: 18px;
+      background: rgba(3, 13, 26, 0.5);
+    }
+
+    .fpw-formula-card code,
+    .fpw-example-math code {
+      display: block;
+      margin-top: 14px;
+      border: 1px solid rgba(35, 215, 207, 0.25);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: #7df7f0;
+      background: rgba(2, 10, 20, 0.72);
+      font-family: Consolas, Menlo, Monaco, monospace;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
+    .fpw-factor-card ul,
+    .fpw-reserve-callout ul,
+    .fpw-source-list {
+      margin: 12px 0 0;
+      padding-left: 1.15rem;
+    }
+
+    .fpw-factor-card p {
+      margin-top: 12px;
+    }
+
+    .fpw-step-list {
+      margin-bottom: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: fpw-fuel-step;
+    }
+
+    .fpw-step-list > li {
+      counter-increment: fpw-fuel-step;
+    }
+
+    .fpw-step-list h3 {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .fpw-step-list h3::before {
+      content: counter(fpw-fuel-step);
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #02212a;
+      background: var(--fuel-cyan);
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .fpw-example-assumptions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 18px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .fpw-example-assumptions li {
+      border: 1px solid rgba(126, 205, 220, 0.22);
+      border-radius: 999px;
+      padding: 6px 10px;
+      color: rgba(238, 247, 251, 0.88);
+      background: rgba(3, 13, 26, 0.46);
+      font-size: 0.82rem;
+    }
+
+    .fpw-example-math p + p {
+      margin-top: 8px;
+    }
+
+    .fpw-example-total {
+      margin-top: 16px;
+      border-top: 1px solid rgba(126, 205, 220, 0.2);
+      padding-top: 16px;
+    }
+
+    .fpw-guide-faq {
+      display: grid;
+      gap: 10px;
+    }
+
+    .fpw-guide-faq details {
+      border: 1px solid rgba(126, 205, 220, 0.2);
+      border-radius: 8px;
+      background: rgba(3, 13, 26, 0.5);
+    }
+
+    .fpw-guide-faq summary {
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 16px;
+      color: rgba(238, 247, 251, 0.94);
+      cursor: pointer;
+      font-weight: 800;
+      line-height: 1.35;
+      list-style: none;
+    }
+
+    .fpw-guide-faq summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .fpw-guide-faq summary::after {
+      content: "+";
+      flex: 0 0 auto;
+      color: var(--fuel-cyan);
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .fpw-guide-faq details[open] summary::after {
+      content: "-";
+    }
+
+    .fpw-guide-faq details p {
+      margin: 0;
+      padding: 0 16px 16px;
+      font-size: 0.92rem;
+    }
+
+    .fpw-source-list {
+      display: grid;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+
+    .fpw-guide-section--sources {
+      padding-block: 22px;
+    }
+
+    .fpw-guide-section--sources h2 {
+      font-size: 1.3rem;
+    }
+
     .fpw-dev-output {
       margin-top: 24px;
       border-radius: 10px;
@@ -1077,6 +1459,68 @@ fpwCtaConfig = {
         grid-template-columns: 1fr;
       }
 
+      .fpw-formula-grid,
+      .fpw-step-list,
+      .fpw-example-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-fuel-data-table-wrap {
+        border: 0;
+        overflow: visible;
+      }
+
+      .fpw-fuel-data-table,
+      .fpw-fuel-data-table tbody {
+        display: block;
+      }
+
+      .fpw-fuel-data-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .fpw-fuel-data-table tbody {
+        display: grid;
+        gap: 12px;
+      }
+
+      .fpw-fuel-data-table tr {
+        display: grid;
+        border: 1px solid rgba(126, 205, 220, 0.2);
+        border-radius: 9px;
+        padding: 8px 14px;
+        background: rgba(3, 13, 26, 0.5);
+      }
+
+      .fpw-fuel-data-table td {
+        display: grid;
+        grid-template-columns: minmax(130px, 0.42fr) minmax(0, 1fr);
+        gap: 14px;
+        border-bottom: 1px solid rgba(126, 205, 220, 0.14);
+        padding: 10px 0;
+      }
+
+      .fpw-fuel-data-table td::before {
+        content: attr(data-label);
+        color: #7df7f0;
+        font-size: 0.74rem;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .fpw-fuel-data-table tr td:last-child {
+        border-bottom: 0;
+      }
+
       .fpw-panel-heading {
         grid-template-columns: 1fr;
       }
@@ -1158,8 +1602,24 @@ fpwCtaConfig = {
 
       .fpw-fuel-calculator-panel,
       .fpw-info-card,
-      .fpw-fuel-cta {
+      .fpw-fuel-cta,
+      .fpw-guide-section {
         padding: 20px;
+      }
+
+      .fpw-factor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .fpw-fuel-data-table td {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .fpw-guide-callout,
+      .fpw-guide-note,
+      .fpw-reserve-callout {
+        padding: 18px;
       }
 
       .fpw-field {
@@ -1427,27 +1887,28 @@ fpwCtaConfig = {
               <button type="button" class="fpw-help" aria-label="More information about Usable Fuel Capacity" aria-expanded="false" aria-describedby="tip-usableFuelCapacityGallons" data-tooltip-target="tip-usableFuelCapacityGallons">?</button>
             </div>
             <span class="fpw-field__control">
-              <input id="usableFuelCapacityGallons" name="usableFuelCapacityGallons" type="number" inputmode="decimal" step="0.01" min="0.01" value="" placeholder="Optional" aria-describedby="usableFuelCapacityHelp usableFuelCapacityError">
+              <input id="usableFuelCapacityGallons" name="usableFuelCapacityGallons" type="number" inputmode="decimal" step="0.01" min="0.01" value="" placeholder="Optional" aria-describedby="usableFuelCapacityHelp usableFuelCapacityError usableFuelCapacityStatus">
               <em class="fpw-field__unit">gal</em>
             </span>
             <div class="fpw-tooltip" id="tip-usableFuelCapacityGallons" role="tooltip">Enter the amount of fuel you consider usable for trip planning before applying your reserve.</div>
             <div class="field-note" id="usableFuelCapacityHelp">Usable fuel can be less than nominal tank capacity.</div>
             <div class="field-note fpw-field-error" id="usableFuelCapacityError" role="status" hidden>Enter a usable fuel capacity of at least 0.01 gallon.</div>
+            <div class="field-note fpw-capacity-status" id="usableFuelCapacityStatus" role="status" aria-live="polite" hidden></div>
           </div>
 
           <div class="field fpw-field">
             <div class="fpw-label-row">
-              <label for="reservePct">Reserve (%)</label>
+              <label for="reservePct">Reserve Method</label>
               <button type="button" class="fpw-help" aria-label="More information about Reserve" aria-expanded="false" aria-describedby="tip-reservePct" data-tooltip-target="tip-reservePct">?</button>
             </div>
             <span class="fpw-field__control">
-              <select id="reservePct" name="reservePct">
-                <option value="33" selected>Rule of Thirds - 33%</option>
-                <option value="20">Standard Reserve - 20%</option>
-                <option value="15">Minimum Reserve - 15%</option>
+              <select id="reservePct" name="reservePct" aria-describedby="tip-reservePct">
+                <option value="33" data-reserve-mode="thirds" selected>One-Third Rule</option>
+                <option value="20" data-reserve-mode="percentage">Standard Reserve - 20%</option>
+                <option value="15" data-reserve-mode="percentage">Minimum Reserve - 15%</option>
               </select>
             </span>
-            <div class="fpw-tooltip" id="tip-reservePct" role="tooltip">Extra fuel held back as a safety margin. Rule of Thirds is commonly used for boating trip planning.</div>
+            <div class="fpw-tooltip" id="tip-reservePct" role="tooltip">A conservative fuel-management practice that plans departure fuel so expected trip consumption uses no more than two-thirds of usable fuel, leaving one-third in reserve.</div>
           </div>
 
           <div class="field fpw-field">
@@ -1549,53 +2010,268 @@ fpwCtaConfig = {
 
     <cfinclude template="../partials/fpw-action-cta.cfm">
 
-    <aside class="fpw-fuel-safety-resources" aria-label="Related boating safety resources">
-      <p><strong>Boating alone?</strong> Review the <a href="../solo-boating-safety-guide/">Solo Boating Safety Guide</a> before departure.</p>
-      <p>Make sure your <a href="../shore-contact-overdue-boater/">shore contact knows what to do if you become overdue</a>.</p>
-    </aside>
+    <div class="fpw-fuel-guide" aria-label="Boat fuel consumption guide">
+      <section class="fpw-guide-section" aria-labelledby="fuel-use-per-hour-title">
+        <h2 id="fuel-use-per-hour-title">How Much Fuel Does a Boat Use Per Hour?</h2>
+        <p>Boat fuel use is usually measured in gallons per hour, or GPH. There is no single GPH number that applies to every boat of a certain length or horsepower. Fuel burn changes with engine RPM and load, the hull, boat weight, propeller, trim, weather, current, sea state and other operating conditions.</p>
+        <p>The best number to use for trip planning is your boat's actual fuel burn at the speed you expect to cruise. If your engine display or fuel-flow system provides real-time GPH, use that value. Manufacturer performance tests for your specific boat and engine combination are the next-best reference.</p>
 
-    <section class="fpw-fuel-education" aria-label="Boat fuel planning information">
-      <article class="fpw-info-card">
-        <h2>How to Estimate Boat Fuel Usage</h2>
-        <div class="fpw-number-list" role="list">
-          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">1</span><span>Enter your trip distance and select a pace.</span></div>
-          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">2</span><span>Provide your boat&rsquo;s fuel burn at efficient speed.</span></div>
-          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">3</span><span>Adjust for weather, idling, and reserve.</span></div>
-          <div class="fpw-number-list__item" role="listitem"><span class="fpw-number-list__badge" aria-hidden="true">4</span><span>Review results and plan with confidence.</span></div>
+        <aside class="fpw-guide-callout" aria-labelledby="fuel-burn-speed-callout-title">
+          <h3 id="fuel-burn-speed-callout-title">Fuel burn can rise much faster than speed</h3>
+          <p><strong>One manufacturer test example:</strong> Yamaha tested a 23-foot Sportsman Open 232 with a single 300-hp F300 outboard. At 3,500 RPM the boat ran 27.2 mph while burning 8.3 GPH, or 3.28 MPG. At 5,800 RPM it ran 48.4 mph while burning 26.4 GPH, or 1.83 MPG.</p>
+          <p>In that test, speed increased about 78%, while hourly fuel consumption increased about 218%. That is why wide-open-throttle fuel burn should not be used as a substitute for actual cruising fuel burn.</p>
+          <p class="fpw-guide-source-note"><a href="https://yamahaoutboards.com/outboards/350-150-hp/v6-4-2l/f300-%284-2l%29/pb_spt_open-232_f300xsb2_6-29-2023_occ" target="_blank" rel="noopener noreferrer">Yamaha test data</a>. This is one manufacturer test example, not a prediction for other boats.</p>
+        </aside>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="real-fuel-burn-examples-title">
+        <h2 id="real-fuel-burn-examples-title">Real Boat Fuel-Burn Examples</h2>
+        <p>These manufacturer performance tests show how fuel burn and fuel economy vary among specific boat and engine combinations at specific test RPM settings.</p>
+
+        <div class="fpw-fuel-data-table-wrap">
+          <table class="fpw-fuel-data-table">
+            <caption class="fpw-visually-hidden">Manufacturer boat fuel-burn test examples</caption>
+            <thead>
+              <tr>
+                <th scope="col">Boat / Engine</th>
+                <th scope="col">Test RPM</th>
+                <th scope="col">Speed</th>
+                <th scope="col">Fuel Burn</th>
+                <th scope="col">Fuel Economy</th>
+                <th scope="col">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Boat / Engine"><strong>G3 Boats 15 DLX / Yamaha F40</strong><small>40 hp single outboard</small></td>
+                <td data-label="Test RPM">4,000 RPM</td>
+                <td data-label="Speed">18.4 MPH</td>
+                <td data-label="Fuel Burn">1.5 GPH</td>
+                <td data-label="Fuel Economy">12.27 MPG</td>
+                <td data-label="Source"><a href="https://yamahaoutboards.com/outboards/115-30-hp/40-30-hp/f40/pb_g3b_15dlx_f40la_2017-07-14_alm" target="_blank" rel="noopener noreferrer">Yamaha test data</a></td>
+              </tr>
+              <tr>
+                <td data-label="Boat / Engine"><strong>Crestliner 1850 Fish Hawk / Mercury 150 Pro XS</strong><small>150 hp single outboard</small></td>
+                <td data-label="Test RPM">3,000 RPM</td>
+                <td data-label="Speed">21.3 MPH</td>
+                <td data-label="Fuel Burn">3.6 GPH</td>
+                <td data-label="Fuel Economy">6.0 MPG</td>
+                <td data-label="Source"><a href="https://performancedata.mercurymarine.com/performance-test/141" target="_blank" rel="noopener noreferrer">Mercury test data</a></td>
+              </tr>
+              <tr>
+                <td data-label="Boat / Engine"><strong>Sportsman Open 232 / Yamaha F300</strong><small>300 hp single outboard</small></td>
+                <td data-label="Test RPM">3,500 RPM</td>
+                <td data-label="Speed">27.2 MPH</td>
+                <td data-label="Fuel Burn">8.3 GPH</td>
+                <td data-label="Fuel Economy">3.28 MPG</td>
+                <td data-label="Source"><a href="https://yamahaoutboards.com/outboards/350-150-hp/v6-4-2l/f300-%284-2l%29/pb_spt_open-232_f300xsb2_6-29-2023_occ" target="_blank" rel="noopener noreferrer">Yamaha test data</a></td>
+              </tr>
+              <tr>
+                <td data-label="Boat / Engine"><strong>Sea Hunt Gamefish 30 CB / Twin Yamaha F350</strong><small>Twin 350 hp outboards</small></td>
+                <td data-label="Test RPM">3,500 RPM</td>
+                <td data-label="Speed">35.9 MPH</td>
+                <td data-label="Fuel Burn">17.2 GPH total</td>
+                <td data-label="Fuel Economy">2.09 MPG</td>
+                <td data-label="Source"><a href="https://yamahaoutboards.com/outboards/350-150-hp/v6-4-3l/f350/pb_sht_gamefish-30-cb_tw_f350xsa2_5-30-2024_occ" target="_blank" rel="noopener noreferrer">Yamaha test data</a></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </article>
 
-      <article class="fpw-info-card">
-        <h2>What Affects Boat Fuel Consumption?</h2>
-        <ul>
-          <li>Wind direction and strength</li>
-          <li>Current, tide, and water conditions</li>
-          <li>Boat load, gear, and sea state</li>
-          <li>Speed, throttle, and engine efficiency</li>
-          <li>Idling time and route deviations</li>
+        <div class="fpw-guide-note"><p><strong>These are examples, not lookup values for your boat.</strong> Manufacturer performance tests are conducted with specific hulls, loads, propellers and conditions. Your boat's actual fuel burn may be different.</p></div>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="gph-vs-mpg-title">
+        <h2 id="gph-vs-mpg-title">GPH vs. MPG: What the Numbers Mean</h2>
+        <div class="fpw-formula-grid">
+          <article class="fpw-guide-card fpw-formula-card">
+            <h3>GPH &mdash; Gallons Per Hour</h3>
+            <p>GPH tells you how quickly the engines are consuming fuel. If your boat burns 8 GPH for three hours, the trip consumes about 24 gallons before reserve or other adjustments.</p>
+            <code>Fuel Used = Running Hours &times; GPH</code>
+          </article>
+          <article class="fpw-guide-card fpw-formula-card">
+            <h3>MPG &mdash; Miles Per Gallon</h3>
+            <p>MPG measures how far the boat travels for each gallon burned. A higher GPH does not automatically mean worse fuel economy if the boat is also traveling substantially faster.</p>
+            <code>MPG = Speed in MPH &divide; GPH</code>
+          </article>
+          <article class="fpw-guide-card fpw-formula-card">
+            <h3>Nautical Miles Per Gallon</h3>
+            <p>When working in knots and nautical miles, the same idea can be expressed as nautical miles per gallon.</p>
+            <code>NM per Gallon = Speed in Knots &divide; GPH</code>
+          </article>
+        </div>
+        <p class="fpw-guide-source-note">For trip planning, GPH tells you the burn rate while distance-per-gallon measurements help identify the more economical cruising point.</p>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="fuel-consumption-speed-title">
+        <h2 id="fuel-consumption-speed-title">Why Boat Fuel Consumption Changes With Speed</h2>
+        <p>Boat fuel consumption does not increase in a simple one-to-one relationship with speed. As speed and engine load change, the hull's resistance through the water, running attitude and propulsion efficiency also change.</p>
+        <p>On a planing boat, efficiency can change significantly as the boat transitions onto plane and then continues toward higher RPM. More throttle normally increases gallons per hour, but the most useful efficiency measurement is how much distance the boat travels for each gallon consumed.</p>
+        <p>This is why the lowest GPH is not automatically the best cruising speed. Idling may burn very little fuel per hour but cover very little distance. At the other extreme, high RPM can dramatically increase GPH without providing a proportional increase in speed.</p>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="find-actual-gph-title">
+        <h2 id="find-actual-gph-title">How to Find Your Boat's Actual GPH</h2>
+        <ol class="fpw-step-list">
+          <li>
+            <h3>Use onboard fuel-flow data</h3>
+            <p>If your engine display, multifunction display or fuel-management system reports real-time GPH, use that data while operating at your normal cruising speed.</p>
+            <p>Yamaha states that its engine-management systems can continuously calculate fuel consumption and display information that lets operators evaluate fuel economy while underway.</p>
+          </li>
+          <li>
+            <h3>Find a manufacturer performance bulletin</h3>
+            <p>Search for a performance test matching your boat model, engine, horsepower and engine count. These reports commonly show RPM, speed, GPH and MPG at multiple throttle settings.</p>
+            <p><a href="https://yamahaoutboards.com/owner-center/performance-bulletins" target="_blank" rel="noopener noreferrer">Yamaha Performance Bulletins</a></p>
+          </li>
+          <li>
+            <h3>Compare with your own operating history</h3>
+            <p>Fuel added, engine hours and trip records can help establish a real-world baseline when the operating profile is reasonably consistent.</p>
+            <p>One mixed-use tank does not automatically produce an accurate cruising GPH number.</p>
+          </li>
+          <li>
+            <h3>Use a conservative estimate when necessary</h3>
+            <p>If measured or manufacturer data is unavailable, use a conservative planning value and maintain additional reserve until you have enough real-world data to refine it.</p>
+          </li>
+        </ol>
+        <div class="fpw-guide-note"><p>Once you know your expected cruise GPH, enter it in the FloatPlanWizard calculator above along with distance, speed and reserve assumptions.</p></div>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="fuel-consumption-factors-title">
+        <h2 id="fuel-consumption-factors-title">What Affects Boat Fuel Consumption?</h2>
+        <div class="fpw-factor-grid">
+          <article class="fpw-guide-card fpw-factor-card">
+            <h3>Boat &amp; Load</h3>
+            <ul>
+              <li>Passengers</li>
+              <li>Gear</li>
+              <li>Fuel and water carried</li>
+              <li>Optional equipment</li>
+              <li>Overall operating weight</li>
+            </ul>
+            <p>More weight generally requires more power to achieve and maintain a given operating condition.</p>
+          </article>
+          <article class="fpw-guide-card fpw-factor-card">
+            <h3>Hull &amp; Running Surface</h3>
+            <ul>
+              <li>Hull design</li>
+              <li>Bottom condition</li>
+              <li>Fouling</li>
+              <li>Bottom paint</li>
+              <li>Added drag</li>
+            </ul>
+            <p>Hull condition and drag affect how much power is required to move the boat through the water.</p>
+          </article>
+          <article class="fpw-guide-card fpw-factor-card">
+            <h3>Engine, Propeller &amp; Trim</h3>
+            <ul>
+              <li>Engine RPM and load</li>
+              <li>Propeller selection and condition</li>
+              <li>Engine trim</li>
+              <li>Trim tabs where applicable</li>
+              <li>Engine condition</li>
+            </ul>
+            <p>Propeller setup and trim affect the boat's running attitude and how efficiently engine power is converted into forward motion.</p>
+          </article>
+          <article class="fpw-guide-card fpw-factor-card">
+            <h3>Conditions &amp; Route</h3>
+            <ul>
+              <li>Wind</li>
+              <li>Current</li>
+              <li>Waves and sea state</li>
+              <li>No-wake operation and idling</li>
+              <li>Route deviations</li>
+              <li>Temperature and elevation where applicable</li>
+            </ul>
+            <p>The same boat can produce different fuel-burn results on different days or different sections of the same trip.</p>
+          </article>
+        </div>
+        <p class="fpw-guide-source-note">Further context: <a href="https://yamahaoutboards.com/outboards/350-150-hp/in-line-4/f200-%28i4%29/pb_ver_vp22rct_f200xsa2_02-04-23_pnt" target="_blank" rel="noopener noreferrer">Yamaha performance data</a>, <a href="https://www.mercurymarine.com/us/en/lifestyle/dockline/improving-your-boats-fuel-efficiency" target="_blank" rel="noopener noreferrer">Mercury fuel-efficiency guidance</a>, and <a href="https://www.mercurymarine.com/us/en/lifestyle/dockline/how-to-trim-your-outboard-for-optimal-performance" target="_blank" rel="noopener noreferrer">Mercury trim guidance</a>.</p>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="efficient-cruising-speed-title">
+        <h2 id="efficient-cruising-speed-title">Finding Your Most Efficient Cruising Speed</h2>
+        <p>Your most economical cruising speed is the practical operating point where the boat covers the greatest useful distance for the fuel consumed. It is not necessarily the slowest speed, and it is rarely useful to assume one RPM or one percentage of wide-open throttle for every boat.</p>
+        <p>The best way to find it is to compare speed and fuel-flow data across several normal operating RPM settings. When using statute miles, divide MPH by GPH to calculate MPG. When using knots, divide knots by GPH to estimate nautical miles per gallon.</p>
+        <p>Manufacturer performance bulletins can provide a useful starting point, but real fuel-flow data from your own boat is better because it reflects your hull, load, propeller and operating conditions.</p>
+        <div class="fpw-guide-callout"><p><strong>Don't optimize for GPH alone.</strong> Optimize for distance per gallon at a speed that makes sense for the trip.</p></div>
+        <p class="fpw-guide-source-note"><a href="https://www.mercurymarine.com/us/en/lifestyle/dockline/how-to-find-the-ideal-cruising-speed-on-your-boat" target="_blank" rel="noopener noreferrer">Mercury cruising-speed guidance</a> and <a href="https://yamahaoutboards.com/blog/boating/take-command-of-fuel-efficiency" target="_blank" rel="noopener noreferrer">Yamaha fuel-management guidance</a>.</p>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="boat-fuel-planning-example-title">
+        <h2 id="boat-fuel-planning-example-title">Boat Fuel Planning Example</h2>
+        <h3>Example: 60-Nautical-Mile Round Trip</h3>
+        <ul class="fpw-example-assumptions" aria-label="Worked example assumptions">
+          <li>30 NM outbound</li>
+          <li>30 NM return</li>
+          <li>20-knot cruise</li>
+          <li>8 GPH cruise fuel burn</li>
+          <li>$4.50 per gallon</li>
         </ul>
-      </article>
+        <div class="fpw-example-grid">
+          <article class="fpw-example-leg fpw-example-math">
+            <h3>Outbound</h3>
+            <code>30 NM &divide; 20 kn = 1.5 hours</code>
+            <code>1.5 hours &times; 8 GPH = 12 gallons</code>
+          </article>
+          <article class="fpw-example-leg fpw-example-math">
+            <h3>Return</h3>
+            <code>30 NM &divide; 20 kn = 1.5 hours</code>
+            <code>1.5 hours &times; 8 GPH = 12 gallons</code>
+          </article>
+        </div>
+        <div class="fpw-example-total fpw-example-math">
+          <p><strong>Expected trip consumption</strong></p>
+          <code>12 + 12 = 24 gallons</code>
+          <p><strong>Estimated fuel cost</strong></p>
+          <code>24 &times; $4.50 = $108</code>
+        </div>
+        <aside class="fpw-reserve-callout" aria-label="One-Third Rule example">
+          <p>In this simplified example, applying the U.S. Coast Guard's One-Third Rule would allocate approximately 12 gallons outbound, 12 gallons for the return and another 12 gallons as reserve &mdash; 36 usable gallons at departure. Real trips may require more because outbound and return conditions are rarely identical.</p>
+        </aside>
+      </section>
 
-      <article class="fpw-info-card fpw-faq-card">
-        <h2>FAQ</h2>
-        <details>
-          <summary>How accurate is this calculator?</summary>
-          <p>It provides an estimate based on your inputs. Actual fuel use can vary with conditions, load, speed, and engine performance.</p>
-        </details>
-        <details>
-          <summary>What is a good reserve percentage?</summary>
-          <p>Many boaters plan with a meaningful reserve such as the rule of thirds, but the right reserve depends on the trip and conditions.</p>
-        </details>
-        <details>
-          <summary>Should I plan using max speed?</summary>
-          <p>For conservative planning, compare efficient cruise numbers with higher burn scenarios so you understand your margin.</p>
-        </details>
-        <details>
-          <summary>How does weather factor work?</summary>
-          <p>The weather factor increases estimated fuel use to account for wind, current, chop, and less efficient real-world operation.</p>
-        </details>
-      </article>
-    </section>
+      <section class="fpw-guide-section" aria-labelledby="fuel-reserve-title">
+        <h2 id="fuel-reserve-title">How Much Fuel Reserve Should You Carry?</h2>
+        <p>The U.S. Coast Guard's <em>A Boater's Guide to the Federal Requirements for Recreational Boats</em> recommends practicing the <strong>One-Third Rule</strong>:</p>
+        <ul>
+          <li>One-third of the fuel to go out</li>
+          <li>One-third to get back</li>
+          <li>One-third held in reserve</li>
+        </ul>
+        <p>Treat the rule as a conservative fuel-management practice, not as a guarantee that a particular trip is safe. Wind, current, sea state, detours, no-wake zones and unexpected delays can increase actual consumption.</p>
+        <p class="fpw-guide-source-note">Use the <a href="#reservePct">Reserve Method control in the calculator above</a> to apply the One-Third Rule or a percentage-based planning margin. Review the official <a href="https://www.uscgboating.org/assets/1/AssetManager/Boaters-Guide-to-Federal-Requirements-for-Receational-Boats-20231108.pdf" target="_blank" rel="noopener noreferrer">U.S. Coast Guard boating guide</a> for the One-Third Rule.</p>
+      </section>
+
+      <section class="fpw-guide-section" aria-labelledby="boat-fuel-faq-title">
+        <h2 id="boat-fuel-faq-title">Boat Fuel Calculator FAQ</h2>
+        <div class="fpw-guide-faq">
+          <cfloop array="#fpwFuelFaqItems#" index="fpwFuelFaqItem">
+            <details>
+              <summary><cfoutput>#encodeForHTML(fpwFuelFaqItem["question"])#</cfoutput></summary>
+              <p><cfoutput>#encodeForHTML(fpwFuelFaqItem["answer"])#</cfoutput></p>
+            </details>
+          </cfloop>
+        </div>
+      </section>
+
+      <aside class="fpw-fuel-safety-resources" aria-label="Related boating safety resources">
+        <p><strong>Boating alone?</strong> Review the <a href="../solo-boating-safety-guide/">Solo Boating Safety Guide</a> before departure.</p>
+        <p>Make sure your <a href="../shore-contact-overdue-boater/">shore contact knows what to do if you become overdue</a>.</p>
+      </aside>
+
+      <section class="fpw-guide-section fpw-guide-section--sources" aria-labelledby="fuel-sources-title">
+        <h2 id="fuel-sources-title">Sources &amp; Further Reading</h2>
+        <ul class="fpw-source-list">
+          <li><a href="https://www.uscgboating.org/assets/1/AssetManager/Boaters-Guide-to-Federal-Requirements-for-Receational-Boats-20231108.pdf" target="_blank" rel="noopener noreferrer">U.S. Coast Guard &mdash; A Boater's Guide to the Federal Requirements for Recreational Boats</a></li>
+          <li><a href="https://yamahaoutboards.com/owner-center/performance-bulletins" target="_blank" rel="noopener noreferrer">Yamaha Outboards &mdash; Performance Bulletins</a></li>
+          <li><a href="https://yamahaoutboards.com/blog/boating/take-command-of-fuel-efficiency" target="_blank" rel="noopener noreferrer">Yamaha Outboards &mdash; Take Command of Fuel Efficiency</a></li>
+          <li><a href="https://performancedata.mercurymarine.com/performance-test/141" target="_blank" rel="noopener noreferrer">Mercury Marine &mdash; Performance Data</a></li>
+          <li><a href="https://www.mercurymarine.com/us/en/lifestyle/dockline/how-to-find-the-ideal-cruising-speed-on-your-boat" target="_blank" rel="noopener noreferrer">Mercury Marine &mdash; Finding Your Ideal Cruising Speed</a></li>
+          <li><a href="https://www.mercurymarine.com/us/en/lifestyle/dockline/improving-your-boats-fuel-efficiency" target="_blank" rel="noopener noreferrer">Mercury Marine &mdash; Improving Your Boat's Fuel Efficiency</a></li>
+          <li><a href="https://www.mercurymarine.com/us/en/lifestyle/dockline/how-to-trim-your-outboard-for-optimal-performance" target="_blank" rel="noopener noreferrer">Mercury Marine &mdash; Outboard Trim Guidance</a></li>
+        </ul>
+      </section>
+    </div>
 
   </main>
 
@@ -1695,6 +2371,8 @@ fpwCtaConfig = {
       var DEFAULT_MAX_SPEED_KN = 20;
       var DEFAULT_UNDERWAY_HOURS_PER_DAY = 6.5;
       var DEFAULT_RESERVE_PCT = 33;
+      var RESERVE_MODE_THIRDS = "thirds";
+      var RESERVE_MODE_PERCENTAGE = "percentage";
       var LOW_SPEED_ANCHOR_KN = 3.5;
       var PACE_PRESETS = {
         RELAXED: { key: "RELAXED", label: "Relaxed", factor: 0.25 },
@@ -1817,6 +2495,12 @@ fpwCtaConfig = {
         return roundTo2(pctVal);
       }
 
+      function normalizeReserveMode(value) {
+        return String(value || "").trim().toLowerCase() === RESERVE_MODE_THIRDS
+          ? RESERVE_MODE_THIRDS
+          : RESERVE_MODE_PERCENTAGE;
+      }
+
       function normalizeFuelPricePerGal(value) {
         var priceVal = safeNum(value);
         if (priceVal === null || priceVal <= 0) return 0;
@@ -1924,6 +2608,14 @@ fpwCtaConfig = {
         return { value: value, status: "valid" };
       }
 
+      function readReserveMode() {
+        var selectEl = q("reservePct");
+        var selectedOption = selectEl && selectEl.options
+          ? selectEl.options[selectEl.selectedIndex]
+          : null;
+        return normalizeReserveMode(selectedOption ? selectedOption.getAttribute("data-reserve-mode") : "");
+      }
+
       function getInputs() {
         var usableFuelCapacityInput = readUsableFuelCapacityInput();
         return {
@@ -1937,6 +2629,7 @@ fpwCtaConfig = {
           idleHoursTotal: readInputNumber("idleHoursTotal"),
           weatherPct: readInputNumber("weatherPct"),
           reservePct: readInputNumber("reservePct"),
+          reserveMode: readReserveMode(),
           usableFuelCapacityGallons: usableFuelCapacityInput.value,
           usableFuelCapacityStatus: usableFuelCapacityInput.status,
           underwayHoursPerDay: readInputNumber("underwayHoursPerDay"),
@@ -1957,6 +2650,7 @@ fpwCtaConfig = {
         var idleHoursTotal = normalizeIdleHoursTotal(inputs.idleHoursTotal);
         var weatherPct = normalizeWeatherFactorPct(inputs.weatherPct);
         var reservePct = normalizeReservePct(inputs.reservePct, DEFAULT_RESERVE_PCT);
+        var reserveMode = normalizeReserveMode(inputs.reserveMode);
         var usableFuelCapacityStatus = String(inputs.usableFuelCapacityStatus || "");
         var usableFuelCapacityGallons = safeNum(inputs.usableFuelCapacityGallons);
         var fuelPricePerGal = normalizeFuelPricePerGal(inputs.fuelPricePerGal);
@@ -1979,6 +2673,9 @@ fpwCtaConfig = {
         var fuelAvailableAfterReserveGallons = null;
         var estimatedEnduranceHours = null;
         var estimatedRangeNauticalMiles = null;
+        var usableCapacityMeetsRequirement = null;
+        var capacityShortfallGallons = null;
+        var capacityMarginGallons = null;
         var weatherAdj = weatherPct / 100;
         var hasRequiredInputs = false;
         var usesAnchoredBurn = false;
@@ -2050,7 +2747,9 @@ fpwCtaConfig = {
             weatherAdjustedBurn > 0 &&
             weatherAdjustedSpeedKn > 0
           ) {
-            fuelAvailableAfterReserveGallons = usableFuelCapacityGallons * (1 - (reservePct / 100));
+            fuelAvailableAfterReserveGallons = reserveMode === RESERVE_MODE_THIRDS
+              ? usableFuelCapacityGallons * (2 / 3)
+              : usableFuelCapacityGallons * (1 - (reservePct / 100));
             if (fuelAvailableAfterReserveGallons > 0) {
               estimatedEnduranceHours = fuelAvailableAfterReserveGallons / weatherAdjustedBurn;
               estimatedRangeNauticalMiles = estimatedEnduranceHours * weatherAdjustedSpeedKn;
@@ -2074,8 +2773,28 @@ fpwCtaConfig = {
             : 0;
 
           baseFuelGallons = roundTo2(cruiseFuelGallons + idleFuelGallons);
-          reserveGallons = roundTo2(baseFuelGallons * (reservePct / 100));
-          requiredFuelGallons = roundTo2(baseFuelGallons + reserveGallons);
+          if (reserveMode === RESERVE_MODE_THIRDS) {
+            reserveGallons = roundTo2(baseFuelGallons * 0.5);
+            requiredFuelGallons = roundTo2(baseFuelGallons * 1.5);
+          } else {
+            reserveGallons = roundTo2(baseFuelGallons * (reservePct / 100));
+            requiredFuelGallons = roundTo2(baseFuelGallons + reserveGallons);
+          }
+
+          if (
+            usableFuelCapacityStatus === "valid" &&
+            usableFuelCapacityGallons !== null &&
+            distanceNm !== null &&
+            distanceNm > 0
+          ) {
+            usableCapacityMeetsRequirement = usableFuelCapacityGallons >= requiredFuelGallons;
+            capacityShortfallGallons = usableCapacityMeetsRequirement
+              ? 0
+              : roundTo2(requiredFuelGallons - usableFuelCapacityGallons);
+            capacityMarginGallons = usableCapacityMeetsRequirement
+              ? roundTo2(usableFuelCapacityGallons - requiredFuelGallons)
+              : 0;
+          }
           totalFuelCost = (fuelPricePerGal > 0)
             ? Math.round((requiredFuelGallons * fuelPricePerGal) * 100) / 100
             : 0;
@@ -2101,6 +2820,7 @@ fpwCtaConfig = {
             idleHoursTotal: idleHoursTotal,
             weatherPct: weatherPct,
             reservePct: reservePct,
+            reserveMode: reserveMode,
             usableFuelCapacityGallons: usableFuelCapacityGallons,
             usableFuelCapacityStatus: usableFuelCapacityStatus,
             underwayHoursPerDay: underwayHoursPerDay,
@@ -2123,8 +2843,12 @@ fpwCtaConfig = {
             totalTravelHours: totalTravelHours,
             estimatedDays: estimatedDays,
             fuelAvailableAfterReserveGallons: fuelAvailableAfterReserveGallons,
+            tripUsableCapacityGallons: fuelAvailableAfterReserveGallons,
             estimatedEnduranceHours: estimatedEnduranceHours,
             estimatedRangeNauticalMiles: estimatedRangeNauticalMiles,
+            usableCapacityMeetsRequirement: usableCapacityMeetsRequirement,
+            capacityShortfallGallons: capacityShortfallGallons,
+            capacityMarginGallons: capacityMarginGallons,
             usesAnchoredBurn: usesAnchoredBurn,
             fuelMode: fuelMode,
             canEstimateFuel: canEstimateFuel,
@@ -2176,6 +2900,54 @@ fpwCtaConfig = {
         if (errorEl) errorEl.hidden = !isInvalid;
       }
 
+      function renderUsableFuelCapacityStatus(model) {
+        var inputs = model.inputs || {};
+        var derived = model.derived || {};
+        var statusEl = q("usableFuelCapacityStatus");
+        var capacity = safeNum(inputs.usableFuelCapacityGallons);
+        var required = safeNum(derived.requiredFuelGallons);
+        var statusText = "";
+        var statusState = "";
+
+        if (!statusEl) return;
+        if (
+          inputs.usableFuelCapacityStatus !== "valid" ||
+          capacity === null ||
+          required === null ||
+          safeNum(inputs.distanceNm) === null ||
+          inputs.distanceNm <= 0 ||
+          derived.usableCapacityMeetsRequirement === null
+        ) {
+          statusEl.hidden = true;
+          statusEl.textContent = "";
+          statusEl.removeAttribute("data-capacity-state");
+          return;
+        }
+
+        if (!derived.usableCapacityMeetsRequirement) {
+          statusState = "shortfall";
+          statusText = "Capacity shortfall: " + formatNum(derived.capacityShortfallGallons, 1, "0.0")
+            + " gal. The " + formatNum(capacity, 1, "0.0")
+            + " gal usable capacity is below the " + formatNum(required, 1, "0.0")
+            + " gal departure requirement for these planning assumptions.";
+        } else if (derived.capacityMarginGallons === 0) {
+          statusState = "boundary";
+          statusText = "Capacity boundary: The " + formatNum(capacity, 1, "0.0")
+            + " gal usable capacity exactly matches the " + formatNum(required, 1, "0.0")
+            + " gal departure requirement for these planning assumptions.";
+        } else {
+          statusState = "margin";
+          statusText = "Capacity margin: " + formatNum(derived.capacityMarginGallons, 1, "0.0")
+            + " gal. The " + formatNum(capacity, 1, "0.0")
+            + " gal usable capacity is above the " + formatNum(required, 1, "0.0")
+            + " gal departure requirement for these planning assumptions.";
+        }
+
+        statusEl.hidden = false;
+        statusEl.setAttribute("data-capacity-state", statusState);
+        statusEl.textContent = statusText;
+      }
+
       function renderCards(model) {
         var inputs = model.inputs || {};
         var derived = model.derived || {};
@@ -2199,9 +2971,12 @@ fpwCtaConfig = {
 
         if (hasDistance && hasFuelEstimate) {
           q("cardEstimatedFuel").textContent = formatNum(derived.requiredFuelGallons, 1, "--") + " gal";
-          q("cardEstimatedFuelSub").textContent = "Base " + formatNum(derived.baseFuelGallons, 1, "0.0")
-            + " + Reserve (" + formatNum(inputs.reservePct, 0, "33") + "%) "
-            + formatNum(derived.reserveGallons, 1, "0.0");
+          q("cardEstimatedFuelSub").textContent = inputs.reserveMode === RESERVE_MODE_THIRDS
+            ? "Base " + formatNum(derived.baseFuelGallons, 1, "0.0")
+              + " + One-Third Rule Reserve " + formatNum(derived.reserveGallons, 1, "0.0")
+            : "Base " + formatNum(derived.baseFuelGallons, 1, "0.0")
+              + " + Reserve (" + formatNum(inputs.reservePct, 0, "0") + "%) "
+              + formatNum(derived.reserveGallons, 1, "0.0");
         } else {
           q("cardEstimatedFuel").textContent = "-- gal";
           q("cardEstimatedFuelSub").textContent = "Required + reserve";
@@ -2257,6 +3032,18 @@ fpwCtaConfig = {
       function renderBreakdown(model) {
         var inputs = model.inputs || {};
         var derived = model.derived || {};
+        var isThirds = inputs.reserveMode === RESERVE_MODE_THIRDS;
+        var reserveLabel = isThirds
+          ? "One-Third Rule"
+          : formatNum(inputs.reservePct, 0, "0") + "% reserve";
+        var capacityStatus = "--";
+        if (derived.usableCapacityMeetsRequirement === false) {
+          capacityStatus = "Below departure requirement";
+        } else if (derived.usableCapacityMeetsRequirement === true && derived.capacityMarginGallons === 0) {
+          capacityStatus = "Exactly matches departure requirement";
+        } else if (derived.usableCapacityMeetsRequirement === true) {
+          capacityStatus = "Above departure requirement";
+        }
         var rows = [
           ["Pace", String(derived.paceLabel || "--"), "Route Generator pace preset"],
           ["Pace ratio", formatNum(derived.paceRatio, 2, "--"), "Relaxed=0.25, Balanced=efficient speed / max speed, Max Speed=1.00"],
@@ -2269,15 +3056,19 @@ fpwCtaConfig = {
           ["GPH @ efficient", formatNum(inputs.fuelBurnEfficientGph, 2, "--"), "Required on this standalone calculator"],
           ["Pace-adjusted burn (GPH)", formatNum(derived.paceAdjustedBurnGph, 2, "--"), derived.usesAnchoredBurn ? "Anchored interpolation between low, efficient, and max-speed burn anchors" : "Max burn x pace ratio^3 or Balanced efficient burn"],
           ["Weather-adjusted burn (GPH)", formatNum(derived.weatherAdjustedBurnGph, 2, "--"), "pace-adjusted burn x (1 + weather factor)"],
+          ["Reserve method", reserveLabel, isThirds ? "One-Third Rule planning mode" : "percentage-based planning margin"],
           ["Usable fuel capacity (gal)", formatNum(inputs.usableFuelCapacityGallons, 2, "--"), "caller-entered usable fuel before reserve"],
-          ["Fuel available after reserve (gal)", formatNum(derived.fuelAvailableAfterReserveGallons, 2, "--"), "usable fuel x (1 - reserve percent)"],
+          ["Trip-usable fuel for range (gal)", formatNum(derived.tripUsableCapacityGallons, 2, "--"), isThirds ? "usable fuel x 2/3 under the One-Third Rule" : "usable fuel x (1 - reserve percent)"],
+          ["Capacity status", capacityStatus, "compares usable capacity with the departure requirement for the selected assumptions"],
+          ["Capacity shortfall (gal)", formatNum(derived.capacityShortfallGallons, 2, "--"), "amount below the departure requirement; zero when capacity meets it"],
+          ["Capacity margin (gal)", formatNum(derived.capacityMarginGallons, 2, "--"), "amount above the departure requirement; zero at or below it"],
           ["Estimated endurance with reserve (h)", formatNum(derived.estimatedEnduranceHours, 2, "--"), "fuel available after reserve / weather-adjusted burn"],
           ["Estimated range with reserve (NM)", formatNum(derived.estimatedRangeNauticalMiles, 2, "--"), "endurance with reserve x weather-adjusted speed"],
           ["Cruise hours", formatNum(derived.cruiseHours, 2, "--"), "distance / weather-adjusted speed"],
           ["Idle fuel (gal)", formatNum(derived.idleFuelGallons, 2, "--"), "idle burn x idle hours, rounded to the Route Generator preview precision"],
           ["Base fuel (gal)", formatNum(derived.baseFuelGallons, 2, "--"), "cruise fuel + idle fuel"],
-          ["Reserve fuel (gal)", formatNum(derived.reserveGallons, 2, "--"), "base fuel x reserve percent"],
-          ["Required fuel (gal)", formatNum(derived.requiredFuelGallons, 2, "--"), "base fuel + reserve"],
+          [isThirds ? "One-Third Rule Reserve (gal)" : "Reserve fuel (gal)", formatNum(derived.reserveGallons, 2, "--"), isThirds ? "base fuel x 0.5" : "base fuel x reserve percent"],
+          ["Required fuel (gal)", formatNum(derived.requiredFuelGallons, 2, "--"), isThirds ? "base fuel x 1.5" : "base fuel + reserve"],
           ["Fuel cost (USD)", formatCurrency(derived.totalFuelCost, "--"), "required fuel x price per gallon"],
           ["Estimated days", (derived.estimatedDays === null || derived.estimatedDays === undefined) ? "--" : String(derived.estimatedDays), "ceil(total travel hours / underway hours per day)"]
         ];
@@ -2306,6 +3097,7 @@ fpwCtaConfig = {
 
         output.hidden = false;
         output.textContent = JSON.stringify({
+          reserveMode: model.inputs.reserveMode,
           route_generator_source_of_truth: {
             pace_formula: "routegenNormalizePace + routegenPaceDefaults + routegenComputeEffectiveCruisingSpeed",
             burn_formula: "calculateFuelEstimate + routegenAnchoredBurnGph",
@@ -2332,6 +3124,7 @@ fpwCtaConfig = {
         renderRequiredEfficientInputsMessage(model);
         renderRequiredEfficientInputState(model);
         renderUsableFuelCapacityInputState(model);
+        renderUsableFuelCapacityStatus(model);
         renderCards(model);
         renderBreakdown(model);
         renderJson(model);

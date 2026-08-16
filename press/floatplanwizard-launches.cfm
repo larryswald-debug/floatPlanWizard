@@ -113,10 +113,10 @@ releaseSchemaJson = replace(serializeJSON(releaseSchema), "</", "<\/", "all");
       <section aria-labelledby="membershipModelTitle">
         <h2 id="membershipModelTitle">Free Membership with Optional Premium Trips</h2>
         <p>
-          FloatPlanWizard is designed to remove cost as a barrier to basic float-plan use. Membership is free,
-          including full trip planning and Basic float-plan sending, and every new member receives one complimentary
-          complete Premium trip. Free members can save vessel, operator, passenger, shore-contact, waypoint, and trip
-          information and maintain multiple Draft float plans.
+          FloatPlanWizard is designed to reduce the time and repetitive effort involved in creating and sharing a
+          float plan. Membership is free, including full trip planning and Basic float-plan sending, and every new
+          member receives one complimentary complete Premium trip. Free members can save vessel, operator, passenger,
+          shore-contact, waypoint, and trip information and maintain multiple Draft float plans.
         </p>
         <p>
           The complimentary trip is provided through one Premium Send Credit. After that credit is used, additional
