@@ -372,7 +372,20 @@ test("Follow renders mode-aware reserve wording without responsive overflow", as
             reserve_mode: reserveMode,
             completed_legs: 0
           },
-          legs: []
+          legs: [{
+            day_bucket: 1,
+            leg_order: 1,
+            label: "Start -> End",
+            start_name: "Start",
+            end_name: "End",
+            dist_nm: 20,
+            hours: 3,
+            locks: 1,
+            cumulative_hours: 3,
+            cruise_fuel_gallons: 20,
+            fuel_burn_gph: 10,
+            progress: { percent_complete: 0, last_update_ts: "" }
+          }]
         }
       })
     });
@@ -383,6 +396,10 @@ test("Follow renders mode-aware reserve wording without responsive overflow", as
   const fuelCard = page.locator('[data-fpw-field="timeline-fuel-reserve"]');
   await expect(fuelCard.locator(".kicker")).toHaveText("Fuel + One-Third Rule reserve");
   await expect(fuelCard.locator("strong")).toHaveText("24.0 + 12.0 gal");
+  await page.locator(".follow-timeline-leg").first().click();
+  await expect(page.locator(".follow-timeline-legpanelmeta").filter({ hasText: "Cruise fuel est:" })).toHaveText(
+    "Cruise fuel est: 20.0 gal @ 10.0 gph"
+  );
 
   for (const width of [1440, 1024, 760, 390]) {
     await page.setViewportSize({ width, height: 900 });

@@ -4610,6 +4610,114 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="estimateFollowPlannedFuel" access="private" returntype="struct" output="false">
+        <cfargument name="routeInputs" type="struct" required="true">
+        <cfargument name="totalDistanceNm" type="numeric" required="true">
+        <cfargument name="legDistancesNm" type="array" required="false" default="#[]#">
+        <cfscript>
+            var out = {
+                "SUCCESS"=false,
+                "TOTAL"={},
+                "LEGS"=[],
+                "RESERVE_PCT"=33,
+                "RESERVE_MODE"="thirds"
+            };
+            var routeBuilderService = "";
+            var totalResult = {};
+            var legResult = {};
+            var legEstimate = {};
+            var distanceNm = 0;
+            var i = 0;
+
+            if (!structCount(arguments.routeInputs) OR arguments.totalDistanceNm LTE 0) {
+                return out;
+            }
+
+            try {
+                try {
+                    routeBuilderService = createObject("component", "fpw.api.v1.routeBuilder");
+                } catch (any routeBuilderPathErr) {
+                    routeBuilderService = createObject("component", "api.v1.routeBuilder");
+                }
+                totalResult = routeBuilderService.routegenEstimateFuelForDistance(
+                    routeInputs=arguments.routeInputs,
+                    distanceNm=arguments.totalDistanceNm,
+                    idleFuelGallons=0,
+                    includeIdleFuelFromInputs=true
+                );
+            } catch (any totalFuelErr) {
+                return out;
+            }
+
+            if (
+                !structKeyExists(totalResult, "SUCCESS")
+                OR totalResult.SUCCESS NEQ true
+                OR !structKeyExists(totalResult, "FUEL_ESTIMATE")
+                OR !isStruct(totalResult.FUEL_ESTIMATE)
+            ) {
+                return out;
+            }
+
+            out.SUCCESS = true;
+            out.TOTAL = duplicate(totalResult.FUEL_ESTIMATE);
+            out.RESERVE_PCT = (
+                structKeyExists(totalResult, "RESERVE_PCT")
+                    ? roundTo2(totalResult.RESERVE_PCT)
+                    : 33
+            );
+            out.RESERVE_MODE = normalizeFuelReserveMode(
+                structKeyExists(totalResult, "RESERVE_MODE") ? totalResult.RESERVE_MODE : "",
+                out.RESERVE_PCT
+            );
+
+            for (i = 1; i LTE arrayLen(arguments.legDistancesNm); i++) {
+                distanceNm = val(arguments.legDistancesNm[i]);
+                if (distanceNm LT 0) distanceNm = 0;
+                legResult = {};
+                try {
+                    legResult = routeBuilderService.routegenEstimateFuelForDistance(
+                        routeInputs=arguments.routeInputs,
+                        distanceNm=distanceNm,
+                        idleFuelGallons=0,
+                        includeIdleFuelFromInputs=false
+                    );
+                } catch (any legFuelErr) {
+                    arrayAppend(out.LEGS, { "SUCCESS"=false });
+                    continue;
+                }
+                if (
+                    !structKeyExists(legResult, "SUCCESS")
+                    OR legResult.SUCCESS NEQ true
+                    OR !structKeyExists(legResult, "FUEL_ESTIMATE")
+                    OR !isStruct(legResult.FUEL_ESTIMATE)
+                ) {
+                    arrayAppend(out.LEGS, { "SUCCESS"=false });
+                    continue;
+                }
+                legEstimate = legResult.FUEL_ESTIMATE;
+                arrayAppend(out.LEGS, {
+                    "SUCCESS"=true,
+                    "cruise_fuel_gallons"=roundTo2(
+                        structKeyExists(legEstimate, "cruiseFuelGallons")
+                            ? legEstimate.cruiseFuelGallons
+                            : 0
+                    ),
+                    "fuel_burn_gph"=roundTo2(
+                        structKeyExists(legEstimate, "weatherAdjustedBurnGph")
+                            ? legEstimate.weatherAdjustedBurnGph
+                            : 0
+                    ),
+                    "cruise_speed_kn"=roundTo2(
+                        structKeyExists(legEstimate, "weatherAdjustedSpeedKnots")
+                            ? legEstimate.weatherAdjustedSpeedKnots
+                            : 0
+                    )
+                });
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="buildFollowCruiseTimeline" access="private" returntype="struct" output="false">
         <cfargument name="routeInstanceId" type="numeric" required="true">
         <cfargument name="ownerUserId" type="numeric" required="true">
@@ -4705,6 +4813,12 @@
             var adjustedCumulativeHours = 0.0;
             var adjustedDayBucket = 0;
             var adjustedTotalHours = 0.0;
+            var requiredFuelEst = 0.0;
+            var legDistancesNm = [];
+            var plannedFuel = {};
+            var plannedFuelTotal = {};
+            var plannedLegFuel = {};
+            var legOut = {};
 
             if (routeInstanceIdVal LTE 0 OR ownerUserIdVal LTE 0) {
                 return out;
@@ -4908,8 +5022,14 @@
                 if (lockCount LT 0) lockCount = 0;
                 totalNm += distNm;
                 totalLocks += lockCount;
+                arrayAppend(legDistancesNm, distNm);
             }
             totalNm = roundTo2(totalNm);
+            plannedFuel = estimateFollowPlannedFuel(
+                routeInputs=storedInputs,
+                totalDistanceNm=totalNm,
+                legDistancesNm=legDistancesNm
+            );
 
             for (i = 1; i LTE qPlans.recordCount; i++) {
                 if (
@@ -5093,7 +5213,7 @@
                     }
                 }
 
-                arrayAppend(out.legs, {
+                legOut = {
                     "day_bucket"=adjustedDayBucket,
                     "leg_order"=orderVal,
                     "label"=startName & " -> " & endName,
@@ -5108,7 +5228,23 @@
                         "percent_complete"=progressPct,
                         "last_update_ts"=lastUpdateTs
                     }
-                });
+                };
+                if (
+                    structKeyExists(plannedFuel, "SUCCESS")
+                    AND plannedFuel.SUCCESS
+                    AND structKeyExists(plannedFuel, "LEGS")
+                    AND isArray(plannedFuel.LEGS)
+                    AND arrayLen(plannedFuel.LEGS) GTE i
+                    AND isStruct(plannedFuel.LEGS[i])
+                    AND structKeyExists(plannedFuel.LEGS[i], "SUCCESS")
+                    AND plannedFuel.LEGS[i].SUCCESS
+                ) {
+                    plannedLegFuel = plannedFuel.LEGS[i];
+                    legOut.cruise_fuel_gallons = plannedLegFuel.cruise_fuel_gallons;
+                    legOut.fuel_burn_gph = plannedLegFuel.fuel_burn_gph;
+                    legOut.cruise_speed_kn = plannedLegFuel.cruise_speed_kn;
+                }
+                arrayAppend(out.legs, legOut);
             }
 
             fuelEst = 0;
@@ -5121,6 +5257,32 @@
                     reserveEst = roundTo2(fuelEst * (reservePct / 100));
                 }
             }
+            requiredFuelEst = roundTo2(fuelEst + reserveEst);
+            if (
+                structKeyExists(plannedFuel, "SUCCESS")
+                AND plannedFuel.SUCCESS
+                AND structKeyExists(plannedFuel, "TOTAL")
+                AND isStruct(plannedFuel.TOTAL)
+            ) {
+                plannedFuelTotal = plannedFuel.TOTAL;
+                fuelEst = roundTo2(
+                    structKeyExists(plannedFuelTotal, "baseFuelGallons")
+                        ? plannedFuelTotal.baseFuelGallons
+                        : 0
+                );
+                reserveEst = roundTo2(
+                    structKeyExists(plannedFuelTotal, "reserveGallons")
+                        ? plannedFuelTotal.reserveGallons
+                        : 0
+                );
+                requiredFuelEst = roundTo2(
+                    structKeyExists(plannedFuelTotal, "requiredFuelGallons")
+                        ? plannedFuelTotal.requiredFuelGallons
+                        : (fuelEst + reserveEst)
+                );
+                reservePct = plannedFuel.RESERVE_PCT;
+                reserveMode = plannedFuel.RESERVE_MODE;
+            }
 
             adjustedTotalHours = roundTo2(cumulativeHours + manualDelayHoursTotal);
             out.summary = {
@@ -5130,7 +5292,7 @@
                 "total_days"=(maxHoursPerDay GT 0 AND adjustedTotalHours GT 0 ? int(ceiling(adjustedTotalHours / maxHoursPerDay)) : 0),
                 "fuel_est"=fuelEst,
                 "reserve_est"=reserveEst,
-                "required_fuel_est"=roundTo2(fuelEst + reserveEst),
+                "required_fuel_est"=requiredFuelEst,
                 "max_hours_per_day"=maxHoursPerDay,
                 "effective_speed_kn"=effectiveSpeedKn,
                 "fuel_burn_gph"=fuelBurnGph,

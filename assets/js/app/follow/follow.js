@@ -1449,10 +1449,21 @@
     var maxHoursPerDay = timelineValueText(summary.max_hours_per_day, 1, "h");
     var inputsSource = String(meta.inputs_source || "default").trim() || "default";
     var missingInputs = Array.isArray(meta.missing_inputs) ? meta.missing_inputs : [];
-    var legFuelBurnGph = timelineValueText(summary.fuel_burn_gph, 1, "gph");
-    var legFuelEst = timelineValueText((safeNum(summary.fuel_burn_gph) !== null && safeNum(leg.hours) !== null)
+    var authoritativeLegFuel = safeNum(leg.cruise_fuel_gallons);
+    var authoritativeLegBurn = safeNum(leg.fuel_burn_gph);
+    var fallbackLegFuel = (safeNum(summary.fuel_burn_gph) !== null && safeNum(leg.hours) !== null)
       ? (safeNum(summary.fuel_burn_gph) * safeNum(leg.hours))
-      : null, 1, "gal");
+      : null;
+    var legFuelBurnGph = timelineValueText(
+      authoritativeLegBurn !== null ? authoritativeLegBurn : summary.fuel_burn_gph,
+      1,
+      "gph"
+    );
+    var legFuelEst = timelineValueText(
+      authoritativeLegFuel !== null ? authoritativeLegFuel : fallbackLegFuel,
+      1,
+      "gal"
+    );
     var lockDetailsHtml = renderLegLockDetailsHtml(leg);
 
     return ''
@@ -1475,7 +1486,7 @@
       + '  </div>'
       + lockDetailsHtml
       + '  <div class="follow-timeline-legpanelmeta">Cumulative: ' + escapeHtml(cumulativeHours) + ' | Leg: ' + escapeHtml(legHours) + ' | Max/day: ' + escapeHtml(maxHoursPerDay) + '</div>'
-      + '  <div class="follow-timeline-legpanelmeta">Fuel est: ' + escapeHtml(legFuelEst) + ' @ ' + escapeHtml(legFuelBurnGph) + '</div>'
+      + '  <div class="follow-timeline-legpanelmeta">Cruise fuel est: ' + escapeHtml(legFuelEst) + ' @ ' + escapeHtml(legFuelBurnGph) + '</div>'
       + '  <div class="follow-timeline-legpanelmeta">Last update: ' + escapeHtml(lastUpdateText) + '</div>'
       + '  <div class="follow-timeline-legpanelnote">Inputs source: ' + escapeHtml(inputsSource)
       + (missingInputs.length ? (' | Missing: ' + escapeHtml(missingInputs.join(", "))) : '')

@@ -22,6 +22,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
         variables.voyage = createObject("component", "fpw.api.v1.voyage");
         makePublic(variables.voyage, "normalizeFuelReserveMode", "normalizeFuelReserveModeForTest");
+        makePublic(variables.voyage, "estimateFollowPlannedFuel", "estimateFollowPlannedFuelForTest");
       });
 
       it("normalizes explicit, legacy, and missing reserve mode inputs consistently", function() {
@@ -113,6 +114,30 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(literalResult.RESERVE_MODE).toBe("percentage");
         expect(literalResult.FUEL_ESTIMATE.reserveGallons).toBe(7.92);
         expect(literalResult.FUEL_ESTIMATE.requiredFuelGallons).toBe(31.92);
+      });
+
+      it("uses Route Builder fuel for Follow totals while keeping aggregate idle out of legs", function() {
+        var routeInputs = baseRouteInputs(33, "thirds");
+        var result = {};
+        routeInputs.idle_burn_gph = 1.5;
+        routeInputs.idle_hours_total = 1;
+
+        result = variables.voyage.estimateFollowPlannedFuelForTest(
+          routeInputs = routeInputs,
+          totalDistanceNm = 24,
+          legDistancesNm = [ 8, 16 ]
+        );
+
+        expect(result.SUCCESS).toBeTrue();
+        expect(result.TOTAL.cruiseFuelGallons).toBe(24);
+        expect(result.TOTAL.idleFuelGallons).toBe(1.5);
+        expect(result.TOTAL.baseFuelGallons).toBe(25.5);
+        expect(result.TOTAL.reserveGallons).toBe(12.75);
+        expect(result.TOTAL.requiredFuelGallons).toBe(38.25);
+        expect(result.LEGS[1].cruise_fuel_gallons).toBe(8);
+        expect(result.LEGS[2].cruise_fuel_gallons).toBe(16);
+        expect(result.LEGS[1].fuel_burn_gph).toBe(10);
+        expect(result.LEGS[2].fuel_burn_gph).toBe(10);
       });
 
       it("stores both reserve fields and keeps legacy stored JSON compatible", function() {
@@ -219,7 +244,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase('"reserve_mode" = [ "reserveMode", "RESERVE_MODE" ]', timelineCfml)).toBeGT(0);
         expect(findNoCase('return "One-Third Rule / "', activeCfml)).toBeGT(0);
         expect(findNoCase('reserveEst = roundTo2(fuelEst * 0.5)', voyageCfml)).toBeGT(0);
+        expect(findNoCase('plannedFuel = estimateFollowPlannedFuel(', voyageCfml)).toBeGT(0);
+        expect(findNoCase('includeIdleFuelFromInputs=true', voyageCfml)).toBeGT(0);
+        expect(findNoCase('includeIdleFuelFromInputs=false', voyageCfml)).toBeGT(0);
+        expect(findNoCase('legOut.cruise_fuel_gallons = plannedLegFuel.cruise_fuel_gallons', voyageCfml)).toBeGT(0);
         expect(findNoCase('"Fuel + One-Third Rule reserve"', followJs)).toBeGT(0);
+        expect(findNoCase('safeNum(leg.cruise_fuel_gallons)', followJs)).toBeGT(0);
+        expect(findNoCase('Cruise fuel est:', followJs)).toBeGT(0);
         expect(findNoCase('>Reserve Method<', routeModal)).toBeGT(0);
         expect(findNoCase('data-reserve-mode="thirds"', routeModal)).toBeGT(0);
         expect(findNoCase('>One-Third Rule<', legacyCalculator)).toBeGT(0);
