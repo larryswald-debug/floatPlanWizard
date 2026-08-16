@@ -1747,13 +1747,30 @@
     return toInt(state.myRoutes.pendingCount, 0) > 0;
   }
 
+  function getMyRouteEffectiveStartWaypointId() {
+    var legs = Array.isArray(state.myRoutes.legs) ? state.myRoutes.legs : [];
+    if (legs.length) {
+      var lastLeg = legs[legs.length - 1];
+      var lastLegEndWaypointId = toInt(getLegField(lastLeg, "end_waypoint_id"), 0);
+      if (lastLegEndWaypointId > 0) return lastLegEndWaypointId;
+    }
+
+    var persistedStartWaypointId = toInt(state.myRoutes.startWaypointId, 0);
+    if (persistedStartWaypointId > 0) return persistedStartWaypointId;
+
+    return toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
+  }
+
   function renderMyRouteControlAvailability() {
     var hasSelectedRoute = toInt(state.myRoutes.activeRouteId, 0) > 0;
     var hasPersistedStart = toInt(state.myRoutes.startWaypointId, 0) > 0;
     var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
     var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
+    var selectedEndWaypointId = toInt(dom.myRouteEndWaypointSelectEl ? dom.myRouteEndWaypointSelectEl.value : 0, 0);
+    var effectiveStartWaypointId = getMyRouteEffectiveStartWaypointId();
     var hasSelectedStartForFirstLeg = !hasPersistedStart && !hasExistingLegs && selectedStartWaypointId > 0;
     var canAddWaypointLeg = hasPersistedStart || hasSelectedStartForFirstLeg;
+    var hasValidEndWaypoint = selectedEndWaypointId > 0 && selectedEndWaypointId !== effectiveStartWaypointId;
     var isPending = isMyRoutePending();
 
     if (dom.myRouteStartWaypointSelectEl) {
@@ -1763,10 +1780,18 @@
       dom.myRouteSetStartBtn.disabled = isPending || !hasSelectedRoute;
     }
     if (dom.myRouteEndWaypointSelectEl) {
+      Array.prototype.forEach.call(dom.myRouteEndWaypointSelectEl.options, function (option) {
+        var optionWaypointId = toInt(option.value, 0);
+        option.disabled = optionWaypointId > 0 && optionWaypointId === effectiveStartWaypointId;
+      });
+      if (selectedEndWaypointId > 0 && selectedEndWaypointId === effectiveStartWaypointId) {
+        dom.myRouteEndWaypointSelectEl.value = "";
+        hasValidEndWaypoint = false;
+      }
       dom.myRouteEndWaypointSelectEl.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg;
     }
     if (dom.myRouteAddWaypointLegBtn) {
-      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg;
+      dom.myRouteAddWaypointLegBtn.disabled = isPending || !hasSelectedRoute || !canAddWaypointLeg || !hasValidEndWaypoint;
     }
   }
 
@@ -1826,11 +1851,7 @@
     var waypoints = Array.isArray(state.myRoutes.waypoints) ? state.myRoutes.waypoints : [];
     var startWaypointId = toInt(state.myRoutes.startWaypointId, 0);
     var currentEndSelection = toInt(endSelectEl ? endSelectEl.value : 0, 0);
-    var endWaypointDefault = 0;
-    if (Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length) {
-      var lastLeg = state.myRoutes.legs[state.myRoutes.legs.length - 1];
-      endWaypointDefault = toInt(getLegField(lastLeg, "end_waypoint_id"), 0);
-    }
+    var effectiveStartWaypointId = getMyRouteEffectiveStartWaypointId();
     if (startSelectEl) {
       startSelectEl.innerHTML = '<option value="">Select start waypoint</option>' + waypoints.map(function (wp) {
         var wpId = toInt(wp.waypoint_id !== undefined ? wp.waypoint_id : wp.WAYPOINT_ID, 0);
@@ -1841,12 +1862,11 @@
     if (endSelectEl) {
       endSelectEl.innerHTML = '<option value="">Select end waypoint</option>' + waypoints.map(function (wp) {
         var wpId = toInt(wp.waypoint_id !== undefined ? wp.waypoint_id : wp.WAYPOINT_ID, 0);
-        return '<option value="' + String(wpId) + '">' + escapeHtml(formatWaypointOptionLabel(wp)) + "</option>";
+        var disabledAttribute = wpId > 0 && wpId === effectiveStartWaypointId ? " disabled" : "";
+        return '<option value="' + String(wpId) + '"' + disabledAttribute + '>' + escapeHtml(formatWaypointOptionLabel(wp)) + "</option>";
       }).join("");
-      if (currentEndSelection > 0 && getMyRouteWaypointById(currentEndSelection)) {
+      if (currentEndSelection > 0 && currentEndSelection !== effectiveStartWaypointId && getMyRouteWaypointById(currentEndSelection)) {
         endSelectEl.value = String(currentEndSelection);
-      } else if (endWaypointDefault > 0) {
-        endSelectEl.value = String(endWaypointDefault);
       } else {
         endSelectEl.value = "";
       }
@@ -7215,6 +7235,7 @@
     var persistedStartWaypointId = toInt(state.myRoutes.startWaypointId, 0);
     var selectedStartWaypointId = toInt(dom.myRouteStartWaypointSelectEl ? dom.myRouteStartWaypointSelectEl.value : 0, 0);
     var endWaypointId = toInt(dom.myRouteEndWaypointSelectEl ? dom.myRouteEndWaypointSelectEl.value : 0, 0);
+    var effectiveStartWaypointId = getMyRouteEffectiveStartWaypointId();
     var hasExistingLegs = Array.isArray(state.myRoutes.legs) && state.myRoutes.legs.length > 0;
     var needsStartPersist = !hasExistingLegs && persistedStartWaypointId <= 0 && selectedStartWaypointId > 0;
     var addLegPromise = Promise.resolve(null);
@@ -7224,6 +7245,10 @@
     }
     if (endWaypointId <= 0) {
       showError("Select an end waypoint to add a leg.");
+      return;
+    }
+    if (effectiveStartWaypointId > 0 && endWaypointId === effectiveStartWaypointId) {
+      showError("Choose a different end waypoint. A route leg cannot start and end at the same waypoint.");
       return;
     }
     if (needsStartPersist) {
@@ -7527,6 +7552,12 @@
 
     if (dom.myRouteStartWaypointSelectEl) {
       dom.myRouteStartWaypointSelectEl.addEventListener("change", function () {
+        renderMyRouteControlAvailability();
+      });
+    }
+
+    if (dom.myRouteEndWaypointSelectEl) {
+      dom.myRouteEndWaypointSelectEl.addEventListener("change", function () {
         renderMyRouteControlAvailability();
       });
     }

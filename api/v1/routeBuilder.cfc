@@ -2375,6 +2375,11 @@
                 out.ERROR = { "MESSAGE"="Route start waypoint is missing or not owned by this user." };
                 return out;
             }
+            if (startWaypointIdVal EQ endWaypointIdVal) {
+                out.MESSAGE = "Different end waypoint required";
+                out.ERROR = { "MESSAGE"="Choose a different end waypoint. A route leg cannot start and end at the same waypoint." };
+                return out;
+            }
 
             qOrder = queryExecute(
                 "SELECT COALESCE(MAX(order_index), 0) + 1 AS next_order
