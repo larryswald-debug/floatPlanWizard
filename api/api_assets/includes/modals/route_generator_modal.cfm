@@ -1734,11 +1734,11 @@
                     <input id="routeGenWeatherFactorPct" type="number" step="1" min="0" max="60" class="form-control form-control-sm" value="0">
                   </div>
                   <div class="rg-field rg-field--compact">
-                    <label for="routeGenReservePct">Reserve (%)</label>
+                    <label for="routeGenReservePct">Reserve Method</label>
                     <select id="routeGenReservePct" class="form-select form-select-sm">
-                      <option value="33" selected>Rule of Thirds - 33%</option>
-                      <option value="20">Standard Reserve - 20%</option>
-                      <option value="15">Minimum Reserve - 15%</option>
+                      <option value="33" data-reserve-mode="thirds" selected>One-Third Rule</option>
+                      <option value="20" data-reserve-mode="percentage">Standard Reserve - 20%</option>
+                      <option value="15" data-reserve-mode="percentage">Minimum Reserve - 15%</option>
                     </select>
                   </div>
                   <div class="rg-field rg-field--compact">

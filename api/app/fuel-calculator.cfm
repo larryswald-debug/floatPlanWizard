@@ -489,11 +489,11 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
             <input id="weatherPct" name="weatherPct" type="number" step="1" min="0" max="60" value="0">
           </div>
           <div class="field">
-            <label for="reservePct">Reserve (%)</label>
+            <label for="reservePct">Reserve Method</label>
             <select id="reservePct" name="reservePct">
-              <option value="33" selected>Rule of Thirds - 33%</option>
-              <option value="20">Standard Reserve - 20%</option>
-              <option value="15">Minimum Reserve - 15%</option>
+              <option value="33" data-reserve-mode="thirds" selected>One-Third Rule</option>
+              <option value="20" data-reserve-mode="percentage">Standard Reserve - 20%</option>
+              <option value="15" data-reserve-mode="percentage">Minimum Reserve - 15%</option>
             </select>
           </div>
           <div class="field">
@@ -579,6 +579,8 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
       var DEFAULT_MAX_SPEED_KN = 20;
       var DEFAULT_UNDERWAY_HOURS_PER_DAY = 6.5;
       var DEFAULT_RESERVE_PCT = 33;
+      var RESERVE_MODE_THIRDS = "thirds";
+      var RESERVE_MODE_PERCENTAGE = "percentage";
       var LOW_SPEED_ANCHOR_KN = 3.5;
       var PACE_PRESETS = {
         RELAXED: { key: "RELAXED", label: "Relaxed", factor: 0.25 },
@@ -694,6 +696,16 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
         return roundTo2(pctVal);
       }
 
+      function normalizeReserveMode(value, reservePct) {
+        var rawMode = String(value || "").trim().toLowerCase();
+        var pctVal = normalizeReservePct(reservePct, DEFAULT_RESERVE_PCT);
+        if (rawMode === RESERVE_MODE_THIRDS) return RESERVE_MODE_THIRDS;
+        if (rawMode === RESERVE_MODE_PERCENTAGE) return RESERVE_MODE_PERCENTAGE;
+        return Math.abs(pctVal - DEFAULT_RESERVE_PCT) < 0.0001
+          ? RESERVE_MODE_THIRDS
+          : RESERVE_MODE_PERCENTAGE;
+      }
+
       function normalizeFuelPricePerGal(value) {
         var priceVal = safeNum(value);
         if (priceVal === null || priceVal <= 0) return 0;
@@ -781,6 +793,17 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
         return safeNum(raw);
       }
 
+      function readReserveMode() {
+        var selectEl = q("reservePct");
+        var selectedOption = selectEl && selectEl.options
+          ? selectEl.options[selectEl.selectedIndex]
+          : null;
+        return normalizeReserveMode(
+          selectedOption ? selectedOption.getAttribute("data-reserve-mode") : "",
+          selectEl ? selectEl.value : DEFAULT_RESERVE_PCT
+        );
+      }
+
       function getInputs() {
         return {
           distanceNm: readInputNumber("totalNm"),
@@ -793,6 +816,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
           idleHoursTotal: readInputNumber("idleHoursTotal"),
           weatherPct: readInputNumber("weatherPct"),
           reservePct: readInputNumber("reservePct"),
+          reserveMode: readReserveMode(),
           underwayHoursPerDay: readInputNumber("underwayHoursPerDay"),
           fuelPricePerGal: readInputNumber("fuelPricePerGal")
         };
@@ -811,6 +835,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
         var idleHoursTotal = normalizeIdleHoursTotal(inputs.idleHoursTotal);
         var weatherPct = normalizeWeatherFactorPct(inputs.weatherPct);
         var reservePct = normalizeReservePct(inputs.reservePct, DEFAULT_RESERVE_PCT);
+        var reserveMode = normalizeReserveMode(inputs.reserveMode, reservePct);
         var fuelPricePerGal = normalizeFuelPricePerGal(inputs.fuelPricePerGal);
         var underwayHoursPerDay = normalizeUnderwayHours(inputs.underwayHoursPerDay);
         var missingRequiredInputs = [];
@@ -896,8 +921,13 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
             : 0;
 
           baseFuelGallons = roundTo2(cruiseFuelGallons + idleFuelGallons);
-          reserveGallons = roundTo2(baseFuelGallons * (reservePct / 100));
-          requiredFuelGallons = roundTo2(baseFuelGallons + reserveGallons);
+          if (reserveMode === RESERVE_MODE_THIRDS) {
+            reserveGallons = roundTo2(baseFuelGallons * 0.5);
+            requiredFuelGallons = roundTo2(baseFuelGallons * 1.5);
+          } else {
+            reserveGallons = roundTo2(baseFuelGallons * (reservePct / 100));
+            requiredFuelGallons = roundTo2(baseFuelGallons + reserveGallons);
+          }
           totalFuelCost = (fuelPricePerGal > 0)
             ? Math.round((requiredFuelGallons * fuelPricePerGal) * 100) / 100
             : 0;
@@ -923,6 +953,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
             idleHoursTotal: idleHoursTotal,
             weatherPct: weatherPct,
             reservePct: reservePct,
+            reserveMode: reserveMode,
             underwayHoursPerDay: underwayHoursPerDay,
             fuelPricePerGal: fuelPricePerGal
           },
@@ -1007,7 +1038,9 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
         if (hasDistance && hasFuelEstimate) {
           q("cardEstimatedFuel").textContent = formatNum(derived.requiredFuelGallons, 1, "--") + " gal";
           q("cardEstimatedFuelSub").textContent = "Base " + formatNum(derived.baseFuelGallons, 1, "0.0")
-            + " + Reserve (" + formatNum(inputs.reservePct, 0, "33") + "%) "
+            + (inputs.reserveMode === RESERVE_MODE_THIRDS
+              ? " + One-Third Rule Reserve "
+              : " + Reserve (" + formatNum(inputs.reservePct, 0, "33") + "%) ")
             + formatNum(derived.reserveGallons, 1, "0.0");
         } else {
           q("cardEstimatedFuel").textContent = "-- gal";
@@ -1042,6 +1075,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
       function renderBreakdown(model) {
         var inputs = model.inputs || {};
         var derived = model.derived || {};
+        var isThirds = inputs.reserveMode === RESERVE_MODE_THIRDS;
         var rows = [
           ["Pace", String(derived.paceLabel || "--"), "Route Generator pace preset"],
           ["Pace ratio", formatNum(derived.paceRatio, 2, "--"), "Relaxed=0.25, Balanced=efficient speed / max speed, Max Speed=1.00"],
@@ -1056,9 +1090,10 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
           ["Weather-adjusted burn (GPH)", formatNum(derived.weatherAdjustedBurnGph, 2, "--"), "pace-adjusted burn x (1 + weather factor)"],
           ["Cruise hours", formatNum(derived.cruiseHours, 2, "--"), "distance / weather-adjusted speed"],
           ["Idle fuel (gal)", formatNum(derived.idleFuelGallons, 2, "--"), "idle burn x idle hours, rounded to the Route Generator preview precision"],
+          ["Reserve method", isThirds ? "One-Third Rule" : formatNum(inputs.reservePct, 0, "0") + "% reserve", isThirds ? "One-Third Rule planning mode" : "percentage-based planning margin"],
           ["Base fuel (gal)", formatNum(derived.baseFuelGallons, 2, "--"), "cruise fuel + idle fuel"],
-          ["Reserve fuel (gal)", formatNum(derived.reserveGallons, 2, "--"), "base fuel x reserve percent"],
-          ["Required fuel (gal)", formatNum(derived.requiredFuelGallons, 2, "--"), "base fuel + reserve"],
+          [isThirds ? "One-Third Rule Reserve (gal)" : "Reserve fuel (gal)", formatNum(derived.reserveGallons, 2, "--"), isThirds ? "base fuel x 0.5" : "base fuel x reserve percent"],
+          ["Required fuel (gal)", formatNum(derived.requiredFuelGallons, 2, "--"), isThirds ? "base fuel x 1.5" : "base fuel + reserve"],
           ["Fuel cost (USD)", formatCurrency(derived.totalFuelCost, "--"), "required fuel x price per gallon"],
           ["Estimated days", (derived.estimatedDays === null || derived.estimatedDays === undefined) ? "--" : String(derived.estimatedDays), "ceil(total travel hours / underway hours per day)"]
         ];

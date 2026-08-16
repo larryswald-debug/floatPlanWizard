@@ -712,6 +712,16 @@
     }
   }
 
+  function setHookCardKicker(name, text) {
+    var card = getHookField(name);
+    var kickerEl;
+    if (!card) return;
+    kickerEl = card.querySelector(".kicker");
+    if (kickerEl && text !== undefined && text !== null && text !== "") {
+      kickerEl.textContent = String(text);
+    }
+  }
+
   function renderPhase7TimelineSummary(payload) {
     var body = payload.body || {};
     var timeline = payload.timeline || {};
@@ -721,6 +731,13 @@
     var speedKn = formatTimelineNumber(summary.effective_speed_kn, 1);
     var fuelEst = formatTimelineNumber(summary.fuel_est, 1);
     var reserveEst = formatTimelineNumber(summary.reserve_est, 1);
+    var reservePct = Number(summary.reserve_pct);
+    var reserveMode = String(summary.reserve_mode || "").trim().toLowerCase();
+
+    if (!Number.isFinite(reservePct)) reservePct = 33;
+    if (reserveMode !== "thirds" && reserveMode !== "percentage") {
+      reserveMode = reservePct === 33 ? "thirds" : "percentage";
+    }
 
     setHookCardBody(
       "timeline-route-total",
@@ -728,6 +745,12 @@
       totalNm + " nm on route"
     );
     setHookCardBody("timeline-eff-speed", speedKn + " kn");
+    setHookCardKicker(
+      "timeline-fuel-reserve",
+      reserveMode === "thirds"
+        ? "Fuel + One-Third Rule reserve"
+        : (Number.isFinite(reservePct) && reservePct > 0 ? "Fuel + " + reservePct + "% reserve" : "Fuel + reserve")
+    );
     setHookCardBody("timeline-fuel-reserve", fuelEst + " + " + reserveEst + " gal");
     setHookText("timeline-next-update", body.timeline_next_update);
   }

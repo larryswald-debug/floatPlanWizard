@@ -16,6 +16,8 @@
   var DEFAULT_MAX_SPEED_KN = 20;
   var DEFAULT_WEATHER_FACTOR_PCT = 0;
   var DEFAULT_RESERVE_PCT = 33;
+  var RESERVE_MODE_THIRDS = "thirds";
+  var RESERVE_MODE_PERCENTAGE = "percentage";
   var DEFAULT_UNDERWAY_HOURS_PER_DAY = 6.5;
   var FUEL_BURN_BASIS_MAX = "MAX_SPEED";
   var MAX_ENDPOINT_FIT_NM = 1200;
@@ -178,6 +180,69 @@
     return n;
   }
 
+  function normalizeReservePct(value) {
+    var pct = safeVal(value);
+    if (pct === null) pct = DEFAULT_RESERVE_PCT;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return roundTo2(pct);
+  }
+
+  function normalizeReserveMode(value, reservePct) {
+    var rawMode = String(value || "").trim().toLowerCase();
+    var pct = normalizeReservePct(reservePct);
+    if (rawMode === RESERVE_MODE_THIRDS) return RESERVE_MODE_THIRDS;
+    if (rawMode === RESERVE_MODE_PERCENTAGE) return RESERVE_MODE_PERCENTAGE;
+    return Math.abs(pct - DEFAULT_RESERVE_PCT) < 0.0001
+      ? RESERVE_MODE_THIRDS
+      : RESERVE_MODE_PERCENTAGE;
+  }
+
+  function getSelectedReserveMode() {
+    var selectEl = dom.reservePctEl;
+    var option = selectEl && selectEl.options ? selectEl.options[selectEl.selectedIndex] : null;
+    return normalizeReserveMode(
+      option ? option.getAttribute("data-reserve-mode") : "",
+      selectEl ? selectEl.value : DEFAULT_RESERVE_PCT
+    );
+  }
+
+  function applyReserveSelection(reservePct, reserveMode) {
+    var selectEl = dom.reservePctEl;
+    var pct = normalizeReservePct(reservePct);
+    var mode = normalizeReserveMode(reserveMode, pct);
+    var matchingOption = null;
+    var i;
+    if (!selectEl || !selectEl.options) return;
+
+    Array.prototype.slice.call(selectEl.querySelectorAll("option[data-generated-reserve-option]"))
+      .forEach(function (option) {
+        option.remove();
+      });
+
+    for (i = 0; i < selectEl.options.length; i += 1) {
+      if (
+        Math.abs(normalizeReservePct(selectEl.options[i].value) - pct) < 0.0001
+        && normalizeReserveMode(selectEl.options[i].getAttribute("data-reserve-mode"), pct) === mode
+      ) {
+        matchingOption = selectEl.options[i];
+        break;
+      }
+    }
+
+    if (!matchingOption) {
+      matchingOption = document.createElement("option");
+      matchingOption.value = String(pct);
+      matchingOption.setAttribute("data-reserve-mode", mode);
+      matchingOption.setAttribute("data-generated-reserve-option", "true");
+      matchingOption.textContent = mode === RESERVE_MODE_THIRDS
+        ? "One-Third Rule"
+        : "Custom Reserve - " + formatNumber(pct, pct % 1 === 0 ? 0 : 2) + "%";
+      selectEl.appendChild(matchingOption);
+    }
+    matchingOption.selected = true;
+  }
+
   function updateDerivedSummaryCards() {
     var timelinePayload = state.cruiseTimeline && state.cruiseTimeline.payload && typeof state.cruiseTimeline.payload === "object"
       ? state.cruiseTimeline.payload
@@ -235,6 +300,7 @@
       adjSpeedKn: null,
       fuelBurnGph: null,
       reservePct: null,
+      reserveMode: RESERVE_MODE_THIRDS,
       baseFuelForSummary: null,
       reserveFuelForSummary: null,
       requiredFuelForSummary: null,
@@ -622,6 +688,7 @@
     var summaryModel = buildCruiseTimelineSummaryModel(payload, {
       maxHoursPerDay: maxHours,
       reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+      reserveMode: getSelectedReserveMode(),
       weatherFactorPct: getWeatherFactorPct(),
       effectiveSpeedKn: getEffectiveCruisingSpeed(),
       fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
@@ -893,6 +960,7 @@
       buildCruiseTimelineSummaryModel(state.cruiseTimeline.payload, {
         maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
         reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+        reserveMode: getSelectedReserveMode(),
         weatherFactorPct: getWeatherFactorPct(),
         effectiveSpeedKn: getEffectiveCruisingSpeed(),
         fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
@@ -2407,6 +2475,7 @@
       adjustedSpeedKn = safeVal(buildCruiseTimelineSummaryModel(timelinePayload, {
         maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
         reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+        reserveMode: getSelectedReserveMode(),
         weatherFactorPct: getWeatherFactorPct(),
         effectiveSpeedKn: getEffectiveCruisingSpeed(),
         fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
@@ -3720,6 +3789,7 @@
       idle_hours_total: dom.idleHoursTotalEl ? String(dom.idleHoursTotalEl.value || "") : "",
       weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
       reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
+      reserve_mode: getSelectedReserveMode(),
       fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
       optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
         return !!state.selectedStopCodes[code];
@@ -3814,8 +3884,18 @@
     if (dom.weatherFactorPctEl && draft.weather_factor_pct !== undefined && draft.weather_factor_pct !== null) {
       dom.weatherFactorPctEl.value = String(draft.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT);
     }
-    if (dom.reservePctEl && draft.reserve_pct !== undefined && draft.reserve_pct !== null) {
-      dom.reservePctEl.value = String(draft.reserve_pct || DEFAULT_RESERVE_PCT);
+    if (
+      dom.reservePctEl
+      && (
+        (draft.reserve_pct !== undefined && draft.reserve_pct !== null)
+        || draft.reserve_mode !== undefined
+        || draft.reserveMode !== undefined
+      )
+    ) {
+      applyReserveSelection(
+        draft.reserve_pct !== undefined ? draft.reserve_pct : DEFAULT_RESERVE_PCT,
+        draft.reserve_mode !== undefined ? draft.reserve_mode : draft.reserveMode
+      );
     }
     if (dom.fuelPricePerGalEl && draft.fuel_price_per_gal !== undefined && draft.fuel_price_per_gal !== null) {
       dom.fuelPricePerGalEl.value = String(draft.fuel_price_per_gal || "");
@@ -4575,9 +4655,19 @@
         inputs.weather_factor_pct !== undefined ? inputs.weather_factor_pct : inputs.WEATHER_FACTOR_PCT
       );
     }
-    if (dom.reservePctEl && (inputs.reserve_pct !== undefined || inputs.RESERVE_PCT !== undefined)) {
-      dom.reservePctEl.value = String(
-        inputs.reserve_pct !== undefined ? inputs.reserve_pct : inputs.RESERVE_PCT
+    if (
+      dom.reservePctEl
+      && (
+        inputs.reserve_pct !== undefined
+        || inputs.RESERVE_PCT !== undefined
+        || inputs.reserve_mode !== undefined
+        || inputs.RESERVE_MODE !== undefined
+        || inputs.reserveMode !== undefined
+      )
+    ) {
+      applyReserveSelection(
+        inputs.reserve_pct !== undefined ? inputs.reserve_pct : (inputs.RESERVE_PCT !== undefined ? inputs.RESERVE_PCT : DEFAULT_RESERVE_PCT),
+        inputs.reserve_mode !== undefined ? inputs.reserve_mode : (inputs.RESERVE_MODE !== undefined ? inputs.RESERVE_MODE : inputs.reserveMode)
       );
     }
     if (dom.fuelPricePerGalEl && (inputs.fuel_price_per_gal !== undefined || inputs.FUEL_PRICE_PER_GAL !== undefined)) {
@@ -4635,6 +4725,7 @@
       idle_hours_total: dom.idleHoursTotalEl ? String(dom.idleHoursTotalEl.value || "") : "",
       weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
       reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
+      reserve_mode: getSelectedReserveMode(),
       fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
       optional_stop_flags: Object.keys(state.selectedStopCodes).filter(function (code) {
         return !!state.selectedStopCodes[code];
@@ -4744,6 +4835,7 @@
       idle_hours_total: dom.idleHoursTotalEl ? String(dom.idleHoursTotalEl.value || "") : "",
       weather_factor_pct: dom.weatherFactorPctEl ? String(dom.weatherFactorPctEl.value || "") : String(DEFAULT_WEATHER_FACTOR_PCT),
       reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : String(DEFAULT_RESERVE_PCT),
+      reserve_mode: getSelectedReserveMode(),
       fuel_price_per_gal: dom.fuelPricePerGalEl ? String(dom.fuelPricePerGalEl.value || "") : "",
       vessel_max_speed_kn: (vesselMaxSpeedKn > 0 ? String(vesselMaxSpeedKn) : ""),
       vessel_most_efficient_speed_kn: (vesselMostEffSpeedKn > 0 ? String(vesselMostEffSpeedKn) : ""),
@@ -4787,6 +4879,7 @@
       idle_hours_total: String(src.idle_hours_total || ""),
       weather_factor_pct: String(src.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT),
       reserve_pct: String(src.reserve_pct || DEFAULT_RESERVE_PCT),
+      reserve_mode: normalizeReserveMode(src.reserve_mode !== undefined ? src.reserve_mode : src.reserveMode, src.reserve_pct),
       fuel_price_per_gal: String(src.fuel_price_per_gal || ""),
       optional_stop_flags: Array.isArray(src.optional_stop_flags) ? src.optional_stop_flags.slice() : [],
       start_segment_id: String(src.start_segment_id || ""),
@@ -4809,6 +4902,7 @@
       vessel_most_efficient_speed_kn: String(payload.vessel_most_efficient_speed_kn || ""),
       vessel_gph_at_most_efficient_speed: String(payload.vessel_gph_at_most_efficient_speed || ""),
       reserve_pct: String(payload.reserve_pct || DEFAULT_RESERVE_PCT),
+      reserve_mode: normalizeReserveMode(payload.reserve_mode, payload.reserve_pct),
       weather_factor_pct: String(payload.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT)
     };
   }
@@ -5887,6 +5981,11 @@
       totals.reserve_pct !== undefined ? totals.reserve_pct :
         (totals.RESERVE_PCT !== undefined ? totals.RESERVE_PCT : NaN)
     );
+    var reserveMode = normalizeReserveMode(
+      totals.reserve_mode !== undefined ? totals.reserve_mode :
+        (totals.RESERVE_MODE !== undefined ? totals.RESERVE_MODE : getSelectedReserveMode()),
+      reservePct
+    );
     var fuelCostEstimate = parseFloat(
       totals.fuel_cost_estimate !== undefined ? totals.fuel_cost_estimate :
         (totals.FUEL_COST_ESTIMATE !== undefined ? totals.FUEL_COST_ESTIMATE : NaN)
@@ -5924,6 +6023,7 @@
         buildCruiseTimelineSummaryModel(timelinePayload, {
           maxHoursPerDay: getCruiseTimelineMaxHoursFromUi(),
           reservePct: (dom.reservePctEl ? dom.reservePctEl.value : DEFAULT_RESERVE_PCT),
+          reserveMode: getSelectedReserveMode(),
           weatherFactorPct: getWeatherFactorPct(),
           effectiveSpeedKn: getEffectiveCruisingSpeed(),
           fuelPricePerGal: (dom.fuelPricePerGalEl ? dom.fuelPricePerGalEl.value : "")
@@ -5975,7 +6075,9 @@
         if (fromTimeline) {
           dom.estimatedFuelSubEl.textContent = "Fuel estimate unavailable from timeline";
         } else if (Number.isFinite(baseFuelGallons) && Number.isFinite(reserveFuelGallons) && Number.isFinite(reservePct)) {
-          dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + Reserve (" + formatNumber(reservePct, 0) + "%) " + formatNumber(reserveFuelGallons, 1);
+          dom.estimatedFuelSubEl.textContent = "Base " + formatNumber(baseFuelGallons, 1) + " + "
+            + (reserveMode === RESERVE_MODE_THIRDS ? "One-Third Rule Reserve " : "Reserve (" + formatNumber(reservePct, 0) + "%) ")
+            + formatNumber(reserveFuelGallons, 1);
         } else {
           dom.estimatedFuelSubEl.textContent = "Required = base + reserve";
         }
@@ -6562,7 +6664,7 @@
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
     resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
-    if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
+    applyReserveSelection(DEFAULT_RESERVE_PCT, RESERVE_MODE_THIRDS);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
     if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
     setTodayIfMissing();
@@ -6767,7 +6869,7 @@
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = "";
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(DEFAULT_WEATHER_FACTOR_PCT);
     resetWeatherSuggestionState("Load a route and refresh, or use manual coordinates.");
-    if (dom.reservePctEl) dom.reservePctEl.value = String(DEFAULT_RESERVE_PCT);
+    applyReserveSelection(DEFAULT_RESERVE_PCT, RESERVE_MODE_THIRDS);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = "";
 
     syncSelectedVesselFromAvailableList();
@@ -6854,7 +6956,7 @@
     if (dom.idleBurnGphEl) dom.idleBurnGphEl.value = String(baseline.idle_burn_gph || "");
     if (dom.idleHoursTotalEl) dom.idleHoursTotalEl.value = String(baseline.idle_hours_total || "");
     if (dom.weatherFactorPctEl) dom.weatherFactorPctEl.value = String(baseline.weather_factor_pct || DEFAULT_WEATHER_FACTOR_PCT);
-    if (dom.reservePctEl) dom.reservePctEl.value = String(baseline.reserve_pct || DEFAULT_RESERVE_PCT);
+    applyReserveSelection(baseline.reserve_pct || DEFAULT_RESERVE_PCT, baseline.reserve_mode);
     if (dom.fuelPricePerGalEl) dom.fuelPricePerGalEl.value = String(baseline.fuel_price_per_gal || "");
     updatePaceOverrideUI();
     updateFuelBurnBasisUI();
@@ -8041,12 +8143,46 @@
     };
   }
 
+  function roundTripReserveDraftForTest(reservePct, reserveMode) {
+    var templateCode = "CODEX_RESERVE_MODE_TEST";
+    var previousTemplateCode = state.activeTemplateCode;
+    var savedDraft = null;
+    var restored = {};
+    state.activeTemplateCode = templateCode;
+    applyReserveSelection(reservePct, reserveMode);
+    saveDraft();
+    savedDraft = readDraft(templateCode);
+    applyReserveSelection(DEFAULT_RESERVE_PCT, RESERVE_MODE_THIRDS);
+    applyDraftToForm(savedDraft);
+    restored = {
+      reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : "",
+      reserve_mode: getSelectedReserveMode()
+    };
+    try {
+      window.localStorage.removeItem(draftKey(templateCode));
+    } catch (e) {
+      // no-op
+    }
+    state.activeTemplateCode = previousTemplateCode;
+    return { saved: savedDraft, restored: restored };
+  }
+
+  function applyReserveDraftForTest(draft) {
+    applyDraftToForm(draft || {});
+    return {
+      reserve_pct: dom.reservePctEl ? String(dom.reservePctEl.value || "") : "",
+      reserve_mode: getSelectedReserveMode()
+    };
+  }
+
   function buildTestHookApi() {
     return {
       isReady: isTestHookReady,
       selectLegByOrder: selectLegByOrderForTest,
       setDraftGeometry: setDraftGeometryForTest,
-      snapshot: snapshotForTest
+      snapshot: snapshotForTest,
+      roundTripReserveDraft: roundTripReserveDraftForTest,
+      applyReserveDraft: applyReserveDraftForTest
     };
   }
 

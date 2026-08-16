@@ -4627,7 +4627,8 @@
                     "max_hours_per_day"=0,
                     "effective_speed_kn"=0,
                     "fuel_burn_gph"=0,
-                    "reserve_pct"=0
+                    "reserve_pct"=33,
+                    "reserve_mode"="thirds"
                 },
                 "legs"=[],
                 "meta"={
@@ -4670,6 +4671,7 @@
             var effectiveSpeedKn = 0.0;
             var fuelBurnGph = 0.0;
             var reservePct = 0.0;
+            var reserveMode = "";
             var totalNm = 0.0;
             var totalLocks = 0;
             var totalDaysHint = 0;
@@ -4688,6 +4690,7 @@
             var routeInputSpeedKn = 0;
             var routeInputFuelBurn = 0;
             var routeInputReservePct = 0;
+            var routeInputReserveMode = "";
             var usedOpts = false;
             var usedRouteInputs = false;
             var usedVesselDefaults = false;
@@ -4824,6 +4827,11 @@
                 reservePct = roundTo2(optsLocal.reserve_pct);
                 usedOpts = true;
             }
+            routeInputReserveMode = getStringFromKeys(optsLocal, [ "reserve_mode", "reserveMode", "RESERVE_MODE" ]);
+            if (compareNoCase(routeInputReserveMode, "thirds") EQ 0 OR compareNoCase(routeInputReserveMode, "percentage") EQ 0) {
+                reserveMode = lCase(routeInputReserveMode);
+                usedOpts = true;
+            }
 
             if (maxHoursPerDay LTE 0) {
                 routeInputMaxHours = getNumericFromKeys(
@@ -4882,6 +4890,13 @@
                 routeInputReservePct = getNumericFromKeys(storedInputs, [ "reserve_pct", "reservePct", "RESERVE_PCT" ], true);
                 if (routeInputReservePct GT 0) {
                     reservePct = roundTo2(routeInputReservePct);
+                    usedRouteInputs = true;
+                }
+            }
+            if (!len(reserveMode)) {
+                routeInputReserveMode = getStringFromKeys(storedInputs, [ "reserve_mode", "reserveMode", "RESERVE_MODE" ]);
+                if (compareNoCase(routeInputReserveMode, "thirds") EQ 0 OR compareNoCase(routeInputReserveMode, "percentage") EQ 0) {
+                    reserveMode = lCase(routeInputReserveMode);
                     usedRouteInputs = true;
                 }
             }
@@ -4966,9 +4981,9 @@
                 arrayAppend(missingInputs, "fuel_burn_gph");
             }
             if (reservePct LTE 0) {
-                reservePct = 0;
-                arrayAppend(missingInputs, "reserve_pct");
+                reservePct = 33;
             }
+            reserveMode = normalizeFuelReserveMode(reserveMode, reservePct);
             if (arrayLen(missingInputs)) {
                 inputsSource = "default";
             } else if (usedOpts) {
@@ -5100,7 +5115,9 @@
             reserveEst = 0;
             if (fuelBurnGph GT 0 AND cumulativeHours GT 0) {
                 fuelEst = roundTo2(cumulativeHours * fuelBurnGph);
-                if (reservePct GT 0) {
+                if (reserveMode EQ "thirds") {
+                    reserveEst = roundTo2(fuelEst * 0.5);
+                } else if (reservePct GT 0) {
                     reserveEst = roundTo2(fuelEst * (reservePct / 100));
                 }
             }
@@ -5118,6 +5135,7 @@
                 "effective_speed_kn"=effectiveSpeedKn,
                 "fuel_burn_gph"=fuelBurnGph,
                 "reserve_pct"=reservePct,
+                "reserve_mode"=reserveMode,
                 "completed_legs"=completedLegs
             };
             out.meta.inputs_source = inputsSource;
@@ -5205,6 +5223,7 @@
                     "cruising_speed" = [ "cruisingSpeed", "max_speed_kn", "maxSpeedKn", "CRUISING_SPEED", "MAX_SPEED_KN" ],
                     "fuel_burn_gph" = [ "fuelBurnGph", "fuel_burn_gph_input", "fuelBurnGphInput", "max_burn_gph", "maxBurnGph", "burn_gph", "burnGph", "FUEL_BURN_GPH" ],
                     "reserve_pct" = [ "reservePct", "RESERVE_PCT" ],
+                    "reserve_mode" = [ "reserveMode", "RESERVE_MODE" ],
                     "weather_factor_pct" = [ "weatherFactorPct", "weather_factor", "weatherFactor", "WEATHER_FACTOR_PCT", "WEATHER_FACTOR" ],
                     "vessel_max_speed_kn" = [ "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed", "VESSEL_MAX_SPEED_KN", "MAX_SPEED" ],
                     "vessel_most_efficient_speed_kn" = [ "vesselMostEfficientSpeedKn", "most_efficient_speed_kn", "mostEfficientSpeedKn", "MOST_EFFICIENT_SPEED_KN", "MOST_EFFICIENT_SPEED" ],
@@ -5267,6 +5286,36 @@
                 return roundTo2(n);
             }
             return 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getStringFromKeys" access="private" returntype="string" output="false">
+        <cfargument name="src" type="any" required="false" default="#{}#">
+        <cfargument name="keys" type="array" required="true">
+        <cfscript>
+            var source = (isStruct(arguments.src) ? arguments.src : {});
+            var i = 0;
+            var key = "";
+            var value = "";
+            if (!structCount(source)) return "";
+            for (i = 1; i LTE arrayLen(arguments.keys); i++) {
+                key = toString(arguments.keys[i]);
+                if (!len(key) OR !structKeyExists(source, key) OR isNull(source[key]) OR !isSimpleValue(source[key])) continue;
+                value = trim(toString(source[key]));
+                if (len(value)) return value;
+            }
+            return "";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizeFuelReserveMode" access="private" returntype="string" output="false">
+        <cfargument name="reserveMode" type="any" required="false" default="">
+        <cfargument name="reservePct" type="any" required="false" default="33">
+        <cfscript>
+            var mode = lCase(trim(toString(arguments.reserveMode)));
+            var pct = (isNumeric(arguments.reservePct) ? val(arguments.reservePct) : 33);
+            if (mode EQ "thirds" OR mode EQ "percentage") return mode;
+            return (pct EQ 33 ? "thirds" : "percentage");
         </cfscript>
     </cffunction>
 

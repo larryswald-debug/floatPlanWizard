@@ -937,6 +937,10 @@
         "totalFuelLabel" = "Not available",
         "fuelWithReserveGallons" = 0,
         "fuelWithReserveLabel" = "Not available",
+        "reserveMode" = "",
+        "reservePercent" = 0,
+        "reserveGallons" = 0,
+        "reserveLabel" = "Not available",
         "legFuelNeededGallons" = 0,
         "legFuelNeededLabel" = "Not available"
       };
@@ -972,6 +976,9 @@
       var totalEstimate = {};
       var totalFuelGallons = 0;
       var fuelWithReserveGallons = 0;
+      var reserveMode = "";
+      var reservePercent = 0;
+      var reserveGallons = 0;
       var baseFuel = {};
       var legDistanceNm = 0;
       var legFuelResult = {};
@@ -1019,6 +1026,13 @@
       );
       totalFuelGallons = (structKeyExists(totalEstimate, "baseFuelGallons") ? safeNumber(totalEstimate.baseFuelGallons) : 0);
       fuelWithReserveGallons = (structKeyExists(totalEstimate, "requiredFuelGallons") ? safeNumber(totalEstimate.requiredFuelGallons) : 0);
+      reservePercent = (structKeyExists(totalFuelResult, "RESERVE_PCT") ? safeNumber(totalFuelResult.RESERVE_PCT) : 0);
+      if (reservePercent LTE 0) reservePercent = 33;
+      reserveMode = lCase(trim(structKeyExists(totalFuelResult, "RESERVE_MODE") ? safeString(totalFuelResult.RESERVE_MODE) : ""));
+      if (reserveMode NEQ "thirds" AND reserveMode NEQ "percentage") {
+        reserveMode = (reservePercent EQ 33 ? "thirds" : "percentage");
+      }
+      reserveGallons = (structKeyExists(totalEstimate, "reserveGallons") ? safeNumber(totalEstimate.reserveGallons) : 0);
       if (fuelWithReserveGallons LTE 0) {
         return assignRouteTimelineFuelUnavailable(out, "Fuel burn inputs are unavailable for fuel estimation.");
       }
@@ -1028,6 +1042,10 @@
       baseFuel.totalFuelLabel = formatFuelGallonsLabel(totalFuelGallons);
       baseFuel.fuelWithReserveGallons = fuelWithReserveGallons;
       baseFuel.fuelWithReserveLabel = formatFuelGallonsLabel(fuelWithReserveGallons);
+      baseFuel.reserveMode = reserveMode;
+      baseFuel.reservePercent = reservePercent;
+      baseFuel.reserveGallons = reserveGallons;
+      baseFuel.reserveLabel = formatFuelReserveLabel(reserveMode, reservePercent, reserveGallons);
 
       for (i = 1; i LTE arrayLen(out.legs); i++) {
         legFuel = duplicate(baseFuel);
@@ -1095,6 +1113,7 @@
         "fuelPriceLabel" = "Not provided",
         "fuelCost" = 0,
         "fuelCostLabel" = "Not available",
+        "reserveMode" = "",
         "reservePercent" = 0,
         "reserveGallons" = 0,
         "reserveLabel" = "Not available"
@@ -1118,6 +1137,7 @@
       var legFuelNeededGallons = 0;
       var fuelPricePerGallon = 0;
       var fuelCost = 0;
+      var reserveMode = "";
       var reservePercent = 0;
       var reserveGallons = 0;
 
@@ -1171,6 +1191,11 @@
       fuelPricePerGallon = (structKeyExists(totalFuelResult, "FUEL_PRICE_PER_GALLON") ? safeNumber(totalFuelResult.FUEL_PRICE_PER_GALLON) : 0);
       fuelCost = (structKeyExists(totalEstimate, "totalFuelCost") ? safeNumber(totalEstimate.totalFuelCost) : 0);
       reservePercent = (structKeyExists(totalFuelResult, "RESERVE_PCT") ? safeNumber(totalFuelResult.RESERVE_PCT) : 0);
+      if (reservePercent LTE 0) reservePercent = 33;
+      reserveMode = lCase(trim(structKeyExists(totalFuelResult, "RESERVE_MODE") ? safeString(totalFuelResult.RESERVE_MODE) : ""));
+      if (reserveMode NEQ "thirds" AND reserveMode NEQ "percentage") {
+        reserveMode = (reservePercent EQ 33 ? "thirds" : "percentage");
+      }
       reserveGallons = (structKeyExists(totalEstimate, "reserveGallons") ? safeNumber(totalEstimate.reserveGallons) : 0);
 
       if (fuelWithReserveGallons LTE 0 OR legFuelNeededGallons LTE 0) {
@@ -1190,9 +1215,10 @@
       out.fuelPriceLabel = formatFuelPriceLabel(fuelPricePerGallon);
       out.fuelCost = fuelCost;
       out.fuelCostLabel = formatFuelCostLabel(fuelCost);
+      out.reserveMode = reserveMode;
       out.reservePercent = reservePercent;
       out.reserveGallons = reserveGallons;
-      out.reserveLabel = formatFuelReserveLabel(reservePercent, reserveGallons);
+      out.reserveLabel = formatFuelReserveLabel(reserveMode, reservePercent, reserveGallons);
 
       return out;
     </cfscript>
@@ -2451,9 +2477,13 @@
   </cffunction>
 
   <cffunction name="formatFuelReserveLabel" access="private" returntype="string" output="false">
+    <cfargument name="reserveMode" type="string" required="true">
     <cfargument name="reservePercent" type="any" required="true">
     <cfargument name="reserveGallons" type="any" required="true">
     <cfscript>
+      if (compareNoCase(trim(arguments.reserveMode), "thirds") EQ 0) {
+        return "One-Third Rule / " & formatFuelGallonsLabel(arguments.reserveGallons);
+      }
       if (!isNumeric(arguments.reservePercent) OR safeNumber(arguments.reservePercent) LTE 0) {
         return formatFuelGallonsLabel(arguments.reserveGallons);
       }

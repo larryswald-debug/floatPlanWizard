@@ -6,6 +6,9 @@
 
   var SharedFuelMath = window.FPW.SharedFuelMath;
   var DEFAULT_MAX_HOURS_PER_DAY = 6.5;
+  var DEFAULT_RESERVE_PCT = 33;
+  var RESERVE_MODE_THIRDS = "thirds";
+  var RESERVE_MODE_PERCENTAGE = "percentage";
   var PACE_FACTORS = {
     RELAXED: 0.25,
     BALANCED: 0.50,
@@ -74,6 +77,27 @@
     return Math.round(n * 2) / 2;
   }
 
+  function normalizeReserveMode(value, reservePct) {
+    var rawMode = String(value || "").trim().toLowerCase();
+    var pct = safeVal(reservePct);
+    if (rawMode === RESERVE_MODE_THIRDS) return RESERVE_MODE_THIRDS;
+    if (rawMode === RESERVE_MODE_PERCENTAGE) return RESERVE_MODE_PERCENTAGE;
+    if (pct === null) pct = DEFAULT_RESERVE_PCT;
+    return Math.abs(pct - DEFAULT_RESERVE_PCT) < 0.0001
+      ? RESERVE_MODE_THIRDS
+      : RESERVE_MODE_PERCENTAGE;
+  }
+
+  function reserveForBase(baseFuel, reserveMode, reservePct) {
+    var base = safeVal(baseFuel);
+    var pct = safeVal(reservePct);
+    var mode = normalizeReserveMode(reserveMode, pct);
+    if (base === null || base < 0) return null;
+    if (mode === RESERVE_MODE_THIRDS) return base * 0.5;
+    if (pct === null) pct = DEFAULT_RESERVE_PCT;
+    return base * (pct / 100);
+  }
+
   function buildCruiseTimelineSummaryModel(timelinePayload, uiInputs) {
     var payload = (timelinePayload && typeof timelinePayload === "object") ? timelinePayload : {};
     var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {};
@@ -98,6 +122,14 @@
     var adjSpeedKn = null;
     var maxHoursPerDay = safeVal(ui.maxHoursPerDay);
     var reservePct = safeVal(ui.reservePct);
+    if (reservePct === null) {
+      reservePct = safeVal(summary.reserve_pct !== undefined ? summary.reserve_pct : summary.reservePct);
+    }
+    if (reservePct === null) reservePct = DEFAULT_RESERVE_PCT;
+    var reserveMode = normalizeReserveMode(
+      ui.reserveMode || summary.reserve_mode || summary.reserveMode || meta.reserve_mode || meta.reserveMode,
+      reservePct
+    );
     var fuelBurnGph = safeVal(meta.fuelBurnGph);
     var weatherAdjustedBurnGph = safeVal(meta.weatherAdjustedBurnGph);
     var summaryFuelBurnGph = fuelBurnGph;
@@ -215,8 +247,11 @@
     if (totalHours !== null && summaryFuelBurnGph !== null) {
       baseFuelByRate = totalHours * summaryFuelBurnGph;
       if (reservePct !== null) {
-        requiredFuelByRate = baseFuelByRate * (1 + (reservePct / 100));
-        rateEstimateText = formatNum(totalHours, 2) + " h × " + formatNum(summaryFuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal + " + formatNum(reservePct, 1) + "% reserve = " + formatNum(requiredFuelByRate, 1) + " gal";
+        var reserveFuelByRate = reserveForBase(baseFuelByRate, reserveMode, reservePct);
+        requiredFuelByRate = baseFuelByRate + reserveFuelByRate;
+        rateEstimateText = formatNum(totalHours, 2) + " h × " + formatNum(summaryFuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal + "
+          + (reserveMode === RESERVE_MODE_THIRDS ? "One-Third Rule reserve" : formatNum(reservePct, 1) + "% reserve")
+          + " = " + formatNum(requiredFuelByRate, 1) + " gal";
       } else {
         rateEstimateText = formatNum(totalHours, 2) + " h × " + formatNum(summaryFuelBurnGph, 2) + " gph = " + formatNum(baseFuelByRate, 1) + " gal";
       }
@@ -274,7 +309,7 @@
           baseFuelForSummary = roundTo2(requiredFuelForSummary - reserveFuelForSummary + idleFuelGallons);
         }
         if (reservePct !== null) {
-          idleReserveGallons = roundTo2(idleFuelGallons * (reservePct / 100));
+          idleReserveGallons = roundTo2(reserveForBase(idleFuelGallons, reserveMode, reservePct));
           reserveFuelForSummary = roundTo2((reserveFuelForSummary !== null ? reserveFuelForSummary : 0) + idleReserveGallons);
         }
         if (baseFuelForSummary !== null && reserveFuelForSummary !== null) {
@@ -302,9 +337,13 @@
     }
 
     if (baseFuelForSummary !== null && reserveFuelForSummary !== null && reservePct !== null) {
-      estimatedFuelSubText = "Base " + formatNum(baseFuelForSummary, 1, "0.0") + " + Reserve (" + formatNum(reservePct, 0, "0") + "%) " + formatNum(reserveFuelForSummary, 1, "0.0");
+      estimatedFuelSubText = "Base " + formatNum(baseFuelForSummary, 1, "0.0") + " + "
+        + (reserveMode === RESERVE_MODE_THIRDS ? "One-Third Rule Reserve " : "Reserve (" + formatNum(reservePct, 0, "0") + "%) ")
+        + formatNum(reserveFuelForSummary, 1, "0.0");
     } else if (requiredFuelForSummary !== null && reservePct !== null) {
-      estimatedFuelSubText = "Required fuel (includes " + formatNum(reservePct, 0, "0") + "% reserve)";
+      estimatedFuelSubText = reserveMode === RESERVE_MODE_THIRDS
+        ? "Required fuel (includes One-Third Rule reserve)"
+        : "Required fuel (includes " + formatNum(reservePct, 0, "0") + "% reserve)";
     } else if (requiredFuelForSummary !== null) {
       estimatedFuelSubText = "Required fuel from Cruise Timeline";
     } else {
@@ -328,6 +367,7 @@
       totalLocks: totalLocks,
       adjSpeedKn: adjSpeedKn,
       reservePct: reservePct,
+      reserveMode: reserveMode,
       fuelBurnGph: summaryFuelBurnGph,
       weatherAdjustedBurnGph: weatherAdjustedBurnGph,
       fuelSource: fuelSource,
@@ -354,6 +394,7 @@
     var maxSpeedKn = safeVal(src.maxSpeedKn);
     var weatherFactorPct = safeVal(src.weatherFactorPct);
     var reservePct = safeVal(src.reservePct);
+    var reserveMode = normalizeReserveMode(src.reserveMode, reservePct);
     var fuelBurnGph = safeVal(src.fuelBurnGph);
     var fuelPricePerGal = safeVal(src.fuelPricePerGal);
     var maxHoursPerDay = normalizeMaxHoursPerDay(src.maxHoursPerDay);
@@ -375,9 +416,9 @@
     } else {
       weatherFactorPct = 0;
     }
-    if (reservePct !== null) {
-      reservePct = clamp(reservePct, 0, 100);
-    }
+    if (reservePct === null) reservePct = DEFAULT_RESERVE_PCT;
+    reservePct = clamp(reservePct, 0, 100);
+    reserveMode = normalizeReserveMode(reserveMode, reservePct);
     if (fuelBurnGph !== null) {
       fuelBurnGph = roundTo2(clamp(fuelBurnGph, 0, 1000));
     }
@@ -431,6 +472,7 @@
     model = buildCruiseTimelineSummaryModel(payload, {
       maxHoursPerDay: maxHoursPerDay,
       reservePct: reservePct,
+      reserveMode: reserveMode,
       weatherFactorPct: weatherFactorPct,
       effectiveSpeedKn: effectiveSpeedKn,
       fuelPricePerGal: fuelPricePerGal
@@ -446,6 +488,7 @@
       weatherFactorPct: weatherFactorPct,
       fuelBurnGph: fuelBurnGph,
       reservePct: reservePct,
+      reserveMode: reserveMode,
       maxHoursPerDay: maxHoursPerDay,
       fuelPricePerGal: fuelPricePerGal,
       idleBurnGph: idleBurnGph,
@@ -468,6 +511,8 @@
   SharedFuelMath.normalizePaceKey = normalizePaceKey;
   SharedFuelMath.paceFactorForKey = paceFactorForKey;
   SharedFuelMath.normalizeMaxHoursPerDay = normalizeMaxHoursPerDay;
+  SharedFuelMath.normalizeReserveMode = normalizeReserveMode;
+  SharedFuelMath.reserveForBase = reserveForBase;
   SharedFuelMath.buildCruiseTimelineSummaryModel = buildCruiseTimelineSummaryModel;
   SharedFuelMath.buildManualSummaryModel = buildManualSummaryModel;
 })(window);

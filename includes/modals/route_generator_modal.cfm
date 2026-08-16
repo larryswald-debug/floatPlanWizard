@@ -1888,14 +1888,14 @@
                   </div>
                   <div class="rg-field rg-field--compact">
                     <div class="rg-field-label-row">
-                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 13: Fuel Reserve" aria-describedby="routeGenGuidance13">13</span>
-                      <label for="routeGenReservePct">Reserve (%)</label>
-                      <span id="routeGenGuidance13" class="rg-guidance-description">Select the additional fuel reserve that should be included in the estimate.</span>
+                      <span class="rg-guidance-badge" tabindex="0" aria-label="Step 13: Reserve Method" aria-describedby="routeGenGuidance13">13</span>
+                      <label for="routeGenReservePct">Reserve Method</label>
+                      <span id="routeGenGuidance13" class="rg-guidance-description">Select the One-Third Rule or a percentage-based fuel reserve.</span>
                     </div>
                     <select id="routeGenReservePct" class="form-select form-select-sm">
-                      <option value="33" selected>Rule of Thirds - 33%</option>
-                      <option value="20">Standard Reserve - 20%</option>
-                      <option value="15">Minimum Reserve - 15%</option>
+                      <option value="33" data-reserve-mode="thirds" selected>One-Third Rule</option>
+                      <option value="20" data-reserve-mode="percentage">Standard Reserve - 20%</option>
+                      <option value="15" data-reserve-mode="percentage">Minimum Reserve - 15%</option>
                     </select>
                   </div>
                   <div class="rg-field rg-field--compact">

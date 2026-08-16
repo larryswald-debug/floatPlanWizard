@@ -2456,6 +2456,10 @@
             var idleBurnGphVal = routegenNormalizeFuelBurnGph(normalizedInput.idle_burn_gph);
             var idleHoursTotalVal = routegenNormalizeIdleHoursTotal(normalizedInput.idle_hours_total);
             var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 33);
+            var reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(normalizedInput, "reserve_mode") ? normalizedInput.reserve_mode : "",
+                reservePctVal
+            );
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var totals = {};
             var fuelEstimateOut = {};
@@ -2501,6 +2505,7 @@
                 idleBurnGph = idleBurnGphVal,
                 idleHoursTotal = idleHoursTotalVal,
                 reservePct = reservePctVal,
+                reserveMode = reserveModeVal,
                 fuelPricePerGal = fuelPricePerGalVal,
                 maxSpeedKnots = maxSpeedVal,
                 mostEfficientSpeedKn = performanceMeta.most_efficient_speed_kn,
@@ -2544,6 +2549,7 @@
                     "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
+                    "reserve_mode"=reserveModeVal,
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
                     "vessel_max_speed_kn"=(val(normalizedInput.vessel_max_speed_kn) GT 0 ? roundTo2(normalizedInput.vessel_max_speed_kn) : ""),
                     "vessel_most_efficient_speed_kn"=(val(performanceMeta.most_efficient_speed_kn) GT 0 ? roundTo2(performanceMeta.most_efficient_speed_kn) : ""),
@@ -2567,6 +2573,7 @@
                     "idle_fuel_gallons"=totals.IDLE_FUEL_GALLONS,
                     "base_fuel_gallons"=totals.BASE_FUEL_GALLONS,
                     "reserve_pct"=totals.RESERVE_PCT,
+                    "reserve_mode"=totals.RESERVE_MODE,
                     "reserve_fuel_gallons"=totals.RESERVE_FUEL_GALLONS,
                     "required_fuel_gallons"=totals.REQUIRED_FUEL_GALLONS,
                     "fuel_price_per_gal"=totals.FUEL_PRICE_PER_GAL,
@@ -4280,6 +4287,7 @@
         <cfset var dashboardRouteIdleBurnGph = 0 />
         <cfset var dashboardRouteIdleHours = 0 />
         <cfset var dashboardRouteReservePct = 0 />
+        <cfset var dashboardRouteReserveMode = "thirds" />
         <cfset var dashboardRouteFuelPrice = 0 />
         <cfset var dashboardRouteVessels = [] />
         <cfset var dashboardRouteVesselIndex = 0 />
@@ -4431,6 +4439,10 @@
             structKeyExists(dashboardRouteInputs, "reserve_pct") ? dashboardRouteInputs.reserve_pct : "",
             33
         ) />
+        <cfset dashboardRouteReserveMode = routegenNormalizeReserveMode(
+            structKeyExists(dashboardRouteInputs, "reserve_mode") ? dashboardRouteInputs.reserve_mode : "",
+            dashboardRouteReservePct
+        ) />
         <cfset dashboardRouteFuelPrice = routegenNormalizeFuelPricePerGal(
             structKeyExists(dashboardRouteInputs, "fuel_price_per_gal") ? dashboardRouteInputs.fuel_price_per_gal : ""
         ) />
@@ -4444,6 +4456,7 @@
             idleBurnGph = dashboardRouteIdleBurnGph,
             idleHoursTotal = dashboardRouteIdleHours,
             reservePct = dashboardRouteReservePct,
+            reserveMode = dashboardRouteReserveMode,
             fuelPricePerGal = dashboardRouteFuelPrice,
             maxSpeedKnots = dashboardRoutePerformance.max_speed_kn,
             mostEfficientSpeedKn = dashboardRoutePerformance.most_efficient_speed_kn,
@@ -4775,7 +4788,8 @@
                 "IDLE_FUEL_GALLONS"=0,
                 "FUEL_PRICE_PER_GALLON"=0,
                 "WEATHER_FACTOR_PCT"=0,
-                "RESERVE_PCT"=33
+                "RESERVE_PCT"=33,
+                "RESERVE_MODE"="thirds"
             };
             var effectiveInputs = (isStruct(arguments.routeInputs) ? duplicate(arguments.routeInputs) : {});
             var distanceVal = val(arguments.distanceNm);
@@ -4789,6 +4803,7 @@
             var allowAnchoredBurnVal = false;
             var weatherFactorPctVal = 0;
             var reservePctVal = 33;
+            var reserveModeVal = "thirds";
             var fuelPriceVal = 0;
             var maxSpeedVal = 0;
             var maxBurnForEstimateVal = 0;
@@ -4821,6 +4836,12 @@
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 33
             );
+            reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(effectiveInputs, "reserve_mode")
+                    ? effectiveInputs.reserve_mode
+                    : (structKeyExists(effectiveInputs, "reserveMode") ? effectiveInputs.reserveMode : ""),
+                reservePctVal
+            );
             fuelPriceVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(effectiveInputs, "fuel_price_per_gal")
                     ? effectiveInputs.fuel_price_per_gal
@@ -4850,6 +4871,7 @@
             out.FUEL_PRICE_PER_GALLON = fuelPriceVal;
             out.WEATHER_FACTOR_PCT = weatherFactorPctVal;
             out.RESERVE_PCT = reservePctVal;
+            out.RESERVE_MODE = reserveModeVal;
 
             if (distanceVal GT 0 AND maxSpeedVal LTE 0) {
                 out.MESSAGE = "Cruising speed is unavailable for fuel estimation.";
@@ -4871,6 +4893,7 @@
                 "weatherPct"=weatherFactorPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
                 "reservePct"=reservePctVal,
+                "reserveMode"=reserveModeVal,
                 "fuelPricePerGallon"=fuelPriceVal,
                 "allowAnchoredBurn"=allowAnchoredBurnVal
             });
@@ -4984,6 +5007,13 @@
                 out.reserve_pct = routegenNormalizeReservePct(src.reserve_pct, 33);
             } else if (structKeyExists(src, "reservePct")) {
                 out.reserve_pct = routegenNormalizeReservePct(src.reservePct, 33);
+            }
+            if (structKeyExists(src, "reserve_mode")) {
+                out.reserve_mode = routegenNormalizeReserveMode(src.reserve_mode, structKeyExists(out, "reserve_pct") ? out.reserve_pct : 33);
+            } else if (structKeyExists(src, "reserveMode")) {
+                out.reserve_mode = routegenNormalizeReserveMode(src.reserveMode, structKeyExists(out, "reserve_pct") ? out.reserve_pct : 33);
+            } else if (structKeyExists(out, "reserve_pct")) {
+                out.reserve_mode = routegenNormalizeReserveMode("", out.reserve_pct);
             }
 
             if (structKeyExists(src, "weather_factor_pct")) {
@@ -5193,6 +5223,7 @@
         <cfargument name="paceRatioVal" type="numeric" required="true">
         <cfargument name="weatherFactorPctVal" type="numeric" required="true">
         <cfargument name="reservePctVal" type="numeric" required="true">
+        <cfargument name="reserveModeVal" type="string" required="true">
         <cfargument name="allowAnchoredBurnVal" type="any" required="false" default="false">
         <cfscript>
             var outDay = (isStruct(arguments.day) ? duplicate(arguments.day) : {});
@@ -5220,6 +5251,7 @@
                 "weatherPct"=arguments.weatherFactorPctVal,
                 "idleFuelGallons"=0,
                 "reservePct"=arguments.reservePctVal,
+                "reserveMode"=arguments.reserveModeVal,
                 "allowAnchoredBurn"=arguments.allowAnchoredBurnVal
             });
             outDay.cruise_fuel_gallons = roundTo2(val(fuelEstimate.cruiseFuelGallons));
@@ -5348,6 +5380,7 @@
             var maxBurnForEstimateVal = 0;
             var weatherFactorPctVal = 0;
             var reservePctVal = 33;
+            var reserveModeVal = "thirds";
             var timelineFuelEstimateMeta = {};
             var performanceMeta = {};
             var allowAnchoredBurnVal = false;
@@ -5580,6 +5613,12 @@
                 structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
                 33
             );
+            reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(effectiveInputs, "reserve_mode") ? effectiveInputs.reserve_mode : "",
+                reservePctVal
+            );
+            out.timeline_meta.reserve_pct = reservePctVal;
+            out.timeline_meta.reserve_mode = reserveModeVal;
             timelineFuelEstimateMeta = calculateFuelEstimate({
                 "distanceNm"=1,
                 "maxSpeedKnots"=maxSpeedVal,
@@ -5591,6 +5630,7 @@
                 "weatherPct"=weatherFactorPctVal,
                 "idleFuelGallons"=0,
                 "reservePct"=reservePctVal,
+                "reserveMode"=reserveModeVal,
                 "allowAnchoredBurn"=allowAnchoredBurnVal
             });
             out.timeline_meta.weather_adjusted_fuel_burn_gph = roundTo2(
@@ -5955,6 +5995,7 @@
                             paceRatioVal = paceRatioVal,
                             weatherFactorPctVal = weatherFactorPctVal,
                             reservePctVal = reservePctVal,
+                            reserveModeVal = reserveModeVal,
                             allowAnchoredBurnVal = allowAnchoredBurnVal
                         );
                         totalCruiseNm += val(finalizedDay.total_dist_nm);
@@ -6049,6 +6090,7 @@
                     paceRatioVal = paceRatioVal,
                     weatherFactorPctVal = weatherFactorPctVal,
                     reservePctVal = reservePctVal,
+                    reserveModeVal = reserveModeVal,
                     allowAnchoredBurnVal = allowAnchoredBurnVal
                 );
                 totalCruiseNm += val(finalizedDay.total_dist_nm);
@@ -6764,6 +6806,7 @@
             input.idle_hours_total = trim(toString(pickArg(arguments.body, "idle_hours_total", "idleHoursTotal", "")));
             input.weather_factor_pct = trim(toString(pickArg(arguments.body, "weather_factor_pct", "weatherFactorPct", pickArg(arguments.body, "weather_factor", "weatherFactor", ""))));
             input.reserve_pct = trim(toString(pickArg(arguments.body, "reserve_pct", "reservePct", "")));
+            input.reserve_mode = trim(toString(pickArg(arguments.body, "reserve_mode", "reserveMode", "")));
             input.fuel_price_per_gal = trim(toString(pickArg(arguments.body, "fuel_price_per_gal", "fuelPricePerGal", "")));
             input.vessel_max_speed_kn = trim(
                 toString(
@@ -7116,6 +7159,18 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenNormalizeReserveMode" access="private" returntype="string" output="false">
+        <cfargument name="reserveMode" type="any" required="false" default="">
+        <cfargument name="reservePct" type="any" required="false" default="">
+        <cfscript>
+            var modeVal = lCase(trim(toString(arguments.reserveMode)));
+            var pctVal = routegenNormalizeReservePct(arguments.reservePct, 33);
+            if (modeVal EQ "thirds") return "thirds";
+            if (modeVal EQ "percentage") return "percentage";
+            return (abs(pctVal - 33) LT 0.0001 ? "thirds" : "percentage");
+        </cfscript>
+    </cffunction>
+
     <cffunction name="routegenNormalizeFuelPricePerGal" access="private" returntype="numeric" output="false">
         <cfargument name="fuelPricePerGal" type="any" required="false" default="">
         <cfscript>
@@ -7242,6 +7297,8 @@
                 "cruiseFuelGallons"=0,
                 "idleFuelGallons"=0,
                 "baseFuelGallons"=0,
+                "reservePct"=33,
+                "reserveMode"="thirds",
                 "reserveGallons"=0,
                 "requiredFuelGallons"=0,
                 "totalFuelCost"=0
@@ -7258,11 +7315,20 @@
             var weatherPctVal = val(structKeyExists(src, "weatherPct") ? src.weatherPct : 0);
             var weatherAdj = 0;
             var reservePctVal = val(structKeyExists(src, "reservePct") ? src.reservePct : 0);
+            var reserveModeVal = "";
             var reserveGallonsVal = val(structKeyExists(src, "reserveGallons") ? src.reserveGallons : 0);
             var idleFuelGallonsVal = val(structKeyExists(src, "idleFuelGallons") ? src.idleFuelGallons : 0);
             var fuelPriceVal = val(structKeyExists(src, "fuelPricePerGallon") ? src.fuelPricePerGallon : 0);
             var useMostEfficientValues = false;
             var allowAnchoredBurn = false;
+
+            if (reservePctVal LTE 0) reservePctVal = 33;
+            reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(src, "reserveMode") ? src.reserveMode : "",
+                reservePctVal
+            );
+            out.reservePct = roundTo2(reservePctVal);
+            out.reserveMode = reserveModeVal;
 
             if (efficientSpeedVal LT 1) efficientSpeedVal = 0;
             if (efficientSpeedVal GT 60) efficientSpeedVal = 60;
@@ -7353,15 +7419,19 @@
             out.cruiseFuelGallons = roundTo2(out.cruiseHours * out.weatherAdjustedBurnGph);
             out.idleFuelGallons = roundTo2(idleFuelGallonsVal);
             out.baseFuelGallons = roundTo2(out.cruiseFuelGallons + out.idleFuelGallons);
-
             if (reserveGallonsVal GT 0) {
                 out.reserveGallons = roundTo2(reserveGallonsVal);
+            } else if (reserveModeVal EQ "thirds") {
+                out.reserveGallons = roundTo2(out.baseFuelGallons * 0.5);
             } else {
-                if (reservePctVal LTE 0) reservePctVal = 33;
                 out.reserveGallons = roundTo2(out.baseFuelGallons * (reservePctVal / 100));
             }
 
-            out.requiredFuelGallons = roundTo2(out.baseFuelGallons + out.reserveGallons);
+            out.requiredFuelGallons = (
+                reserveGallonsVal LTE 0 AND reserveModeVal EQ "thirds"
+                    ? roundTo2(out.baseFuelGallons * 1.5)
+                    : roundTo2(out.baseFuelGallons + out.reserveGallons)
+            );
             out.totalFuelCost = (fuelPriceVal GT 0 ? round((out.requiredFuelGallons * fuelPriceVal) * 100) / 100 : 0);
             return out;
         </cfscript>
@@ -7538,6 +7608,7 @@
             var idleHoursVal = 0;
             var weatherPctVal = 0;
             var reservePctVal = 33;
+            var reserveModeVal = "thirds";
             var fuelPriceVal = 0;
             var vesselMaxSpeedVal = 0;
             var vesselMostEffSpeedVal = 0;
@@ -7576,6 +7647,10 @@
                 structKeyExists(payload, "reserve_pct") ? payload.reserve_pct : "",
                 33
             );
+            reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(payload, "reserve_mode") ? payload.reserve_mode : "",
+                reservePctVal
+            );
             fuelPriceVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(payload, "fuel_price_per_gal") ? payload.fuel_price_per_gal : ""
             );
@@ -7597,6 +7672,7 @@
             payload.idle_hours_total = (idleHoursVal GT 0 ? idleHoursVal : "");
             payload.weather_factor_pct = weatherPctVal;
             payload.reserve_pct = reservePctVal;
+            payload.reserve_mode = reserveModeVal;
             payload.fuel_price_per_gal = (fuelPriceVal GT 0 ? fuelPriceVal : "");
             payload.vessel_max_speed_kn = (vesselMaxSpeedVal GT 0 ? roundTo2(vesselMaxSpeedVal) : "");
             payload.vessel_most_efficient_speed_kn = (vesselMostEffSpeedVal GT 0 ? roundTo2(vesselMostEffSpeedVal) : "");
@@ -7817,6 +7893,7 @@
                         "idle_hours_total" = [ "idleHoursTotal", "idle_hours", "idleHours", "IDLE_HOURS_TOTAL", "IDLE_HOURS" ],
                         "weather_factor_pct" = [ "weatherFactorPct", "weather_factor", "weatherFactor", "WEATHER_FACTOR_PCT", "WEATHER_FACTOR" ],
                         "reserve_pct" = [ "reservePct", "RESERVE_PCT" ],
+                        "reserve_mode" = [ "reserveMode", "RESERVE_MODE" ],
                         "fuel_price_per_gal" = [ "fuelPricePerGal", "FUEL_PRICE_PER_GAL" ],
                         "comfort_profile" = [ "comfortProfile", "COMFORT_PROFILE" ],
                         "overnight_bias" = [ "overnightBias", "OVERNIGHT_BIAS" ],
@@ -8374,6 +8451,7 @@
         <cfargument name="idleBurnGph" type="any" required="false" default="">
         <cfargument name="idleHoursTotal" type="any" required="false" default="">
         <cfargument name="reservePct" type="any" required="false" default="33">
+        <cfargument name="reserveMode" type="any" required="false" default="">
         <cfargument name="fuelPricePerGal" type="any" required="false" default="">
         <cfargument name="maxSpeedKnots" type="any" required="false" default="">
         <cfargument name="mostEfficientSpeedKn" type="any" required="false" default="">
@@ -8407,6 +8485,7 @@
             var idleBurnVal = routegenNormalizeFuelBurnGph(arguments.idleBurnGph);
             var idleHoursVal = routegenNormalizeIdleHoursTotal(arguments.idleHoursTotal);
             var reservePctVal = routegenNormalizeReservePct(arguments.reservePct, 33);
+            var reserveModeVal = routegenNormalizeReserveMode(arguments.reserveMode, reservePctVal);
             var fuelPriceVal = routegenNormalizeFuelPricePerGal(arguments.fuelPricePerGal);
             var totalHours = 0.0;
             var daysByTime = 0;
@@ -8474,6 +8553,7 @@
                 "weatherPct"=weatherPctVal,
                 "idleFuelGallons"=idleFuelGallonsVal,
                 "reservePct"=reservePctVal,
+                "reserveMode"=reserveModeVal,
                 "fuelPricePerGallon"=fuelPriceVal,
                 "allowAnchoredBurn"=arguments.allowAnchoredBurn
             });
@@ -8498,6 +8578,7 @@
                 "IDLE_FUEL_GALLONS"=idleFuelGallonsVal,
                 "BASE_FUEL_GALLONS"=baseFuelGallonsVal,
                 "RESERVE_PCT"=reservePctVal,
+                "RESERVE_MODE"=reserveModeVal,
                 "RESERVE_FUEL_GALLONS"=reserveFuelGallonsVal,
                 "REQUIRED_FUEL_GALLONS"=requiredFuelGallonsVal,
                 "FUEL_PRICE_PER_GAL"=fuelPriceVal,
@@ -8552,6 +8633,10 @@
             var weatherFactorPctVal = routegenNormalizeWeatherFactorPct(normalizedInput.weather_factor_pct);
             var weatherFactorVal = weatherFactorPctVal / 100;
             var reservePctVal = routegenNormalizeReservePct(normalizedInput.reserve_pct, 33);
+            var reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(normalizedInput, "reserve_mode") ? normalizedInput.reserve_mode : "",
+                reservePctVal
+            );
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var paceRatioVal = val(paceDefaults.PACE_FACTOR);
             var allowAnchoredBurnVal = routegenCanUseAnchoredBurn(performanceMeta);
@@ -8707,6 +8792,7 @@
                 idleBurnGph = idleBurnGphVal,
                 idleHoursTotal = idleHoursTotalVal,
                 reservePct = reservePctVal,
+                reserveMode = reserveModeVal,
                 fuelPricePerGal = fuelPricePerGalVal,
                 maxSpeedKnots = maxSpeedVal,
                 mostEfficientSpeedKn = performanceMeta.most_efficient_speed_kn,
@@ -8754,6 +8840,7 @@
                     "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
+                    "reserve_mode"=reserveModeVal,
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
                     "vessel_max_speed_kn"=(val(normalizedInput.vessel_max_speed_kn) GT 0 ? roundTo2(normalizedInput.vessel_max_speed_kn) : ""),
                     "vessel_most_efficient_speed_kn"=(val(performanceMeta.most_efficient_speed_kn) GT 0 ? roundTo2(performanceMeta.most_efficient_speed_kn) : ""),
@@ -8779,6 +8866,7 @@
                     "idle_fuel_gallons"=totals.IDLE_FUEL_GALLONS,
                     "base_fuel_gallons"=totals.BASE_FUEL_GALLONS,
                     "reserve_pct"=totals.RESERVE_PCT,
+                    "reserve_mode"=totals.RESERVE_MODE,
                     "reserve_fuel_gallons"=totals.RESERVE_FUEL_GALLONS,
                     "required_fuel_gallons"=totals.REQUIRED_FUEL_GALLONS,
                     "fuel_price_per_gal"=totals.FUEL_PRICE_PER_GAL,
@@ -9083,6 +9171,7 @@
             var editIdleHoursTotalVal = 0;
             var editWeatherFactorPctVal = routegenNormalizeWeatherFactorPct("");
             var editReservePctVal = routegenNormalizeReservePct("", 33);
+            var editReserveModeVal = routegenNormalizeReserveMode("", editReservePctVal);
             var editFuelPricePerGalVal = 0;
             var editVesselMaxSpeedVal = 0;
             var editVesselMostEffSpeedVal = 0;
@@ -9163,6 +9252,10 @@
             editReservePctVal = routegenNormalizeReservePct(
                 structKeyExists(editStoredInputs, "reserve_pct") ? editStoredInputs.reserve_pct : "",
                 33
+            );
+            editReserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(editStoredInputs, "reserve_mode") ? editStoredInputs.reserve_mode : "",
+                editReservePctVal
             );
             editFuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(editStoredInputs, "fuel_price_per_gal") ? editStoredInputs.fuel_price_per_gal : ""
@@ -9262,6 +9355,7 @@
                         "idle_hours_total"=(editIdleHoursTotalVal GT 0 ? editIdleHoursTotalVal : ""),
                         "weather_factor_pct"=editWeatherFactorPctVal,
                         "reserve_pct"=editReservePctVal,
+                        "reserve_mode"=editReserveModeVal,
                         "fuel_price_per_gal"=(editFuelPricePerGalVal GT 0 ? editFuelPricePerGalVal : ""),
                         "vessel_max_speed_kn"=(editVesselMaxSpeedVal GT 0 ? roundTo2(editVesselMaxSpeedVal) : ""),
                         "vessel_most_efficient_speed_kn"=(editVesselMostEffSpeedVal GT 0 ? roundTo2(editVesselMostEffSpeedVal) : ""),
@@ -9370,6 +9464,10 @@
                 structKeyExists(storedInputs, "reserve_pct") ? storedInputs.reserve_pct : "",
                 33
             );
+            var reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(storedInputs, "reserve_mode") ? storedInputs.reserve_mode : "",
+                reservePctVal
+            );
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(
                 structKeyExists(storedInputs, "fuel_price_per_gal") ? storedInputs.fuel_price_per_gal : ""
             );
@@ -9450,6 +9548,7 @@
                     "idle_hours_total"=(idleHoursTotalVal GT 0 ? idleHoursTotalVal : ""),
                     "weather_factor_pct"=weatherFactorPctVal,
                     "reserve_pct"=reservePctVal,
+                    "reserve_mode"=reserveModeVal,
                     "fuel_price_per_gal"=(fuelPricePerGalVal GT 0 ? fuelPricePerGalVal : ""),
                     "vessel_max_speed_kn"=(vesselMaxSpeedVal GT 0 ? roundTo2(vesselMaxSpeedVal) : ""),
                     "vessel_most_efficient_speed_kn"=(vesselMostEffSpeedVal GT 0 ? roundTo2(vesselMostEffSpeedVal) : ""),
