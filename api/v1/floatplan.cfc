@@ -964,17 +964,23 @@
 
             if (arguments.floatPlanId GT 0) {
                 var planData = loadFloatPlan(arguments.userId, arguments.floatPlanId);
-                if (structKeyExists(planData, "FLOATPLANID")) {
-                    response.FLOATPLAN = planData;
-                    var selections = loadPlanSelections(arguments.userId, arguments.floatPlanId);
-                    response.PLAN_PASSENGERS = selections.PASSENGERS;
-                    response.PLAN_CONTACTS   = selections.CONTACTS;
-                    response.PLAN_WAYPOINTS  = selections.WAYPOINTS;
-                    response.PREMIUM_SEND_RECEIPT = getPremiumSendCreditService().loadCompletedReceipt(
-                        arguments.userId,
-                        arguments.floatPlanId
-                    );
+                if (structIsEmpty(planData)) {
+                    return {
+                        SUCCESS = false,
+                        ERROR = "PLAN_NOT_FOUND",
+                        MESSAGE = "Float plan not found."
+                    };
                 }
+
+                response.FLOATPLAN = planData;
+                var selections = loadPlanSelections(arguments.userId, arguments.floatPlanId);
+                response.PLAN_PASSENGERS = selections.PASSENGERS;
+                response.PLAN_CONTACTS   = selections.CONTACTS;
+                response.PLAN_WAYPOINTS  = selections.WAYPOINTS;
+                response.PREMIUM_SEND_RECEIPT = getPremiumSendCreditService().loadCompletedReceipt(
+                    arguments.userId,
+                    arguments.floatPlanId
+                );
             }
 
             response.VESSELS        = loadVessels(arguments.userId);
@@ -7728,10 +7734,6 @@
                 };
             }
 
-            if (structIsEmpty(planStruct)) {
-                planStruct = getDefaultFloatPlan(arguments.userId);
-            }
-
             return planStruct;
         </cfscript>
     </cffunction>
@@ -7751,11 +7753,17 @@
             }
 
             var qPassengers = queryExecute("
-                SELECT recId, passId, hasPdf
-                FROM floatplan_passengers
-                WHERE floatplanId = :planId
-                ORDER BY recId ASC
-            ", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
+                SELECT fpp.recId, fpp.passId, fpp.hasPdf
+                FROM floatplan_passengers fpp
+                INNER JOIN floatplans fp
+                    ON fp.floatplanId = fpp.floatPlanId
+                   AND fp.userId = :userId
+                WHERE fpp.floatPlanId = :planId
+                ORDER BY fpp.recId ASC
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = "fpw" });
 
             for (var i = 1; i LTE qPassengers.recordCount; i++) {
                 arrayAppend(selections.PASSENGERS, {
@@ -7766,11 +7774,17 @@
             }
 
             var qContacts = queryExecute("
-                SELECT recId, contactId
-                FROM floatplan_contacts
-                WHERE floatplanId = :planId
-                ORDER BY recId ASC
-            ", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
+                SELECT fpc.recId, fpc.contactId
+                FROM floatplan_contacts fpc
+                INNER JOIN floatplans fp
+                    ON fp.floatplanId = fpc.floatPlanId
+                   AND fp.userId = :userId
+                WHERE fpc.floatPlanId = :planId
+                ORDER BY fpc.recId ASC
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = "fpw" });
 
             for (var j = 1; j LTE qContacts.recordCount; j++) {
                 arrayAppend(selections.CONTACTS, {
@@ -7780,11 +7794,17 @@
             }
 
             var qWaypoints = queryExecute("
-                SELECT recId, wayPointId, reason, departType, arrival, departure
-                FROM floatplan_waypoints
-                WHERE floatplanId = :planId
-                ORDER BY recId ASC
-            ", { planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } }, { datasource = "fpw" });
+                SELECT fpw.recId, fpw.wayPointId, fpw.reason, fpw.departType, fpw.arrival, fpw.departure
+                FROM floatplan_waypoints fpw
+                INNER JOIN floatplans fp
+                    ON fp.floatplanId = fpw.floatPlanId
+                   AND fp.userId = :userId
+                WHERE fpw.floatPlanId = :planId
+                ORDER BY fpw.recId ASC
+            ", {
+                planId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
+                userId = { value = toString(arguments.userId), cfsqltype = "cf_sql_varchar" }
+            }, { datasource = "fpw" });
 
             for (var k = 1; k LTE qWaypoints.recordCount; k++) {
                 arrayAppend(selections.WAYPOINTS, {
@@ -8578,10 +8598,18 @@
             var qActivePlan = queryNew("");
             var planUpdateResult = {};
             var operationalGeometrySnapshotResult = {};
+            var plan = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
                 result.MESSAGE = "Float plan id is required.";
+                return result;
+            }
+
+            plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
+            if (structIsEmpty(plan)) {
+                result.ERROR = "PLAN_NOT_FOUND";
+                result.MESSAGE = "Float plan not found.";
                 return result;
             }
 
@@ -8641,13 +8669,6 @@
                 },
                 { datasource = "fpw" }
             );
-
-            var plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
-            if (structIsEmpty(plan)) {
-                result.ERROR = "PLAN_NOT_FOUND";
-                result.MESSAGE = "Float plan not found.";
-                return result;
-            }
 
             var statusVal = "";
             if (structKeyExists(plan, "STATUS") AND NOT isNull(plan.STATUS)) {
