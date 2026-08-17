@@ -277,7 +277,7 @@
             "Go to Your Dashboard:",
             dashboardUrlValue,
             "",
-            "You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, and the companion app is not required to use the main web tools.",
+            "You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, so you can use the main web tools from your phone, tablet, or desktop.",
             "",
             "During this launch/beta period, we would love your feedback as you use FPW.",
             "",
@@ -293,7 +293,7 @@
 <p style="margin:0 0 16px 0;">Thank you for joining FloatPlanWizard.com.</p>
 <p style="margin:0 0 16px 0;">FPW helps boaters plan trips, organize float plan details, and keep trusted contacts informed.</p>
 <p style="margin:0 0 16px 0;">Start from your dashboard to begin setting up your account and float plans.</p>
-<p style="margin:0 0 22px 0;">You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, and the companion app is not required to use the main web tools.</p>
+<p style="margin:0 0 22px 0;">You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, so you can use the main web tools from your phone, tablet, or desktop.</p>
 <p style="margin:0 0 24px 0;"><a href="#dashboardUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">Go to Your Dashboard</a></p>
 <p style="margin:0 0 16px 0;">During this launch/beta period, we would love your feedback as you use FPW.</p>
 <p style="margin:0 0 16px 0; font-size:13px; line-height:1.5; color:##495057;"><strong>Safety notice:</strong> #encodeForHtml(safetyNotice)#</p>

@@ -93,6 +93,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         var historicalPlan = loadPlanState(fixture.userId, fixture.historicalFloatPlanId);
         var routeCountBeforeActivationSafety = 0;
         var activationSafety = {};
+        var sourceScopedGroup = {};
+        var routeCountBeforeReuse = 0;
+        var reuseResult = {};
         var routeBuilderSource = readRepoFile("api/v1/routeBuilder.cfc");
 
         expect(result.SUCCESS).toBeTrue();
@@ -114,6 +117,33 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(uCase(trim(toString(historicalPlan.status[1])))).toBe("CLOSED");
         expect(val(historicalPlan.route_instance_id[1])).toBe(fixture.sourceRouteInstanceId);
         expect(findNoCase("prepareDraftRouteInstanceForEditing", routeBuilderSource)).toBeGT(0);
+
+        sourceScopedGroup = variables.floatPlanService.resolveCurrentRouteFloatPlanGroup(
+          fixture.userId,
+          fixture.sourceRouteInstanceId
+        );
+        expect(sourceScopedGroup.SUCCESS).toBeTrue();
+        expect(sourceScopedGroup.HAS_CURRENT_GROUP).toBeTrue();
+        expect(sourceScopedGroup.IS_DRAFT).toBeTrue();
+        expect(sourceScopedGroup.IS_ROUTE_MATCH).toBeTrue();
+        expect(val(sourceScopedGroup.FLOATPLANID)).toBe(val(result.FLOATPLAN_IDS[1]));
+        expect(val(sourceScopedGroup.ROUTE_INSTANCE_ID)).toBe(preparedRouteInstanceId);
+
+        routeCountBeforeReuse = countUserRouteInstances(fixture.userId);
+        reuseResult = variables.routeBuilder.buildFloatPlansFromRouteForTest(
+          userId = fixture.userId,
+          routeInstanceId = fixture.sourceRouteInstanceId,
+          routeCode = fixture.routeCode,
+          mode = "SINGLE_MASTER",
+          vesselId = fixture.vesselId,
+          rebuild = false
+        );
+        expect(reuseResult.SUCCESS).toBeTrue();
+        expect(reuseResult.REUSED_EXISTING).toBeTrue();
+        expect(arrayLen(reuseResult.FLOATPLAN_IDS)).toBe(1);
+        expect(val(reuseResult.FLOATPLAN_IDS[1])).toBe(val(result.FLOATPLAN_IDS[1]));
+        expect(val(reuseResult.ROUTE_INSTANCE_ID)).toBe(preparedRouteInstanceId);
+        expect(countUserRouteInstances(fixture.userId)).toBe(routeCountBeforeReuse);
 
         routeCountBeforeActivationSafety = countUserRouteInstances(fixture.userId);
         activationSafety = variables.floatPlanService.ensureCleanRouteInstanceForActivationForTest(

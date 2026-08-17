@@ -3354,6 +3354,7 @@
             var qActive = queryNew("");
             var useRouteInstanceId = val(arguments.routeInstanceId);
             var hasRelevantActive = false;
+            var draftMatchesRequestedRoute = false;
             var row = {};
 
             if (arguments.userId LTE 0) {
@@ -3439,6 +3440,7 @@
                 row = qDraft;
                 result.CURRENT_STATE = "DRAFT";
                 result.IS_DRAFT = true;
+                draftMatchesRequestedRoute = (useRouteInstanceId GT 0);
             } else {
                 row = qActive;
                 result.CURRENT_STATE = "ACTIVE";
@@ -3456,7 +3458,13 @@
             result.ROUTE_DAY_NUMBER = isNull(row.route_day_number[1]) ? 0 : val(row.route_day_number[1]);
             result.ROUTE_CODE = isNull(row.route_code[1]) ? "" : trim(toString(row.route_code[1]));
             result.ROUTE_NAME = isNull(row.route_name[1]) ? "" : trim(toString(row.route_name[1]));
-            result.IS_ROUTE_MATCH = (useRouteInstanceId GT 0 AND result.ROUTE_INSTANCE_ID EQ useRouteInstanceId);
+            result.IS_ROUTE_MATCH = (
+                useRouteInstanceId GT 0
+                AND (
+                    result.ROUTE_INSTANCE_ID EQ useRouteInstanceId
+                    OR draftMatchesRequestedRoute
+                )
+            );
             return result;
         </cfscript>
     </cffunction>
@@ -3662,7 +3670,22 @@
                    AND ri.user_id = :routeUserId
                  LEFT JOIN loop_routes lr ON lr.id = ri.generated_route_id
                  WHERE fp.userId = :planUserId
-                   AND (:includeAllRoutes = 1 OR fp.route_instance_id = :routeInstanceId)
+                   AND (
+                        :includeAllRoutes = 1
+                        OR fp.route_instance_id = :routeInstanceId
+                        OR CAST(
+                            JSON_UNQUOTE(
+                                JSON_EXTRACT(
+                                    CASE
+                                        WHEN JSON_VALID(ri.routegen_inputs_json) = 1
+                                        THEN ri.routegen_inputs_json
+                                        ELSE '{}'
+                                    END,
+                                    '$.SOURCE_ROUTE_INSTANCE_ID'
+                                )
+                            ) AS DECIMAL(20,0)
+                        ) = :routeInstanceId
+                   )
                    AND UPPER(TRIM(fp.`status`)) = 'DRAFT'
                    AND fp.activatedAt IS NULL
                    AND fp.initialSentAt IS NULL

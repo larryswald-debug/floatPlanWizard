@@ -1846,6 +1846,125 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="routegenCoordinatesMatchAtStoredPrecision" access="private" returntype="boolean" output="false">
+        <cfargument name="latA" type="any" required="true">
+        <cfargument name="lngA" type="any" required="true">
+        <cfargument name="latB" type="any" required="true">
+        <cfargument name="lngB" type="any" required="true">
+        <cfscript>
+            if (
+                !isNumeric(arguments.latA)
+                OR !isNumeric(arguments.lngA)
+                OR !isNumeric(arguments.latB)
+                OR !isNumeric(arguments.lngB)
+            ) {
+                return false;
+            }
+            return (
+                round(val(arguments.latA) * 10000000) EQ round(val(arguments.latB) * 10000000)
+                AND round(val(arguments.lngA) * 10000000) EQ round(val(arguments.lngB) * 10000000)
+            );
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenValidateUserRouteContinuity" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfscript>
+            var result = {
+                "VALID"=false,
+                "LEG_COUNT"=0,
+                "WAYPOINT_COUNT"=0,
+                "FAILING_CURRENT_ORDER"=0,
+                "FAILING_NEXT_ORDER"=0,
+                "REASON"="Unable to validate route continuity."
+            };
+            var routeRes = getUserRoute(arguments.userId, arguments.routeId);
+            var routeData = {};
+            var legs = [];
+            var currentLeg = {};
+            var nextLeg = {};
+            var currentStartWaypointId = 0;
+            var currentEndWaypointId = 0;
+            var nextStartWaypointId = 0;
+            var currentCoordinatesMatch = false;
+            var i = 0;
+
+            if (!structKeyExists(routeRes, "SUCCESS") OR !routeRes.SUCCESS) {
+                if (structKeyExists(routeRes, "MESSAGE") AND len(trim(toString(routeRes.MESSAGE)))) {
+                    result.REASON = trim(toString(routeRes.MESSAGE));
+                }
+                return result;
+            }
+
+            routeData = (structKeyExists(routeRes, "DATA") AND isStruct(routeRes.DATA) ? routeRes.DATA : {});
+            legs = (structKeyExists(routeData, "legs") AND isArray(routeData.legs) ? routeData.legs : []);
+            result.LEG_COUNT = arrayLen(legs);
+            result.WAYPOINT_COUNT = (arrayLen(legs) GT 0 ? arrayLen(legs) + 1 : 0);
+
+            for (i = 1; i LTE arrayLen(legs); i++) {
+                currentLeg = legs[i];
+                if (val(structKeyExists(currentLeg, "order_index") ? currentLeg.order_index : 0) NEQ i) {
+                    result.FAILING_CURRENT_ORDER = i;
+                    result.REASON = "Route leg ordering is invalid.";
+                    return result;
+                }
+
+                currentStartWaypointId = val(structKeyExists(currentLeg, "start_waypoint_id") ? currentLeg.start_waypoint_id : 0);
+                currentEndWaypointId = val(structKeyExists(currentLeg, "end_waypoint_id") ? currentLeg.end_waypoint_id : 0);
+                if (currentStartWaypointId GT 0 AND currentEndWaypointId GT 0 AND currentStartWaypointId EQ currentEndWaypointId) {
+                    result.FAILING_CURRENT_ORDER = i;
+                    result.REASON = "A route leg cannot start and end at the same waypoint.";
+                    return result;
+                }
+
+                if (i GTE arrayLen(legs)) continue;
+
+                nextLeg = legs[i + 1];
+                nextStartWaypointId = val(structKeyExists(nextLeg, "start_waypoint_id") ? nextLeg.start_waypoint_id : 0);
+                currentCoordinatesMatch = routegenCoordinatesMatchAtStoredPrecision(
+                    structKeyExists(currentLeg, "end_lat") ? currentLeg.end_lat : "",
+                    structKeyExists(currentLeg, "end_lng") ? currentLeg.end_lng : "",
+                    structKeyExists(nextLeg, "start_lat") ? nextLeg.start_lat : "",
+                    structKeyExists(nextLeg, "start_lng") ? nextLeg.start_lng : ""
+                );
+
+                if (
+                    (currentEndWaypointId GT 0 AND nextStartWaypointId GT 0 AND currentEndWaypointId NEQ nextStartWaypointId)
+                    OR (
+                        (currentEndWaypointId LTE 0 OR nextStartWaypointId LTE 0)
+                        AND !currentCoordinatesMatch
+                    )
+                ) {
+                    result.FAILING_CURRENT_ORDER = i;
+                    result.FAILING_NEXT_ORDER = i + 1;
+                    result.REASON = "Adjacent route legs are not connected.";
+                    return result;
+                }
+            }
+
+            result.VALID = true;
+            result.REASON = "OK";
+            return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="routegenAssertUserRouteContinuity" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfscript>
+            var validation = routegenValidateUserRouteContinuity(arguments.userId, arguments.routeId);
+            if (!validation.VALID) {
+                throw(
+                    type="FPW.RouteContinuity",
+                    message="The route could not be saved because its legs are no longer connected. Please review the route and try again.",
+                    detail=serializeJSON(validation)
+                );
+            }
+            return validation;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="listCanonicalSegmentsForUserRoutes" access="private" returntype="struct" output="false">
         <cfscript>
             var out = {
@@ -2480,24 +2599,40 @@
             );
             segmentAllowsNull = routegenUserRouteLegSegmentAllowsNull();
 
-            queryExecute(
-                "INSERT INTO user_route_legs
-                    (user_route_id, order_index, segment_id, start_waypoint_id, end_waypoint_id)
-                 VALUES
-                    (:routeId, :orderIdx, :segmentId, :startWaypointId, :endWaypointId)",
-                {
-                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
-                    orderIdx = { value=(isNull(qOrder.next_order[1]) ? 1 : val(qOrder.next_order[1])), cfsqltype="cf_sql_integer" },
-                    segmentId = {
-                        value=0,
-                        cfsqltype="cf_sql_integer",
-                        null=segmentAllowsNull
-                    },
-                    startWaypointId = { value=startWaypointIdVal, cfsqltype="cf_sql_integer" },
-                    endWaypointId = { value=endWaypointIdVal, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
+            try {
+                transaction {
+                    queryExecute(
+                        "INSERT INTO user_route_legs
+                            (user_route_id, order_index, segment_id, start_waypoint_id, end_waypoint_id)
+                         VALUES
+                            (:routeId, :orderIdx, :segmentId, :startWaypointId, :endWaypointId)",
+                        {
+                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                            orderIdx = { value=(isNull(qOrder.next_order[1]) ? 1 : val(qOrder.next_order[1])), cfsqltype="cf_sql_integer" },
+                            segmentId = {
+                                value=0,
+                                cfsqltype="cf_sql_integer",
+                                null=segmentAllowsNull
+                            },
+                            startWaypointId = { value=startWaypointIdVal, cfsqltype="cf_sql_integer" },
+                            endWaypointId = { value=endWaypointIdVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                }
+            } catch (any routeContinuityErr) {
+                if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
+                    out.MESSAGE = routeContinuityErr.message;
+                    out.STATUS_CODE = 409;
+                    out.ERROR = {
+                        "CODE"="ROUTE_CONTINUITY_INVALID",
+                        "MESSAGE"=routeContinuityErr.message
+                    };
+                    return out;
+                }
+                rethrow;
+            }
 
             getRes = getUserRoute(arguments.userId, routeIdVal);
             if (structKeyExists(getRes, "SUCCESS") AND getRes.SUCCESS) {
@@ -2556,6 +2691,7 @@
             var fuelPricePerGalVal = routegenNormalizeFuelPricePerGal(normalizedInput.fuel_price_per_gal);
             var totals = {};
             var fuelEstimateOut = {};
+            var continuityValidation = {};
             var i = 0;
             var row = {};
             var offshoreRaw = "";
@@ -2579,6 +2715,17 @@
             routeData = (structKeyExists(routeRes, "DATA") AND isStruct(routeRes.DATA) ? routeRes.DATA : {});
             routeRow = (structKeyExists(routeData, "route") AND isStruct(routeData.route) ? routeData.route : {});
             routeLegs = (structKeyExists(routeData, "legs") AND isArray(routeData.legs) ? routeData.legs : []);
+
+            continuityValidation = routegenValidateUserRouteContinuity(arguments.userId, routeIdVal);
+            if (!continuityValidation.VALID) {
+                out.MESSAGE = "The route could not be saved because its legs are no longer connected. Please review the route and try again.";
+                out.STATUS_CODE = 409;
+                out.ERROR = {
+                    "CODE"="ROUTE_CONTINUITY_INVALID",
+                    "MESSAGE"=out.MESSAGE
+                };
+                return out;
+            }
 
             for (i = 1; i LTE arrayLen(routeLegs); i++) {
                 row = routeLegs[i];
@@ -2754,18 +2901,34 @@
                 { datasource = application.dsn }
             );
 
-            queryExecute(
-                "INSERT INTO user_route_legs
-                    (user_route_id, order_index, segment_id)
-                 VALUES
-                    (:routeId, :orderIdx, :segmentId)",
-                {
-                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
-                    orderIdx = { value=(isNull(qOrder.next_order[1]) ? 1 : val(qOrder.next_order[1])), cfsqltype="cf_sql_integer" },
-                    segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" }
-                },
-                { datasource = application.dsn }
-            );
+            try {
+                transaction {
+                    queryExecute(
+                        "INSERT INTO user_route_legs
+                            (user_route_id, order_index, segment_id)
+                         VALUES
+                            (:routeId, :orderIdx, :segmentId)",
+                        {
+                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                            orderIdx = { value=(isNull(qOrder.next_order[1]) ? 1 : val(qOrder.next_order[1])), cfsqltype="cf_sql_integer" },
+                            segmentId = { value=segmentIdVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+                    routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                }
+            } catch (any routeContinuityErr) {
+                if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
+                    out.MESSAGE = routeContinuityErr.message;
+                    out.STATUS_CODE = 409;
+                    out.ERROR = {
+                        "CODE"="ROUTE_CONTINUITY_INVALID",
+                        "MESSAGE"=routeContinuityErr.message
+                    };
+                    return out;
+                }
+                rethrow;
+            }
 
             getRes = getUserRoute(arguments.userId, routeIdVal);
             return getRes;
@@ -2789,6 +2952,18 @@
             var routeRow = {};
             var legRow = {};
             var getRes = {};
+            var qLockedLegs = queryNew("");
+            var targetRowIndex = 0;
+            var nextRowIndex = 0;
+            var targetStartWaypointId = 0;
+            var targetEndWaypointId = 0;
+            var nextStartWaypointId = 0;
+            var nextEndWaypointId = 0;
+            var nextRouteLegId = 0;
+            var segmentAllowsNull = routegenUserRouteLegSegmentAllowsNull();
+            var hasWaypointColumns = routegenHasUserRouteWaypointColumns();
+            var lockSql = "";
+            var i = 0;
 
             if (!routegenHasUserRouteTables()) {
                 out.MESSAGE = "User routes unavailable";
@@ -2815,34 +2990,136 @@
                 return out;
             }
 
-            transaction {
-                queryExecute(
-                    "DELETE FROM user_route_legs
-                     WHERE id = :routeLegId
-                       AND user_route_id = :routeId",
-                    {
-                        routeLegId = { value=routeLegIdVal, cfsqltype="cf_sql_integer" },
-                        routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
-                    },
-                    { datasource = application.dsn }
-                );
-
-                if (routegenHasLegOverrideTable()) {
-                    queryExecute(
-                        "DELETE FROM route_leg_user_overrides
-                         WHERE user_id = :uid
-                           AND route_id = :routeId
-                           AND route_leg_id = :routeLegId",
+            try {
+                transaction {
+                    lockSql = "SELECT id, order_index, segment_id," &
+                        (hasWaypointColumns
+                            ? " start_waypoint_id, end_waypoint_id"
+                            : " NULL AS start_waypoint_id, NULL AS end_waypoint_id") &
+                        " FROM user_route_legs
+                          WHERE user_route_id = :routeId
+                          ORDER BY order_index ASC, id ASC
+                          FOR UPDATE";
+                    qLockedLegs = queryExecute(
+                        lockSql,
                         {
-                            uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
-                            routeLegId = { value=routeLegIdVal, cfsqltype="cf_sql_integer" }
+                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
                         },
                         { datasource = application.dsn }
                     );
-                }
 
-                routegenReindexMyRouteLegs(arguments.userId, routeIdVal);
+                    for (i = 1; i LTE qLockedLegs.recordCount; i++) {
+                        if (val(qLockedLegs.id[i]) EQ routeLegIdVal) {
+                            targetRowIndex = i;
+                            break;
+                        }
+                    }
+                    if (targetRowIndex LTE 0) {
+                        throw(
+                            type="FPW.RouteContinuity",
+                            message="The route could not be updated because the selected leg is no longer available. Please reload the route and try again."
+                        );
+                    }
+
+                    nextRowIndex = targetRowIndex + 1;
+                    if (nextRowIndex LTE qLockedLegs.recordCount) {
+                        targetStartWaypointId = (isNull(qLockedLegs.start_waypoint_id[targetRowIndex]) ? 0 : val(qLockedLegs.start_waypoint_id[targetRowIndex]));
+                        targetEndWaypointId = (isNull(qLockedLegs.end_waypoint_id[targetRowIndex]) ? 0 : val(qLockedLegs.end_waypoint_id[targetRowIndex]));
+                        nextStartWaypointId = (isNull(qLockedLegs.start_waypoint_id[nextRowIndex]) ? 0 : val(qLockedLegs.start_waypoint_id[nextRowIndex]));
+                        nextEndWaypointId = (isNull(qLockedLegs.end_waypoint_id[nextRowIndex]) ? 0 : val(qLockedLegs.end_waypoint_id[nextRowIndex]));
+                        nextRouteLegId = val(qLockedLegs.id[nextRowIndex]);
+
+                        if (
+                            !hasWaypointColumns
+                            OR targetStartWaypointId LTE 0
+                            OR targetEndWaypointId LTE 0
+                            OR nextStartWaypointId LTE 0
+                            OR nextEndWaypointId LTE 0
+                            OR targetEndWaypointId NEQ nextStartWaypointId
+                            OR targetStartWaypointId EQ nextEndWaypointId
+                        ) {
+                            throw(
+                                type="FPW.RouteContinuity",
+                                message="The route could not be saved because its legs are no longer connected. Please review the route and try again."
+                            );
+                        }
+
+                        queryExecute(
+                            "UPDATE user_route_legs
+                             SET start_waypoint_id = :startWaypointId,
+                                 segment_id = :segmentId,
+                                 updated_at = NOW()
+                             WHERE id = :routeLegId
+                               AND user_route_id = :routeId",
+                            {
+                                startWaypointId = { value=targetStartWaypointId, cfsqltype="cf_sql_integer" },
+                                segmentId = {
+                                    value=0,
+                                    cfsqltype="cf_sql_integer",
+                                    null=segmentAllowsNull
+                                },
+                                routeLegId = { value=nextRouteLegId, cfsqltype="cf_sql_integer" },
+                                routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn }
+                        );
+
+                        if (routegenHasLegOverrideTable()) {
+                            queryExecute(
+                                "DELETE FROM route_leg_user_overrides
+                                 WHERE user_id = :uid
+                                   AND route_id = :routeId
+                                   AND route_leg_id = :routeLegId",
+                                {
+                                    uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                                    routeLegId = { value=nextRouteLegId, cfsqltype="cf_sql_integer" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                        }
+                    }
+
+                    if (routegenHasLegOverrideTable()) {
+                        queryExecute(
+                            "DELETE FROM route_leg_user_overrides
+                             WHERE user_id = :uid
+                               AND route_id = :routeId
+                               AND route_leg_id = :routeLegId",
+                            {
+                                uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                                routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                                routeLegId = { value=routeLegIdVal, cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn }
+                        );
+                    }
+
+                    queryExecute(
+                        "DELETE FROM user_route_legs
+                         WHERE id = :routeLegId
+                           AND user_route_id = :routeId",
+                        {
+                            routeLegId = { value=routeLegIdVal, cfsqltype="cf_sql_integer" },
+                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
+                        },
+                        { datasource = application.dsn }
+                    );
+
+                    routegenReindexMyRouteLegs(arguments.userId, routeIdVal);
+                    routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                }
+            } catch (any routeContinuityErr) {
+                if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
+                    out.MESSAGE = routeContinuityErr.message;
+                    out.STATUS_CODE = 409;
+                    out.ERROR = {
+                        "CODE"="ROUTE_CONTINUITY_INVALID",
+                        "MESSAGE"=routeContinuityErr.message
+                    };
+                    return out;
+                }
+                rethrow;
             }
 
             getRes = getUserRoute(arguments.userId, routeIdVal);
@@ -2930,58 +3207,72 @@
                 seen[toString(legIdVal)] = true;
             }
 
-            transaction {
-                for (i = 1; i LTE arrayLen(arguments.routeLegIds); i++) {
-                    legIdVal = val(arguments.routeLegIds[i]);
-                    queryExecute(
-                        "UPDATE user_route_legs
-                         SET order_index = :orderIdx,
-                             updated_at = NOW()
-                         WHERE id = :routeLegId
-                           AND user_route_id = :routeId",
-                        {
-                            orderIdx = { value=(0 - i), cfsqltype="cf_sql_integer" },
-                            routeLegId = { value=legIdVal, cfsqltype="cf_sql_integer" },
-                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
-                        },
-                        { datasource = application.dsn }
-                    );
-                }
-
-                for (i = 1; i LTE arrayLen(arguments.routeLegIds); i++) {
-                    legIdVal = val(arguments.routeLegIds[i]);
-                    queryExecute(
-                        "UPDATE user_route_legs
-                         SET order_index = :orderIdx,
-                             updated_at = NOW()
-                         WHERE id = :routeLegId
-                           AND user_route_id = :routeId",
-                        {
-                            orderIdx = { value=i, cfsqltype="cf_sql_integer" },
-                            routeLegId = { value=legIdVal, cfsqltype="cf_sql_integer" },
-                            routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
-                        },
-                        { datasource = application.dsn }
-                    );
-
-                    if (routegenHasLegOverrideTable()) {
+            try {
+                transaction {
+                    for (i = 1; i LTE arrayLen(arguments.routeLegIds); i++) {
+                        legIdVal = val(arguments.routeLegIds[i]);
                         queryExecute(
-                            "UPDATE route_leg_user_overrides
-                             SET route_leg_order = :orderIdx,
+                            "UPDATE user_route_legs
+                             SET order_index = :orderIdx,
                                  updated_at = NOW()
-                             WHERE user_id = :uid
-                               AND route_id = :routeId
-                               AND route_leg_id = :routeLegId",
+                             WHERE id = :routeLegId
+                               AND user_route_id = :routeId",
                             {
-                                orderIdx = { value=i, cfsqltype="cf_sql_integer" },
-                                uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
-                                routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
-                                routeLegId = { value=legIdVal, cfsqltype="cf_sql_integer" }
+                                orderIdx = { value=(0 - i), cfsqltype="cf_sql_integer" },
+                                routeLegId = { value=legIdVal, cfsqltype="cf_sql_integer" },
+                                routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
                             },
                             { datasource = application.dsn }
                         );
                     }
+
+                    for (i = 1; i LTE arrayLen(arguments.routeLegIds); i++) {
+                        legIdVal = val(arguments.routeLegIds[i]);
+                        queryExecute(
+                            "UPDATE user_route_legs
+                             SET order_index = :orderIdx,
+                                 updated_at = NOW()
+                             WHERE id = :routeLegId
+                               AND user_route_id = :routeId",
+                            {
+                                orderIdx = { value=i, cfsqltype="cf_sql_integer" },
+                                routeLegId = { value=legIdVal, cfsqltype="cf_sql_integer" },
+                                routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" }
+                            },
+                            { datasource = application.dsn }
+                        );
+
+                        if (routegenHasLegOverrideTable()) {
+                            queryExecute(
+                                "UPDATE route_leg_user_overrides
+                                 SET route_leg_order = :orderIdx,
+                                     updated_at = NOW()
+                                 WHERE user_id = :uid
+                                   AND route_id = :routeId
+                                   AND route_leg_id = :routeLegId",
+                                {
+                                    orderIdx = { value=i, cfsqltype="cf_sql_integer" },
+                                    uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                                    routeId = { value=routeIdVal, cfsqltype="cf_sql_integer" },
+                                    routeLegId = { value=legIdVal, cfsqltype="cf_sql_integer" }
+                                },
+                                { datasource = application.dsn }
+                            );
+                        }
+                    }
+                    routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
                 }
+            } catch (any routeContinuityErr) {
+                if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
+                    out.MESSAGE = routeContinuityErr.message;
+                    out.STATUS_CODE = 409;
+                    out.ERROR = {
+                        "CODE"="ROUTE_CONTINUITY_INVALID",
+                        "MESSAGE"=routeContinuityErr.message
+                    };
+                    return out;
+                }
+                rethrow;
             }
 
             getRes = getUserRoute(arguments.userId, routeIdVal);
