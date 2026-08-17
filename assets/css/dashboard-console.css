@@ -7250,6 +7250,14 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-rou
   content: "\232B";
 }
 
+.fpw-route-icon-action--archive{
+  color: #ffc44d;
+}
+
+.fpw-route-icon-action--archive::before{
+  content: "\21E9";
+}
+
 body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-detail-pane{
   display: block;
   min-width: 0;

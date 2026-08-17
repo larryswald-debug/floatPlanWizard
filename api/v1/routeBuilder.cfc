@@ -468,6 +468,24 @@
                 <cfoutput>#serializeJSON(deleteRes)#</cfoutput>
                 <cfreturn>
 
+            <cfelseif act EQ "archiveroute">
+                <cfset var archiveCode = trim(arguments.routeCode) />
+                <cfif NOT len(archiveCode)>
+                    <cfset archiveCode = trim(pickArg(body, "routeCode", "routeCode", "")) />
+                </cfif>
+                <cfif NOT len(archiveCode)>
+                    <cfoutput>#serializeJSON({
+                        "SUCCESS"=false,
+                        "AUTH"=true,
+                        "MESSAGE"="routeCode required",
+                        "ERROR"={"CODE"="ROUTE_CODE_REQUIRED", "MESSAGE"="routeCode is required"}
+                    })#</cfoutput>
+                    <cfreturn>
+                </cfif>
+                <cfset var archiveRes = archiveRoute(userId, archiveCode) />
+                <cfoutput>#serializeJSON(archiveRes)#</cfoutput>
+                <cfreturn>
+
             <cfelseif act EQ "gettimeline">
                 <cfset var rcode = trim(arguments.routeCode) />
                 <cfif NOT len(rcode)>
@@ -938,6 +956,41 @@
                     lr.name,
                     lr.short_code,
                     lr.description,
+                    EXISTS (
+                        SELECT 1
+                        FROM floatplans fp
+                        INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                        WHERE fp.userId = :userId
+                          AND ri.user_id = :uid
+                          AND (
+                              ri.generated_route_id = lr.id
+                              OR ri.generated_route_code = lr.short_code
+                          )
+                          AND (
+                              EXISTS (
+                                  SELECT 1
+                                  FROM premium_send_credits psc
+                                  WHERE psc.consumed_float_plan_id = fp.floatplanId
+                              )
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM premium_send_receipts psr
+                                  WHERE psr.float_plan_id = fp.floatplanId
+                              )
+                          )
+                    ) AS has_premium_send_history,
+                    EXISTS (
+                        SELECT 1
+                        FROM floatplans fp
+                        INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                        WHERE fp.userId = :userId
+                          AND ri.user_id = :uid
+                          AND UPPER(TRIM(fp.`status`)) = 'ACTIVE'
+                          AND (
+                              ri.generated_route_id = lr.id
+                              OR ri.generated_route_code = lr.short_code
+                          )
+                    ) AS has_active_float_plan,
                     (
                         SELECT ri.id
                         FROM route_instances ri
@@ -956,10 +1009,12 @@
                     ) AS routegen_inputs_json
                  FROM loop_routes lr
                  WHERE lr.short_code LIKE :prefix
+                   AND lr.is_active = 1
                  ORDER BY lr.id DESC",
                 {
                     prefix = { value=routePrefix, cfsqltype="cf_sql_varchar" },
-                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" }
+                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" },
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" }
                 },
                 { datasource = application.dsn }
             );
@@ -970,6 +1025,12 @@
             var routeScopedGroup = {};
             var activeRouteSource = {};
             var savedRouteInputs = {};
+            var hasPremiumSendHistory = false;
+            var hasActiveFloatPlan = false;
+            var canDelete = false;
+            var canArchive = false;
+            var deleteBlockCode = "";
+            var deleteBlockMessage = "";
 
             floatPlanService = getFloatPlanService();
             if (!isObject(floatPlanService)) {
@@ -1078,6 +1139,19 @@
                         currentRouteGroup = duplicate(out.CURRENT_GROUP);
                     }
                 }
+                hasPremiumSendHistory = val(qRoutes.has_premium_send_history[i]) GT 0;
+                hasActiveFloatPlan = val(qRoutes.has_active_float_plan[i]) GT 0;
+                canDelete = !hasPremiumSendHistory AND !hasActiveFloatPlan;
+                canArchive = hasPremiumSendHistory AND !hasActiveFloatPlan;
+                deleteBlockCode = "";
+                deleteBlockMessage = "";
+                if (hasActiveFloatPlan) {
+                    deleteBlockCode = "ACTIVE_ROUTE_DELETE_BLOCKED";
+                    deleteBlockMessage = "End the active route/float-plan group through Close or Cancel before deleting this route.";
+                } else if (hasPremiumSendHistory) {
+                    deleteBlockCode = "PREMIUM_SEND_HISTORY_DELETE_BLOCKED";
+                    deleteBlockMessage = "Archive this route to preserve its completed Premium Send history.";
+                }
                 arrayAppend(out.ROUTES, {
                     "ID"=qRoutes.id[i],
                     "NAME"=(isNull(qRoutes.name[i]) ? "" : qRoutes.name[i]),
@@ -1087,7 +1161,13 @@
                     "TOTALS"=timeline.TOTALS,
                     "ROUTE_ENDPOINTS"=(structKeyExists(timeline, "ROUTE_ENDPOINTS") AND isStruct(timeline.ROUTE_ENDPOINTS) ? timeline.ROUTE_ENDPOINTS : {"START_LABEL"="", "END_LABEL"=""}),
                     "HAS_CURRENT_GROUP"=(structCount(currentRouteGroup) GT 0),
-                    "CURRENT_GROUP"=currentRouteGroup
+                    "CURRENT_GROUP"=currentRouteGroup,
+                    "HAS_PREMIUM_SEND_HISTORY"=hasPremiumSendHistory,
+                    "HAS_ACTIVE_FLOAT_PLAN"=hasActiveFloatPlan,
+                    "CAN_DELETE"=canDelete,
+                    "CAN_ARCHIVE"=canArchive,
+                    "DELETE_BLOCK_CODE"=deleteBlockCode,
+                    "DELETE_BLOCK_MESSAGE"=deleteBlockMessage
                 });
             }
             out.ACTIVE_TRIP = resolveCanonicalDashboardActiveTrip(arguments.userId);
@@ -1210,6 +1290,11 @@
                     ? val(arguments.activeRouteSource.SOURCE_USER_ROUTE_ID)
                     : 0
             );
+            var hasExactSourceIdentity = (
+                sourceRouteInstanceId GT 0
+                OR sourceGeneratedRouteId GT 0
+                OR len(sourceRouteCode)
+            );
             var savedRouteUserRouteId = (
                 structKeyExists(arguments.routeInputs, "route_id")
                     ? val(arguments.routeInputs.route_id)
@@ -1219,14 +1304,17 @@
             if (!structKeyExists(arguments.activeRouteSource, "HAS_SOURCE") OR !arguments.activeRouteSource.HAS_SOURCE) {
                 return false;
             }
-            if (sourceRouteInstanceId GT 0 AND arguments.routeInstanceId GT 0 AND sourceRouteInstanceId EQ arguments.routeInstanceId) {
-                return true;
-            }
-            if (sourceGeneratedRouteId GT 0 AND arguments.loopRouteId GT 0 AND sourceGeneratedRouteId EQ arguments.loopRouteId) {
-                return true;
-            }
-            if (len(sourceRouteCode) AND len(trim(arguments.routeShortCode)) AND compareNoCase(sourceRouteCode, trim(arguments.routeShortCode)) EQ 0) {
-                return true;
+            if (hasExactSourceIdentity) {
+                if (sourceRouteInstanceId GT 0 AND arguments.routeInstanceId GT 0 AND sourceRouteInstanceId EQ arguments.routeInstanceId) {
+                    return true;
+                }
+                if (sourceGeneratedRouteId GT 0 AND arguments.loopRouteId GT 0 AND sourceGeneratedRouteId EQ arguments.loopRouteId) {
+                    return true;
+                }
+                if (len(sourceRouteCode) AND len(trim(arguments.routeShortCode)) AND compareNoCase(sourceRouteCode, trim(arguments.routeShortCode)) EQ 0) {
+                    return true;
+                }
+                return false;
             }
             if (sourceUserRouteId GT 0 AND savedRouteUserRouteId GT 0 AND sourceUserRouteId EQ savedRouteUserRouteId) {
                 return true;
@@ -3781,6 +3869,124 @@
                 { datasource = application.dsn }
             );
             return q.recordCount GT 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="archiveRoute" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeCode" type="string" required="true">
+        <cfscript>
+            var code = trim(arguments.routeCode);
+            var routePrefix = "USER_ROUTE_" & int(arguments.userId) & "_%";
+            var userIdText = toString(arguments.userId);
+            var qRoute = queryExecute(
+                "SELECT
+                    lr.id,
+                    EXISTS (
+                        SELECT 1
+                        FROM floatplans fp
+                        INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                        WHERE fp.userId = :userId
+                          AND ri.user_id = :uid
+                          AND UPPER(TRIM(fp.`status`)) = 'ACTIVE'
+                          AND (
+                              ri.generated_route_id = lr.id
+                              OR ri.generated_route_code = lr.short_code
+                          )
+                    ) AS has_active_float_plan,
+                    EXISTS (
+                        SELECT 1
+                        FROM floatplans fp
+                        INNER JOIN route_instances ri ON ri.id = fp.route_instance_id
+                        WHERE fp.userId = :userId
+                          AND ri.user_id = :uid
+                          AND (
+                              ri.generated_route_id = lr.id
+                              OR ri.generated_route_code = lr.short_code
+                          )
+                          AND (
+                              EXISTS (
+                                  SELECT 1
+                                  FROM premium_send_credits psc
+                                  WHERE psc.consumed_float_plan_id = fp.floatplanId
+                              )
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM premium_send_receipts psr
+                                  WHERE psr.float_plan_id = fp.floatplanId
+                              )
+                          )
+                    ) AS has_premium_send_history
+                 FROM loop_routes lr
+                 WHERE lr.short_code = :code
+                   AND lr.short_code LIKE :prefix
+                   AND lr.is_active = 1
+                 LIMIT 1",
+                {
+                    code = { value=code, cfsqltype="cf_sql_varchar" },
+                    prefix = { value=routePrefix, cfsqltype="cf_sql_varchar" },
+                    userId = { value=arguments.userId, cfsqltype="cf_sql_integer" },
+                    uid = { value=userIdText, cfsqltype="cf_sql_varchar" }
+                },
+                { datasource = application.dsn }
+            );
+
+            if (qRoute.recordCount EQ 0) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Route not found",
+                    "ERROR"={
+                        "CODE"="ROUTE_NOT_FOUND",
+                        "MESSAGE"="Route is not available for this user or has already been archived."
+                    }
+                };
+            }
+
+            if (val(qRoute.has_active_float_plan[1]) GT 0) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="Route is attached to an active float plan.",
+                    "ERROR"={
+                        "CODE"="ACTIVE_ROUTE_ARCHIVE_BLOCKED",
+                        "MESSAGE"="End the active route/float-plan group through Close or Cancel before archiving this route."
+                    },
+                    "ROUTE_CODE"=code
+                };
+            }
+
+            if (val(qRoute.has_premium_send_history[1]) EQ 0) {
+                return {
+                    "SUCCESS"=false,
+                    "AUTH"=true,
+                    "MESSAGE"="This route does not require archiving.",
+                    "ERROR"={
+                        "CODE"="ROUTE_ARCHIVE_NOT_REQUIRED",
+                        "MESSAGE"="This route has no retained Premium Send history and can be deleted instead."
+                    },
+                    "ROUTE_CODE"=code
+                };
+            }
+
+            queryExecute(
+                "UPDATE loop_routes
+                 SET is_active = 0
+                 WHERE id = :routeId
+                   AND is_active = 1",
+                {
+                    routeId = { value=val(qRoute.id[1]), cfsqltype="cf_sql_integer" }
+                },
+                { datasource = application.dsn }
+            );
+
+            return {
+                "SUCCESS"=true,
+                "AUTH"=true,
+                "MESSAGE"="Route archived",
+                "ROUTE_CODE"=code,
+                "ROUTE_ID"=val(qRoute.id[1])
+            };
         </cfscript>
     </cffunction>
 
@@ -13215,7 +13421,7 @@
         <cfscript>
             var actionValue = lCase(trim(arguments.actionName));
             var routeType = "";
-            var gatedActions = "listuserroutes,createuserroute,deleteuserroute,getuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,previewuserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,getroutelegoverridegeometry,saveroutelegoverridegeometry,clearroutelegoverridegeometry,routegen_geteditcontext,routegen_generate,routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride,routegen_listlegoverrides,buildfloatplansfromroute,setactiveroute,deleteroute,gettimeline";
+            var gatedActions = "listuserroutes,createuserroute,deleteuserroute,getuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,previewuserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,getroutelegoverridegeometry,saveroutelegoverridegeometry,clearroutelegoverridegeometry,routegen_geteditcontext,routegen_generate,routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride,routegen_listlegoverrides,buildfloatplansfromroute,setactiveroute,deleteroute,archiveroute,gettimeline";
 
             if (listFindNoCase(gatedActions, actionValue) GT 0) {
                 return true;

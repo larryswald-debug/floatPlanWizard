@@ -225,6 +225,33 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("currentGroup.HAS_CURRENT_GROUP AND structCount(activeRouteSource) GT 0", routeBuilderSource)).toBeGT(0);
       });
 
+      it("keeps exact operational source identity authoritative over the broad My Route fallback", function() {
+        var routeBuilderSource = readRepoFile("api/v1/routeBuilder.cfc");
+        var matcherStart = findNoCase('<cffunction name="isSavedRouteSourceForActiveOperationalRoute"', routeBuilderSource);
+        var matcherEnd = findNoCase('<cffunction name="resolveCanonicalDashboardActiveTrip"', routeBuilderSource, matcherStart);
+        var matcherSource = "";
+        var exactIdentityAt = 0;
+        var exactGuardAt = 0;
+        var broadFallbackAt = 0;
+        var exactGuardSource = "";
+
+        expect(matcherStart).toBeGT(0);
+        expect(matcherEnd).toBeGT(matcherStart);
+        matcherSource = mid(routeBuilderSource, matcherStart, matcherEnd - matcherStart);
+        exactIdentityAt = findNoCase("var hasExactSourceIdentity = (", matcherSource);
+        exactGuardAt = findNoCase("if (hasExactSourceIdentity) {", matcherSource);
+        broadFallbackAt = findNoCase("if (sourceUserRouteId GT 0 AND savedRouteUserRouteId GT 0", matcherSource);
+
+        expect(exactIdentityAt).toBeGT(0);
+        expect(exactGuardAt).toBeGT(exactIdentityAt);
+        expect(broadFallbackAt).toBeGT(exactGuardAt);
+        exactGuardSource = mid(matcherSource, exactGuardAt, broadFallbackAt - exactGuardAt);
+        expect(findNoCase("return false;", exactGuardSource)).toBeGT(0);
+        expect(findNoCase("sourceRouteInstanceId EQ arguments.routeInstanceId", exactGuardSource)).toBeGT(0);
+        expect(findNoCase("sourceGeneratedRouteId EQ arguments.loopRouteId", exactGuardSource)).toBeGT(0);
+        expect(findNoCase("compareNoCase(sourceRouteCode, trim(arguments.routeShortCode)) EQ 0", exactGuardSource)).toBeGT(0);
+      });
+
     });
   }
 

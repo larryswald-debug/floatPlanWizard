@@ -4946,7 +4946,25 @@
       };
     }
 
-    function buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup) {
+    function routeActionFlag(value) {
+      return value === true || value === 1 || value === "1" || String(value).trim().toLowerCase() === "true";
+    }
+
+    function getRouteActionPolicy(route, currentState) {
+      var hasCanDelete = !!route && Object.prototype.hasOwnProperty.call(route, "CAN_DELETE");
+      var canArchive = !!route && routeActionFlag(route.CAN_ARCHIVE);
+      var canDelete = hasCanDelete
+        ? routeActionFlag(route.CAN_DELETE)
+        : String(currentState || "").trim().toUpperCase() !== "ACTIVE" && !canArchive;
+      return {
+        canDelete: canDelete,
+        canArchive: canArchive,
+        deleteBlockCode: route && route.DELETE_BLOCK_CODE ? String(route.DELETE_BLOCK_CODE) : "",
+        deleteBlockMessage: route && route.DELETE_BLOCK_MESSAGE ? String(route.DELETE_BLOCK_MESSAGE) : ""
+      };
+    }
+
+    function buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup, actionPolicy) {
       var routeCode = route && route.SHORT_CODE ? String(route.SHORT_CODE) : "";
       var html = ' data-route-code="' + escapeHtml(routeCode) + '"';
       if (Number.isFinite(routeInstanceId) && routeInstanceId > 0) {
@@ -4957,6 +4975,16 @@
       }
       if (currentRouteGroup) {
         html += ' data-current-floatplan-id="' + currentRouteGroup.floatPlanId + '"';
+      }
+      if (actionPolicy) {
+        html += ' data-can-delete="' + (actionPolicy.canDelete ? "1" : "0") + '"';
+        html += ' data-can-archive="' + (actionPolicy.canArchive ? "1" : "0") + '"';
+        if (actionPolicy.deleteBlockCode) {
+          html += ' data-delete-block-code="' + escapeHtml(actionPolicy.deleteBlockCode) + '"';
+        }
+        if (actionPolicy.deleteBlockMessage) {
+          html += ' data-delete-block-message="' + escapeHtml(actionPolicy.deleteBlockMessage) + '"';
+        }
       }
       return html;
     }
@@ -4972,7 +5000,27 @@
       return !!currentGroup && (currentGroup.isDraft === true || normalizedState === "DRAFT" || normalizedStatus === "DRAFT");
     }
 
-    function buildRouteTableActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+    function buildRouteTableDispositionAction(actionPolicy) {
+      if (actionPolicy && actionPolicy.canArchive) {
+        return '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--archive js-expedition-archive" aria-label="Archive" title="Archive"></button>';
+      }
+      if (actionPolicy && actionPolicy.canDelete) {
+        return '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+      }
+      return "";
+    }
+
+    function buildRouteDetailDispositionAction(actionPolicy) {
+      if (actionPolicy && actionPolicy.canArchive) {
+        return '<button type="button" class="fpw-route-workspace-btn js-expedition-archive">Archive</button>';
+      }
+      if (actionPolicy && actionPolicy.canDelete) {
+        return '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+      }
+      return "";
+    }
+
+    function buildRouteTableActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction, actionPolicy) {
       var html = buildActionContextOpen(currentGroup, "fpw-route-table-actions");
       var isDraftGroup = isDraftRouteGroup(currentGroup, currentState);
       if (!currentGroup) html += '<div class="fpw-route-table-actions">';
@@ -4986,17 +5034,17 @@
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-plan js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Edit Float Plan" title="Edit Float Plan"></button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+        html += buildRouteTableDispositionAction(actionPolicy);
       } else {
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+        html += buildRouteTableDispositionAction(actionPolicy);
       }
       html += '</div>';
       return html;
     }
 
-    function buildRouteDetailActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction) {
+    function buildRouteDetailActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction, actionPolicy) {
       var html = buildActionContextOpen(currentGroup, "fpw-route-detail-actions");
       var isDraftGroup = isDraftRouteGroup(currentGroup, currentState);
       if (!currentGroup) html += '<div class="fpw-route-detail-actions">';
@@ -5010,11 +5058,11 @@
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '">Edit Float Plan</button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
-        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+        html += buildRouteDetailDispositionAction(actionPolicy);
       } else {
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
-        html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-delete">Delete</button>';
+        html += buildRouteDetailDispositionAction(actionPolicy);
       }
       html += '</div>';
       return html;
@@ -5069,7 +5117,7 @@
         + '  <div class="fpw-route-cell">' + escapeHtml(summary.distance) + '</div>'
         + '  <div class="fpw-route-cell fpw-route-cell--duration">' + escapeHtml(summary.estimatedHours) + '</div>'
         + '  <div class="fpw-route-cell">' + buildRouteStatusText(routeMeta.currentState, routeMeta.isRouteForActiveTrip) + '</div>'
-        + '  <div class="fpw-route-cell fpw-route-cell--actions">' + buildRouteTableActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction) + '</div>'
+        + '  <div class="fpw-route-cell fpw-route-cell--actions">' + buildRouteTableActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction, routeMeta.actionPolicy) + '</div>'
         + '</div>';
     }
 
@@ -5094,7 +5142,7 @@
         + '  </dl>'
         +      buildRouteDetailPreview(route, totals)
         + '  <div class="fpw-route-detail-action-title">Route Actions</div>'
-        +      buildRouteDetailActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction)
+        +      buildRouteDetailActions(routeMeta.currentRouteGroup, routeMeta.currentState, routeMeta.showActiveCruiseAction, routeMeta.showTripPageAction, routeMeta.showActivateRouteAction, routeMeta.actionPolicy)
         + '</aside>';
     }
 
@@ -5134,6 +5182,7 @@
           ? parseInt(route.route_instance_id, 10)
           : 0);
       if (!Number.isFinite(routeInstanceId)) routeInstanceId = 0;
+      var actionPolicy = getRouteActionPolicy(route, currentState);
       return {
         totals: totals,
         isRouteForActiveTrip: !!isRouteForActiveTrip,
@@ -5142,7 +5191,8 @@
         showActivateRouteAction: showActivateRouteAction,
         showActiveCruiseAction: showActiveCruiseAction,
         showTripPageAction: showTripPageAction,
-        dataAttrs: buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup),
+        actionPolicy: actionPolicy,
+        dataAttrs: buildRouteDataAttributes(route, routeInstanceId, currentState, currentRouteGroup, actionPolicy),
         routeInstanceId: routeInstanceId,
         isSelected: false
       };
@@ -5256,17 +5306,56 @@
       return true;
     }
 
+    function showRouteActionError(message) {
+      var text = message || "Unable to update route.";
+      if (utils && typeof utils.showAlertModal === "function") {
+        utils.showAlertModal(text);
+      } else {
+        window.alert(text);
+      }
+    }
+
+    function routeActionError(payload, fallbackMessage) {
+      if (payload && payload.ERROR && payload.ERROR.MESSAGE) {
+        return String(payload.ERROR.MESSAGE);
+      }
+      if (payload && payload.MESSAGE) {
+        return String(payload.MESSAGE);
+      }
+      return fallbackMessage;
+    }
+
+    function archiveRoute(routeCode) {
+      if (!routeCode) return Promise.resolve();
+      return fetchJson(routeBuilderUrl("archiveRoute"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8"
+        },
+        body: JSON.stringify({ routeCode: routeCode })
+      })
+        .then(function (payload) {
+          if (!payload || payload.SUCCESS === false) {
+            throw new Error(routeActionError(payload, "Unable to archive route."));
+          }
+          return load();
+        })
+        .catch(function (err) {
+          showRouteActionError((err && err.message) ? err.message : "Unable to archive route.");
+        });
+    }
+
     function deleteRoute(routeCode) {
       if (!routeCode) return Promise.resolve();
       return fetchJson(routeBuilderUrl("deleteRoute", { routeCode: routeCode }))
         .then(function (payload) {
           if (!payload || payload.SUCCESS === false) {
-            throw new Error((payload && payload.MESSAGE) ? payload.MESSAGE : "Unable to delete route.");
+            throw new Error(routeActionError(payload, "Unable to delete route."));
           }
           return load();
         })
         .catch(function (err) {
-          setState("error", (err && err.message) ? err.message : "Unable to delete route.");
+          showRouteActionError((err && err.message) ? err.message : "Unable to delete route.");
         });
     }
 
@@ -5943,6 +6032,9 @@
           var currentFloatPlanId = card ? normalizePlanId(card.getAttribute("data-current-floatplan-id")) : 0;
           var currentGroupPlanId = currentGroupRow ? normalizePlanId(currentGroupRow.getAttribute("data-plan-id")) : 0;
           var deleteMessage = "Delete this route?";
+          var deleteBlockMessage = card ? String(card.getAttribute("data-delete-block-message") || "").trim() : "";
+          var canDeleteRoute = card ? card.getAttribute("data-can-delete") === "1" : false;
+          var canArchiveRoute = card ? card.getAttribute("data-can-archive") === "1" : false;
           if (!card) return;
           var routeCode = card.getAttribute("data-route-code");
           var routeInstanceId = parseInt(card.getAttribute("data-route-instance-id") || "0", 10);
@@ -6017,10 +6109,35 @@
             }
             return;
           }
+          if (target.classList.contains("js-expedition-archive")) {
+            if (!canArchiveRoute) {
+              showRouteActionError(deleteBlockMessage || "This route cannot be archived.");
+              return;
+            }
+            var confirmArchive = function () {
+              archiveRoute(routeCode);
+            };
+            var archiveMessage = "Archive this route? It will be removed from your Routes list while its completed Premium Send history is retained.";
+            if (utils && typeof utils.showConfirmModal === "function") {
+              utils.showConfirmModal(archiveMessage)
+                .then(function (confirmed) {
+                  if (!confirmed) return;
+                  confirmArchive();
+                });
+            } else {
+              if (!window.confirm(archiveMessage)) return;
+              confirmArchive();
+            }
+            return;
+          }
           if (target.classList.contains("js-expedition-delete")) {
             var confirmDelete = function () {
               deleteRoute(routeCode);
             };
+            if (!canDeleteRoute) {
+              showRouteActionError(deleteBlockMessage || "This route cannot be deleted.");
+              return;
+            }
             if (currentGroupState === "ACTIVE" && currentFloatPlanId > 0) {
               if (utils && typeof utils.showAlertModal === "function") {
                 utils.showAlertModal("This route has the current active route/float-plan group. Use Check-In or Cancel before deleting the route.");
@@ -6032,7 +6149,7 @@
             if (currentGroupState === "DRAFT" && currentFloatPlanId > 0) {
               deleteMessage = "Delete this draft route/float-plan group? This deletes both the route and its draft float plan.";
             } else {
-              deleteMessage = "Delete this route? Any attached float plan history for this route will also be deleted.";
+              deleteMessage = "Delete this route and any attached non-Premium float-plan data? This cannot be undone.";
             }
             if (utils && typeof utils.showConfirmModal === "function") {
               utils.showConfirmModal(deleteMessage)

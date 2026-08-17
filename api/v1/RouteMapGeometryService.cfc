@@ -38,7 +38,11 @@
         "snapshot_status"="not_checked",
         "operational_snapshot_used"=false,
         "legacy_geometry_fallback"=false,
-        "legacy_endpoint_fallback_used"=false
+        "legacy_endpoint_fallback_used"=false,
+        "geometry_sources"=[],
+        "unresolved_leg_orders"=[],
+        "resolved_leg_count"=0,
+        "unresolved_leg_count"=0
       };
       var routeInstanceIdVal = val(arguments.routeInstanceId);
       var ownerUserIdVal = val(arguments.ownerUserId);
@@ -54,6 +58,7 @@
       var pointList = [];
       var routeSegments = [];
       var segmentCoords = [];
+      var segmentGeometry = {};
       var startLat = 0.0;
       var startLng = 0.0;
       var endLat = 0.0;
@@ -142,6 +147,10 @@
           useOperationalSnapshot = true;
           out.route_geo = snapshotState.route_geo;
           out.pins = snapshotState.pins;
+          out.geometry_sources = snapshotState.geometry_sources;
+          out.unresolved_leg_orders = snapshotState.unresolved_leg_orders;
+          out.resolved_leg_count = snapshotState.resolved_leg_count;
+          out.unresolved_leg_count = snapshotState.unresolved_leg_count;
           out.geometry_authority = "route_instance_geometry_snapshot";
           out.operational_snapshot_used = true;
           out.legacy_geometry_fallback = false;
@@ -214,7 +223,7 @@
 
         if (!useOperationalSnapshot) {
           segmentIdVal = (isNull(qLegs.segment_id[i]) ? 0 : val(qLegs.segment_id[i]));
-          segmentCoords = resolveRouteInstanceLegCoordinates(
+          segmentGeometry = resolveRouteInstanceLegGeometry(
             ownerUserId=ownerUserIdVal,
             generatedRouteId=generatedRouteId,
             originalCustomRouteId=originalCustomRouteId,
@@ -223,6 +232,7 @@
             routeLegOrder=legOrderVal,
             segmentId=segmentIdVal
           );
+          segmentCoords = segmentGeometry.coordinates;
 
           if (hasOperationalPlan AND arrayLen(segmentCoords) GTE 2) {
             segmentStart = segmentCoords[1];
@@ -267,6 +277,14 @@
 
           if (arrayLen(segmentCoords) GTE 2) {
             arrayAppend(routeSegments, segmentCoords);
+            arrayAppend(out.geometry_sources, {
+              "leg_order"=legOrderVal,
+              "source"=segmentGeometry.source
+            });
+            out.resolved_leg_count++;
+          } else {
+            arrayAppend(out.unresolved_leg_orders, legOrderVal);
+            out.unresolved_leg_count++;
           }
 
           if (hasStartCoord) {
@@ -572,7 +590,10 @@
         "ROUTE_INSTANCE_ID"=val(arguments.routeInstanceId),
         "SNAPSHOT_VERSION"=1,
         "LEG_COUNT"=0,
-        "MARKER_COUNT"=0
+        "MARKER_COUNT"=0,
+        "RESOLVED_LEG_COUNT"=0,
+        "UNRESOLVED_LEG_COUNT"=0,
+        "UNRESOLVED_LEG_ORDERS"=[]
       };
       var qRouteLock = queryNew("");
       var existing = {};
@@ -611,6 +632,9 @@
           result.REUSED = true;
           result.LEG_COUNT = existing.leg_count;
           result.MARKER_COUNT = arrayLen(existing.pins);
+          result.RESOLVED_LEG_COUNT = existing.resolved_leg_count;
+          result.UNRESOLVED_LEG_COUNT = existing.unresolved_leg_count;
+          result.UNRESOLVED_LEG_ORDERS = existing.unresolved_leg_orders;
           return result;
         }
         if (existing.status NEQ "missing") {
@@ -648,6 +672,9 @@
         result.CREATED = true;
         result.LEG_COUNT = payloadResult.LEG_COUNT;
         result.MARKER_COUNT = payloadResult.MARKER_COUNT;
+        result.RESOLVED_LEG_COUNT = payloadResult.RESOLVED_LEG_COUNT;
+        result.UNRESOLVED_LEG_COUNT = payloadResult.UNRESOLVED_LEG_COUNT;
+        result.UNRESOLVED_LEG_ORDERS = payloadResult.UNRESOLVED_LEG_ORDERS;
         return result;
       } catch (any snapshotCreateErr) {
         existing = loadOperationalGeometrySnapshot(arguments.routeInstanceId);
@@ -656,6 +683,9 @@
           result.REUSED = true;
           result.LEG_COUNT = existing.leg_count;
           result.MARKER_COUNT = arrayLen(existing.pins);
+          result.RESOLVED_LEG_COUNT = existing.resolved_leg_count;
+          result.UNRESOLVED_LEG_COUNT = existing.unresolved_leg_count;
+          result.UNRESOLVED_LEG_ORDERS = existing.unresolved_leg_orders;
           return result;
         }
         result.ERROR = "OPERATIONAL_GEOMETRY_SNAPSHOT_CREATE_FAILED";
@@ -673,7 +703,10 @@
         "SUCCESS"=false,
         "ROUTE_INSTANCE_ID"=val(arguments.routeInstanceId),
         "LEG_COUNT"=0,
-        "MARKER_COUNT"=0
+        "MARKER_COUNT"=0,
+        "RESOLVED_LEG_COUNT"=0,
+        "UNRESOLVED_LEG_COUNT"=0,
+        "UNRESOLVED_LEG_ORDERS"=[]
       };
       var qRoute = queryNew("");
       var qLegs = queryNew("");
@@ -684,7 +717,10 @@
       var segments = [];
       var markers = [];
       var coords = [];
+      var geometry = {};
       var anchoredCoords = [];
+      var geometrySources = [];
+      var unresolvedLegOrders = [];
       var segmentStart = [];
       var segmentEnd = [];
       var startLatRaw = "";
@@ -770,7 +806,7 @@
         hasStart = (len(startLatRaw) AND len(startLngRaw) AND isNumeric(startLatRaw) AND isNumeric(startLngRaw));
         hasEnd = (len(endLatRaw) AND len(endLngRaw) AND isNumeric(endLatRaw) AND isNumeric(endLngRaw));
 
-        coords = resolveRouteInstanceLegCoordinates(
+        geometry = resolveRouteInstanceLegGeometry(
           ownerUserId=arguments.ownerUserId,
           generatedRouteId=generatedRouteId,
           originalCustomRouteId=originalCustomRouteId,
@@ -779,6 +815,7 @@
           routeLegOrder=legOrder,
           segmentId=segmentId
         );
+        coords = geometry.coordinates;
         if (arrayLen(coords) GTE 2) {
           segmentStart = coords[1];
           segmentEnd = coords[arrayLen(coords)];
@@ -813,34 +850,43 @@
           return result;
         }
 
-        anchoredCoords = anchorSegmentCoordinates(
-          coordinates=coords,
-          startLat=startLat,
-          startLng=startLng,
-          endLat=endLat,
-          endLng=endLng
-        );
-        if (arrayLen(anchoredCoords) LT 2) {
-          result.ERROR = "OPERATIONAL_GEOMETRY_SEGMENT_REQUIRED";
-          result.MESSAGE = "Every operational leg requires displayable line geometry.";
-          return result;
-        }
-
-        arrayAppend(segments, {
-          "route_instance_leg_id"=routeInstanceLegId,
-          "leg_order"=legOrder,
-          "coordinates"=anchoredCoords,
-          "start_endpoint"={
-            "lat"=startLat,
-            "lng"=startLng,
-            "label"=(len(startLabel) ? startLabel : "Start")
-          },
-          "end_endpoint"={
-            "lat"=endLat,
-            "lng"=endLng,
-            "label"=(len(endLabel) ? endLabel : "End")
+        if (arrayLen(coords) GTE 2) {
+          anchoredCoords = anchorSegmentCoordinates(
+            coordinates=coords,
+            startLat=startLat,
+            startLng=startLng,
+            endLat=endLat,
+            endLng=endLng
+          );
+          if (arrayLen(anchoredCoords) LT 2) {
+            result.ERROR = "OPERATIONAL_GEOMETRY_SEGMENT_INVALID";
+            result.MESSAGE = "Resolved operational leg geometry could not be normalized for display.";
+            return result;
           }
-        });
+
+          arrayAppend(segments, {
+            "route_instance_leg_id"=routeInstanceLegId,
+            "leg_order"=legOrder,
+            "geometry_source"=geometry.source,
+            "coordinates"=anchoredCoords,
+            "start_endpoint"={
+              "lat"=startLat,
+              "lng"=startLng,
+              "label"=(len(startLabel) ? startLabel : "Start")
+            },
+            "end_endpoint"={
+              "lat"=endLat,
+              "lng"=endLng,
+              "label"=(len(endLabel) ? endLabel : "End")
+            }
+          });
+          arrayAppend(geometrySources, {
+            "leg_order"=legOrder,
+            "source"=geometry.source
+          });
+        } else {
+          arrayAppend(unresolvedLegOrders, legOrder);
+        }
 
         if (arrayLen(markers) EQ 0) {
           arrayAppend(markers, {
@@ -890,8 +936,11 @@
       }
 
       result.SUCCESS = true;
-      result.LEG_COUNT = arrayLen(segments);
+      result.LEG_COUNT = qLegs.recordCount;
       result.MARKER_COUNT = arrayLen(markers);
+      result.RESOLVED_LEG_COUNT = arrayLen(segments);
+      result.UNRESOLVED_LEG_COUNT = arrayLen(unresolvedLegOrders);
+      result.UNRESOLVED_LEG_ORDERS = unresolvedLegOrders;
       result.SNAPSHOT = {
         "schema_version"=1,
         "route_instance_id"=val(arguments.routeInstanceId),
@@ -901,9 +950,14 @@
           "route_leg_user_overrides_exact_leg",
           "route_leg_user_overrides_custom_route_order",
           "route_leg_user_overrides_segment",
-          "segment_geometries",
-          "route_instance_leg_endpoints"
+          "segment_geometries"
         ],
+        "unresolved_geometry_policy"="markers_only_no_invented_line",
+        "total_leg_count"=qLegs.recordCount,
+        "resolved_leg_count"=arrayLen(segments),
+        "unresolved_leg_count"=arrayLen(unresolvedLegOrders),
+        "unresolved_leg_orders"=unresolvedLegOrders,
+        "geometry_sources"=geometrySources,
         "segments"=segments,
         "markers"=markers
       };
@@ -920,6 +974,10 @@
         "route_geo"={ "type"="MultiLineString", "coordinates"=[] },
         "pins"=[],
         "leg_count"=0,
+        "geometry_sources"=[],
+        "unresolved_leg_orders"=[],
+        "resolved_leg_count"=0,
+        "unresolved_leg_count"=0,
         "created_at_utc"=""
       };
       var qSnapshot = queryNew("");
@@ -932,10 +990,16 @@
       var marker = {};
       var routeSegments = [];
       var pins = [];
+      var geometrySources = [];
+      var unresolvedLegOrders = [];
+      var resolvedLegOrders = {};
       var legOrder = 0;
       var priorLegOrder = 0;
+      var priorUnresolvedLegOrder = 0;
       var sequence = 0;
       var markerType = "";
+      var geometrySource = "";
+      var hasSourceAwarePolicy = false;
       var i = 0;
 
       try {
@@ -979,7 +1043,6 @@
         OR val(parsed.route_instance_id) NEQ val(arguments.routeInstanceId)
         OR !structKeyExists(parsed, "segments")
         OR !isArray(parsed.segments)
-        OR !arrayLen(parsed.segments)
         OR !structKeyExists(parsed, "markers")
         OR !isArray(parsed.markers)
         OR arrayLen(parsed.markers) LT 2
@@ -989,6 +1052,10 @@
       }
 
       segments = parsed.segments;
+      hasSourceAwarePolicy = (
+        structKeyExists(parsed, "unresolved_geometry_policy")
+        AND trim(toString(parsed.unresolved_geometry_policy)) EQ "markers_only_no_invented_line"
+      );
       for (i = 1; i LTE arrayLen(segments); i++) {
         segment = segments[i];
         if (
@@ -1009,12 +1076,60 @@
           return state;
         }
         priorLegOrder = legOrder;
+        resolvedLegOrders[toString(legOrder)] = true;
+        geometrySource = (
+          structKeyExists(segment, "geometry_source")
+            ? trim(toString(segment.geometry_source))
+            : "legacy_snapshot_segment"
+        );
+        if (hasSourceAwarePolicy AND !len(geometrySource)) {
+          state.status = "malformed";
+          return state;
+        }
         coordinates = parseGeometryCoordinates(serializeJSON(segment.coordinates));
         if (arrayLen(coordinates) LT 2) {
           state.status = "malformed";
           return state;
         }
         arrayAppend(routeSegments, coordinates);
+        arrayAppend(geometrySources, {
+          "leg_order"=legOrder,
+          "source"=geometrySource
+        });
+      }
+
+      if (hasSourceAwarePolicy) {
+        if (
+          !structKeyExists(parsed, "unresolved_leg_orders")
+          OR !isArray(parsed.unresolved_leg_orders)
+        ) {
+          state.status = "malformed";
+          return state;
+        }
+        for (i = 1; i LTE arrayLen(parsed.unresolved_leg_orders); i++) {
+          if (!isNumeric(parsed.unresolved_leg_orders[i])) {
+            state.status = "malformed";
+            return state;
+          }
+          legOrder = val(parsed.unresolved_leg_orders[i]);
+          if (
+            legOrder LTE priorUnresolvedLegOrder
+            OR structKeyExists(resolvedLegOrders, toString(legOrder))
+          ) {
+            state.status = "malformed";
+            return state;
+          }
+          arrayAppend(unresolvedLegOrders, legOrder);
+          priorUnresolvedLegOrder = legOrder;
+        }
+        if (
+          !structKeyExists(parsed, "total_leg_count")
+          OR !isNumeric(parsed.total_leg_count)
+          OR val(parsed.total_leg_count) NEQ arrayLen(routeSegments) + arrayLen(unresolvedLegOrders)
+        ) {
+          state.status = "malformed";
+          return state;
+        }
       }
 
       markers = parsed.markers;
@@ -1066,7 +1181,15 @@
       state.status = "valid";
       state.route_geo = { "type"="MultiLineString", "coordinates"=routeSegments };
       state.pins = pins;
-      state.leg_count = arrayLen(routeSegments);
+      state.geometry_sources = geometrySources;
+      state.unresolved_leg_orders = unresolvedLegOrders;
+      state.resolved_leg_count = arrayLen(routeSegments);
+      state.unresolved_leg_count = arrayLen(unresolvedLegOrders);
+      state.leg_count = (
+        hasSourceAwarePolicy
+          ? val(parsed.total_leg_count)
+          : arrayLen(routeSegments)
+      );
       state.created_at_utc = (isNull(qSnapshot.created_at_utc[1]) ? "" : qSnapshot.created_at_utc[1]);
       return state;
     </cfscript>
@@ -1097,7 +1220,7 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="resolveRouteInstanceLegCoordinates" access="private" returntype="array" output="false">
+  <cffunction name="resolveRouteInstanceLegGeometry" access="private" returntype="struct" output="false">
     <cfargument name="ownerUserId" type="numeric" required="true">
     <cfargument name="generatedRouteId" type="numeric" required="false" default="0">
     <cfargument name="originalCustomRouteId" type="numeric" required="false" default="0">
@@ -1118,7 +1241,7 @@
         routeLegId = 0;
         allowRouteLegOrderFallback = (arguments.routeLegOrder GT 0);
       }
-      return loadRouteSegmentCoordinates(
+      return loadRouteSegmentGeometry(
         ownerUserId=arguments.ownerUserId,
         routeId=routeId,
         routeLegId=routeLegId,
@@ -1144,10 +1267,7 @@
       var reversedCoordinates = [];
       var coordinateIndex = 0;
       if (arrayLen(out) LT 2) {
-        return [
-          [val(arguments.startLng), val(arguments.startLat)],
-          [val(arguments.endLng), val(arguments.endLat)]
-        ];
+        return [];
       }
       firstPoint = out[1];
       lastPoint = out[arrayLen(out)];
@@ -1240,7 +1360,7 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="loadRouteSegmentCoordinates" access="private" returntype="array" output="false">
+  <cffunction name="loadRouteSegmentGeometry" access="private" returntype="struct" output="false">
     <cfargument name="ownerUserId" type="numeric" required="true">
     <cfargument name="routeId" type="numeric" required="false" default="0">
     <cfargument name="routeLegId" type="numeric" required="false" default="0">
@@ -1252,9 +1372,13 @@
       var q = queryNew("");
       var rawJson = "";
       var coords = [];
+      var out = {
+        "coordinates"=[],
+        "source"="unresolved"
+      };
 
       if (arguments.ownerUserId LTE 0) {
-        return [];
+        return out;
       }
 
       if (arguments.routeId GT 0 AND arguments.routeLegId GT 0) {
@@ -1276,7 +1400,9 @@
           rawJson = toString(q.geometry_json[1]);
           coords = parseGeometryCoordinates(rawJson);
           if (arrayLen(coords) GTE 2) {
-            return coords;
+            out.coordinates = coords;
+            out.source = "route_leg_user_overrides_exact_leg";
+            return out;
           }
         }
       }
@@ -1306,7 +1432,9 @@
           rawJson = toString(q.geometry_json[1]);
           coords = parseGeometryCoordinates(rawJson);
           if (arrayLen(coords) GTE 2) {
-            return coords;
+            out.coordinates = coords;
+            out.source = "route_leg_user_overrides_custom_route_order";
+            return out;
           }
         }
       }
@@ -1329,7 +1457,9 @@
           rawJson = toString(q.geometry_json[1]);
           coords = parseGeometryCoordinates(rawJson);
           if (arrayLen(coords) GTE 2) {
-            return coords;
+            out.coordinates = coords;
+            out.source = "route_leg_user_overrides_segment";
+            return out;
           }
         }
 
@@ -1348,12 +1478,14 @@
           rawJson = toString(q.polyline_json[1]);
           coords = parseGeometryCoordinates(rawJson);
           if (arrayLen(coords) GTE 2) {
-            return coords;
+            out.coordinates = coords;
+            out.source = "segment_geometries";
+            return out;
           }
         }
       }
 
-      return [];
+      return out;
     </cfscript>
   </cffunction>
 

@@ -1852,6 +1852,11 @@
           ? routeMap.pins
           : []
       );
+      var unresolvedLegOrders = (
+        structKeyExists(routeMap, "unresolved_leg_orders") AND isArray(routeMap.unresolved_leg_orders)
+          ? routeMap.unresolved_leg_orders
+          : []
+      );
       var sharedGeometryAvailable = (
         structKeyExists(routeGeo, "coordinates")
         AND isArray(routeGeo.coordinates)
@@ -1872,6 +1877,13 @@
           "code" = "ACTIVE_CRUISE_MAP_GEOMETRY_MISSING",
           "message" = "Route instance legs exist, but usable leg coordinates are not available for map rendering.",
           "source" = "route_instance_legs"
+        });
+      }
+      if (arrayLen(unresolvedLegOrders) GT 0) {
+        arrayAppend(warnings, {
+          "code" = "ACTIVE_CRUISE_MAP_LEG_GEOMETRY_UNRESOLVED",
+          "message" = "Stored route line geometry is unavailable for leg(s) " & arrayToList(unresolvedLegOrders, ", ") & "; saved waypoint markers remain available.",
+          "source" = "RouteMapGeometryService"
         });
       }
 
@@ -1911,6 +1923,22 @@
         "legacyEndpointFallbackUsed" = (
           structKeyExists(routeMap, "legacy_endpoint_fallback_used")
           AND routeMap.legacy_endpoint_fallback_used EQ true
+        ),
+        "geometrySources" = (
+          structKeyExists(routeMap, "geometry_sources") AND isArray(routeMap.geometry_sources)
+            ? routeMap.geometry_sources
+            : []
+        ),
+        "unresolvedLegOrders" = unresolvedLegOrders,
+        "resolvedLegCount" = (
+          structKeyExists(routeMap, "resolved_leg_count")
+            ? safeNumber(routeMap.resolved_leg_count)
+            : 0
+        ),
+        "unresolvedLegCount" = (
+          structKeyExists(routeMap, "unresolved_leg_count")
+            ? safeNumber(routeMap.unresolved_leg_count)
+            : 0
         ),
         "bounds" = bounds,
         "center" = buildMapCenter(bounds),

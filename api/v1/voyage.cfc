@@ -1539,7 +1539,11 @@
                 "snapshotStatus"=(structKeyExists(routeMap, "snapshot_status") ? routeMap.snapshot_status : "not_checked"),
                 "operationalSnapshotUsed"=(structKeyExists(routeMap, "operational_snapshot_used") AND routeMap.operational_snapshot_used EQ true),
                 "legacyGeometryFallback"=(structKeyExists(routeMap, "legacy_geometry_fallback") AND routeMap.legacy_geometry_fallback EQ true),
-                "legacyEndpointFallbackUsed"=(structKeyExists(routeMap, "legacy_endpoint_fallback_used") AND routeMap.legacy_endpoint_fallback_used EQ true)
+                "legacyEndpointFallbackUsed"=(structKeyExists(routeMap, "legacy_endpoint_fallback_used") AND routeMap.legacy_endpoint_fallback_used EQ true),
+                "geometrySources"=(structKeyExists(routeMap, "geometry_sources") AND isArray(routeMap.geometry_sources) ? routeMap.geometry_sources : []),
+                "unresolvedLegOrders"=(structKeyExists(routeMap, "unresolved_leg_orders") AND isArray(routeMap.unresolved_leg_orders) ? routeMap.unresolved_leg_orders : []),
+                "resolvedLegCount"=(structKeyExists(routeMap, "resolved_leg_count") ? val(routeMap.resolved_leg_count) : 0),
+                "unresolvedLegCount"=(structKeyExists(routeMap, "unresolved_leg_count") ? val(routeMap.unresolved_leg_count) : 0)
             };
 	            out.legWeather = legWeather;
 	            out.pinned = pinned;
@@ -3642,7 +3646,11 @@
                 },
                 "map"={
                     "pins"=ensurePins,
-                    "routeGeo"=(structKeyExists(routeMap, "route_geo") ? routeMap.route_geo : { "type"="MultiLineString", "coordinates"=[] })
+                    "routeGeo"=(structKeyExists(routeMap, "route_geo") ? routeMap.route_geo : { "type"="MultiLineString", "coordinates"=[] }),
+                    "geometrySources"=(structKeyExists(routeMap, "geometry_sources") AND isArray(routeMap.geometry_sources) ? routeMap.geometry_sources : []),
+                    "unresolvedLegOrders"=(structKeyExists(routeMap, "unresolved_leg_orders") AND isArray(routeMap.unresolved_leg_orders) ? routeMap.unresolved_leg_orders : []),
+                    "resolvedLegCount"=(structKeyExists(routeMap, "resolved_leg_count") ? val(routeMap.resolved_leg_count) : 0),
+                    "unresolvedLegCount"=(structKeyExists(routeMap, "unresolved_leg_count") ? val(routeMap.unresolved_leg_count) : 0)
                 }
             };
 

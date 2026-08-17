@@ -163,6 +163,94 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(toString(secondRow.snapshot_json[1])).toBe(toString(firstRow.snapshot_json[1]));
       });
 
+      it("creates a valid pins-only snapshot when a custom route has no resolved leg geometry", function() {
+        var fixture = createRouteFixture(
+          label = "unresolved-markers-only",
+          routeStarted = false,
+          createHistoricalPlan = false,
+          currentPlanStatus = "ACTIVE",
+          integerEndpoints = false,
+          includeOverrides = false
+        );
+        var createResult = variables.geometryService.ensureOperationalGeometrySnapshot(
+          routeInstanceId = fixture.sourceRouteInstanceId,
+          ownerUserId = fixture.userId
+        );
+        var mapData = variables.geometryService.buildRouteMapData(
+          routeInstanceId = fixture.sourceRouteInstanceId,
+          ownerUserId = fixture.userId
+        );
+        var snapshotRow = loadSnapshotRow(fixture.sourceRouteInstanceId);
+        var snapshotPayload = deserializeJSON(toString(snapshotRow.snapshot_json[1]), false);
+        var reuseResult = variables.geometryService.ensureOperationalGeometrySnapshot(
+          routeInstanceId = fixture.sourceRouteInstanceId,
+          ownerUserId = fixture.userId
+        );
+
+        expect(createResult.SUCCESS).toBeTrue();
+        expect(createResult.CREATED).toBeTrue();
+        expect(val(createResult.LEG_COUNT)).toBe(2);
+        expect(val(createResult.RESOLVED_LEG_COUNT)).toBe(0);
+        expect(val(createResult.UNRESOLVED_LEG_COUNT)).toBe(2);
+        expect(arrayLen(createResult.UNRESOLVED_LEG_ORDERS)).toBe(2);
+        expect(val(createResult.UNRESOLVED_LEG_ORDERS[1])).toBe(1);
+        expect(val(createResult.UNRESOLVED_LEG_ORDERS[2])).toBe(2);
+        expect(val(createResult.MARKER_COUNT)).toBe(3);
+
+        expect(mapData.geometry_authority).toBe("route_instance_geometry_snapshot");
+        expect(mapData.snapshot_status).toBe("valid");
+        expect(mapData.operational_snapshot_used).toBeTrue();
+        expect(arrayLen(mapData.route_geo.coordinates)).toBe(0);
+        expect(arrayLen(mapData.pins)).toBe(3);
+        expect(arrayLen(mapData.geometry_sources)).toBe(0);
+        expect(val(mapData.resolved_leg_count)).toBe(0);
+        expect(val(mapData.unresolved_leg_count)).toBe(2);
+        expect(arrayLen(mapData.unresolved_leg_orders)).toBe(2);
+        expect(val(mapData.unresolved_leg_orders[1])).toBe(1);
+        expect(val(mapData.unresolved_leg_orders[2])).toBe(2);
+        expect(snapshotPayload.unresolved_geometry_policy).toBe("markers_only_no_invented_line");
+        expect(arrayLen(snapshotPayload.segments)).toBe(0);
+        expect(arrayLen(snapshotPayload.markers)).toBe(3);
+
+        expect(reuseResult.SUCCESS).toBeTrue();
+        expect(reuseResult.REUSED).toBeTrue();
+        expect(val(reuseResult.LEG_COUNT)).toBe(2);
+        expect(val(reuseResult.RESOLVED_LEG_COUNT)).toBe(0);
+        expect(val(reuseResult.UNRESOLVED_LEG_COUNT)).toBe(2);
+        expect(countSnapshots(fixture.sourceRouteInstanceId)).toBe(1);
+      });
+
+      it("preserves an intentional two-point override as resolved route geometry", function() {
+        var fixture = createRouteFixture(
+          label = "explicit-two-point",
+          routeStarted = false,
+          createHistoricalPlan = false,
+          currentPlanStatus = "ACTIVE",
+          integerEndpoints = false,
+          twoPointOverrides = true
+        );
+        var createResult = variables.geometryService.ensureOperationalGeometrySnapshot(
+          routeInstanceId = fixture.sourceRouteInstanceId,
+          ownerUserId = fixture.userId
+        );
+        var mapData = variables.geometryService.buildRouteMapData(
+          routeInstanceId = fixture.sourceRouteInstanceId,
+          ownerUserId = fixture.userId
+        );
+
+        expect(createResult.SUCCESS).toBeTrue();
+        expect(val(createResult.RESOLVED_LEG_COUNT)).toBe(2);
+        expect(val(createResult.UNRESOLVED_LEG_COUNT)).toBe(0);
+        expect(arrayLen(mapData.route_geo.coordinates)).toBe(2);
+        expect(arrayLen(mapData.route_geo.coordinates[1])).toBe(2);
+        expect(arrayLen(mapData.route_geo.coordinates[2])).toBe(2);
+        expect(arrayLen(mapData.geometry_sources)).toBe(2);
+        expect(mapData.geometry_sources[1].source).toBe("route_leg_user_overrides_custom_route_order");
+        expect(arrayLen(mapData.unresolved_leg_orders)).toBe(0);
+        assertCoordinate(mapData.route_geo.coordinates[1][1], -82.7421574, 28.2334921);
+        assertCoordinate(mapData.route_geo.coordinates[1][2], -82.8272763, 28.1493712);
+      });
+
       it("normalizes reversed stored geometry before anchoring the saved endpoints", function() {
         var fixture = createRouteFixture(
           label = "reversed-geometry",
@@ -304,7 +392,9 @@ component extends="testbox.system.BaseSpec" output="false" {
     required boolean routeStarted,
     required boolean createHistoricalPlan,
     required string currentPlanStatus,
-    required boolean integerEndpoints
+    required boolean integerEndpoints,
+    boolean includeOverrides = true,
+    boolean twoPointOverrides = false
   ) {
     var token = lCase(reReplace(createUUID(), "[^A-Za-z0-9]", "", "all"));
     var marker = variables.fixturePrefix & token;
@@ -540,38 +630,47 @@ component extends="testbox.system.BaseSpec" output="false" {
         { datasource = variables.datasource }
       );
 
-      geometry = (
-        legOrder EQ 1
-          ? [
-              { lat = 28.2384640, lng = -82.7449040 },
-              { lat = 28.1900000, lng = -82.7850000 },
-              { lat = 28.1500000, lng = -82.8300000 }
-            ]
-          : [
-              { lat = 28.1480000, lng = -82.8250000 },
-              { lat = 28.1250000, lng = -82.8650000 },
-              { lat = 28.1040000, lng = -82.9050000 }
-            ]
-      );
-      queryExecute(
-        "INSERT INTO route_leg_user_overrides
-            (user_id, route_id, route_leg_id, route_leg_order, segment_id,
-             geometry_json, computed_nm, override_fields_json)
-         VALUES
-            (:userId, :routeId, :routeLegId, :legOrder, NULL,
-             :geometryJson, 12.25, NULL)",
-        {
-          userId = { value = userId, cfsqltype = "cf_sql_integer" },
-          routeId = { value = userRouteId, cfsqltype = "cf_sql_integer" },
-          routeLegId = {
-            value = val(qUserRouteLegs.id[legOrder]),
-            cfsqltype = "cf_sql_integer"
+      if (arguments.includeOverrides) {
+        geometry = (
+          arguments.twoPointOverrides
+            ? [
+                { lat = startLat, lng = startLng },
+                { lat = endLat, lng = endLng }
+              ]
+            : (
+              legOrder EQ 1
+                ? [
+                    { lat = 28.2384640, lng = -82.7449040 },
+                    { lat = 28.1900000, lng = -82.7850000 },
+                    { lat = 28.1500000, lng = -82.8300000 }
+                  ]
+                : [
+                    { lat = 28.1480000, lng = -82.8250000 },
+                    { lat = 28.1250000, lng = -82.8650000 },
+                    { lat = 28.1040000, lng = -82.9050000 }
+                  ]
+            )
+        );
+        queryExecute(
+          "INSERT INTO route_leg_user_overrides
+              (user_id, route_id, route_leg_id, route_leg_order, segment_id,
+               geometry_json, computed_nm, override_fields_json)
+           VALUES
+              (:userId, :routeId, :routeLegId, :legOrder, NULL,
+               :geometryJson, 12.25, NULL)",
+          {
+            userId = { value = userId, cfsqltype = "cf_sql_integer" },
+            routeId = { value = userRouteId, cfsqltype = "cf_sql_integer" },
+            routeLegId = {
+              value = val(qUserRouteLegs.id[legOrder]),
+              cfsqltype = "cf_sql_integer"
+            },
+            legOrder = { value = legOrder, cfsqltype = "cf_sql_integer" },
+            geometryJson = { value = serializeJSON(geometry), cfsqltype = "cf_sql_longvarchar" }
           },
-          legOrder = { value = legOrder, cfsqltype = "cf_sql_integer" },
-          geometryJson = { value = serializeJSON(geometry), cfsqltype = "cf_sql_longvarchar" }
-        },
-        { datasource = variables.datasource }
-      );
+          { datasource = variables.datasource }
+        );
+      }
     }
 
     insertFloatPlan(
