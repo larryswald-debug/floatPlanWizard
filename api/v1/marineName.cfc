@@ -16,7 +16,7 @@ component output=false {
     var cacheKey = "fpw:marineName:" & latKey & ":" & lngKey;
 
     var cached = "";
-    try { cached = cacheGet(cacheKey); } catch (any e) { cached = ""; }
+    try { cached = cacheGet(cacheKey) ?: ""; } catch (any e) { cached = ""; }
     if (isStruct(cached) && structKeyExists(cached, "success")) {
       return cached;
     }
@@ -298,3 +298,4 @@ component output=false {
   }
 
 }
+
