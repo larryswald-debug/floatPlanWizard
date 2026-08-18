@@ -693,13 +693,39 @@
             var completedNm = 0;
             var remainingNm = 0;
             var pct = 0;
-            var currentLegSegments = filterSegmentsForCurrentLeg(arguments.segments, arguments.currentLeg, arguments.out);
-            var openSegments = getOpenSegments(currentLegSegments);
+            var currentLegSegments = [];
+            var openSegments = [];
             var openType = "";
             var isPaused = false;
             var expectedResumeAtUtc = "";
             var statusLabel = "Underway";
             var statusDetail = "Current leg progress uses route leg lifecycle and activity segments.";
+
+            if (
+                structKeyExists(arguments.currentLeg, "status")
+                AND safeString(arguments.currentLeg.status) EQ "COMPLETED"
+            ) {
+                return {
+                    "available" = true,
+                    "authority" = "route_instance_leg_progress",
+                    "underwaySeconds" = 0,
+                    "hoursUnderwayOnLeg" = 0,
+                    "completedNm" = roundTo1(safeNumber(arguments.currentLeg.distanceNm)),
+                    "remainingNm" = 0,
+                    "percentComplete" = 100,
+                    "paused" = false,
+                    "expectedResumeAtUtc" = "",
+                    "speedKn" = arguments.progressSpeedKn,
+                    "progressSpeedKn" = arguments.progressSpeedKn,
+                    "completedNmAuthority" = "route_instance_leg_progress.completed_status",
+                    "statusLabel" = "Completed",
+                    "statusDetail" = "Current leg is complete according to persisted route leg progress.",
+                    "usesLatestCheckinAsAnchor" = false
+                };
+            }
+
+            currentLegSegments = filterSegmentsForCurrentLeg(arguments.segments, arguments.currentLeg, arguments.out);
+            openSegments = getOpenSegments(currentLegSegments);
 
             if (arrayLen(openSegments)) {
                 openType = safeString(openSegments[arrayLen(openSegments)].segmentType);
@@ -829,6 +855,28 @@
             var openType = "";
             var manualDelayMinutesVal = max(0, safeNumber(arguments.manualDelayMinutes));
             var remainingDurationSeconds = 0;
+
+            if (
+                structKeyExists(arguments.currentLeg, "status")
+                AND safeString(arguments.currentLeg.status) EQ "COMPLETED"
+            ) {
+                return {
+                    "available" = false,
+                    "authority" = "route_instance_leg_progress",
+                    "reason" = "Current leg is completed; ETA is not applicable.",
+                    "etaUtc" = "",
+                    "paused" = false,
+                    "expectedResumeAtUtc" = "",
+                    "remainingNm" = 0,
+                    "speedKn" = arguments.speedKn,
+                    "etaSpeedKn" = arguments.speedKn,
+                    "etaSpeedAuthority" = "not_applicable_completed_leg",
+                    "remainingDurationSeconds" = 0,
+                    "remainingDurationLabel" = formatDurationSecondsLabel(0),
+                    "manualDelayMinutesTotal" = manualDelayMinutesVal,
+                    "usesLatestCheckinAsAnchor" = false
+                };
+            }
 
             if (!structKeyExists(arguments.currentLegProgress, "available") OR !arguments.currentLegProgress.available OR arguments.speedKn LTE 0) {
                 return {
@@ -1028,7 +1076,7 @@
                 startedAtUtc = formatUtc(progressRow.legStartedAt);
                 completedAtUtc = formatUtc(progressRow.completedAt);
                 isCompleted = (statusVal EQ "COMPLETED" OR isDate(progressRow.completedAt) OR (currentLegOrder GT 0 AND legOrder LT currentLegOrder));
-                isCurrent = (legOrder EQ currentLegOrder AND structKeyExists(arguments.currentLegProgress, "available") AND arguments.currentLegProgress.available);
+                isCurrent = (!isCompleted AND legOrder EQ currentLegOrder AND structKeyExists(arguments.currentLegProgress, "available") AND arguments.currentLegProgress.available);
                 isFuture = (!isCompleted AND !isCurrent);
                 state = (isCompleted ? "completed" : (isCurrent ? "current" : "future"));
                 legCompletedNm = 0;
@@ -1061,7 +1109,7 @@
                     durationAuthority = "projected_duration_completed_leg_actuals_preserved";
                     departureUtc = startedAtUtc;
                     arrivalUtc = completedAtUtc;
-                    etaUtc = completedAtUtc;
+                    etaUtc = "";
                     departureSource = (len(departureUtc) ? "route_instance_leg_progress.leg_started_at" : "");
                     arrivalSource = (len(arrivalUtc) ? "route_instance_leg_progress.completed_at" : "route_order_before_current");
                     if (isDate(progressRow.completedAt)) {
@@ -2197,7 +2245,6 @@
     </cffunction>
 
 </cfcomponent>
-
 
 
 

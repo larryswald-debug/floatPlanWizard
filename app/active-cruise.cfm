@@ -3532,6 +3532,9 @@
         <cfset weatherModel = (structKeyExists(activeCruiseV2Model, "weather") AND isStruct(activeCruiseV2Model.weather) ? activeCruiseV2Model.weather : {})>
         <cfset floatPlanInfoModel = (structKeyExists(activeCruiseV2Model, "floatPlanInfo") AND isStruct(activeCruiseV2Model.floatPlanInfo) ? activeCruiseV2Model.floatPlanInfo : {})>
         <cfset activeCruiseV2TripTimezone = fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "timezone"), "UTC")>
+        <cfset activeCruiseV2CurrentLegCompleted = (
+          compareNoCase(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "status"), ""), "COMPLETED") EQ 0
+        )>
         <cfset vesselModel = (structKeyExists(floatPlanInfoModel, "vessel") AND isStruct(floatPlanInfoModel.vessel) ? floatPlanInfoModel.vessel : {})>
         <cfset operatorModel = (structKeyExists(floatPlanInfoModel, "operator") AND isStruct(floatPlanInfoModel.operator) ? floatPlanInfoModel.operator : {})>
         <cfset contactsModel = (structKeyExists(activeCruiseV2Model, "contacts") AND isStruct(activeCruiseV2Model.contacts) ? activeCruiseV2Model.contacts : { "items" = [], "passengers" = [] })>
@@ -3722,14 +3725,14 @@
                   <small data-fpw-field="hero.percentComplete">#encodeForHTML(fpwV2Percent(fpwV2Get(activeCruiseV2Model.currentLeg, "percentComplete")))# complete</small>
                 </div>
                 <div class="metric">
-                  <span>Next Stop</span>
+                  <span><cfif activeCruiseV2CurrentLegCompleted>Arrived Destination<cfelse>Next Stop</cfif></span>
                   <strong data-fpw-field="hero.nextStop">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), fpwV2Get(activeCruiseV2Model.route, "endLocation", "Not available")))#</strong>
-                  <small data-fpw-field="hero.nextStopMeta">Upcoming planned stop</small>
+                  <small data-fpw-field="hero.nextStopMeta"><cfif activeCruiseV2CurrentLegCompleted>No future stop remains<cfelse>Upcoming planned stop</cfif></small>
                 </div>
                 <div class="metric">
                   <span>ETA</span>
                   <strong data-fpw-field="hero.eta">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
-                  <small data-fpw-field="hero.etaMeta">Active leg ETA</small>
+                  <small data-fpw-field="hero.etaMeta"><cfif activeCruiseV2CurrentLegCompleted>No future ETA remains<cfelse>Active leg ETA</cfif></small>
                 </div>
               </div>
 

@@ -6297,7 +6297,9 @@
             var statusLabel = "";
             var statusVariant = "";
             var tripStateLabel = "";
+            var tripStateCode = "";
             var tripStateHelper = "";
+            var isArrived = false;
             var lastCheckinUtc = "";
             var lastCheckinLabel = "";
             var nextExpectedLabel = "";
@@ -6324,7 +6326,12 @@
             }
             statusVariant = publicAuthorityText(monitoring, "publicHealthVariant");
             tripStateLabel = publicAuthorityText(tripState, "label");
+            tripStateCode = publicAuthorityText(tripState, "code");
             tripStateHelper = publicAuthorityText(tripState, "helperText");
+            isArrived = (
+                compareNoCase(tripStateCode, "arrived") EQ 0
+                OR compareNoCase(tripStateLabel, "arrived") EQ 0
+            );
             lastCheckinUtc = publicAuthorityText(monitoring, "lastCheckinUtc");
             lastCheckinLabel = publicAuthorityText(monitoring, "lastCheckinLocalLabel");
             nextExpectedLabel = publicAuthorityText(monitoring, "nextExpectedCheckinLocalLabel");
@@ -6332,6 +6339,9 @@
             etaLabel = publicAuthorityText(timing, "etaLocalLabel");
             locationLabel = publicAuthorityText(currentLeg, "fromName");
             nextStopLabel = publicAuthorityText(currentLeg, "toName");
+            if (isArrived AND len(nextStopLabel)) {
+                locationLabel = nextStopLabel;
+            }
             milesToday = publicAuthorityText(timing, "milesTodayNm");
             hoursToday = publicAuthorityText(timing, "hoursToday");
 
@@ -6363,16 +6373,24 @@
             } else if (len(tripStateHelper)) {
                 out.body.journey_checkin_meta = tripStateHelper;
             }
-            if (len(etaUtc)) {
+            if (isArrived) {
+                out.topCards.eta_utc = "";
+                out.topCards.eta = "";
+            } else if (len(etaUtc)) {
                 out.topCards.eta_utc = etaUtc;
             }
-            if (len(etaLabel)) {
+            if (!isArrived AND len(etaLabel)) {
                 out.topCards.eta = etaLabel;
             }
             if (len(locationLabel)) {
                 out.topCards.location_label = locationLabel;
             }
-            if (len(nextStopLabel)) {
+            if (isArrived) {
+                out.topCards.next_stop = "";
+                if (structKeyExists(out, "map") AND isStruct(out.map)) {
+                    out.map.next_stop_label = "";
+                }
+            } else if (len(nextStopLabel)) {
                 out.topCards.next_stop = nextStopLabel;
             }
             if (isNumeric(milesToday)) {

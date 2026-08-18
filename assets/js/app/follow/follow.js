@@ -473,6 +473,14 @@
       || /scheduled departure pending|trip is scheduled/i.test(fallbackText);
   }
 
+  function isArrivedTrip(payload) {
+    var tripState = getAuthoritySection(payload, "tripState");
+    var code = authorityText(tripState.code).toLowerCase();
+    var label = authorityText(tripState.label).toLowerCase();
+
+    return code === "arrived" || label === "arrived";
+  }
+
   function scheduledDepartureMeta(body) {
     var meta = String(body && body.journey_departed_meta ? body.journey_departed_meta : "").trim();
     if (!meta) return "Scheduled departure pending";
@@ -506,15 +514,19 @@
     var authorityMonitoring = getAuthoritySection(payload, "monitoring");
     var summary = timeline.summary || {};
     var legs = Array.isArray(timeline.legs) ? timeline.legs : [];
+    var isArrived = isArrivedTrip(payload);
     var updatedLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, authorityMonitoring.lastCheckinUtc || topCards.last_checkin_utc, "—");
-    var nextStop = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || map.next_stop_label || "").trim();
-    var etaUtc = authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim();
+    var arrivedDestination = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || map.next_stop_label || "").trim();
+    var nextStop = isArrived ? "—" : arrivedDestination;
+    var etaUtc = isArrived ? "" : (authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim());
     var realLastCheckinUtc = authorityText(authorityMonitoring.lastCheckinUtc) || String(sidebar.last_checkin_utc || "").trim();
     var fallbackLastCheckinUtc = String(topCards.last_checkin_utc || "").trim();
     var lastCheckinLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, realLastCheckinUtc || fallbackLastCheckinUtc, "—");
     var lastCheckinMeta = realLastCheckinUtc ? (String(body.journey_checkin_meta || "").trim() || "—") : "—";
     var nextStopEtaLabel = "—";
-    var locationLabel = authorityText(authorityCurrentLeg.fromName) || String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim();
+    var locationLabel = isArrived
+      ? arrivedDestination
+      : (authorityText(authorityCurrentLeg.fromName) || String(topCards.location_label || (map.current && map.current.label ? map.current.label : "") || "").trim());
     var checkinMeta = String(body.journey_checkin_meta || "").trim();
     var cardCheckinMeta = checkinMeta.replace(/\s*Next update expected tomorrow morning\.\s*/i, "").trim();
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
@@ -655,10 +667,14 @@
     var totalHoursText = timelineValueText(summary.total_hours, 1, "h");
     var completedMilesNm = 0;
     var photoCount = findRecentMediaPosts(posts).length;
-    var currentLocation = authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim();
+    var isArrived = isArrivedTrip(payload);
+    var arrivedDestination = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || "").trim();
+    var currentLocation = isArrived
+      ? arrivedDestination
+      : (authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : topCards.location_label || "").trim());
     var currentLegLabel = authorityText(authorityCurrentLeg.label);
-    var nextStop = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || "").trim();
-    var etaUtc = authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim();
+    var nextStop = isArrived ? "—" : arrivedDestination;
+    var etaUtc = isArrived ? "" : (authorityText(authorityTiming.etaUtc) || String(topCards.eta_utc || "").trim());
     var etaLabel = "—";
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
     var isScheduled = isScheduledTrip(payload);
@@ -838,13 +854,17 @@
     var realCheckInLabel = authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, realCheckInUtc, "");
     var sidebarLastCheckin = realCheckInLabel || lastCheckinLabel || "—";
     var shareSlug = String(stream.slug || state.slug || "").trim();
-    var nextStop = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || map.next_stop_label || "").trim();
+    var isArrived = isArrivedTrip(payload);
+    var arrivedDestination = authorityText(authorityCurrentLeg.toName) || String(topCards.next_stop || map.next_stop_label || "").trim();
+    var nextStop = isArrived ? "—" : arrivedDestination;
     var conditions = String(topCards.conditions || "").trim();
     var legWeather = payload.legWeather || {};
     var weatherConditions = legWeather.conditions || {};
     var startWeather = legWeather.start || {};
     var endWeather = legWeather.end || {};
-    var currentLocation = authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : "").trim();
+    var currentLocation = isArrived
+      ? arrivedDestination
+      : (authorityText(authorityCurrentLeg.fromName) || String(map.current && map.current.label ? map.current.label : "").trim());
     var completedLegs = toInt(summary.completed_legs, 0);
     var isAwaitingDeparture = isAwaitingDepartureState(body, topCards, timeline);
     var isScheduled = isScheduledTrip(payload);
@@ -861,7 +881,7 @@
     var actualDepartureLocalLabel = authorityText(authorityTiming.actualDepartureLocalLabel);
     var legacyDepartureValue = authorityText(body.journey_departed_value);
     var legacyDepartureMeta = authorityText(body.journey_departed_meta) || "—";
-    var nextStopLocalEta = authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
+    var nextStopLocalEta = isArrived ? "—" : authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var finalArrivalLabel = authorityLocalLabel(authorityTiming.finalArrivalLocalLabel, authorityTiming.finalArrivalUtc, "");
     var routeProgressLabel = "";
     var legProgressLabel = "";
@@ -964,7 +984,7 @@
       setHookText("journey-current-leg-meta", "Making way at " + String(effectiveSpeedKn) + " kn");
     }
     setHookText("journey-next-stop-value", isScheduled ? "Trip scheduled" : nextStop);
-    setHookText("journey-next-stop-meta", isScheduled ? firstPlannedStopMeta(nextStop) : nextStopLocalEta);
+    setHookText("journey-next-stop-meta", isScheduled ? firstPlannedStopMeta(nextStop) : (isArrived ? "No future stop" : nextStopLocalEta));
     setHookText("journey-checkin-value", isScheduled ? "No check-ins yet" : (realCheckInLabel ? ("Checked in at " + realCheckInLabel) : "Checked in at --"));
     setHookText("journey-checkin-meta", isScheduled ? "First check-in expected at scheduled departure." : (authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel) ? ("Next expected: " + authorityText(authorityMonitoring.nextExpectedCheckinLocalLabel)) : body.journey_checkin_meta));
 
@@ -976,14 +996,14 @@
       dom.statusDot.classList.toggle("danger", voyageProgressStatusVariant === "danger");
     }
     setHookText("card-location-title", isScheduled ? "Trip scheduled" : (currentLocation || String(topCards.location_label || "").trim()));
-    setHookText("card-location-value", isScheduled ? (currentLocation || "Scheduled departure") : nextStop);
-    setHookText("card-location-copy", isScheduled ? firstPlannedLegMeta(currentLocation, nextStop) : (isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy));
-    setHookText("card-destination-title", isScheduled ? "Trip scheduled" : nextStop);
-    setHookText("card-destination-value", isScheduled ? (nextStop || topCards.next_stop) : topCards.next_stop);
+    setHookText("card-location-value", isScheduled ? (currentLocation || "Scheduled departure") : (isArrived ? "Arrived" : nextStop));
+    setHookText("card-location-copy", isScheduled ? firstPlannedLegMeta(currentLocation, nextStop) : (isArrived ? (tripStateHelper || "The route is marked arrived.") : (isAwaitingDeparture ? "The trip is paused at the current stop and awaiting the next departure." : body.card_location_copy)));
+    setHookText("card-destination-title", isScheduled ? "Trip scheduled" : (isArrived ? arrivedDestination : nextStop));
+    setHookText("card-destination-value", isScheduled ? (nextStop || topCards.next_stop) : (isArrived ? "Arrived destination" : topCards.next_stop));
     setHookText("card-destination-copy", isScheduled ? firstPlannedStopMeta(nextStop) : (finalArrivalLabel ? ("Final route arrival: " + finalArrivalLabel) : body.card_destination_copy));
-    setHookText("card-arrival-title", isScheduled ? "Trip scheduled" : nextStopLocalEta);
+    setHookText("card-arrival-title", isScheduled ? "Trip scheduled" : (isArrived ? "Arrived" : nextStopLocalEta));
     setHookText("card-arrival-value", isScheduled ? "No live ETA yet" : nextStop);
-    setHookText("card-arrival-copy", isScheduled ? "Arrival estimates appear after the trip is underway." : (isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy));
+    setHookText("card-arrival-copy", isScheduled ? "Arrival estimates appear after the trip is underway." : (isArrived ? "No future ETA remains for this route." : (isAwaitingDeparture ? "Departure has not started for the next leg yet." : body.card_arrival_copy)));
     setHookText("card-conditions-title", conditionsTitle);
     setHookHidden("card-conditions-value", isScheduled);
     if (!isScheduled) {
@@ -1003,11 +1023,13 @@
     var authorityMonitoring = getAuthoritySection(payload, "monitoring");
     var title = stream.title || "Voyage Stream";
     var isScheduled = isScheduledTrip(payload);
+    var isArrived = isArrivedTrip(payload);
     var status = isScheduled ? "Scheduled" : (authorityText(authorityMonitoring.publicHealthLabel) || topCards.status || stream.status || "n/a");
     var lastCheckin = isScheduled ? "—" : authorityLocalLabel(authorityMonitoring.lastCheckinLocalLabel, authorityMonitoring.lastCheckinUtc || topCards.last_checkin_utc, "n/a");
-    var location = authorityText(authorityCurrentLeg.fromName) || topCards.location_label || "n/a";
-    var nextStop = authorityText(authorityCurrentLeg.toName) || topCards.next_stop || "n/a";
-    var eta = isScheduled ? "—" : authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
+    var arrivedDestination = authorityText(authorityCurrentLeg.toName) || topCards.next_stop || "n/a";
+    var location = isArrived ? arrivedDestination : (authorityText(authorityCurrentLeg.fromName) || topCards.location_label || "n/a");
+    var nextStop = isArrived ? "—" : arrivedDestination;
+    var eta = (isScheduled || isArrived) ? "—" : authorityLocalLabel(authorityTiming.etaLocalLabel, authorityTiming.etaUtc || topCards.eta_utc, "—");
     var conditions = topCards.conditions || "n/a";
     var miles = safeNum(pinned.miles);
     var days = toInt(pinned.days, 0);
@@ -1034,9 +1056,9 @@
     if (dom.cardStatusValue) dom.cardStatusValue.textContent = status;
     if (dom.cardStatusSub) dom.cardStatusSub.textContent = isScheduled ? "Monitoring starts at scheduled departure." : ("Last check-in: " + lastCheckin);
     if (dom.cardLocationValue) dom.cardLocationValue.textContent = location;
-    if (dom.cardLocationSub) dom.cardLocationSub.textContent = isScheduled ? firstPlannedLegMeta(location, nextStop) : ("Heading: " + nextStop);
+    if (dom.cardLocationSub) dom.cardLocationSub.textContent = isScheduled ? firstPlannedLegMeta(location, nextStop) : (isArrived ? "Arrived at destination" : ("Heading: " + nextStop));
     if (dom.cardEtaValue) dom.cardEtaValue.textContent = isScheduled ? "Trip scheduled" : eta;
-    if (dom.cardEtaSub) dom.cardEtaSub.textContent = isScheduled ? firstPlannedStopMeta(nextStop) : ("Next stop: " + nextStop);
+    if (dom.cardEtaSub) dom.cardEtaSub.textContent = isScheduled ? firstPlannedStopMeta(nextStop) : (isArrived ? "No future stop" : ("Next stop: " + nextStop));
     if (dom.cardConditionsValue) {
       dom.cardConditionsValue.hidden = isScheduled;
       dom.cardConditionsValue.textContent = isScheduled ? "" : conditions;

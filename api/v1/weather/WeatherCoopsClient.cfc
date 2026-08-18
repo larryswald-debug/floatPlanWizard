@@ -4,6 +4,8 @@ component output="false" {
     variables.userAgent = arguments.userAgent;
     variables.dataUrl = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter";
     variables.mdapiUrl = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi";
+    variables.maxLocalStationNauticalMiles = 120;
+    variables.statuteMilesPerNauticalMile = 1.150779448;
     return this;
   }
 
@@ -82,7 +84,7 @@ component output="false" {
   }
 
   public struct function nearestStation(required numeric lat, required numeric lon, string stationType = "tidepredictions", any cache = "") {
-    var out = { "available" = false, "id" = "", "name" = "", "lat" = javacast("null", ""), "lon" = javacast("null", ""), "distanceMiles" = javacast("null", ""), "reason" = "" };
+    var out = { "available" = false, "id" = "", "name" = "", "lat" = javacast("null", ""), "lon" = javacast("null", ""), "distanceMiles" = javacast("null", ""), "distanceNauticalMiles" = javacast("null", ""), "reason" = "" };
     var listResult = {};
     var cacheKey = "coops:stations:" & arguments.stationType;
     var stationTypeValue = arguments.stationType;
@@ -120,12 +122,20 @@ component output="false" {
       return out;
     }
 
+    var bestDistanceNauticalMiles = bestDistance / variables.statuteMilesPerNauticalMile;
+    if (bestDistanceNauticalMiles GT variables.maxLocalStationNauticalMiles) {
+      out.reason = "No local CO-OPS " & arguments.stationType & " station was found within "
+        & variables.maxLocalStationNauticalMiles & " nautical miles.";
+      return out;
+    }
+
     out.available = true;
     out.id = best.id ?: "";
     out.name = best.name ?: out.id;
     out.lat = val(best.lat);
     out.lon = val(best.lng);
     out.distanceMiles = round(bestDistance * 10) / 10;
+    out.distanceNauticalMiles = round(bestDistanceNauticalMiles * 10) / 10;
     return out;
   }
 
@@ -348,7 +358,6 @@ component output="false" {
     return dateTimeFormat(dateConvert("local2Utc", arguments.value), "yyyy-mm-dd'T'HH:nn:ss'Z'");
   }
 }
-
 
 
 
