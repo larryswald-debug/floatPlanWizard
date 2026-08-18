@@ -1,0 +1,452 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - img [ref=e6]
+      - generic [ref=e13]:
+        - strong [ref=e14]: Free Membership
+        - text: — Full planning and Basic sending included • First complete Premium trip included for new members
+      - link "Learn More" [ref=e15] [cursor=pointer]:
+        - /url: /fpw/app/join.cfm
+        - text: Learn More →
+    - generic [ref=e17]:
+      - link "FloatPlanWizard home" [ref=e18] [cursor=pointer]:
+        - /url: /fpw/#top
+        - img [ref=e20]
+        - generic [ref=e35]:
+          - generic [ref=e36]: FloatPlanWizard
+          - generic [ref=e37]: Built for serious recreational boaters
+      - generic [ref=e38]:
+        - navigation "Primary navigation" [ref=e39]:
+          - link "How It Works" [ref=e40] [cursor=pointer]:
+            - /url: /fpw/how-it-works/
+            - img [ref=e41]
+            - generic [ref=e44]: How It Works
+          - link "Features" [ref=e45] [cursor=pointer]:
+            - /url: /fpw/#fpwProductPreview
+            - img [ref=e46]
+            - generic [ref=e52]: Features
+          - button "Great Loop" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+            - generic [ref=e57]: Great Loop
+            - img [ref=e58]
+          - button "Resources" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic [ref=e66]: Resources
+            - img [ref=e67]
+          - link "Pricing" [ref=e69] [cursor=pointer]:
+            - /url: /fpw/app/pricing.cfm
+            - img [ref=e70]
+            - generic [ref=e73]: Pricing
+        - generic [ref=e74]:
+          - link "Start Free" [ref=e75] [cursor=pointer]:
+            - /url: /fpw/app/join.cfm
+            - generic [ref=e76]: Start Free
+            - generic [ref=e77]: →
+          - link "Login" [ref=e78] [cursor=pointer]:
+            - /url: /fpw/app/login.cfm
+            - img [ref=e79]
+            - generic [ref=e83]: Login
+  - main [ref=e85]:
+    - region "Plan your cruise. Share the journey. Return safely." [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - heading "Plan your cruise. Share the journey. Return safely." [level=1] [ref=e89]
+          - paragraph [ref=e90]: Build your route, organize your vessel and crew, create a complete float plan, and give friends and family a Trip Page for planned stops, estimated progress, latest check-ins, and trip updates.
+          - generic [ref=e91]:
+            - link "Plan Your Trip" [ref=e92] [cursor=pointer]:
+              - /url: /fpw/app/join.cfm
+              - img [ref=e93]
+              - text: Plan Your Trip
+            - link "See What Family Sees" [ref=e95] [cursor=pointer]:
+              - /url: "#fpwProductPreview"
+              - img [ref=e96]
+              - text: See What Family Sees
+          - generic "Quick trust points" [ref=e98]:
+            - generic [ref=e99]:
+              - generic [ref=e100]: ✓
+              - generic [ref=e101]: No credit card required
+            - generic [ref=e102]:
+              - generic [ref=e103]: ✓
+              - generic [ref=e104]: Route, weather, and fuel
+            - generic [ref=e105]:
+              - generic [ref=e106]: ✓
+              - generic [ref=e107]: Private Trip Page
+            - generic [ref=e108]:
+              - generic [ref=e109]: ✓
+              - generic [ref=e110]: No account for followers
+          - paragraph [ref=e111]: FloatPlanWizard organizes and shares trip information. It is not a rescue or emergency-dispatch service.
+        - complementary "Trip brief preview" [ref=e112]:
+          - generic [ref=e113]:
+            - generic [ref=e114]:
+              - img [ref=e115]
+              - text: TRIP OVERVIEW
+            - generic [ref=e117]: PLAN & SHARE
+          - generic [ref=e118]:
+            - img [ref=e119]
+            - strong [ref=e121]: Route
+            - generic [ref=e122]: Plan legs, stops, and timing
+          - generic [ref=e123]:
+            - img [ref=e124]
+            - strong [ref=e126]: Trip Page
+            - generic [ref=e127]: Share privately with family
+          - generic [ref=e128]:
+            - img [ref=e129]
+            - strong [ref=e131]: Float Plan
+            - generic [ref=e132]: Prepare details for shore
+          - generic [ref=e133]:
+            - img [ref=e134]
+            - strong [ref=e136]: Latest Check-In
+            - generic [ref=e137]: Captain-reported status
+          - generic [ref=e138]:
+            - img [ref=e139]
+            - strong [ref=e141]: Trip Status
+            - generic [ref=e142]: Manage while underway
+          - generic [ref=e143]:
+            - img [ref=e144]
+            - strong [ref=e146]: Float Plan Monitoring
+            - generic [ref=e147]: Watches expected check-ins
+          - link "See What Family Sees" [ref=e148] [cursor=pointer]:
+            - /url: "#fpwProductPreview"
+    - region "Everything you need from planning to safe return." [ref=e149]:
+      - generic [ref=e150]:
+        - heading "Everything you need from planning to safe return." [level=2] [ref=e151]
+        - generic [ref=e152]:
+          - article [ref=e153]:
+            - img [ref=e155]
+            - generic [ref=e157]:
+              - generic [ref=e158]: "1"
+              - heading "Plan" [level=3] [ref=e159]
+              - paragraph [ref=e160]: Build the route and organize your vessel, operator, passengers, stops, timing, and fuel.
+          - article [ref=e162]:
+            - img [ref=e164]
+            - generic [ref=e166]:
+              - generic [ref=e167]: "2"
+              - heading "Share" [level=3] [ref=e168]
+              - paragraph [ref=e169]: Create the float plan and share a Private Trip Page with friends, family, and your shore contact.
+          - article [ref=e171]:
+            - img [ref=e173]
+            - generic [ref=e175]:
+              - generic [ref=e176]: "3"
+              - heading "Manage" [level=3] [ref=e177]
+              - paragraph [ref=e178]: Check in, update trip status, record delays or plan changes, and use Float Plan Monitoring for the expected check-in schedule while underway.
+    - region "Built by a Solo Boater, for Solo Boaters" [ref=e179]:
+      - generic [ref=e180]:
+        - generic [ref=e181]:
+          - paragraph [ref=e182]: THE STORY BEHIND FLOATPLANWIZARD
+          - heading "Built by a Solo Boater, for Solo Boaters" [level=2] [ref=e183]:
+            - text: Built by a Solo Boater,
+            - text: for Solo Boaters
+          - paragraph [ref=e184]: FloatPlanWizard began with a simple personal need. I often went boating alone and wanted an easy way to let my family know where I planned to go and when I expected to return.
+          - paragraph [ref=e185]: I created a system that let me save my float plan ahead of time. Whenever I took the boat out, I could send it to my family with one click, then text them to let them know it was on the way.
+          - paragraph [ref=e186]: I cannot tell you how many times I had already left the dock and realized I had forgotten to send it. Instead of turning around, I could open the website, click a link, and have the saved plan sent for me.
+          - paragraph [ref=e187]: No rewriting the same trip details. No searching for information at the dock. Just a ready-to-send plan that gave my family greater peace of mind.
+          - generic [ref=e188]:
+            - paragraph [ref=e189]: — Larry W., Founder
+            - paragraph [ref=e190]: Solo boater and retired professional web developer with more than 55 years of boating experience.
+          - generic [ref=e191]:
+            - link "Create Your Float Plan" [ref=e192] [cursor=pointer]:
+              - /url: /fpw/app/join.cfm
+              - img [ref=e193]
+              - text: Create Your Float Plan
+            - link "Read the Story Behind FPW" [ref=e195] [cursor=pointer]:
+              - /url: /fpw/about
+              - text: Read the Story Behind FPW
+              - generic [ref=e196]: →
+        - complementary "Ready before it was time to leave." [ref=e197]:
+          - paragraph [ref=e198]: THE ORIGINAL DOCKSIDE ROUTINE
+          - heading "Ready before it was time to leave." [level=3] [ref=e199]
+          - list [ref=e200]:
+            - listitem [ref=e201]:
+              - img [ref=e203]
+              - generic [ref=e205]:
+                - strong [ref=e206]: Save Plan
+                - paragraph [ref=e207]: Prepare the route, boat, contacts, and timing ahead of time.
+            - listitem [ref=e208]:
+              - img [ref=e210]
+              - generic [ref=e212]:
+                - strong [ref=e213]: Send Plan
+                - paragraph [ref=e214]: Send the saved float plan with one click when it is time to leave.
+            - listitem [ref=e215]:
+              - img [ref=e217]
+              - generic [ref=e219]:
+                - strong [ref=e220]: Family Informed
+                - paragraph [ref=e221]: Text the people waiting at home so they know the plan is on its way.
+    - region "See how the whole trip stays connected." [ref=e222]:
+      - generic [ref=e224]:
+        - generic [ref=e225]:
+          - heading "See how the whole trip stays connected." [level=2] [ref=e226]
+          - paragraph [ref=e227]: Plan the route, share the journey, and manage the trip underway.
+          - tablist "FloatPlanWizard product preview" [ref=e228]:
+            - tab "Trip Page" [selected] [ref=e229] [cursor=pointer]
+            - tab "Route Generator" [ref=e230] [cursor=pointer]
+            - tab "Active Cruise" [ref=e231] [cursor=pointer]
+            - tab "Dashboard" [ref=e232] [cursor=pointer]
+        - generic [ref=e233]:
+          - img "Representative FloatPlanWizard private Trip Page showing a planned route, estimated trip progress, and latest check-in." [ref=e240]
+          - tabpanel "Trip Page" [ref=e241]:
+            - heading "Share the journey." [level=3] [ref=e242]
+            - paragraph [ref=e243]: Friends and family can use one invitation link to see the planned route, stops, estimated trip progress, latest check-in, and trip updates.
+            - list [ref=e244]:
+              - listitem [ref=e245]:
+                - generic [ref=e246]: ✓
+                - generic [ref=e247]: Only people you invite can view the trip
+              - listitem [ref=e248]:
+                - generic [ref=e249]: ✓
+                - generic [ref=e250]: No FPW account needed for followers
+              - listitem [ref=e251]:
+                - generic [ref=e252]: ✓
+                - generic [ref=e253]: Latest check-ins, updates, photos, and comments
+            - link "Plan Your Trip" [ref=e254] [cursor=pointer]:
+              - /url: /fpw/app/join.cfm
+              - text: Plan Your Trip
+              - img [ref=e255]
+    - region "Built for the captain—and everyone following from shore." [ref=e257]:
+      - generic [ref=e258]:
+        - heading "Built for the captain—and everyone following from shore." [level=2] [ref=e259]
+        - paragraph [ref=e260]: One connected trip workflow helps the captain prepare and manage the cruise while giving friends, family, and shore contacts the ability to follow along and see where you are.
+        - generic "FloatPlanWizard benefits for captains and people following from shore" [ref=e261]:
+          - article [ref=e262]:
+            - heading "For the captain" [level=3] [ref=e263]
+            - list [ref=e264]:
+              - listitem [ref=e265]:
+                - generic [ref=e266]: ✓
+                - generic [ref=e267]: Plan route legs, waypoints, stops, and timing
+              - listitem [ref=e268]:
+                - generic [ref=e269]: ✓
+                - generic [ref=e270]: Organize the vessel, operator, passengers, weather, and fuel
+              - listitem [ref=e271]:
+                - generic [ref=e272]: ✓
+                - generic [ref=e273]: Create the float plan and shore-contact information
+              - listitem [ref=e274]:
+                - generic [ref=e275]: ✓
+                - generic [ref=e276]: Check in, report changes, and use Float Plan Monitoring while underway
+          - article [ref=e277]:
+            - heading "For friends and family" [level=3] [ref=e278]
+            - list [ref=e279]:
+              - listitem [ref=e280]:
+                - generic [ref=e281]: ✓
+                - generic [ref=e282]: Open the shared Trip Page without an FPW account
+              - listitem [ref=e283]:
+                - generic [ref=e284]: ✓
+                - generic [ref=e285]: Follow the planned route, destinations, and stops
+              - listitem [ref=e286]:
+                - generic [ref=e287]: ✓
+                - generic [ref=e288]: View estimated trip progress, the latest check-in, and whether an expected check-in was missed
+              - listitem [ref=e289]:
+                - generic [ref=e290]: ✓
+                - generic [ref=e291]: See trip updates, comments and shared photos
+              - listitem [ref=e292]:
+                - generic [ref=e293]: ✓
+                - generic [ref=e294]: Stay connected without repeatedly calling or texting the captain
+        - generic [ref=e295]:
+          - heading "Built-in safety from departure to safe return." [level=3] [ref=e296]
+          - paragraph [ref=e297]: FPW connects your float plan, Private Trip Page, check-ins, and monitoring so the captain and shore contact stay informed throughout the trip.
+          - generic [ref=e298]:
+            - article [ref=e299]:
+              - img [ref=e300]
+              - generic [ref=e302]:
+                - heading "Private by default" [level=3] [ref=e303]
+                - paragraph [ref=e304]: The Trip Page is not public. It's for freinds and family to follow you during your trip
+            - article [ref=e305]:
+              - img [ref=e306]
+              - generic [ref=e308]:
+                - heading "Shared by invitation" [level=3] [ref=e309]
+                - paragraph [ref=e310]: The captain chooses who receives the Trip Page link and followers do not need an account.
+            - article [ref=e311]:
+              - img [ref=e312]
+              - generic [ref=e314]:
+                - heading "Useful information ashore" [level=3] [ref=e315]
+                - paragraph [ref=e316]: The float plan gives the shore contact organized trip details, and planned departure and return times.
+            - article [ref=e317]:
+              - img [ref=e318]
+              - generic [ref=e320]:
+                - heading "Float Plan Monitoring" [level=3] [ref=e321]
+                - paragraph [ref=e322]: FPW watches the expected check-in schedule. If a check-in is missed or remains unresolved, the trip may need attention and FPW can notify the captain or selected trip contacts.
+                - paragraph [ref=e323]: Automated schedule monitoring—not emergency dispatch or rescue monitoring.
+          - paragraph [ref=e324]:
+            - text: FloatPlanWizard organizes and shares trip information. It is not a rescue, dispatch, or emergency response service.
+            - link "Read the Shore Contact Guide" [ref=e325] [cursor=pointer]:
+              - /url: /fpw/shore-contact-overdue-boater/
+    - region "Built for day trips, weekends, and extended cruises." [ref=e326]:
+      - generic [ref=e327]:
+        - heading "Built for day trips, weekends, and extended cruises." [level=2] [ref=e328]
+        - paragraph [ref=e329]: From a short local run to an extended cruise, FPW connects planning, the float plan, the shared Trip Page, and underway updates.
+        - generic [ref=e330]:
+          - article [ref=e331]:
+            - img [ref=e332]
+            - generic [ref=e334]:
+              - heading "Local Day Trips" [level=3] [ref=e335]
+              - paragraph [ref=e336]: Plan the route, estimate timing, share the Trip Page, and confirm safe return.
+          - article [ref=e337]:
+            - img [ref=e338]
+            - generic [ref=e340]:
+              - heading "Fishing Trips" [level=3] [ref=e341]
+              - paragraph [ref=e342]: Share the general route, planned fishing areas, passengers, timing, and latest check-ins.
+          - article [ref=e343]:
+            - img [ref=e344]
+            - generic [ref=e346]:
+              - heading "Weekend Cruising" [level=3] [ref=e347]
+              - paragraph [ref=e348]: Plan multiple stops, overnight status, daily departures, and family updates.
+          - article [ref=e349]:
+            - img [ref=e350]
+            - generic [ref=e352]:
+              - heading "Great Loop & Extended Cruises" [level=3] [ref=e353]
+              - paragraph [ref=e354]: Manage multi-leg routes, changing plans, overnight stops, and shared trip progress.
+    - region "Plan for free. Add Premium when the trip needs it." [ref=e355]:
+      - generic [ref=e356]:
+        - heading "Plan for free. Add Premium when the trip needs it." [level=2] [ref=e357]
+        - paragraph [ref=e358]: Full planning and Basic sending are included. New members receive their first complete Premium trip for free, with one-trip, monthly, and annual Premium options available when needed.
+        - generic [ref=e359]:
+          - article [ref=e360]:
+            - heading "Free Membership" [level=3] [ref=e361]
+            - generic [ref=e362]: $0
+            - paragraph [ref=e363]: Full planning and Basic sending.
+            - list [ref=e364]:
+              - listitem [ref=e365]: Route Builder and generated routes
+              - listitem [ref=e366]: Saved boats, people, contacts, and waypoints
+              - listitem [ref=e367]: Multiple Drafts
+              - listitem [ref=e368]: Basic float-plan sending
+              - listitem [ref=e369]: First Premium trip for new members
+            - link "Create Free Account" [ref=e370] [cursor=pointer]:
+              - /url: /fpw/app/join.cfm
+          - article [ref=e371]:
+            - heading "Buy One Trip" [level=3] [ref=e372]
+            - generic [ref=e373]: $4.99
+            - paragraph [ref=e374]: No subscription
+            - paragraph [ref=e375]: One complete Premium trip.
+            - list [ref=e376]:
+              - listitem [ref=e377]: Premium PDF/email delivery
+              - listitem [ref=e378]: Active Cruise
+              - listitem [ref=e379]: Float Plan Monitoring
+              - listitem [ref=e380]: Private Trip Page
+              - listitem [ref=e381]: Exact-plan operational access
+            - link "View One Trip" [ref=e382] [cursor=pointer]:
+              - /url: /fpw/app/pricing.cfm
+          - article [ref=e383]:
+            - heading "Premium Monthly" [level=3] [ref=e384]
+            - generic [ref=e385]: $9.99 / month
+            - paragraph [ref=e386]: Cancel anytime
+            - paragraph [ref=e387]: General Premium for frequent trips.
+            - list [ref=e388]:
+              - listitem [ref=e389]: Premium Save & Send
+              - listitem [ref=e390]: Active Cruise
+              - listitem [ref=e391]: Float Plan Monitoring
+              - listitem [ref=e392]: Private Trip Page
+            - link "View Monthly" [ref=e393] [cursor=pointer]:
+              - /url: /fpw/app/pricing.cfm
+          - article [ref=e394]:
+            - generic [ref=e395]: BEST VALUE
+            - heading "Premium Annual" [level=3] [ref=e396]
+            - generic [ref=e397]: $89 / year
+            - paragraph [ref=e398]: Save about 25% vs monthly
+            - paragraph [ref=e399]: General Premium all year.
+            - list [ref=e400]:
+              - listitem [ref=e401]: Premium Save & Send
+              - listitem [ref=e402]: Active Cruise
+              - listitem [ref=e403]: Float Plan Monitoring
+              - listitem [ref=e404]: Private Trip Page
+            - link "View Annual" [ref=e405] [cursor=pointer]:
+              - /url: /fpw/app/pricing.cfm
+    - region "Questions boaters ask before using FPW." [ref=e406]:
+      - generic [ref=e407]:
+        - heading "Questions boaters ask before using FPW." [level=2] [ref=e408]
+        - paragraph [ref=e409]: Learn how planning, the float plan, the shared Trip Page, and underway updates work together.
+        - generic [ref=e410]:
+          - button "Do followers need an account?" [ref=e412] [cursor=pointer]:
+            - text: Do followers need an account?
+            - img [ref=e413]
+          - button "What does the Trip Page show?" [ref=e416] [cursor=pointer]:
+            - text: What does the Trip Page show?
+            - img [ref=e417]
+          - button "Does FloatPlanWizard contact emergency services?" [ref=e420] [cursor=pointer]:
+            - text: Does FloatPlanWizard contact emergency services?
+            - img [ref=e421]
+          - button "Can I print or download my float plan?" [ref=e424] [cursor=pointer]:
+            - text: Can I print or download my float plan?
+            - img [ref=e425]
+          - button "Can I use FPW for day trips?" [ref=e428] [cursor=pointer]:
+            - text: Can I use FPW for day trips?
+            - img [ref=e429]
+          - button "What happens if my trip changes?" [ref=e432] [cursor=pointer]:
+            - text: What happens if my trip changes?
+            - img [ref=e433]
+          - button "What does Float Plan Monitoring do?" [ref=e436] [cursor=pointer]:
+            - text: What does Float Plan Monitoring do?
+            - img [ref=e437]
+    - region "Plan the trip. Bring everyone along." [ref=e439]:
+      - generic [ref=e440]:
+        - generic [ref=e441]:
+          - heading "Plan the trip. Bring everyone along." [level=2] [ref=e442]
+          - paragraph [ref=e443]: Create your route, organize the details, share a Trip Page with friends and family, and build the float plan your shore contact needs.
+        - generic [ref=e444]:
+          - link "Plan Your Trip" [ref=e445] [cursor=pointer]:
+            - /url: /fpw/app/join.cfm
+            - img [ref=e446]
+            - text: Plan Your Trip
+          - paragraph [ref=e448]: No credit card required. Takes just a few minutes.
+  - contentinfo [ref=e449]:
+    - generic [ref=e450]:
+      - generic [ref=e451]:
+        - generic [ref=e452]:
+          - generic [ref=e453]:
+            - generic [ref=e454]: FPW
+            - generic [ref=e455]:
+              - heading "FloatPlanWizard" [level=2] [ref=e456]
+              - paragraph [ref=e457]: Boating trip planning, float plans, check-ins, and trip monitoring for recreational boaters.
+          - paragraph [ref=e458]: Built for Great Loopers, coastal cruisers, and serious recreational boaters.
+        - navigation "FloatPlanWizard planning tools" [ref=e459]:
+          - heading "Plan" [level=3] [ref=e460]
+          - generic [ref=e461]:
+            - link "Dashboard" [ref=e462] [cursor=pointer]:
+              - /url: /fpw/app/dashboard.cfm
+            - link "Help Center" [ref=e463] [cursor=pointer]:
+              - /url: /fpw/app/help.cfm
+            - link "Shore Contact Guide" [ref=e464] [cursor=pointer]:
+              - /url: /fpw/shore-contact-overdue-boater/
+            - link "Great Loop Locks" [ref=e465] [cursor=pointer]:
+              - /url: /fpw/great-loop/locks/
+            - link "Great Loop Bridges" [ref=e466] [cursor=pointer]:
+              - /url: /fpw/great-loop/bridges/
+            - link "Great Loop Ports" [ref=e467] [cursor=pointer]:
+              - /url: /fpw/great-loop/ports/
+            - link "Great Loop Anchorages" [ref=e468] [cursor=pointer]:
+              - /url: /fpw/great-loop/anchorages/
+            - link "Marine Weather" [ref=e469] [cursor=pointer]:
+              - /url: /fpw/app/weather.cfm
+            - link "Fuel Calculator" [ref=e470] [cursor=pointer]:
+              - /url: /fpw/boat-fuel-calculator/boat-fuel-calculator.cfm
+            - link "Memberships" [ref=e471] [cursor=pointer]:
+              - /url: /fpw/app/pricing.cfm
+        - navigation "Account and support" [ref=e472]:
+          - heading "Account" [level=3] [ref=e473]
+          - generic [ref=e474]:
+            - link "My Account" [ref=e475] [cursor=pointer]:
+              - /url: /fpw/app/account.cfm
+            - link "Log In" [ref=e476] [cursor=pointer]:
+              - /url: /fpw/app/login.cfm
+            - link "Join Free" [ref=e477] [cursor=pointer]:
+              - /url: /fpw/app/join.cfm
+            - link "FAQ" [ref=e478] [cursor=pointer]:
+              - /url: /fpw/faq/
+            - link "Contact Support" [ref=e479] [cursor=pointer]:
+              - /url: /fpw/app/contact.cfm
+        - navigation "Legal and safety" [ref=e480]:
+          - heading "Legal" [level=3] [ref=e481]
+          - link "About FPW" [ref=e482] [cursor=pointer]:
+            - /url: /fpw/about
+          - link "Terms of Service" [ref=e483] [cursor=pointer]:
+            - /url: /fpw/terms_of_service.cfm
+          - link "Privacy Policy" [ref=e484] [cursor=pointer]:
+            - /url: /fpw/privacy_policy.cfm
+          - link "Press & Media" [ref=e485] [cursor=pointer]:
+            - /url: /fpw/press.cfm
+      - generic [ref=e486]:
+        - strong [ref=e487]: "Emergency notice:"
+        - text: FloatPlanWizard is not a rescue, dispatch, or emergency response service. In an emergency, use official channels such as VHF Channel 16, DSC distress, 911, EPIRB/PLB, or local emergency services.
+      - generic [ref=e488]:
+        - generic [ref=e489]: © 2026 FloatPlanWizard. All rights reserved.
+        - generic [ref=e490]: Now live for recreational boaters.
+```
