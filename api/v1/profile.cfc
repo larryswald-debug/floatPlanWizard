@@ -144,12 +144,14 @@
                 </cfif>
 
                 <cfset dbPassword = qPw.password>
+                <cftry>
+                    <cfset passwordService = createObject("component", "fpw.api.v1.PasswordHashService").init()>
+                    <cfcatch type="any">
+                        <cfset passwordService = createObject("component", "api.v1.PasswordHashService").init()>
+                    </cfcatch>
+                </cftry>
 
-                <!-- Compare: allow legacy plaintext or SHA-256 (stored often uppercase hex) -->
-                <cfset currentHash = ucase(hash(currentPassword, "SHA-256", "UTF-8"))>
-                <cfset dbPwUpper   = ucase(dbPassword)>
-
-                <cfif NOT ( currentPassword EQ dbPassword OR currentHash EQ dbPwUpper )>
+                <cfif NOT passwordService.verifyPassword(currentPassword, dbPassword)>
                     <cfset response = {
                         SUCCESS = false,
                         ERROR   = "BAD_CURRENT_PASSWORD",
@@ -160,8 +162,8 @@
                     <cfabort>
                 </cfif>
 
-                <!-- Store new password as SHA-256 uppercase hex -->
-                <cfset newHash = ucase(hash(newPassword, "SHA-256", "UTF-8"))>
+                <!-- Every successful password change writes the canonical adaptive format -->
+                <cfset newHash = passwordService.hashPassword(newPassword)>
 
                 <cfquery datasource="fpw">
                     UPDATE users

@@ -212,7 +212,13 @@
                 <cfabort>
             </cfif>
 
-            <cfset passwordHash = ucase(hash(password, "SHA-256", "UTF-8"))>
+            <cftry>
+                <cfset passwordService = createObject("component", "fpw.api.v1.PasswordHashService").init()>
+                <cfcatch type="any">
+                    <cfset passwordService = createObject("component", "api.v1.PasswordHashService").init()>
+                </cfcatch>
+            </cftry>
+            <cfset passwordHash = passwordService.hashPassword(password)>
             <cfset nowStamp = now()>
 
             <!-- Build values for users insert -->
