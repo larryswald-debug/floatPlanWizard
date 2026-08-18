@@ -10,6 +10,18 @@
 
   var BASE_PATH = window.FPW_BASE || "";
   var FALLBACK_LOGIN_URL = BASE_PATH + "/index.cfm";
+  var dashboardPageIsLeaving = false;
+
+  window.addEventListener("beforeunload", function () {
+    dashboardPageIsLeaving = true;
+  });
+  window.addEventListener("pagehide", function () {
+    dashboardPageIsLeaving = true;
+  });
+  window.addEventListener("pageshow", function () {
+    dashboardPageIsLeaving = false;
+  });
+
   var WEATHER_BASE_URL = (function () {
     var base = (BASE_PATH || "").toString();
     var pathname = "";
@@ -870,6 +882,30 @@
       return;
     }
     window.location.href = getLoginUrl();
+  }
+
+  function getCurrentMemberErrorCode(err) {
+    if (!err || typeof err !== "object") return "";
+    return String(err.ERROR || err.errorCode || err.code || err.error || "").trim().toUpperCase();
+  }
+
+  function isCurrentMemberAuthenticationFailure(err) {
+    var status = Number(err && err.status);
+    var code = getCurrentMemberErrorCode(err);
+    return status === 401
+      || status === 403
+      || code === "AUTH_REQUIRED"
+      || code === "UNAUTHORIZED";
+  }
+
+  function isExpectedCurrentMemberCancellation(err) {
+    var name = String(err && err.name || "").trim().toLowerCase();
+    var message = String(err && err.message || "").trim().toLowerCase();
+    return dashboardPageIsLeaving
+      || document.visibilityState === "hidden"
+      || name === "aborterror"
+      || message.indexOf("abort") !== -1
+      || message.indexOf("cancel") !== -1;
   }
 
   function populateUserInfo(user) {
@@ -6283,7 +6319,7 @@
         }
 
         if (!user) {
-          redirectToLogin();
+          console.error("Current member response did not include user data:", data);
           return;
         }
 
@@ -6323,9 +6359,14 @@
         }, 1200);
       })
       .catch(function (err) {
+        if (isCurrentMemberAuthenticationFailure(err)) {
+          redirectToLogin();
+          return;
+        }
+        if (isExpectedCurrentMemberCancellation(err)) {
+          return;
+        }
         console.error("Failed to load current user:", err);
-        // If the API fails, assume not logged in and send to login
-        redirectToLogin();
       });
 
     bindLogoutButton();

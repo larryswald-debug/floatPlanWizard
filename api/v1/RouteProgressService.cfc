@@ -360,6 +360,256 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="finalizeCompletedRouteInstanceForFloatPlan" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var out = {
+                SUCCESS = false,
+                FINALIZED = false,
+                ALREADY_COMPLETE = false,
+                ROUTE_INSTANCE_ID = 0,
+                STATUS = "",
+                COMPLETED_AT = "",
+                EXPECTED_LEG_COUNT = 0,
+                COMPLETED_LEG_COUNT = 0,
+                ACTIVE_LEG_COUNT = 0,
+                ERROR = "",
+                MESSAGE = "Unable to finalize the route instance."
+            };
+            var qBinding = queryNew("");
+            var qProgressSummary = queryNew("");
+            var qFinalLeg = queryNew("");
+            var qConcurrentState = queryNew("");
+            var routeInstanceId = 0;
+            var routeInstanceStatus = "";
+            var routeInstanceCompletedAt = "";
+            var finalLegStatus = "";
+            var finalLegCompletedAt = "";
+            var updateResult = {};
+
+            if (arguments.userId LTE 0 OR arguments.floatPlanId LTE 0) {
+                out.ERROR = "INVALID_ARGUMENTS";
+                out.MESSAGE = "Invalid userId or floatPlanId.";
+                return out;
+            }
+
+            qBinding = queryExecute(
+                "SELECT
+                    fp.route_instance_id,
+                    UPPER(TRIM(fp.status)) AS float_plan_status,
+                    UPPER(TRIM(ri.status)) AS route_instance_status,
+                    ri.completed_at
+                 FROM floatplans fp
+                 INNER JOIN route_instances ri
+                    ON ri.id = fp.route_instance_id
+                   AND TRIM(CAST(ri.user_id AS CHAR)) = CAST(:userId AS CHAR)
+                 WHERE fp.floatPlanId = :floatPlanId
+                   AND fp.userId = :userId
+                 LIMIT 1
+                 FOR UPDATE",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            if (qBinding.recordCount NEQ 1) {
+                out.ERROR = "ROUTE_INSTANCE_BINDING_INVALID";
+                out.MESSAGE = "The operational route instance is not bound to this float plan and user.";
+                return out;
+            }
+
+            routeInstanceId = val(qBinding.route_instance_id[1]);
+            routeInstanceStatus = uCase(trim(toString(qBinding.route_instance_status[1])));
+            routeInstanceCompletedAt = (
+                isNull(qBinding.completed_at[1])
+                    ? ""
+                    : qBinding.completed_at[1]
+            );
+            out.ROUTE_INSTANCE_ID = routeInstanceId;
+            out.STATUS = routeInstanceStatus;
+            out.COMPLETED_AT = routeInstanceCompletedAt;
+
+            if (uCase(trim(toString(qBinding.float_plan_status[1]))) NEQ "ACTIVE") {
+                out.ERROR = "FLOAT_PLAN_NOT_ACTIVE";
+                out.MESSAGE = "Only an active float plan can finalize its route instance.";
+                return out;
+            }
+
+            qProgressSummary = queryExecute(
+                "SELECT
+                    COUNT(ril.id) AS expected_leg_count,
+                    COALESCE(SUM(
+                        CASE
+                            WHEN UPPER(TRIM(COALESCE(rilp.status, 'NOT_STARTED'))) = 'COMPLETED'
+                            THEN 1 ELSE 0
+                        END
+                    ), 0) AS completed_leg_count,
+                    COALESCE(SUM(
+                        CASE
+                            WHEN UPPER(TRIM(COALESCE(rilp.status, 'NOT_STARTED'))) IN ('STARTED','IN_PROGRESS')
+                              OR (
+                                rilp.leg_started_at IS NOT NULL
+                                AND UPPER(TRIM(COALESCE(rilp.status, 'NOT_STARTED'))) <> 'COMPLETED'
+                              )
+                            THEN 1 ELSE 0
+                        END
+                    ), 0) AS active_leg_count
+                 FROM route_instance_legs ril
+                 LEFT JOIN route_instance_leg_progress rilp
+                    ON rilp.route_instance_id = ril.route_instance_id
+                   AND rilp.leg_order = ril.leg_order
+                   AND rilp.user_id = :userId
+                 WHERE ril.route_instance_id = :routeInstanceId",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            out.EXPECTED_LEG_COUNT = val(qProgressSummary.expected_leg_count[1]);
+            out.COMPLETED_LEG_COUNT = val(qProgressSummary.completed_leg_count[1]);
+            out.ACTIVE_LEG_COUNT = val(qProgressSummary.active_leg_count[1]);
+
+            if (out.EXPECTED_LEG_COUNT LTE 0) {
+                out.ERROR = "ROUTE_LEGS_MISSING";
+                out.MESSAGE = "The operational route has no expected legs to finalize.";
+                return out;
+            }
+            if (
+                out.COMPLETED_LEG_COUNT NEQ out.EXPECTED_LEG_COUNT
+                OR out.ACTIVE_LEG_COUNT GT 0
+            ) {
+                out.ERROR = "ROUTE_PROGRESS_INCOMPLETE";
+                out.MESSAGE = "All expected route legs must be complete before the route instance can be finalized.";
+                return out;
+            }
+
+            qFinalLeg = queryExecute(
+                "SELECT
+                    ril.leg_order,
+                    UPPER(TRIM(COALESCE(rilp.status, 'NOT_STARTED'))) AS progress_status,
+                    rilp.completed_at
+                 FROM route_instance_legs ril
+                 LEFT JOIN route_instance_leg_progress rilp
+                    ON rilp.route_instance_id = ril.route_instance_id
+                   AND rilp.leg_order = ril.leg_order
+                   AND rilp.user_id = :userId
+                 WHERE ril.route_instance_id = :routeInstanceId
+                 ORDER BY ril.leg_order DESC, ril.id DESC
+                 LIMIT 1",
+                {
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource }
+            );
+
+            finalLegStatus = (
+                qFinalLeg.recordCount EQ 1
+                    ? uCase(trim(toString(qFinalLeg.progress_status[1])))
+                    : ""
+            );
+            finalLegCompletedAt = (
+                qFinalLeg.recordCount EQ 1 AND !isNull(qFinalLeg.completed_at[1])
+                    ? qFinalLeg.completed_at[1]
+                    : ""
+            );
+            if (
+                finalLegStatus NEQ "COMPLETED"
+                OR !isDate(finalLegCompletedAt)
+            ) {
+                out.ERROR = "ROUTE_COMPLETION_TIMESTAMP_MISSING";
+                out.MESSAGE = "The final route leg does not have a canonical completion timestamp.";
+                return out;
+            }
+
+            if (routeInstanceStatus EQ "COMPLETED") {
+                if (!isDate(routeInstanceCompletedAt)) {
+                    out.ERROR = "ROUTE_INSTANCE_COMPLETION_INCONSISTENT";
+                    out.MESSAGE = "The route instance is completed but has no completion timestamp.";
+                    return out;
+                }
+                out.SUCCESS = true;
+                out.ALREADY_COMPLETE = true;
+                out.MESSAGE = "Route instance is already completed.";
+                return out;
+            }
+
+            if (routeInstanceStatus NEQ "ACTIVE") {
+                out.ERROR = "ROUTE_INSTANCE_NOT_ACTIVE";
+                out.MESSAGE = "Only an active route instance can be finalized.";
+                return out;
+            }
+            if (isDate(routeInstanceCompletedAt)) {
+                out.ERROR = "ROUTE_INSTANCE_COMPLETION_INCONSISTENT";
+                out.MESSAGE = "The active route instance already has a completion timestamp.";
+                return out;
+            }
+
+            queryExecute(
+                "UPDATE route_instances
+                 SET
+                    status = 'COMPLETED',
+                    completed_at = :completedAt,
+                    updated_at = UTC_TIMESTAMP()
+                 WHERE id = :routeInstanceId
+                   AND TRIM(CAST(user_id AS CHAR)) = CAST(:userId AS CHAR)
+                   AND UPPER(TRIM(status)) = 'ACTIVE'
+                   AND completed_at IS NULL",
+                {
+                    completedAt = { value = finalLegCompletedAt, cfsqltype = "cf_sql_timestamp" },
+                    routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                },
+                { datasource = arguments.datasource, result = "local.updateResult" }
+            );
+
+            if (!structKeyExists(updateResult, "recordCount") OR val(updateResult.recordCount) NEQ 1) {
+                qConcurrentState = queryExecute(
+                    "SELECT UPPER(TRIM(status)) AS status_value, completed_at
+                     FROM route_instances
+                     WHERE id = :routeInstanceId
+                       AND TRIM(CAST(user_id AS CHAR)) = CAST(:userId AS CHAR)
+                     LIMIT 1
+                     FOR UPDATE",
+                    {
+                        routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
+                        userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = arguments.datasource }
+                );
+                if (
+                    qConcurrentState.recordCount EQ 1
+                    AND uCase(trim(toString(qConcurrentState.status_value[1]))) EQ "COMPLETED"
+                    AND !isNull(qConcurrentState.completed_at[1])
+                    AND isDate(qConcurrentState.completed_at[1])
+                ) {
+                    out.SUCCESS = true;
+                    out.ALREADY_COMPLETE = true;
+                    out.STATUS = "COMPLETED";
+                    out.COMPLETED_AT = qConcurrentState.completed_at[1];
+                    out.MESSAGE = "Route instance is already completed.";
+                    return out;
+                }
+                out.ERROR = "ROUTE_INSTANCE_FINALIZATION_CONFLICT";
+                out.MESSAGE = "The route instance changed before completion could be recorded.";
+                return out;
+            }
+
+            out.SUCCESS = true;
+            out.FINALIZED = true;
+            out.STATUS = "COMPLETED";
+            out.COMPLETED_AT = finalLegCompletedAt;
+            out.MESSAGE = "Route instance finalized from completed route progress.";
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="startNextPendingLegForFloatPlan" access="public" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">

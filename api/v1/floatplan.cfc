@@ -5901,6 +5901,8 @@
             var lockedAccessGate = {};
             var planUpdateResult = {};
             var accessEndResult = {};
+            var routeProgressService = {};
+            var routeInstanceFinalizationResult = {};
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -5985,7 +5987,7 @@
 
             if (requiresRouteCloseValidation) {
                 try {
-                    var routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
+                    routeProgressService = createObject("component", resolveApiV1ComponentPath("RouteProgressService")).init();
                     result.ROUTE_PROGRESS = routeProgressService.markCompletionFromFloatPlanCheckin(
                         userId = arguments.userId,
                         floatPlanId = arguments.floatPlanId,
@@ -6021,6 +6023,25 @@
                         : "Close Trip is unavailable."
                 );
                 return result;
+            }
+
+            if (requiresRouteCloseValidation) {
+                routeInstanceFinalizationResult = routeProgressService.finalizeCompletedRouteInstanceForFloatPlan(
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId,
+                    datasource = "fpw"
+                );
+                result.ROUTE_INSTANCE_FINALIZATION = routeInstanceFinalizationResult;
+                if (
+                    !structKeyExists(routeInstanceFinalizationResult, "SUCCESS")
+                    OR routeInstanceFinalizationResult.SUCCESS NEQ true
+                ) {
+                    throw(
+                        type = "FPW.RouteInstanceFinalizationFailed",
+                        message = "Route instance finalization failed during float plan closure.",
+                        detail = serializeJSON(routeInstanceFinalizationResult)
+                    );
+                }
             }
 
             updateSql =
