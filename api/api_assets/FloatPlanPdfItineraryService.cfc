@@ -242,17 +242,29 @@
                 departureLocal = formatUtcForTimezone(departureUtc, out.timezone);
                 arrivalLocal = formatUtcForTimezone(arrivalUtc, out.timezone);
 
-                if (!len(departureUtc) OR !departureLocal.valid) {
+                if (!len(departureUtc)) {
                     arrayAppend(out.warnings, {
                         "code" = "ROUTE_LEG_DEPARTURE_TIME_MISSING",
                         "message" = "Canonical departure timing is unavailable; the PDF value will be blank.",
                         "routeLegOrder" = legOrder
                     });
+                } else if (!departureLocal.valid) {
+                    arrayAppend(out.warnings, {
+                        "code" = "ROUTE_LEG_DEPARTURE_TIME_FORMAT_FAILED",
+                        "message" = "Canonical departure timing could not be formatted; the PDF value will be blank.",
+                        "routeLegOrder" = legOrder
+                    });
                 }
-                if (!len(arrivalUtc) OR !arrivalLocal.valid) {
+                if (!len(arrivalUtc)) {
                     arrayAppend(out.warnings, {
                         "code" = "ROUTE_LEG_ARRIVAL_TIME_MISSING",
                         "message" = "Canonical arrival timing is unavailable; the PDF value will be blank.",
+                        "routeLegOrder" = legOrder
+                    });
+                } else if (!arrivalLocal.valid) {
+                    arrayAppend(out.warnings, {
+                        "code" = "ROUTE_LEG_ARRIVAL_TIME_FORMAT_FAILED",
+                        "message" = "Canonical arrival timing could not be formatted; the PDF value will be blank.",
                         "routeLegOrder" = legOrder
                     });
                 }
@@ -389,7 +401,45 @@
             if (!len(timezone) OR uCase(timezone) EQ "UTC") {
                 timezone = "America/New_York";
             }
-            return timezone;
+            return normalizePdfTimezone(timezone);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="normalizePdfTimezone" access="private" output="false" returntype="string">
+        <cfargument name="timezone" type="string" required="true">
+        <cfscript>
+            var timezoneId = trim(arguments.timezone);
+            var timezoneKey = uCase(timezoneId);
+
+            switch (timezoneKey) {
+                case "US/EASTERN":
+                    return "America/New_York";
+                case "US/CENTRAL":
+                    return "America/Chicago";
+                case "US/MOUNTAIN":
+                    return "America/Denver";
+                case "US/PACIFIC":
+                    return "America/Los_Angeles";
+                case "US/ALASKA":
+                    return "America/Anchorage";
+                case "US/HAWAII":
+                    return "Pacific/Honolulu";
+                case "+00:00":
+                case "UTC":
+                case "ETC/UTC":
+                case "GMT":
+                    return "UTC";
+            }
+
+            if (!len(timezoneId)) {
+                return "";
+            }
+            try {
+                dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss", timezoneId);
+                return timezoneId;
+            } catch (any invalidTimezoneErr) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 
@@ -399,29 +449,18 @@
         <cfscript>
             var out = { "valid" = false, "date" = "", "time" = "" };
             var rawUtc = normalizeUtcString(arguments.utcValue);
-            var inputFormatter = "";
-            var dateFormatter = "";
-            var timeFormatter = "";
-            var localDateTime = "";
-            var instant = "";
-            var zoneId = "";
-            var zonedDateTime = "";
+            var timezoneId = normalizePdfTimezone(arguments.timezone);
+            var utcDateTime = "";
 
-            if (!len(rawUtc) OR !len(trim(arguments.timezone))) {
+            if (!len(rawUtc) OR !len(timezoneId)) {
                 return out;
             }
 
             try {
-                inputFormatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("yyyy-MM-dd HH:mm:ss");
-                dateFormatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("MM/dd/yy");
-                timeFormatter = createObject("java", "java.time.format.DateTimeFormatter").ofPattern("HH:mm z");
-                localDateTime = createObject("java", "java.time.LocalDateTime").parse(rawUtc, inputFormatter);
-                instant = localDateTime.atOffset(createObject("java", "java.time.ZoneOffset").UTC).toInstant();
-                zoneId = createObject("java", "java.time.ZoneId").of(trim(arguments.timezone));
-                zonedDateTime = createObject("java", "java.time.ZonedDateTime").ofInstant(instant, zoneId);
+                utcDateTime = parseDateTime(replace(rawUtc, " ", "T", "one") & "Z");
+                out.date = dateTimeFormat(utcDateTime, "mm/dd/yy", timezoneId);
+                out.time = dateTimeFormat(utcDateTime, "HH:nn z", timezoneId);
                 out.valid = true;
-                out.date = toString(dateFormatter.format(zonedDateTime));
-                out.time = toString(timeFormatter.format(zonedDateTime));
             } catch (any formatErr) {
                 out.valid = false;
             }
@@ -507,7 +546,6 @@
         </cfscript>
     </cffunction>
 </cfcomponent>
-
 
 
 
