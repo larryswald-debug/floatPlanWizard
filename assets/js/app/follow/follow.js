@@ -120,16 +120,51 @@
       if (!document.body) return;
       document.body.classList.remove("follow-load-error");
       document.body.classList.remove("follow-loading");
+      if (dom.loader) {
+        dom.loader.hidden = false;
+        dom.loader.removeAttribute("aria-hidden");
+      }
+      if (dom.terminalError) {
+        dom.terminalError.hidden = true;
+      }
+      if (dom.app) {
+        dom.app.hidden = false;
+        dom.app.removeAttribute("aria-hidden");
+      }
     });
   }
 
   function failLoader(message) {
     var errorMessage = String(message || "Unable to load voyage stream.").trim() || "Unable to load voyage stream.";
-    setLoaderState(state.loader.label, state.loader.percent, errorMessage);
+
+    state.loader.message = errorMessage;
+    if (dom.loader) {
+      dom.loader.hidden = true;
+      dom.loader.setAttribute("aria-hidden", "true");
+    }
+    if (dom.loaderPhase) dom.loaderPhase.textContent = "";
+    if (dom.loaderPercent) dom.loaderPercent.textContent = "";
+    if (dom.loaderBar) dom.loaderBar.style.width = "0%";
+    if (dom.loaderMessage) dom.loaderMessage.textContent = "";
+    if (dom.app) {
+      dom.app.hidden = true;
+      dom.app.setAttribute("aria-hidden", "true");
+    }
+    if (dom.terminalErrorMessage) {
+      dom.terminalErrorMessage.textContent = errorMessage;
+    }
+    if (dom.terminalError) {
+      dom.terminalError.hidden = false;
+    }
     if (document.body) {
       document.body.classList.add("follow-load-error");
-      document.body.classList.add("follow-loading");
+      document.body.classList.remove("follow-loading");
     }
+    window.requestAnimationFrame(function () {
+      if (dom.terminalErrorHeading && typeof dom.terminalErrorHeading.focus === "function") {
+        dom.terminalErrorHeading.focus();
+      }
+    });
   }
 
   function readPageContext() {
@@ -2361,11 +2396,15 @@
     dom.composerPostBtn = document.getElementById("composerPostBtn") || getHookField("stream-composer-post");
     dom.composerHelp = document.getElementById("composerHelp");
     dom.postsContainer = document.getElementById("postsContainer") || getHookField("stream-feed");
+    dom.app = document.querySelector(".app");
     dom.loader = document.getElementById("followLoader");
     dom.loaderPhase = document.getElementById("followLoaderPhase");
     dom.loaderPercent = document.getElementById("followLoaderPercent");
     dom.loaderBar = document.getElementById("followLoaderBar");
     dom.loaderMessage = document.getElementById("followLoaderMessage");
+    dom.terminalError = document.getElementById("followTerminalError");
+    dom.terminalErrorHeading = document.getElementById("followTerminalErrorHeading");
+    dom.terminalErrorMessage = document.getElementById("followTerminalErrorMessage");
     dom.journeyStatusPill = getHookField("journey-status-pill");
     dom.statusDot = document.querySelector(".status-dot");
     dom.openFullMapBtn = document.getElementById("openFullMapBtn");
@@ -2434,9 +2473,6 @@
 
     bootstrapStream().catch(function (err) {
       var errorMessage = (err && err.message) ? err.message : "Unable to load voyage stream.";
-      if (dom.postsContainer) {
-        dom.postsContainer.innerHTML = '<div class="emptyState">' + escapeHtml(errorMessage) + '</div>';
-      }
       failLoader(errorMessage);
     });
   }

@@ -8,7 +8,7 @@
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260611-follow-card-surfaces" />
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260818-qa6-002-terminal-loader" />
   <style>
     body.follow-loading { overflow: hidden; }
     body.follow-loading .app { visibility: hidden; }
@@ -35,6 +35,13 @@
       <div class="follow-loader__percent" id="followLoaderPercent">0%</div>
       <div class="follow-loader__bar" aria-hidden="true"><span id="followLoaderBar"></span></div>
       <p class="follow-loader__message" id="followLoaderMessage">Preparing the shared trip view.</p>
+    </div>
+  </div>
+  <div class="follow-terminal-error" id="followTerminalError" role="alert" aria-live="assertive" aria-atomic="true" hidden>
+    <div class="follow-terminal-error__card">
+      <div class="follow-terminal-error__eyebrow">FloatPlanWizard</div>
+      <h2 class="follow-terminal-error__heading" id="followTerminalErrorHeading" tabindex="-1">Trip Page Unavailable</h2>
+      <p class="follow-terminal-error__message" id="followTerminalErrorMessage">Unable to load voyage stream.</p>
     </div>
   </div>
   <div class="app">
@@ -408,6 +415,6 @@
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260526-cache-bump"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260817-qa6-001-final-arrival"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260818-qa6-002-terminal-loader"></script>
 </body>
 </html>
