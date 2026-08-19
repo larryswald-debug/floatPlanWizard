@@ -125,9 +125,6 @@
     if (checklist.contact !== true) {
       missing.push("a shore contact with name, phone, and email");
     }
-    if (checklist.passengers !== true) {
-      missing.push("a passenger");
-    }
     if (checklist.operator !== true) {
       missing.push("an operator");
     }
@@ -192,8 +189,9 @@
     STEP_KEYS.forEach(function (key) {
       var item = stepsEl ? stepsEl.querySelector('[data-onboarding-step="' + key + '"]') : null;
       var stepStatus = item ? item.querySelector("[data-onboarding-step-status]") : null;
+      var isOptional = key === "passengers";
       var isComplete = checklist[key] === true;
-      var isCurrent = !allComplete && !isComplete && firstIncompleteStep === key;
+      var isCurrent = !isOptional && !allComplete && !isComplete && firstIncompleteStep === key;
       if (!item) return;
       item.classList.toggle("is-complete", isComplete);
       item.classList.toggle("is-current", isCurrent);
@@ -203,7 +201,9 @@
         item.removeAttribute("aria-current");
       }
       if (stepStatus) {
-        if (key === "waypoints" && !isComplete) {
+        if (isOptional && !isComplete) {
+          stepStatus.textContent = "Optional";
+        } else if (key === "waypoints" && !isComplete) {
           stepStatus.textContent = (isCurrent ? "Next step · " : "")
             + savedWaypointCount
             + " of "

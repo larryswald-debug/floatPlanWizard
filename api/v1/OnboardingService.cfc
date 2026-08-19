@@ -137,7 +137,6 @@
       allComplete = (
         vesselComplete
         AND contactComplete
-        AND passengersComplete
         AND operatorComplete
         AND waypointsComplete
       );
@@ -148,9 +147,6 @@
       } else if (!contactComplete) {
         firstIncompleteStep = "contact";
         continueAction = "add-contact";
-      } else if (!passengersComplete) {
-        firstIncompleteStep = "passengers";
-        continueAction = "add-passenger";
       } else if (!operatorComplete) {
         firstIncompleteStep = "operator";
         continueAction = "add-operator";

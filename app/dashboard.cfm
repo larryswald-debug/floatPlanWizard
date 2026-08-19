@@ -128,8 +128,8 @@
                     </li>
                     <li class="fpw-onboarding-step" data-onboarding-step="passengers">
                         <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
-                        <span class="fpw-onboarding-step-label">Add passengers</span>
-                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
+                        <span class="fpw-onboarding-step-label">Add passengers (optional)</span>
+                        <span class="fpw-onboarding-step-status" data-onboarding-step-status>Optional</span>
                     </li>
                     <li class="fpw-onboarding-step" data-onboarding-step="operator">
                         <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
@@ -1445,7 +1445,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260816-identical-waypoint-validation"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260803-create-route-readiness"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260818-passengers-optional"></script>
 
 <!-- Dashboard-specific JS -->
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260818-navigation-auth-gating"></script>

@@ -1517,8 +1517,7 @@
                 "privacy_mode"=streamRow.privacy_mode,
                 "allow_interactions"=(streamRow.allow_interactions GT 0),
                 "slug"=streamRow.slug,
-                "is_owner"=isOwner,
-                "owner_user_id"=streamRow.owner_user_id
+                "is_owner"=isOwner
             };
             out["sidebar"] = {
                 "viewer_count"=viewerCountVal,
@@ -2451,7 +2450,6 @@
                     "id"=postIdVal,
                     "stream_id"=val(qPosts.stream_id[i]),
                     "author_type"=(isNull(qPosts.author_type[i]) ? "" : toString(qPosts.author_type[i])),
-                    "author_user_id"=(isNull(qPosts.author_user_id[i]) ? 0 : val(qPosts.author_user_id[i])),
                     "follower_id"=(isNull(qPosts.follower_id[i]) ? 0 : val(qPosts.follower_id[i])),
                     "title"=(isNull(qPosts.title[i]) ? "" : toString(qPosts.title[i])),
                     "body"=(isNull(qPosts.body[i]) ? "" : toString(qPosts.body[i])),
@@ -3396,11 +3394,9 @@
             var qInst = queryNew("");
             var qPlan = queryNew("");
             var qStream = queryNew("");
-            var qSlug = queryNew("");
             var streamIdVal = 0;
             var slugVal = "";
             var shareTokenVal = "";
-            var slugBase = "";
             var slugCandidate = "";
             var routeMap = {};
             var ensurePins = [];
@@ -3412,7 +3408,6 @@
             var routeInstanceIdVal = 0;
             var routeCodeVal = "";
             var fpwBasePath = resolveFpwBasePath();
-            var createSuffix = "";
 
             if (arguments.currentUserId LTE 0) {
                 return buildApiEnvelope(
@@ -3530,32 +3525,7 @@
             );
 
             if (qStream.recordCount EQ 0) {
-                slugBase = normalizeSlug(routeCodeVal);
-                if (!len(slugBase)) {
-                    slugBase = "trip-" & floatPlanIdVal;
-                }
-                if (len(slugBase) GT 104) {
-                    slugBase = left(slugBase, 104);
-                }
-
-                do {
-                    createSuffix = lCase(left(replace(createUUID(), "-", "", "all"), 6));
-                    slugCandidate = slugBase & "-" & createSuffix;
-                    qSlug = queryExecute(
-                        "SELECT id
-                         FROM voyage_streams
-                         WHERE slug = :slug
-                         LIMIT 1",
-                        {
-                            slug = { value=slugCandidate, cfsqltype="cf_sql_varchar" }
-                        },
-                        { datasource=ds }
-                    );
-                    if (qSlug.recordCount EQ 0) {
-                        break;
-                    }
-                } while (true);
-
+                slugCandidate = generateOpaqueFollowSlug(ds);
                 shareTokenVal = randomToken(64);
                 queryExecute(
                     "INSERT INTO voyage_streams (
@@ -3802,7 +3772,7 @@
             }
 
             if (!len(slugVal)) {
-                slugVal = "demo-voyage-" & arguments.currentUserId;
+                slugVal = generateOpaqueFollowSlug(ds);
             }
 
             qStream = queryExecute(
@@ -7855,6 +7825,30 @@
             slug = reReplace(slug, "(^-|-$)", "", "all");
             if (len(slug) GT 120) slug = left(slug, 120);
             return slug;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="generateOpaqueFollowSlug" access="private" returntype="string" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            var slugCandidate = "";
+            var qSlug = queryNew("");
+
+            do {
+                slugCandidate = "trip-" & randomToken(32);
+                qSlug = queryExecute(
+                    "SELECT id
+                     FROM voyage_streams
+                     WHERE slug = :slug
+                     LIMIT 1",
+                    {
+                        slug = { value=slugCandidate, cfsqltype="cf_sql_varchar" }
+                    },
+                    { datasource=trim(arguments.datasource) }
+                );
+            } while (qSlug.recordCount GT 0);
+
+            return slugCandidate;
         </cfscript>
     </cffunction>
 

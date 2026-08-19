@@ -7584,7 +7584,7 @@
             var out = { "streamId" = 0 };
             var ds = trim(arguments.datasource);
             var qStream = queryNew("");
-            var slugVal = "floatplan-" & arguments.floatPlanId;
+            var slugVal = "";
             var shareTokenVal = replace(createUUID(), "-", "", "all") & replace(createUUID(), "-", "", "all");
 
             qStream = queryExecute(
@@ -7602,6 +7602,7 @@
             );
 
             if (qStream.recordCount EQ 0) {
+                slugVal = generateOpaqueFollowSlug(ds);
                 queryExecute(
                     "INSERT INTO voyage_streams (
                         floatplan_id,
@@ -7652,6 +7653,30 @@
 
             out.streamId = val(qStream.id[1]);
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="generateOpaqueFollowSlug" access="private" returntype="string" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            var slugCandidate = "";
+            var qSlug = queryNew("");
+
+            do {
+                slugCandidate = "trip-" & lCase(replace(createUUID(), "-", "", "all"));
+                qSlug = queryExecute(
+                    "SELECT id
+                     FROM voyage_streams
+                     WHERE slug = :slug
+                     LIMIT 1",
+                    {
+                        slug = { value = slugCandidate, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = trim(arguments.datasource) }
+                );
+            } while (qSlug.recordCount GT 0);
+
+            return slugCandidate;
         </cfscript>
     </cffunction>
 

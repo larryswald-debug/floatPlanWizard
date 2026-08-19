@@ -152,13 +152,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(state.continueTarget.action).toBe("add-vessel");
       });
 
-      it("advances through the five route setup steps and requires two saved waypoints", function() {
+      it("advances through the required route setup steps without requiring passengers", function() {
         var fixture = createFixture("route-setup-progression");
         var initialCounts = loadPlanRouteCounts(fixture.userId);
         var initialState = variables.onboardingService.getState(fixture.userId);
         var vesselState = {};
         var contactState = {};
-        var passengerState = {};
         var operatorState = {};
         var oneWaypointState = {};
         var completeState = {};
@@ -180,17 +179,9 @@ component extends="testbox.system.BaseSpec" output="false" {
         contactState = variables.onboardingService.getState(fixture.userId);
         expect(contactState.checklist.contact).toBeTrue();
         expect(contactState.checklist.passengers).toBeFalse();
-        expect(contactState.checklist.firstIncompleteStep).toBe("passengers");
-        expect(contactState.continueTarget.action).toBe("add-passenger");
+        expect(contactState.checklist.firstIncompleteStep).toBe("operator");
+        expect(contactState.continueTarget.action).toBe("add-operator");
         expect(contactState.gettingStartedHidden).toBeFalse();
-
-        addPassenger(fixture);
-        passengerState = variables.onboardingService.getState(fixture.userId);
-        expect(passengerState.checklist.passengers).toBeTrue();
-        expect(passengerState.checklist.operator).toBeFalse();
-        expect(passengerState.checklist.firstIncompleteStep).toBe("operator");
-        expect(passengerState.continueTarget.action).toBe("add-operator");
-        expect(passengerState.gettingStartedHidden).toBeFalse();
 
         addOperator(fixture);
         operatorState = variables.onboardingService.getState(fixture.userId);
@@ -217,7 +208,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         completeState = variables.onboardingService.getState(fixture.userId);
         expect(completeState.checklist.vessel).toBeTrue();
         expect(completeState.checklist.contact).toBeTrue();
-        expect(completeState.checklist.passengers).toBeTrue();
+        expect(completeState.checklist.passengers).toBeFalse();
         expect(completeState.checklist.operator).toBeTrue();
         expect(completeState.checklist.waypoints).toBeTrue();
         expect(completeState.checklist.savedWaypointCount).toBe(2);
@@ -236,6 +227,50 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(val(afterReadCounts.plan_count[1])).toBe(0);
         expect(val(initialCounts.route_instance_count[1])).toBe(0);
         expect(val(afterReadCounts.route_instance_count[1])).toBe(0);
+      });
+
+      it("reports optional passenger state without changing required readiness", function() {
+        var noPassenger = createFixture("passenger-optional-none");
+        var passengerWithoutOperator = createFixture("passenger-optional-missing-operator");
+        var noPassengerState = {};
+        var missingOperatorState = {};
+        var passengerState = {};
+
+        addVessel(noPassenger);
+        addContact(noPassenger);
+        addOperator(noPassenger);
+        addWaypoint(noPassenger, "no-passenger-start");
+        addWaypoint(noPassenger, "no-passenger-destination");
+        noPassengerState = variables.onboardingService.getState(noPassenger.userId);
+
+        expect(noPassengerState.checklist.passengers).toBeFalse();
+        expect(noPassengerState.checklist.allComplete).toBeTrue();
+        expect(noPassengerState.checklist.firstIncompleteStep).toBe("complete");
+        expect(noPassengerState.continueTarget.action).toBe("create-route");
+
+        addVessel(passengerWithoutOperator);
+        addContact(passengerWithoutOperator);
+        addPassenger(passengerWithoutOperator);
+        addWaypoint(passengerWithoutOperator, "passenger-start");
+        addWaypoint(passengerWithoutOperator, "passenger-destination");
+        missingOperatorState = variables.onboardingService.getState(
+          passengerWithoutOperator.userId
+        );
+
+        expect(missingOperatorState.checklist.passengers).toBeTrue();
+        expect(missingOperatorState.checklist.operator).toBeFalse();
+        expect(missingOperatorState.checklist.allComplete).toBeFalse();
+        expect(missingOperatorState.checklist.firstIncompleteStep).toBe("operator");
+        expect(missingOperatorState.continueTarget.action).toBe("add-operator");
+
+        addOperator(passengerWithoutOperator);
+        passengerState = variables.onboardingService.getState(
+          passengerWithoutOperator.userId
+        );
+        expect(passengerState.checklist.passengers).toBeTrue();
+        expect(passengerState.checklist.allComplete).toBeTrue();
+        expect(passengerState.checklist.firstIncompleteStep).toBe("complete");
+        expect(passengerState.continueTarget.action).toBe("create-route");
       });
 
       it("persists explicit Getting Started hide and show choices per member", function() {

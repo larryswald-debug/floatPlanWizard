@@ -1475,7 +1475,14 @@
     .supporting-stack,
     .stack {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: 18px;
+    }
+    .left-stack > *,
+    .right-stack > *,
+    .supporting-stack > *,
+    .stack > * {
+      min-width: 0;
     }
     .identity-strip {
       display: grid;
@@ -2269,6 +2276,9 @@
       display: grid;
       grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
       gap: 16px;
+    }
+    .leg-grid > * {
+      min-width: 0;
     }
     .route-box,
     .detail-box,
@@ -3427,7 +3437,7 @@
         grid-template-columns: 1fr 1fr;
       }
       .leg-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
       .route-plan-box {
         max-height: none;
@@ -3440,6 +3450,31 @@
       }
     }
     @media (max-width: 640px) {
+      .top-actions {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+      }
+      .top-actions > .chip {
+        min-width: 0;
+        max-width: 100%;
+        justify-content: flex-start;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        text-align: left;
+      }
+      .route-plan-leg-button {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: start;
+      }
+      .route-plan-leg-side {
+        grid-column: 2;
+        min-width: 0;
+        max-width: 100%;
+        justify-items: start;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
       .identity-strip,
       .hero-grid,
       .header-stats,
