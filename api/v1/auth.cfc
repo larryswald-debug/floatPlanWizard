@@ -88,17 +88,13 @@
                     
                 </cfif>
 
-                <!-- Verify password through the canonical adaptive/legacy migration contract -->
+                <!-- Verify password -->
                 <cfset dbPassword = qUser.dbPassword>
-                <cftry>
-                    <cfset passwordService = createObject("component", "fpw.api.v1.PasswordHashService").init()>
-                    <cfcatch type="any">
-                        <cfset passwordService = createObject("component", "api.v1.PasswordHashService").init()>
-                    </cfcatch>
-                </cftry>
-                <cfset passwordVerified = passwordService.verifyPassword(password, dbPassword)>
+                <!-- Assume SHA-256 hex hash for stored passwords -->
+                <cfset hashedInput = hash( password, "SHA-256", "UTF-8" )>
 
-                <cfif NOT passwordVerified>
+                <!-- Match either hashed (normal) or plain-text (for legacy rows like 'changeIt') -->
+                <cfif NOT ( hashedInput EQ dbPassword OR password EQ dbPassword )>
                     <cfset response = {
                         SUCCESS = false,
                         MESSAGE = "Invalid email or password.",
@@ -106,25 +102,7 @@
                     }>
                     <cfset response = serializeJSON( response )>
                     <cfreturn response>
-                </cfif>
-
-                <!-- Upgrade recognized legacy SHA-256 or outdated adaptive work factors before login completes -->
-                <cfif passwordService.needsRehash(dbPassword)>
-                    <cfset upgradedPassword = passwordService.hashPassword(password)>
-                    <cfquery datasource="fpw" result="passwordUpgradeResult">
-                        UPDATE users
-                        SET
-                            password = <cfqueryparam cfsqltype="cf_sql_varchar" value="#upgradedPassword#">,
-                            passwordCreated = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">,
-                            lastUpdate = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
-                        WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#qUser.userId#">
-                          AND password = <cfqueryparam cfsqltype="cf_sql_varchar" value="#dbPassword#">
-                    </cfquery>
-                    <cfif NOT structKeyExists(passwordUpgradeResult, "recordCount") OR val(passwordUpgradeResult.recordCount) NEQ 1>
-                        <cfthrow
-                            type="FPW.PasswordHash.UpgradeFailed"
-                            message="Password hash upgrade did not update exactly one user.">
-                    </cfif>
+                   
                 </cfif>
 
                 <!-- Update lastLogin -->
@@ -210,3 +188,4 @@
     </cffunction>
 
 </cfcomponent>
+

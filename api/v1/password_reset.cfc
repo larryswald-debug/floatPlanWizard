@@ -28,7 +28,6 @@
         <cfset var newPassword = "">
         <cfset var qReset = "">
         <cfset var newHash = "">
-        <cfset var passwordService = "">
 
         <cftry>
             <cfset httpData = getHttpRequestData()>
@@ -159,13 +158,7 @@
                     })>
                 </cfif>
 
-                <cftry>
-                    <cfset passwordService = createObject("component", "fpw.api.v1.PasswordHashService").init()>
-                    <cfcatch type="any">
-                        <cfset passwordService = createObject("component", "api.v1.PasswordHashService").init()>
-                    </cfcatch>
-                </cftry>
-                <cfset newHash = passwordService.hashPassword(newPassword)>
+                <cfset newHash = ucase(hash(newPassword, "SHA-256", "UTF-8"))>
 
                 <cfquery datasource="fpw">
                     UPDATE users
