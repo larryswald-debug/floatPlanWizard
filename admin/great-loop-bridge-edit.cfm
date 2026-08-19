@@ -19,6 +19,7 @@ bridgeItem = {};
 maxImageUploadBytes = 8 * 1024 * 1024;
 uploadPath = "";
 uploadOriginalName = "";
+uploadTempDirectory = "";
 
 function boolLike(any value, boolean defaultValue=false) {
   var txt = lCase(trim(toString(arguments.value)));
@@ -68,6 +69,14 @@ function optionText(any value) {
   if (txt EQ "admin_review") return "Admin review";
   if (txt EQ "do_not_publish") return "Do not publish";
   return txt;
+}
+
+function getBridgeUploadTempDirectory() {
+  var tempDirectory = getDirectoryFromPath(getCurrentTemplatePath()) & "../logs/fpw-bridge-upload-temp";
+  if (!directoryExists(tempDirectory)) {
+    directoryCreate(tempDirectory);
+  }
+  return tempDirectory;
 }
 
 function safeDeleteUpload(required string filePath) {
@@ -199,7 +208,8 @@ longFields = [
     <cfset messageText = "Bridge image service is unavailable.">
   <cfelse>
     <cftry>
-      <cffile action="upload" filefield="bridgeImageFile" destination="#getTempDirectory()#" nameconflict="makeunique" result="uploadResult">
+      <cfset uploadTempDirectory = getBridgeUploadTempDirectory()>
+      <cffile action="upload" filefield="bridgeImageFile" destination="#uploadTempDirectory#" nameconflict="makeunique" result="uploadResult">
       <cfscript>
         uploadInfo = {};
         uploadSize = 0;
@@ -227,6 +237,28 @@ longFields = [
       </cfscript>
       <cfcatch type="any">
         <cfscript>
+          try {
+            logDirectory = getDirectoryFromPath(getCurrentTemplatePath()) & "../logs";
+            logFile = logDirectory & "/fpw-bridge-image-upload.log";
+            logLine = "FPW_BRIDGE_IMAGE_UPLOAD_ERROR"
+              & " ts=" & dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss")
+              & " method=" & (structKeyExists(cgi, "REQUEST_METHOD") ? replace(toString(cgi.REQUEST_METHOD), chr(10), " ", "all") : "-")
+              & " scriptName=" & (structKeyExists(cgi, "SCRIPT_NAME") ? replace(toString(cgi.SCRIPT_NAME), chr(10), " ", "all") : "-")
+              & " queryString=" & (structKeyExists(cgi, "QUERY_STRING") ? replace(toString(cgi.QUERY_STRING), chr(10), " ", "all") : "-")
+              & " bridgeId=" & bridgeId
+              & " originalName=" & replace(replace(uploadOriginalName, chr(13), " ", "all"), chr(10), " ", "all")
+              & " uploadPath=" & replace(replace(uploadPath, chr(13), " ", "all"), chr(10), " ", "all")
+              & " exceptionType=" & (structKeyExists(cfcatch, "type") ? replace(toString(cfcatch.type), chr(10), " ", "all") : "-")
+              & " message=" & (structKeyExists(cfcatch, "message") ? replace(replace(toString(cfcatch.message), chr(13), " ", "all"), chr(10), " ", "all") : "-")
+              & " detail=" & (structKeyExists(cfcatch, "detail") ? replace(replace(toString(cfcatch.detail), chr(13), " ", "all"), chr(10), " ", "all") : "-");
+
+            if (!directoryExists(logDirectory)) {
+              directoryCreate(logDirectory);
+            }
+            fileAppend(logFile, logLine & chr(10), "utf-8");
+          } catch (any logError) {
+          }
+
           safeDeleteUpload(uploadPath);
           messageType = "error";
           messageText = "Image upload failed. Choose a JPG, PNG, or WEBP image and try again.";
@@ -369,7 +401,6 @@ longFields = [
   </div>
 </body>
 </html>
-
 
 
 
