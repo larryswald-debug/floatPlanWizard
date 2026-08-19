@@ -3006,6 +3006,7 @@
       }
 
       switch (safeString(arguments.tripState)) {
+        case "paused_overnight":
         case "paused_secure_for_night":
           return "The trip is secure for the night.";
         case "paused_delayed":
