@@ -46,9 +46,7 @@ test("public Resources navigation fits and behaves at every required width", asy
     await page.setViewportSize({ width, height: 900 });
     const response = await page.goto(guideUrl, { waitUntil: "domcontentloaded" });
     expect(response && response.status()).toBe(200);
-    if (width !== 1024) {
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
 
     const primaryLabels = await page.locator(".fpw-primary-nav > .fpw-nav-link, .fpw-primary-nav > .fpw-dropdown")
       .evaluateAll((items) => items.map((item) => {
@@ -167,9 +165,7 @@ test("public Resources navigation fits and behaves at every required width", asy
       await expect(mobileToggle).toHaveAttribute("aria-expanded", "false");
     }
 
-    if (width !== 1024) {
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   }
 
   expect(pageErrors).toEqual([]);

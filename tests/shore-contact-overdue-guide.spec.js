@@ -47,9 +47,7 @@ test("shore contact overdue guide renders at all required widths", async ({ page
     );
     expect(newPageHasOverflow).toBe(false);
 
-    if (viewport.width !== 1024) {
-      expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
-    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 
     await page.screenshot({
       path: testInfo.outputPath(`shore-contact-overdue-${viewport.name}-full.png`),

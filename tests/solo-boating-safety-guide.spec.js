@@ -74,10 +74,7 @@ test("solo boating guide renders at every required width without new overflow", 
     expect(await page.locator(".fpw-solo-page").evaluate(
       (element) => element.scrollWidth > element.clientWidth
     )).toBe(false);
-    // The shared pre-existing footer is 35px wider at exactly 1024px; the new guide itself must never overflow.
-    if (viewport.width !== 1024) {
-      expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
-    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 
     await page.screenshot({
       path: testInfo.outputPath(`solo-boating-guide-${viewport.name}-full.png`),

@@ -503,9 +503,7 @@ test("Active Cruise remains shrink-safe and usable across mobile and desktop wid
       viewportWidth: layout.viewportWidth,
       documentWidth: layout.documentWidth
     });
-    if (viewport.width <= 760 || viewport.width === 1440) {
-      expect(layout.documentWidth, JSON.stringify(layout.offenders)).toBeLessThanOrEqual(viewport.width + 1);
-    }
+    expect(layout.documentWidth, JSON.stringify(layout.offenders)).toBeLessThanOrEqual(viewport.width + 1);
   }
 
   console.log(`QA5_WIDTH_PROOF ${JSON.stringify(widthProof)}`);

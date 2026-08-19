@@ -239,7 +239,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
     font-size: 0.9rem;
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 1129px) {
     .fpw-footer-shell {
       width: min(var(--fpw-footer-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
       padding: 24px;
@@ -353,7 +353,6 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 </footer>
 
 </cfoutput>
-
 
 
 
