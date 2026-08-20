@@ -151,6 +151,7 @@
       var ext = "";
       var uploadSize = 0;
       var uploadInfo = {};
+      var uploadTempDirectory = "";
       var svc = createPortService();
       var result = {};
 
@@ -163,7 +164,8 @@
     </cfscript>
 
     <cftry>
-      <cffile action="upload" filefield="imageFile" destination="#getTempDirectory()#" nameconflict="makeunique" result="uploadResult">
+      <cfset uploadTempDirectory = getPortUploadTempDirectory()>
+      <cffile action="upload" filefield="imageFile" destination="#uploadTempDirectory#" nameconflict="makeunique" result="uploadResult">
       <cfscript>
         uploadPath = replace(uploadResult.serverDirectory, "\", "/", "all") & "/" & uploadResult.serverFile;
         originalName = structKeyExists(uploadResult, "clientFile") ? uploadResult.clientFile : uploadResult.serverFile;
@@ -197,6 +199,28 @@
       </cfscript>
       <cfcatch type="any">
         <cfscript>
+          try {
+            var logDirectory = getDirectoryFromPath(getCurrentTemplatePath()) & "../../logs";
+            var logFile = logDirectory & "/fpw-port-image-upload.log";
+            var logLine = "FPW_PORT_IMAGE_UPLOAD_ERROR"
+              & " ts=" & dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss")
+              & " method=" & (structKeyExists(cgi, "REQUEST_METHOD") ? replace(toString(cgi.REQUEST_METHOD), chr(10), " ", "all") : "-")
+              & " scriptName=" & (structKeyExists(cgi, "SCRIPT_NAME") ? replace(toString(cgi.SCRIPT_NAME), chr(10), " ", "all") : "-")
+              & " queryString=" & (structKeyExists(cgi, "QUERY_STRING") ? replace(toString(cgi.QUERY_STRING), chr(10), " ", "all") : "-")
+              & " portId=" & portId
+              & " originalName=" & replace(replace(originalName, chr(13), " ", "all"), chr(10), " ", "all")
+              & " uploadPath=" & replace(replace(uploadPath, chr(13), " ", "all"), chr(10), " ", "all")
+              & " exceptionType=" & (structKeyExists(cfcatch, "type") ? replace(toString(cfcatch.type), chr(10), " ", "all") : "-")
+              & " message=" & replace(replace(cfcatch.message, chr(13), " ", "all"), chr(10), " ", "all")
+              & " detail=" & replace(replace(cfcatch.detail, chr(13), " ", "all"), chr(10), " ", "all");
+
+            if (!directoryExists(logDirectory)) {
+              directoryCreate(logDirectory);
+            }
+            fileAppend(logFile, logLine & chr(10), "utf-8");
+          } catch (any logError) {
+          }
+
           safeDelete(uploadPath);
           return buildResponse(false, true, "Upload failed", {}, "The image could not be uploaded.");
         </cfscript>
@@ -391,6 +415,16 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getPortUploadTempDirectory" access="private" returntype="string" output="false">
+    <cfscript>
+      var tempDirectory = getDirectoryFromPath(getCurrentTemplatePath()) & "../../logs/fpw-port-upload-temp";
+      if (!directoryExists(tempDirectory)) {
+        directoryCreate(tempDirectory);
+      }
+      return tempDirectory;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="safeDelete" access="private" returntype="void" output="false">
     <cfargument name="path" type="string" required="true">
     <cfscript>
@@ -425,6 +459,10 @@
   </cffunction>
 
 </cfcomponent>
+
+
+
+
 
 
 
