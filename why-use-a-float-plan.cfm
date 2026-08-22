@@ -109,8 +109,8 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
   <meta property="og:url" content="https://floatplanwizard.com/why-use-a-float-plan/">
   <meta property="og:title" content="Why Every Boater Should Use a Float Plan | FPW">
   <meta property="og:description" content="Learn what a float plan includes, when to use one, who should hold it, and how FPW helps keep trip details organized.">
-  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -118,7 +118,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Why Every Boater Should Use a Float Plan | FPW">
   <meta name="twitter:description" content="Learn what a float plan includes, when to use one, who should hold it, and how FPW helps keep trip details organized.">
-  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <script type="application/ld+json"><cfoutput>#fpwFloatPlanJsonLdText#</cfoutput></script>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>

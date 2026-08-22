@@ -126,8 +126,8 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
   <meta property="og:url" content="https://floatplanwizard.com/how-it-works/">
   <meta property="og:title" content="How It Works | FloatPlanWizard">
   <meta property="og:description" content="See how FloatPlanWizard helps boaters plan routes, create float plans, share trip details, and keep trusted contacts informed.">
-  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -135,7 +135,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="How It Works | FloatPlanWizard">
   <meta name="twitter:description" content="See how FloatPlanWizard helps boaters plan routes, create float plans, share trip details, and keep trusted contacts informed.">
-  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>

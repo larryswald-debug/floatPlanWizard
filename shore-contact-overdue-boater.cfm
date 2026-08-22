@@ -56,7 +56,7 @@ fpwOverdueCanonicalUrl = "https://floatplanwizard.com/shore-contact-overdue-boat
 fpwOverduePageTitle = "What to Do When a Boater Is Overdue | Shore Contact Guide";
 fpwOverduePageDescription = "Learn what a shore contact should do when a boater misses a check-in or expected return, what information to gather, and when to contact authorities.";
 fpwOverdueHeadline = "What a Shore Contact Should Do When a Boater Is Overdue";
-fpwOverdueSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png";
+fpwOverdueSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
 fpwOverduePublishedDate = "2026-08-06T11:29:36-04:00";
 fpwOverdueArticleId = fpwOverdueCanonicalUrl & "##article";
 fpwOverdueWebPageId = fpwOverdueCanonicalUrl & "##webpage";
@@ -152,8 +152,8 @@ fpwCtaConfig = {
   <meta property="og:url" content="https://floatplanwizard.com/shore-contact-overdue-boater/">
   <meta property="og:title" content="What to Do When a Boater Is Overdue | Shore Contact Guide">
   <meta property="og:description" content="Learn what a shore contact should do when a boater misses a check-in or expected return, what information to gather, and when to contact authorities.">
-  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -161,7 +161,7 @@ fpwCtaConfig = {
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="What to Do When a Boater Is Overdue | Shore Contact Guide">
   <meta name="twitter:description" content="Learn what a shore contact should do when a boater misses a check-in or expected return, what information to gather, and when to contact authorities.">
-  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning, float-plan sharing, and check-in preview">
   <script type="application/ld+json"><cfoutput>#fpwOverdueJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwOverdueBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>

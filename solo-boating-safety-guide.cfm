@@ -55,7 +55,7 @@ fpwSoloCanonicalUrl = "https://floatplanwizard.com/solo-boating-safety-guide/";
 fpwSoloPageTitle = "Solo Boating Safety Guide | Kayaks, Powerboats & Cruisers";
 fpwSoloPageDescription = "Practical solo boating safety guidance for kayaks, powerboats, sailboats and cruisers, including float plans, communications, weather, self-rescue and a pre-departure checklist.";
 fpwSoloHeadline = "Solo Boating Safety: A Practical Guide from Kayaks to Cruisers";
-fpwSoloSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png";
+fpwSoloSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
 fpwSoloPublishedDate = "2026-08-10T11:58:52-04:00";
 fpwSoloArticleId = fpwSoloCanonicalUrl & "##article";
 fpwSoloWebPageId = fpwSoloCanonicalUrl & "##webpage";
@@ -150,8 +150,8 @@ fpwCtaConfig = {
   <meta property="og:url" content="https://floatplanwizard.com/solo-boating-safety-guide/">
   <meta property="og:title" content="Solo Boating Safety Guide | Kayaks, Powerboats &amp; Cruisers">
   <meta property="og:description" content="Practical solo boating safety guidance for kayaks, powerboats, sailboats and cruisers, including float plans, communications, weather, self-rescue and a pre-departure checklist.">
-  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -159,7 +159,7 @@ fpwCtaConfig = {
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Solo Boating Safety Guide | Kayaks, Powerboats &amp; Cruisers">
   <meta name="twitter:description" content="Practical solo boating safety guidance for kayaks, powerboats, sailboats and cruisers, including float plans, communications, weather, self-rescue and a pre-departure checklist.">
-  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning, float-plan sharing, and check-in preview">
   <script type="application/ld+json"><cfoutput>#fpwSoloJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwSoloBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>

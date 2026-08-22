@@ -29,8 +29,8 @@
     <meta property="og:url" content="https://floatplanwizard.com/app/contact.cfm">
     <meta property="og:title" content="Contact FloatPlanWizard">
     <meta property="og:description" content="Contact FloatPlanWizard for account help, billing questions, float plan support, route planning feedback, and general questions.">
-    <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-    <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+    <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+    <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -38,7 +38,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Contact FloatPlanWizard">
     <meta name="twitter:description" content="Contact FloatPlanWizard for account help, billing questions, float plan support, route planning feedback, and general questions.">
-    <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+    <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
     <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
     <cfinclude template="../includes/header_styles.cfm">

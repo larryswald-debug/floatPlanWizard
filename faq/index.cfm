@@ -1008,8 +1008,8 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
   <meta property="og:url" content="https://floatplanwizard.com/faq/">
   <meta property="og:title" content="FloatPlanWizard FAQ | Float Plans, Route Builder, Secure Follow Links &amp; Boating Trip Planning">
   <meta property="og:description" content="In-depth answers about FloatPlanWizard float plans, Route Builder, secure Follow links, Active Cruise, membership, Stripe billing, TrustedSite, and boating safety.">
-  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
-  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -1017,7 +1017,7 @@ fpwFaqJsonLdText = replace(serializeJSON(fpwFaqSchema), "</", "<\/", "all");
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="FloatPlanWizard FAQ | Float Plans, Route Builder, Secure Follow Links &amp; Boating Trip Planning">
   <meta name="twitter:description" content="In-depth answers about FloatPlanWizard float plans, Route Builder, secure Follow links, Active Cruise, membership, Stripe billing, TrustedSite, and boating safety.">
-  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
   <cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
 <cfoutput><link rel="stylesheet" href="#fpwFaqBasePath#/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1"></cfoutput>

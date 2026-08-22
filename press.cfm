@@ -6,7 +6,7 @@
 pressTitle = "FloatPlanWizard Press & Media Kit | Free Float Plans & Boating Safety";
 pressDescription = "Media resources for FloatPlanWizard, a solo-boater-built trip-planning platform with free membership, Basic float-plan sending, optional Premium trips, and public boating-safety resources.";
 pressCanonical = "https://floatplanwizard.com/press.cfm";
-pressSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png";
+pressSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
 pressContactEmail = "support@floatplanwizard.com";
 pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%20Media%20Inquiry";
 </cfscript>
@@ -78,8 +78,8 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
         <ul class="fpw-press-list">
           <li>Launch press release PDF</li>
           <li>Fact sheet PDF</li>
-          <li>FPW logo files</li>
-          <li>Product screenshots</li>
+          <li>FPW color logo</li>
+          <li>Current social-preview graphic</li>
           <li>Media contact information</li>
         </ul>
       </section>
@@ -108,7 +108,7 @@ pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%2
           </div>
           <div class="fpw-press-fact">
             <strong>Founder</strong>
-            <span>Larry Wald, longtime recreational and solo boater</span>
+            <span>Larry Wald, Founder; longtime recreational and solo boater</span>
           </div>
           <div class="fpw-press-fact">
             <strong>Founder Experience</strong>

@@ -7,9 +7,9 @@ releaseTitle = "Solo Boater Builds FloatPlanWizard | Launch Press Release";
 releaseHeading = "Solo Boater Builds FloatPlanWizard to Make Float Plans Easier and More Accessible to Recreational Boaters";
 releaseDescription = "Solo boater Larry Wald built FloatPlanWizard with free membership, Basic float-plan sending, optional Premium trips, and free public boating resources.";
 releaseCanonical = "https://floatplanwizard.com/press/floatplanwizard-launches.cfm";
-releaseSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260602.png";
+releaseSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
 releasePublishedDate = "2026-06-07";
-releaseModifiedDate = "2026-08-15";
+releaseModifiedDate = "2026-08-20";
 pressContactEmail = "support@floatplanwizard.com";
 pressContactMailto = "mailto:" & pressContactEmail & "?subject=FloatPlanWizard%20Media%20Inquiry";
 
@@ -79,7 +79,7 @@ releaseSchemaJson = replace(serializeJSON(releaseSchema), "</", "<\/", "all");
     <a class="fpw-press-back" href="<cfoutput>#request.fpwBase#</cfoutput>/press.cfm">Back to Press Kit</a>
 
     <section class="fpw-press-hero" aria-labelledby="releaseTitle">
-      <p class="fpw-press-eyebrow">For Immediate Release - June 7, 2026 &bull; Updated August 15, 2026</p>
+      <p class="fpw-press-eyebrow">For Immediate Release - June 7, 2026 &bull; Updated August 20, 2026</p>
       <h1 id="releaseTitle"><cfoutput>#encodeForHtml(releaseHeading)#</cfoutput></h1>
       <p class="fpw-press-release-lede">
         A solo boater's personal safety need grew into a recreational-boating platform with free membership,
@@ -94,7 +94,7 @@ releaseSchemaJson = replace(serializeJSON(releaseSchema), "</", "<\/", "all");
     </section>
 
     <article class="fpw-press-release-shell fpw-press-article">
-      <p class="fpw-press-meta">GULF HARBORS, Fla. - June 7, 2026 (updated August 15, 2026)</p>
+      <p class="fpw-press-meta">GULF HARBORS, Fla. - June 7, 2026 (updated August 20, 2026)</p>
 
       <p>
         FloatPlanWizard.com, a boating trip-planning and float-plan platform created by Gulf Harbors resident Larry
@@ -110,19 +110,34 @@ releaseSchemaJson = replace(serializeJSON(releaseSchema), "</", "<\/", "all");
         professional web developer with approximately 30 years of professional web-development experience.
       </p>
 
+      <blockquote class="fpw-press-quote">
+        &ldquo;Boating safety tools only help if people actually use them. I wanted a faster way to prepare and share a
+        float plan without recreating the same information for every trip. FloatPlanWizard is built to give everyday
+        boaters an easy way to plan a trip, share important details, and keep trusted contacts informed.&rdquo;
+        <footer>&mdash; Larry Wald, Founder</footer>
+      </blockquote>
+
       <section aria-labelledby="membershipModelTitle">
         <h2 id="membershipModelTitle">Free Membership with Optional Premium Trips</h2>
         <p>
-          FloatPlanWizard membership is free. Members can plan routes; save vessel, operator, passenger,
-          shore-contact, waypoint, and trip information; maintain multiple Draft float plans; and use Basic Save
-          &amp; Send without purchasing Premium.
+          FloatPlanWizard is designed to reduce the time and repetitive effort involved in creating, sharing, and monitoring a
+          float plan. Membership is free, including full trip planning and Basic float-plan sending. Every new member
+          receives one complimentary Premium Send Credit for one complete Premium trip. The credit is used on the first
+          successful Premium Save &amp; Send.
         </p>
         <p>
-          Every new member receives one complimentary Premium Send Credit for one complete Premium trip. After that
-          credit is used, additional Premium trips can be purchased individually for $4.99 or obtained through
-          Monthly or Annual Premium membership. Individual Premium trip access currently lasts up to 21 days.
-          Premium trips add PDF and email delivery, Active Cruise, Premium monitoring, and private Trip/Follow access;
-          route planning and Basic sending remain free.
+          Free members can save vessel, operator, passenger, shore-contact, waypoint, and trip information and maintain
+          multiple Draft float plans.
+        </p>
+        <p>
+          After the complimentary credit is used, additional Premium trips can be purchased individually for $4.99,
+          through Monthly Premium for $9.99/month, or through Annual Premium for $89/year. Individual Premium trip
+          access currently lasts up to 21 days.
+        </p>
+        <p>
+          Premium trips add <strong>Active Cruise tools, Premium trip monitoring, and a private Trip page that can be
+          shared with family and shore contacts so they can follow trip status and progress</strong>. Route planning and
+          Basic float-plan sending remain free.
         </p>
       </section>
 
