@@ -1,0 +1,973 @@
+:root {
+  --fpw-emergency-bg: #03101c;
+  --fpw-emergency-panel: rgba(7, 25, 41, 0.97);
+  --fpw-emergency-panel-soft: rgba(10, 36, 55, 0.82);
+  --fpw-emergency-line: rgba(132, 183, 216, 0.3);
+  --fpw-emergency-text: #eef6ff;
+  --fpw-emergency-muted: #c8d8e5;
+  --fpw-emergency-cyan: #45ded7;
+  --fpw-emergency-blue: #65b9f3;
+  --fpw-emergency-amber: #ffd18a;
+  --fpw-emergency-red: #ff746d;
+  --fpw-emergency-green: #79dec5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body.fpw-emergency-body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--fpw-emergency-text);
+  background: var(--fpw-emergency-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.fpw-emergency-skip-link {
+  position: fixed;
+  z-index: 10000;
+  top: 10px;
+  left: 10px;
+  min-height: 44px;
+  padding: 11px 16px;
+  border: 3px solid #ffffff;
+  border-radius: 8px;
+  color: #03101c;
+  background: var(--fpw-emergency-cyan);
+  font-weight: 800;
+  transform: translateY(-150%);
+  transition: transform 0.15s ease;
+}
+
+.fpw-emergency-skip-link:focus {
+  transform: translateY(0);
+}
+
+.fpw-emergency-page {
+  min-width: 0;
+  overflow-x: clip;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(35, 215, 207, 0.13), transparent 30rem),
+    radial-gradient(circle at 94% 6%, rgba(32, 135, 217, 0.16), transparent 33rem),
+    linear-gradient(180deg, #04111f 0%, #071a29 42%, #03101c 100%);
+}
+
+.fpw-emergency-shell {
+  width: min(1220px, calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+  margin: 0 auto;
+  padding: 24px 0 76px;
+}
+
+.fpw-emergency-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0 0 18px;
+  color: #a9bdce;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.fpw-emergency-breadcrumbs [aria-current="page"] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fpw-emergency-breadcrumbs a,
+.fpw-emergency-content a,
+.fpw-emergency-toc a,
+.fpw-emergency-rail a,
+.fpw-emergency-related-inline a,
+.fpw-emergency-back a {
+  color: #8ceae5;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.fpw-emergency-breadcrumbs a:hover,
+.fpw-emergency-content a:hover,
+.fpw-emergency-toc a:hover,
+.fpw-emergency-rail a:hover,
+.fpw-emergency-related-inline a:hover,
+.fpw-emergency-back a:hover {
+  color: #d0fffc;
+}
+
+.fpw-emergency-article,
+.fpw-emergency-content,
+.fpw-emergency-layout {
+  min-width: 0;
+}
+
+.fpw-emergency-hero {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(30px, 5vw, 58px);
+  border: 1px solid var(--fpw-emergency-line);
+  border-radius: 20px;
+  background:
+    linear-gradient(110deg, rgba(4, 18, 31, 0.99), rgba(9, 42, 63, 0.91)),
+    radial-gradient(circle at 88% 8%, rgba(69, 222, 215, 0.18), transparent 22rem);
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.3);
+}
+
+.fpw-emergency-hero::after {
+  position: absolute;
+  right: -60px;
+  bottom: -80px;
+  width: 310px;
+  height: 310px;
+  border: 1px solid rgba(69, 222, 215, 0.18);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 32px rgba(69, 222, 215, 0.04),
+    0 0 0 68px rgba(101, 185, 243, 0.03);
+  content: "";
+  pointer-events: none;
+}
+
+.fpw-emergency-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.fpw-emergency-eyebrow,
+.fpw-emergency-section-kicker,
+.fpw-emergency-label {
+  margin: 0 0 10px;
+  color: var(--fpw-emergency-cyan);
+  font-size: 0.8rem;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.fpw-emergency-hero h1 {
+  max-width: 820px;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(2.05rem, 4.8vw, 3.8rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.fpw-emergency-deck {
+  max-width: 800px;
+  margin: 22px 0 0;
+  color: #eaf6ff;
+  font-size: clamp(1.08rem, 1.7vw, 1.28rem);
+  line-height: 1.55;
+}
+
+.fpw-emergency-hero > p:not(.fpw-emergency-eyebrow):not(.fpw-emergency-deck):not(.fpw-emergency-reviewed) {
+  max-width: 78ch;
+  margin: 16px 0 0;
+  color: var(--fpw-emergency-muted);
+  line-height: 1.72;
+}
+
+.fpw-emergency-reviewed {
+  margin: 18px 0 0;
+  color: #a9bdce;
+  font-size: 0.9rem;
+}
+
+.fpw-emergency-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.fpw-emergency-secondary-action,
+.fpw-emergency-print-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 11px 16px;
+  border: 1px solid rgba(140, 234, 229, 0.7);
+  border-radius: 9px;
+  color: #eaffff;
+  background: rgba(255, 255, 255, 0.06);
+  font: inherit;
+  font-weight: 800;
+  line-height: 1.25;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.fpw-emergency-print-button {
+  border-color: var(--fpw-emergency-cyan);
+  color: #031823;
+  background: var(--fpw-emergency-cyan);
+}
+
+.fpw-emergency-secondary-action:hover {
+  border-color: #ffffff;
+  color: #ffffff;
+  background: rgba(69, 222, 215, 0.16);
+}
+
+.fpw-emergency-print-button:hover {
+  color: #031823;
+  background: #91f5ef;
+}
+
+.fpw-emergency-danger,
+.fpw-emergency-evidence,
+.fpw-emergency-toc,
+.fpw-emergency-supplement {
+  margin-top: 22px;
+}
+
+.fpw-emergency-danger {
+  padding: clamp(22px, 3.5vw, 34px);
+  border: 2px solid rgba(255, 116, 109, 0.72);
+  border-radius: 16px;
+  background: linear-gradient(110deg, rgba(92, 24, 26, 0.62), rgba(47, 17, 25, 0.74));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+}
+
+.fpw-emergency-danger .fpw-emergency-label {
+  color: #ffaca7;
+}
+
+.fpw-emergency-danger h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  line-height: 1.2;
+}
+
+.fpw-emergency-danger p:last-child,
+.fpw-emergency-evidence p,
+.fpw-emergency-supplement {
+  max-width: 80ch;
+  color: var(--fpw-emergency-muted);
+  line-height: 1.7;
+}
+
+.fpw-emergency-danger p:last-child {
+  margin: 14px 0 0;
+  color: #fff0ef;
+}
+
+.fpw-emergency-supplement {
+  padding: 0 4px;
+}
+
+.fpw-emergency-evidence {
+  padding: clamp(22px, 3.5vw, 34px);
+  border: 1px solid rgba(101, 185, 243, 0.42);
+  border-radius: 14px;
+  background: linear-gradient(115deg, rgba(12, 48, 74, 0.72), rgba(7, 30, 48, 0.9));
+}
+
+.fpw-emergency-evidence p {
+  margin: 0;
+}
+
+.fpw-emergency-evidence p + p {
+  margin-top: 12px;
+}
+
+.fpw-emergency-toc {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.34fr) minmax(0, 1fr);
+  gap: 28px;
+  padding: clamp(22px, 3.5vw, 34px);
+  border: 1px solid var(--fpw-emergency-line);
+  border-radius: 16px;
+  background: rgba(5, 19, 32, 0.94);
+}
+
+.fpw-emergency-toc h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+}
+
+.fpw-emergency-toc ol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 28px;
+  margin: 0;
+  padding-left: 1.35rem;
+}
+
+.fpw-emergency-toc li {
+  color: #89a4b9;
+  line-height: 1.42;
+}
+
+.fpw-emergency-toc a {
+  display: inline-block;
+  min-height: 24px;
+  padding: 3px 0;
+  color: #d4e4ef;
+  font-size: 0.94rem;
+  text-decoration: none;
+}
+
+.fpw-emergency-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 220px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 24px;
+}
+
+.fpw-emergency-rail {
+  position: sticky;
+  top: 165px;
+  display: grid;
+  gap: 8px;
+  max-height: calc(100vh - 181px);
+  overflow-y: auto;
+  padding: 20px;
+  border: 1px solid var(--fpw-emergency-line);
+  border-radius: 14px;
+  background: rgba(5, 19, 32, 0.94);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.fpw-emergency-rail a {
+  display: block;
+  min-height: 36px;
+  padding: 8px 9px;
+  border-radius: 7px;
+  color: #ccdeeb;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.fpw-emergency-rail a:hover {
+  color: #ffffff;
+  background: rgba(69, 222, 215, 0.12);
+}
+
+.fpw-emergency-content {
+  overflow: hidden;
+  border: 1px solid var(--fpw-emergency-line);
+  border-radius: 17px;
+  background: var(--fpw-emergency-panel);
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.22);
+}
+
+.fpw-emergency-content > section {
+  scroll-margin-top: 116px;
+  padding: clamp(26px, 4.2vw, 46px);
+}
+
+.fpw-emergency-content > section + section,
+.fpw-emergency-content > .fpw-emergency-cta-wrap + section,
+.fpw-emergency-content > section + .fpw-emergency-cta-wrap,
+.fpw-emergency-content > .fpw-emergency-cta-wrap + .fpw-emergency-back {
+  border-top: 1px solid var(--fpw-emergency-line);
+}
+
+.fpw-emergency-content h2 {
+  max-width: 34ch;
+  margin: 0 0 16px;
+  color: #ffffff;
+  font-size: clamp(1.52rem, 2.8vw, 2.18rem);
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+}
+
+.fpw-emergency-content h3 {
+  max-width: 64ch;
+  margin: 30px 0 0;
+  color: #ffffff;
+  font-size: 1.16rem;
+  line-height: 1.35;
+}
+
+.fpw-emergency-content p,
+.fpw-emergency-content li,
+.fpw-emergency-content dd,
+.fpw-emergency-content td,
+.fpw-emergency-content th {
+  color: var(--fpw-emergency-muted);
+  line-height: 1.7;
+}
+
+.fpw-emergency-content p,
+.fpw-emergency-content > section > ul,
+.fpw-emergency-content > section > ol {
+  max-width: 76ch;
+}
+
+.fpw-emergency-content p {
+  margin: 0;
+}
+
+.fpw-emergency-content p + p,
+.fpw-emergency-content ul + p,
+.fpw-emergency-content ol + p,
+.fpw-emergency-content p + ul,
+.fpw-emergency-content p + ol,
+.fpw-emergency-content h3 + p,
+.fpw-emergency-content h3 + ul,
+.fpw-emergency-content h3 + ol {
+  margin-top: 14px;
+}
+
+.fpw-emergency-content ul,
+.fpw-emergency-content ol {
+  margin-bottom: 0;
+}
+
+.fpw-emergency-content li + li {
+  margin-top: 8px;
+}
+
+.fpw-emergency-section-kicker {
+  color: var(--fpw-emergency-blue);
+}
+
+.fpw-emergency-action-heading,
+.fpw-emergency-stop-heading,
+.fpw-emergency-call-heading,
+.fpw-emergency-safe-heading {
+  position: relative;
+  padding-left: 18px;
+}
+
+.fpw-emergency-action-heading::before,
+.fpw-emergency-stop-heading::before,
+.fpw-emergency-call-heading::before,
+.fpw-emergency-safe-heading::before {
+  position: absolute;
+  top: 0.2em;
+  bottom: 0.15em;
+  left: 0;
+  width: 5px;
+  border-radius: 4px;
+  background: var(--fpw-emergency-cyan);
+  content: "";
+}
+
+.fpw-emergency-stop-heading::before,
+.fpw-emergency-call-heading::before {
+  background: var(--fpw-emergency-red);
+}
+
+.fpw-emergency-safe-heading::before {
+  background: var(--fpw-emergency-green);
+}
+
+.fpw-emergency-pace-grid,
+.fpw-emergency-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.fpw-emergency-pace-grid > section,
+.fpw-emergency-checklist-grid > section,
+.fpw-emergency-faq-list > section {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid rgba(132, 183, 216, 0.24);
+  border-radius: 12px;
+  background: var(--fpw-emergency-panel-soft);
+}
+
+.fpw-emergency-pace-grid h3,
+.fpw-emergency-checklist-grid h3,
+.fpw-emergency-faq-list h3 {
+  margin: 0;
+}
+
+.fpw-emergency-pace-letter {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  margin: 0 0 14px !important;
+  border-radius: 50%;
+  color: #031823 !important;
+  background: var(--fpw-emergency-cyan);
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1;
+  place-items: center;
+}
+
+.fpw-emergency-danger-inline,
+.fpw-emergency-script,
+.fpw-emergency-disclaimer {
+  max-width: 76ch;
+  margin-top: 24px;
+  padding: 20px 22px;
+  border: 1px solid rgba(255, 116, 109, 0.56);
+  border-radius: 12px;
+  background: rgba(92, 24, 26, 0.32);
+}
+
+.fpw-emergency-danger-inline p {
+  color: #fff0ef;
+}
+
+.fpw-emergency-script {
+  border-color: rgba(69, 222, 215, 0.5);
+  background: rgba(11, 68, 78, 0.34);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.fpw-emergency-script p {
+  color: #efffff;
+  line-height: 1.82;
+}
+
+.fpw-emergency-script--mayday {
+  border-color: rgba(255, 116, 109, 0.7);
+  background: rgba(92, 24, 26, 0.4);
+}
+
+.fpw-emergency-cta-wrap {
+  padding: clamp(26px, 4.2vw, 46px);
+}
+
+.fpw-emergency-cta-wrap .fpw-action-cta {
+  margin: 0;
+}
+
+.fpw-emergency-related-inline {
+  margin-top: 22px !important;
+  padding: 16px 18px;
+  border-left: 4px solid var(--fpw-emergency-blue);
+  background: rgba(19, 68, 105, 0.28);
+}
+
+.fpw-emergency-table-region {
+  max-width: 100%;
+  margin-top: 22px;
+  overflow-x: auto;
+  border: 1px solid rgba(132, 183, 216, 0.28);
+  border-radius: 12px;
+  background: rgba(4, 18, 30, 0.62);
+}
+
+.fpw-emergency-table-region:focus-visible {
+  outline: 3px solid var(--fpw-emergency-amber);
+  outline-offset: 3px;
+}
+
+.fpw-emergency-table-region table {
+  width: 100%;
+  min-width: 690px;
+  border-collapse: collapse;
+}
+
+.fpw-emergency-table-region th,
+.fpw-emergency-table-region td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(132, 183, 216, 0.2);
+  text-align: left;
+  vertical-align: top;
+}
+
+.fpw-emergency-table-region thead th {
+  color: #ffffff;
+  background: rgba(21, 78, 111, 0.56);
+}
+
+.fpw-emergency-table-region tbody th {
+  width: 25%;
+  color: #eaffff;
+}
+
+.fpw-emergency-table-region tr:last-child th,
+.fpw-emergency-table-region tr:last-child td {
+  border-bottom: 0;
+}
+
+.fpw-emergency-checklist-grid > section {
+  break-inside: avoid;
+}
+
+.fpw-emergency-checklist-grid h3 {
+  color: var(--fpw-emergency-cyan);
+}
+
+.fpw-emergency-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.fpw-emergency-card > section {
+  min-width: 0;
+  padding: 22px;
+  border: 2px solid rgba(69, 222, 215, 0.46);
+  border-radius: 14px;
+  background: rgba(4, 18, 30, 0.74);
+  break-inside: avoid;
+}
+
+.fpw-emergency-card > section:nth-child(2) {
+  border-color: rgba(255, 116, 109, 0.62);
+}
+
+.fpw-emergency-card > .fpw-emergency-card-fields {
+  grid-column: 1 / -1;
+  border-color: rgba(101, 185, 243, 0.5);
+}
+
+.fpw-emergency-card h3 {
+  margin: 0;
+}
+
+.fpw-emergency-card dl {
+  margin: 18px 0 0;
+}
+
+.fpw-emergency-card dl > div + div {
+  margin-top: 14px;
+}
+
+.fpw-emergency-card dt {
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.fpw-emergency-card dd {
+  margin: 4px 0 0;
+}
+
+.fpw-emergency-card + .fpw-emergency-print-button,
+#printable-boating-emergency-card > .fpw-emergency-print-button {
+  margin-top: 22px;
+}
+
+.fpw-emergency-faq-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.fpw-emergency-faq-list > section {
+  padding: 22px;
+}
+
+.fpw-emergency-related-guides {
+  max-width: 76ch;
+  margin-top: 24px;
+  padding: 20px 22px;
+  border: 1px solid rgba(101, 185, 243, 0.42);
+  border-radius: 12px;
+  background: rgba(13, 52, 79, 0.42);
+}
+
+.fpw-emergency-related-guides h3 {
+  margin: 0;
+}
+
+.fpw-emergency-source-list {
+  padding-left: 1.2rem;
+}
+
+.fpw-emergency-source-list li {
+  overflow-wrap: anywhere;
+}
+
+.fpw-emergency-new-window {
+  white-space: nowrap;
+}
+
+.fpw-emergency-disclaimer {
+  border-color: rgba(255, 209, 138, 0.55);
+  background: rgba(89, 58, 13, 0.3);
+}
+
+.fpw-emergency-disclaimer h3 {
+  margin: 0;
+}
+
+.fpw-emergency-back {
+  margin-top: 28px !important;
+  font-size: 0.92rem;
+}
+
+.fpw-emergency-back--final {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 22px clamp(26px, 4.2vw, 46px);
+  text-align: right;
+}
+
+.fpw-emergency-skip-link:focus-visible,
+.fpw-emergency-breadcrumbs a:focus-visible,
+.fpw-emergency-secondary-action:focus-visible,
+.fpw-emergency-print-button:focus-visible,
+.fpw-emergency-toc a:focus-visible,
+.fpw-emergency-rail a:focus-visible,
+.fpw-emergency-content a:focus-visible {
+  outline: 3px solid var(--fpw-emergency-amber);
+  outline-offset: 3px;
+}
+
+@media (max-width: 1100px) {
+  .fpw-emergency-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-emergency-rail {
+    position: static;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: none;
+  }
+
+  .fpw-emergency-rail .fpw-emergency-eyebrow {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 800px) {
+  .fpw-emergency-shell {
+    width: min(100% - 32px, 1220px);
+    padding-top: 18px;
+  }
+
+  .fpw-emergency-toc {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-emergency-toc ol {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-emergency-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fpw-emergency-pace-grid,
+  .fpw-emergency-checklist-grid,
+  .fpw-emergency-card {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-emergency-card > .fpw-emergency-card-fields {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .fpw-emergency-shell {
+    width: min(100% - 22px, 1220px);
+  }
+
+  .fpw-emergency-hero,
+  .fpw-emergency-danger,
+  .fpw-emergency-evidence,
+  .fpw-emergency-toc,
+  .fpw-emergency-content > section,
+  .fpw-emergency-cta-wrap {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+
+  .fpw-emergency-hero-actions,
+  .fpw-emergency-hero-actions > *,
+  #printable-boating-emergency-card > .fpw-emergency-print-button {
+    width: 100%;
+  }
+
+  .fpw-emergency-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .fpw-emergency-pace-grid > section,
+  .fpw-emergency-checklist-grid > section,
+  .fpw-emergency-faq-list > section,
+  .fpw-emergency-card > section {
+    padding: 17px;
+  }
+
+  .fpw-emergency-new-window {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .fpw-emergency-skip-link {
+    transition: none;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0.65in;
+  }
+
+  body.fpw-emergency-body,
+  .fpw-emergency-page,
+  .fpw-emergency-hero,
+  .fpw-emergency-danger,
+  .fpw-emergency-evidence,
+  .fpw-emergency-supplement,
+  .fpw-emergency-content,
+  .fpw-emergency-content > section,
+  .fpw-emergency-danger-inline,
+  .fpw-emergency-script,
+  .fpw-emergency-disclaimer,
+  .fpw-emergency-table-region,
+  .fpw-emergency-table-region thead th,
+  .fpw-emergency-card > section,
+  .fpw-emergency-checklist-grid > section,
+  .fpw-emergency-pace-grid > section,
+  .fpw-emergency-faq-list > section {
+    color: #000000;
+    background: #ffffff !important;
+  }
+
+  .fpw-emergency-article * {
+    color: #000000 !important;
+    text-shadow: none !important;
+  }
+
+  body.fpw-emergency-body > header,
+  body.fpw-emergency-body > footer,
+  .fpw-emergency-skip-link,
+  .fpw-emergency-breadcrumbs,
+  .fpw-emergency-hero-actions,
+  .fpw-emergency-toc,
+  .fpw-emergency-rail,
+  .fpw-emergency-cta-wrap,
+  .fpw-emergency-print-button,
+  .fpw-emergency-back,
+  .fpw-emergency-related-guides {
+    display: none !important;
+  }
+
+  .fpw-emergency-shell {
+    width: 100%;
+    padding: 0;
+  }
+
+  .fpw-emergency-layout {
+    display: block;
+    margin: 0;
+  }
+
+  .fpw-emergency-hero,
+  .fpw-emergency-danger,
+  .fpw-emergency-evidence,
+  .fpw-emergency-content,
+  .fpw-emergency-content > section,
+  .fpw-emergency-danger-inline,
+  .fpw-emergency-script,
+  .fpw-emergency-disclaimer,
+  .fpw-emergency-card > section,
+  .fpw-emergency-checklist-grid > section,
+  .fpw-emergency-pace-grid > section,
+  .fpw-emergency-faq-list > section {
+    border-color: #777777;
+    box-shadow: none;
+  }
+
+  .fpw-emergency-hero {
+    padding: 0 0 18px;
+    border: 0;
+  }
+
+  .fpw-emergency-hero::after {
+    display: none;
+  }
+
+  .fpw-emergency-danger,
+  .fpw-emergency-evidence {
+    margin-top: 14px;
+    padding: 16px;
+  }
+
+  .fpw-emergency-content {
+    overflow: visible;
+    border: 0;
+  }
+
+  .fpw-emergency-content > section {
+    padding: 18px 0;
+    border-top: 1px solid #999999;
+  }
+
+  .fpw-emergency-content h1,
+  .fpw-emergency-content h2,
+  .fpw-emergency-content h3,
+  .fpw-emergency-hero h1,
+  .fpw-emergency-hero p,
+  .fpw-emergency-danger h2,
+  .fpw-emergency-danger p,
+  .fpw-emergency-evidence p,
+  .fpw-emergency-content p,
+  .fpw-emergency-content li,
+  .fpw-emergency-content dd,
+  .fpw-emergency-content td,
+  .fpw-emergency-content th,
+  .fpw-emergency-section-kicker,
+  .fpw-emergency-label {
+    color: #000000 !important;
+  }
+
+  .fpw-emergency-pace-grid,
+  .fpw-emergency-checklist-grid,
+  .fpw-emergency-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .fpw-emergency-card > .fpw-emergency-card-fields {
+    grid-column: 1 / -1;
+  }
+
+  .fpw-emergency-pace-grid > section,
+  .fpw-emergency-checklist-grid > section,
+  .fpw-emergency-card > section,
+  .fpw-emergency-danger,
+  .fpw-emergency-evidence,
+  .fpw-emergency-danger-inline,
+  .fpw-emergency-script,
+  .fpw-emergency-table-region,
+  .fpw-emergency-faq-list > section {
+    break-inside: avoid;
+  }
+
+  .fpw-emergency-table-region {
+    overflow: visible;
+  }
+
+  .fpw-emergency-table-region table {
+    min-width: 0;
+    font-size: 9pt;
+  }
+
+  .fpw-emergency-official::after {
+    content: " (" attr(href) ")";
+    font-size: 8pt;
+    overflow-wrap: anywhere;
+  }
+
+  .fpw-emergency-new-window {
+    display: none;
+  }
+
+  a {
+    color: #000000 !important;
+  }
+}
