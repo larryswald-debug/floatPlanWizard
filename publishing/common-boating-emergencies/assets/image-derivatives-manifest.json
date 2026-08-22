@@ -1,0 +1,699 @@
+{
+  "builder": "publishing/common-boating-emergencies/scripts/build_images.py",
+  "public_directory": "assets/images/boating-guides/common-boating-emergencies",
+  "formats": [
+    "webp",
+    "jpg"
+  ],
+  "responsive_widths": [
+    640,
+    960,
+    "source_width"
+  ],
+  "assets": [
+    {
+      "stem": "common-boating-emergencies-hero",
+      "source": "publishing/common-boating-emergencies/assets/source/common-boating-emergencies-hero-master.png",
+      "source_width": 1672,
+      "source_height": 941,
+      "source_sha256": "1a3b840bcb5f2f6a59076d7b1aa844b699cadf7b904d52d9cfa152e6b72806a3",
+      "derivatives": [
+        {
+          "file": "common-boating-emergencies-hero-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 360,
+          "bytes": 31468,
+          "sha256": "957a33fa7caf9b08a0fd2c38f9adf04227074cfead5aa5f71313a24c36f80c75"
+        },
+        {
+          "file": "common-boating-emergencies-hero-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 360,
+          "bytes": 44982,
+          "sha256": "7e5b6a1f4374f78ee30ae0842efb220986f9d34efa0889937f38c3ff4a69689e"
+        },
+        {
+          "file": "common-boating-emergencies-hero-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 540,
+          "bytes": 58930,
+          "sha256": "da3e237db2995d3148243aca8f7a3e50b51961b7d06eb00e68ac7fe7ec559dd2"
+        },
+        {
+          "file": "common-boating-emergencies-hero-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 540,
+          "bytes": 90741,
+          "sha256": "f744545a88f3f6d56da23c60ea7b18aa00fe33e751396d85ac4aa67362ebef12"
+        },
+        {
+          "file": "common-boating-emergencies-hero.webp",
+          "format": "webp",
+          "width": 1672,
+          "height": 941,
+          "bytes": 131394,
+          "sha256": "a57baa69b9eec9663585bb0ddc21c4bfb8e59166766dbffa015f0423cee38db2"
+        },
+        {
+          "file": "common-boating-emergencies-hero.jpg",
+          "format": "jpg",
+          "width": 1672,
+          "height": 941,
+          "bytes": 235283,
+          "sha256": "f18d710cfc76deb4bc264751aa4dd8960cf28039ca8a7f01afcc918068264d31"
+        }
+      ]
+    },
+    {
+      "stem": "boating-emergency-pace-first-minute",
+      "source": "publishing/common-boating-emergencies/assets/source/boating-emergency-pace-first-minute-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "4d66dba88e59cde052ae6160a4b2537c4dd5285d79bc39bf093e42f6d94e41fb",
+      "derivatives": [
+        {
+          "file": "boating-emergency-pace-first-minute-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 63432,
+          "sha256": "1ec76a81c2bb2b98f192f1346f89a88d5d09ef9b4485277621194fea854f914b"
+        },
+        {
+          "file": "boating-emergency-pace-first-minute-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 78660,
+          "sha256": "c6b5abe4b677d537f33dd53505588364eeb61fef2236169cf3a6715d80531583"
+        },
+        {
+          "file": "boating-emergency-pace-first-minute-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 123804,
+          "sha256": "b1f846f687c30adf1820e8e4fbb5c2641f35bca67e0b9e665fa440d4299a75c8"
+        },
+        {
+          "file": "boating-emergency-pace-first-minute-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 162550,
+          "sha256": "c06436cef21da05fcf43228d369b3e55bcdc2c35a8b727ac88a56bdf07b56bfc"
+        },
+        {
+          "file": "boating-emergency-pace-first-minute.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 268314,
+          "sha256": "444802a0a809008d62b380479614937b2d3214d16c9c3dc18e29b170334b67a1"
+        },
+        {
+          "file": "boating-emergency-pace-first-minute.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 378180,
+          "sha256": "561062a982c74280d4764ecaec60b328984d76393a4cb078a01ba92267408b7a"
+        }
+      ]
+    },
+    {
+      "stem": "boat-engine-failure-drift-anchor",
+      "source": "publishing/common-boating-emergencies/assets/source/boat-engine-failure-drift-anchor-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "96275e4a3863b04b2d8ce4db196484be7fba5ff5414e85b2e358a55fc4c1be3d",
+      "derivatives": [
+        {
+          "file": "boat-engine-failure-drift-anchor-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 57002,
+          "sha256": "21652fc573088dca1bf764eab628f2407e1bcc402e651b794fe574919f76f482"
+        },
+        {
+          "file": "boat-engine-failure-drift-anchor-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 69519,
+          "sha256": "6af7223aa9739d58ddc50fcbd47c395f796e10f8206dcacf88dcb3f054a4ca19"
+        },
+        {
+          "file": "boat-engine-failure-drift-anchor-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 122356,
+          "sha256": "eb2977d3cd0e8d067ac5a2d0a248cb2aa6577d493cea9cfefc86fac242405b66"
+        },
+        {
+          "file": "boat-engine-failure-drift-anchor-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 151807,
+          "sha256": "3e0b9dcf46ea5edeecdb73d7c2b20d99ed37984dcc6f329fbb0c8a2b2ea07d7a"
+        },
+        {
+          "file": "boat-engine-failure-drift-anchor.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 276710,
+          "sha256": "4218bac62ead3390f95a0fe317fab87bbd7a32ee8eb04ee83cf59b9aa6a8fe06"
+        },
+        {
+          "file": "boat-engine-failure-drift-anchor.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 362765,
+          "sha256": "1dc23a184ff8ac456fe36cf964ff3ff223ea45e7ae9798588f43adf9f9aac348"
+        }
+      ]
+    },
+    {
+      "stem": "boat-taking-on-water-checkpoints",
+      "source": "publishing/common-boating-emergencies/assets/source/boat-taking-on-water-checkpoints-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "bc8c80ab78429aa619183d696a17a2b5e2109ec5cf6465a08ec7a0b156c2a84d",
+      "derivatives": [
+        {
+          "file": "boat-taking-on-water-checkpoints-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 37398,
+          "sha256": "bc44854b1a42d115abdb8011b223a3be5e2863172a5c3ce41574f02baa259594"
+        },
+        {
+          "file": "boat-taking-on-water-checkpoints-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 55110,
+          "sha256": "2e8f1ca9c34f7e6ef7a4d729d199401b1b90fff9c85323a450f5c63b5099b484"
+        },
+        {
+          "file": "boat-taking-on-water-checkpoints-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 72936,
+          "sha256": "1ecba248342474d33a59fb157722bbade67e05277d3cf1d32a1bd35def96a0af"
+        },
+        {
+          "file": "boat-taking-on-water-checkpoints-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 111802,
+          "sha256": "431d1ea3c2a79b5ba20b3b776b9fd4e05c2ebfd7916df39272ee070e85fa0210"
+        },
+        {
+          "file": "boat-taking-on-water-checkpoints.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 169368,
+          "sha256": "06433601a4a3440e3c412d35b0bd644bcbdf178de7af24f8bbff304762f797ab"
+        },
+        {
+          "file": "boat-taking-on-water-checkpoints.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 260372,
+          "sha256": "a46a5c4666148f542d6698321e47e68e7016dc96f3d1593d88d1616e9407bd19"
+        }
+      ]
+    },
+    {
+      "stem": "boat-grounding-stop-assess",
+      "source": "publishing/common-boating-emergencies/assets/source/boat-grounding-stop-assess-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "aeb8357e5ef8c385e2d23a017a9385a3043cfd81438fdec09cfd2be61c724d34",
+      "derivatives": [
+        {
+          "file": "boat-grounding-stop-assess-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 47148,
+          "sha256": "25d0b7d9f59a297c51eb4c53c81f2d0826414403187ce431c7cfa7f7721e7812"
+        },
+        {
+          "file": "boat-grounding-stop-assess-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 62600,
+          "sha256": "e012b771e3521e51763d1afade52f457b169965c72cb37883ecfb3c48e411de6"
+        },
+        {
+          "file": "boat-grounding-stop-assess-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 94912,
+          "sha256": "24b8bd2dc71b4e36f1dd19ed6fa14a400f79611386dd034dc4a8b894b8c6f860"
+        },
+        {
+          "file": "boat-grounding-stop-assess-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 131431,
+          "sha256": "533a66687aa10aa9822ee24f4dbb97e52230d6ed93f28b75f99c86f73e98ed9a"
+        },
+        {
+          "file": "boat-grounding-stop-assess.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 205194,
+          "sha256": "0e552a7ba8ecf6ba876ae9796db986ceaccd54738b231c199144cb1de0ab7f27"
+        },
+        {
+          "file": "boat-grounding-stop-assess.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 306736,
+          "sha256": "5a95fcf9805932d7f633122e341af8bf1fa9bc732885766086a86ced31eab493"
+        }
+      ]
+    },
+    {
+      "stem": "person-overboard-controlled-recovery",
+      "source": "publishing/common-boating-emergencies/assets/source/person-overboard-controlled-recovery-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "5bcb2e94c17a25d302edd64485d534715fc7e8cce649a8fc8c679e7f7803e9c5",
+      "derivatives": [
+        {
+          "file": "person-overboard-controlled-recovery-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 41532,
+          "sha256": "da2ada4dc524b9b897cb835235a183884d860fc0493040c2bd325fbdb12f1b4b"
+        },
+        {
+          "file": "person-overboard-controlled-recovery-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 59805,
+          "sha256": "2986f56d929565225c578e5071fb572befd1f0db3ba9cebcf4365c2e57cba22a"
+        },
+        {
+          "file": "person-overboard-controlled-recovery-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 93112,
+          "sha256": "e0ffb31fac5c897956538e0c09ffbb238048d38d67340afe853cdbfdeacc1375"
+        },
+        {
+          "file": "person-overboard-controlled-recovery-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 131683,
+          "sha256": "0b2095eb1938e53a368eae7036c34c1d374fd24222b370bb843ad0b4f708f8bf"
+        },
+        {
+          "file": "person-overboard-controlled-recovery.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 217464,
+          "sha256": "e7a3788f2565275864256e42b9e5745b1338c6a337d454eb89bd7a8d4c12020b"
+        },
+        {
+          "file": "person-overboard-controlled-recovery.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 321993,
+          "sha256": "6b6e8e3c77ce63aa51de3a3d73bdd9eefa36e677018bb081cf9d51330252efaa"
+        }
+      ]
+    },
+    {
+      "stem": "boat-engine-compartment-fire-response",
+      "source": "publishing/common-boating-emergencies/assets/source/boat-engine-compartment-fire-response-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "ed5e22ed036e00b76330ed49e227b73b5a49335dd92b0e44eac7c4455f8aea25",
+      "derivatives": [
+        {
+          "file": "boat-engine-compartment-fire-response-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 52088,
+          "sha256": "9fbdca410245f706a5ef96d7831db8936ec7a83e5c846ce097433bb26ea8495f"
+        },
+        {
+          "file": "boat-engine-compartment-fire-response-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 68920,
+          "sha256": "8d32791c6fc0798121ae332ccb67c42fc2a36d4fff3334c52a7856f7433aab34"
+        },
+        {
+          "file": "boat-engine-compartment-fire-response-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 104612,
+          "sha256": "0a36a9a3ec142a3f75ebfb82ebb2b2f790948a4e61ccd786d75e4bed382ba380"
+        },
+        {
+          "file": "boat-engine-compartment-fire-response-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 143404,
+          "sha256": "a9792e74758c8de6d9f0033b717afdaae9d7f9a6075627051b35aeebc8ccc654"
+        },
+        {
+          "file": "boat-engine-compartment-fire-response.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 222210,
+          "sha256": "1429218723d87928f3966a88f01cc37d7bf97e6bd67f9c3ad691f018f4fb4f09"
+        },
+        {
+          "file": "boat-engine-compartment-fire-response.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 330524,
+          "sha256": "0c8be115615fce9cd13f26e900d04c4b332f957ee1fd67c780642e535125268d"
+        }
+      ]
+    },
+    {
+      "stem": "boating-storm-early-shelter-decision",
+      "source": "publishing/common-boating-emergencies/assets/source/boating-storm-early-shelter-decision-master.png",
+      "source_width": 1672,
+      "source_height": 941,
+      "source_sha256": "57f1275c429743712e837673d76e03ed792b34473ea4509bbbd163f28a73039f",
+      "derivatives": [
+        {
+          "file": "boating-storm-early-shelter-decision-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 360,
+          "bytes": 62778,
+          "sha256": "f52b751ff0adee498183319fb76a9dbd17e12da2c6caf88088474efc0811606e"
+        },
+        {
+          "file": "boating-storm-early-shelter-decision-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 360,
+          "bytes": 72843,
+          "sha256": "04ebdfc621258dac2ce6ce1a785a4852ced9249847d0f3b810ed7b272592eb68"
+        },
+        {
+          "file": "boating-storm-early-shelter-decision-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 540,
+          "bytes": 123452,
+          "sha256": "9537d429ea4f909c7b14084631c1283641063a790774e3ec39a00b60622c885e"
+        },
+        {
+          "file": "boating-storm-early-shelter-decision-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 540,
+          "bytes": 150765,
+          "sha256": "74b49ac4ebf886ec548c5c1b6bbdad19f7214e251292e9a6e48587119a279acd"
+        },
+        {
+          "file": "boating-storm-early-shelter-decision.webp",
+          "format": "webp",
+          "width": 1672,
+          "height": 941,
+          "bytes": 271518,
+          "sha256": "2e39e6e8ece4088e6e0c56288dde21626db73e84ca4b3b48bf112fd5eadcf0e0"
+        },
+        {
+          "file": "boating-storm-early-shelter-decision.jpg",
+          "format": "jpg",
+          "width": 1672,
+          "height": 941,
+          "bytes": 376628,
+          "sha256": "5c3e1ff6d73c8a51c4dbf4ca4b7a577cf7aa0b72c58b021acb62a6bbb91b3d08"
+        }
+      ]
+    },
+    {
+      "stem": "marine-vhf-mayday-prepared-card",
+      "source": "publishing/common-boating-emergencies/assets/source/marine-vhf-mayday-prepared-card-master.png",
+      "source_width": 1448,
+      "source_height": 1086,
+      "source_sha256": "1558b8e3758700f49e663c44b84a89342b06ac94b4d0cdd6c2a12f6d34abd3f5",
+      "derivatives": [
+        {
+          "file": "marine-vhf-mayday-prepared-card-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 40662,
+          "sha256": "c5410a9d9f498a592076de4ed3c0bda1b9c18eaa3b6ab2c0a54eb62b21d5b898"
+        },
+        {
+          "file": "marine-vhf-mayday-prepared-card-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 480,
+          "bytes": 60348,
+          "sha256": "82ccdf0ef437470c02dff8f00cc2fb188764fce469ce5ca6678531302c2771f8"
+        },
+        {
+          "file": "marine-vhf-mayday-prepared-card-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 720,
+          "bytes": 76920,
+          "sha256": "17ba109b849bd6a881b03686ad56584a16a4b57264fc7e30c4b16a68c77d184b"
+        },
+        {
+          "file": "marine-vhf-mayday-prepared-card-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 720,
+          "bytes": 122009,
+          "sha256": "2c4fe4bbd606496d231eb2a009fc3152508f0605ef96f8ea155f917546a9cd63"
+        },
+        {
+          "file": "marine-vhf-mayday-prepared-card.webp",
+          "format": "webp",
+          "width": 1448,
+          "height": 1086,
+          "bytes": 140388,
+          "sha256": "0b00286e3fde131994b2af095b9078d5478fedbf04e7d5261b89f0b75e11612f"
+        },
+        {
+          "file": "marine-vhf-mayday-prepared-card.jpg",
+          "format": "jpg",
+          "width": 1448,
+          "height": 1086,
+          "bytes": 246315,
+          "sha256": "191c6f1278660a0d2d0c24a30b12e558df30a9948e439b2fad34ead3038dda89"
+        }
+      ]
+    },
+    {
+      "stem": "capsize-stay-with-boat-visibility",
+      "source": "publishing/common-boating-emergencies/assets/source/capsize-stay-with-boat-visibility-master.png",
+      "source_width": 1672,
+      "source_height": 941,
+      "source_sha256": "1791437218e924134b77620ab87abeded72f6bc982514877f0ae300ca43d023c",
+      "derivatives": [
+        {
+          "file": "capsize-stay-with-boat-visibility-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 360,
+          "bytes": 42838,
+          "sha256": "330f035312baab04aeacc5764f59737ccef1d33c20d4e638f9de87e682edcdf4"
+        },
+        {
+          "file": "capsize-stay-with-boat-visibility-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 360,
+          "bytes": 54405,
+          "sha256": "994f9a1ca838d5847417d36cda4c669dbf616e239abc956f5d1f27be9be78e36"
+        },
+        {
+          "file": "capsize-stay-with-boat-visibility-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 540,
+          "bytes": 90894,
+          "sha256": "2c34179fef4d742fe1aa1f4468c8525e437caf5614dd3aba93450bd2a95edc68"
+        },
+        {
+          "file": "capsize-stay-with-boat-visibility-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 540,
+          "bytes": 119792,
+          "sha256": "8ade0e0b262d85d6d964af880e534dd4c0d6d8faaf5d2a0f043bec5fbab9412f"
+        },
+        {
+          "file": "capsize-stay-with-boat-visibility.webp",
+          "format": "webp",
+          "width": 1672,
+          "height": 941,
+          "bytes": 227636,
+          "sha256": "3118968fb3330d97671a6ac810f0f59e6897a462c87a8d144583a6707d77c1a7"
+        },
+        {
+          "file": "capsize-stay-with-boat-visibility.jpg",
+          "format": "jpg",
+          "width": 1672,
+          "height": 941,
+          "bytes": 321267,
+          "sha256": "fc69c02ae6bb94bb1f193cb674abed4267d368d0f1f639ffbe63f6a41c8b1dd0"
+        }
+      ]
+    },
+    {
+      "stem": "boat-carbon-monoxide-danger-zones",
+      "source": "publishing/common-boating-emergencies/assets/source/boat-carbon-monoxide-danger-zones-master.png",
+      "source_width": 1536,
+      "source_height": 1024,
+      "source_sha256": "ebad2ebe9b8f16ea373d7ffcbfff4f9cd21e896717797fcf58b077110fde07d0",
+      "derivatives": [
+        {
+          "file": "boat-carbon-monoxide-danger-zones-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 427,
+          "bytes": 44862,
+          "sha256": "c5f04ab53eaba86c814ffa7bbfe230df6c7f4b462ee2aa45d44ff1b76bebf941"
+        },
+        {
+          "file": "boat-carbon-monoxide-danger-zones-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 427,
+          "bytes": 61645,
+          "sha256": "4f705e9975dc8dedc3820a3238b8cb148c03a30a1769ee12f091ada598a8455c"
+        },
+        {
+          "file": "boat-carbon-monoxide-danger-zones-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 640,
+          "bytes": 91154,
+          "sha256": "3a205760f6f3f02cc853c9a1ed2de247769ae44406916d48635c2d799685e75c"
+        },
+        {
+          "file": "boat-carbon-monoxide-danger-zones-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 640,
+          "bytes": 129958,
+          "sha256": "4e4a08b278e9e1cc7d574811f2844b08150414b39b39ea66343e1fec830e193d"
+        },
+        {
+          "file": "boat-carbon-monoxide-danger-zones.webp",
+          "format": "webp",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 204202,
+          "sha256": "0c7548178502e037addff4ff7c3bb164940499ca8f53b00fd33759ed38416d3b"
+        },
+        {
+          "file": "boat-carbon-monoxide-danger-zones.jpg",
+          "format": "jpg",
+          "width": 1536,
+          "height": 1024,
+          "bytes": 304471,
+          "sha256": "b9a1f58e63355376d84d4f5cf306f9b0a66b5b7448c285791bc1aff1ee14f939"
+        }
+      ]
+    },
+    {
+      "stem": "overdue-boater-response-information-chain",
+      "source": "publishing/common-boating-emergencies/assets/source/overdue-boater-response-information-chain-master.png",
+      "source_width": 1672,
+      "source_height": 941,
+      "source_sha256": "41881efc6f04f3debc14cbf6ebdcc9679685b88afddee7b4278e08f1fdd29d30",
+      "derivatives": [
+        {
+          "file": "overdue-boater-response-information-chain-640w.webp",
+          "format": "webp",
+          "width": 640,
+          "height": 360,
+          "bytes": 38296,
+          "sha256": "7d9885c263fd670708d89f83374ea34bd89699418c26fd0f68d68fd210ad4926"
+        },
+        {
+          "file": "overdue-boater-response-information-chain-640w.jpg",
+          "format": "jpg",
+          "width": 640,
+          "height": 360,
+          "bytes": 53725,
+          "sha256": "84d2a1799a90a42d508062b12d02f2e053595e6c998d1be405d6b3285af1ac15"
+        },
+        {
+          "file": "overdue-boater-response-information-chain-960w.webp",
+          "format": "webp",
+          "width": 960,
+          "height": 540,
+          "bytes": 74848,
+          "sha256": "f95d7e23567063681f48c0f3eb5672951806a4b7665fab6ede08f47377668967"
+        },
+        {
+          "file": "overdue-boater-response-information-chain-960w.jpg",
+          "format": "jpg",
+          "width": 960,
+          "height": 540,
+          "bytes": 108224,
+          "sha256": "ee890e63d91d8ec254b9b3752de5ca75a3b05e14e8cb6f7feb0478e05f9f759e"
+        },
+        {
+          "file": "overdue-boater-response-information-chain.webp",
+          "format": "webp",
+          "width": 1672,
+          "height": 941,
+          "bytes": 164160,
+          "sha256": "576369d0bb539550a0662d04b7f648b57b3fe1826ebb67cb0615367b3f1ac159"
+        },
+        {
+          "file": "overdue-boater-response-information-chain.jpg",
+          "format": "jpg",
+          "width": 1672,
+          "height": 941,
+          "bytes": 276454,
+          "sha256": "b3ef04396b38898c6634aef5eda1dfd33e2600df328acbcac65409d5e8b1b43c"
+        }
+      ]
+    }
+  ]
+}

@@ -39,6 +39,16 @@
       return;
     }
 
+    var cardLink = event.target.closest("[data-fpw-guide-card]");
+    if (cardLink) {
+      track("guide_card_download", {
+        guide_id: GUIDE_ID,
+        file_name: cardLink.getAttribute("data-file-name") || "unknown",
+        placement: cardLink.getAttribute("data-placement") || "download_section"
+      });
+      return;
+    }
+
     var printButton = event.target.closest("[data-fpw-guide-print]");
     if (printButton) {
       track("guide_print_select", {

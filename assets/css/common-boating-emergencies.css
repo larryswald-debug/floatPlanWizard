@@ -137,6 +137,44 @@ body.fpw-emergency-body {
   z-index: 1;
 }
 
+.fpw-emergency-figure {
+  width: 100%;
+  max-width: 760px;
+  margin: 24px auto 0;
+}
+
+.fpw-emergency-figure picture,
+.fpw-emergency-figure img {
+  display: block;
+  width: 100%;
+}
+
+.fpw-emergency-figure img {
+  height: auto;
+  border: 1px solid rgba(132, 183, 216, 0.34);
+  border-radius: 14px;
+  background: #0a2437;
+  box-shadow: 0 15px 34px rgba(0, 0, 0, 0.25);
+}
+
+.fpw-emergency-figure figcaption {
+  max-width: 72ch;
+  margin: 11px auto 0;
+  color: var(--fpw-emergency-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.fpw-emergency-hero-figure {
+  max-width: none;
+  margin-top: clamp(24px, 4vw, 38px);
+}
+
+.fpw-emergency-hero-figure figcaption {
+  margin-right: 0;
+  margin-left: 0;
+}
+
 .fpw-emergency-eyebrow,
 .fpw-emergency-section-kicker,
 .fpw-emergency-label {
@@ -652,6 +690,44 @@ body.fpw-emergency-body {
   margin-top: 22px;
 }
 
+.fpw-emergency-card-downloads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.fpw-emergency-card-download {
+  display: flex;
+  min-height: 104px;
+  padding: 18px;
+  border: 1px solid rgba(69, 222, 215, 0.5);
+  border-radius: 12px;
+  color: #eaffff !important;
+  background: rgba(10, 55, 69, 0.56);
+  text-decoration: none;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.fpw-emergency-card-download:hover {
+  border-color: var(--fpw-emergency-cyan);
+  color: #ffffff !important;
+  background: rgba(12, 72, 87, 0.7);
+}
+
+.fpw-emergency-card-download strong,
+.fpw-emergency-card-download span {
+  display: block;
+}
+
+.fpw-emergency-card-download span {
+  margin-top: 7px;
+  color: var(--fpw-emergency-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .fpw-emergency-faq-list {
   display: grid;
   gap: 14px;
@@ -755,7 +831,8 @@ body.fpw-emergency-body {
 
   .fpw-emergency-pace-grid,
   .fpw-emergency-checklist-grid,
-  .fpw-emergency-card {
+  .fpw-emergency-card,
+  .fpw-emergency-card-downloads {
     grid-template-columns: 1fr;
   }
 
@@ -850,6 +927,8 @@ body.fpw-emergency-body {
   .fpw-emergency-toc,
   .fpw-emergency-rail,
   .fpw-emergency-cta-wrap,
+  .fpw-emergency-figure,
+  .fpw-emergency-card-downloads,
   .fpw-emergency-print-button,
   .fpw-emergency-back,
   .fpw-emergency-related-guides {
