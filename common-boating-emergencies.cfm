@@ -57,7 +57,7 @@ fpwEmergencyPageDescription = "Learn what to do if your boat loses power, takes 
 fpwEmergencyHeadline = "When Something Goes Wrong on the Water: A Practical Guide to Common Boating Emergencies";
 fpwEmergencySocialTitle = "When Something Goes Wrong on the Water";
 fpwEmergencySocialDescription = "Practical first actions for engine failure, flooding, grounding, fire, person overboard, severe weather, and other common boating emergencies.";
-fpwEmergencySocialImage = "https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.webp";
+fpwEmergencySocialImage = "https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.jpg";
 fpwEmergencyPublishedDate = "2026-08-23";
 fpwEmergencyModifiedDate = "2026-08-23";
 fpwEmergencyArticleId = fpwEmergencyCanonicalUrl & "##article";
@@ -140,23 +140,23 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
   <meta property="og:url" content="https://floatplanwizard.com/common-boating-emergencies/">
   <meta property="og:title" content="When Something Goes Wrong on the Water">
   <meta property="og:description" content="Practical first actions for engine failure, flooding, grounding, fire, person overboard, severe weather, and other common boating emergencies.">
-  <meta property="og:image" content="https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.webp">
-  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.webp">
-  <meta property="og:image:type" content="image/webp">
+  <meta property="og:image" content="https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.jpg">
+  <meta property="og:image:secure_url" content="https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.jpg">
+  <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1672">
   <meta property="og:image:height" content="941">
   <meta property="og:image:alt" content="A boat operator checks the VHF radio while two passengers put on life jackets after the boat loses power.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="When Something Goes Wrong on the Water">
   <meta name="twitter:description" content="Practical first actions for engine failure, flooding, grounding, fire, person overboard, severe weather, and other common boating emergencies.">
-  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.webp">
+  <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.jpg">
   <meta name="twitter:image:alt" content="A boat operator checks the VHF radio while two passengers put on life jackets after the boat loses power.">
   <script type="application/ld+json"><cfoutput>#fpwEmergencyJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwEmergencyBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/common-boating-emergencies.css?v=20260822-phase2"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/common-boating-emergencies.css?v=20260823-fuel-dock"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
   <cfinclude template="includes/trustedsite.cfm">
@@ -255,13 +255,7 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <h2 id="first-60-seconds-title">The first 60 seconds of a boating emergency</h2>
             <p>When something goes wrong, use <strong>P.A.C.E.: People, Assess, Control, Emergency call.</strong> P.A.C.E. is a FloatPlanWizard memory aid created for this guide; it is not an official Coast Guard acronym.</p>
 
-            <figure class="fpw-emergency-figure">
-              <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute.webp 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-emergency-pace-first-minute.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="Four scenes show a crew putting on life jackets, assessing hazards, controlling the boat, and making an emergency call." loading="lazy" decoding="async">
-              </picture>
-              <figcaption>P.A.C.E. is FloatPlanWizard&rsquo;s quick-recall framework: People, Assess, Control, Emergency call. Actions may happen at the same time.</figcaption>
-            </figure>
+            <p>Illustrative sequence; equipment and safe actions depend on the vessel and emergency.</p>
 
             <div class="fpw-emergency-pace-grid">
               <section aria-labelledby="pace-people-title">
@@ -374,7 +368,7 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <figure class="fpw-emergency-figure">
               <picture>
                 <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card.webp 1448w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card.jpg 1448w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1448" height="1086" alt="A boat operator uses the VHF while reading position and vessel details from a prepared emergency card." loading="lazy" decoding="async">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/marine-vhf-mayday-prepared-card.jpg 1448w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1448" height="1086" alt="Two life-jacketed boaters at the helm in rough water while the operator sends a Mayday call on a fixed VHF radio with a prepared emergency card beside the controls." loading="lazy" decoding="async">
               </picture>
               <figcaption>Give position, danger, assistance needed, and people aboard. Keep the full Mayday script in HTML and on the printable card.</figcaption>
             </figure>
@@ -410,8 +404,8 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <p>An engine failure may be an inconvenience in open, calm water and an immediate emergency near surf, rocks, a bridge, a dam, shoal water, or heavy traffic. Deal with the boat&rsquo;s movement before diagnosing the engine.</p>
             <figure class="fpw-emergency-figure">
               <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor.webp 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="A disabled boat drifts toward a hazard while the crew checks position and prepares an anchor." loading="lazy" decoding="async">
+                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor.webp 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-failure-drift-anchor.jpg 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="Three life-jacketed boaters respond to an engine failure as one checks the engine compartment, one makes a radio call, and one lowers the anchor from the bow." loading="lazy" decoding="async">
               </picture>
               <figcaption>Assess depth, bottom, traffic, wind, current, and sea room before anchoring or troubleshooting.</figcaption>
             </figure>
@@ -574,11 +568,73 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <p>Fuel vapor, smoke, and fire demand different reactions, but all can become life-threatening quickly on a boat. Warn everyone immediately and call early if the source is not identified and controlled.</p>
             <figure class="fpw-emergency-figure">
               <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response.webp 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="A crew keeps the engine hatch closed, moves upwind, and uses the boat&rsquo;s external fire-system access point." loading="lazy" decoding="async">
+                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-640w.webp?v=20260823-owner-approved-v2 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-960w.webp?v=20260823-owner-approved-v2 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response.webp?v=20260823-owner-approved-v2 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response.jpg?v=20260823-owner-approved-v2" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-640w.jpg?v=20260823-owner-approved-v2 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response-960w.jpg?v=20260823-owner-approved-v2 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-engine-compartment-fire-response.jpg?v=20260823-owner-approved-v2 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="Thirty-five-foot cabin cruiser docked at a fuel station with smoke and flames coming from the rear engine compartment and spilled fuel burning on the water near the stern." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Do not open a suspected engine-compartment fire. Shut down sources and use the installed system or fire port as designed.</figcaption>
+              <figcaption>Fire at a fuel dock can spread rapidly from the engine compartment to spilled fuel on the water. Stop fueling, alert everyone nearby, evacuate to a safe location and call emergency services&mdash;do not remain aboard to fight a spreading fuel fire.</figcaption>
             </figure>
+
+            <section class="fpw-emergency-fuel-dock" id="fuel-dock-fires" aria-labelledby="fuel-dock-fires-heading">
+              <h3 id="fuel-dock-fires-heading">Fuel-Dock Fires and Burning Fuel on the Water</h3>
+              <p>Fueling may feel routine, but a fuel dock combines gasoline, vapors, electrical equipment, boats and people in a confined area. Even a small spill can spread across the water and underneath nearby boats or docks.</p>
+              <p>The water itself does not burn. A layer of fuel floating on the surface—and the vapor above it—can ignite and carry fire rapidly across the fueling area.</p>
+
+              <aside class="fpw-emergency-fuel-dock-experience">
+                <h4>A lesson I never forgot</h4>
+                <p>When I was about 10 years old, I was aboard my father’s 14-foot runabout while we stopped for fuel. A larger boat was fueling beside us. Although nothing appeared to be leaking at that moment, some fuel was already floating on the water.</p>
+                <p>A man aboard the other boat was smoking a cigar. He threw it into the water, apparently intending to put it out, and the fuel on the surface ignited almost instantly.</p>
+                <p>Everything happened very fast. My mother panicked and jumped into the water. Someone grabbed me and ran with me as quickly as possible to get away from the fire. Thankfully, my mother was unharmed and the fire was extinguished, but the situation could easily have ended very differently.</p>
+                <p>That experience stayed with me because every part of it was preventable. Smoking should never have been permitted near the fuel dock, spilled fuel should not have been present, and no passenger—especially a child—should have remained aboard during fueling.</p>
+              </aside>
+
+              <div class="fpw-emergency-fuel-dock-panels">
+                <section class="fpw-emergency-fuel-dock-panel fpw-emergency-fuel-dock-panel--before">
+                  <h4>Before fueling</h4>
+                  <ul>
+                    <li>Put all passengers ashore before fueling begins.</li>
+                    <li>Secure the boat firmly to the dock.</li>
+                    <li>Shut down engines, generators and other potential ignition sources.</li>
+                    <li>Extinguish cigarettes, cigars and every open flame. If anyone begins smoking nearby, stop fueling immediately and alert the dock attendant.</li>
+                    <li>Close ports, hatches and doors to keep gasoline vapors out of enclosed spaces.</li>
+                    <li>Keep the fuel nozzle in contact with the fill opening and attend it continuously.</li>
+                    <li>Fill slowly and never top off the tank.</li>
+                    <li>Watch the fuel vent, deck and surrounding water for spills or a visible sheen.</li>
+                  </ul>
+                  <p>After fueling, open the compartments, ventilate the boat and operate the blower for at least four minutes before starting a gasoline engine. Check carefully for fuel odors. Reboard passengers only after the engine has been started safely. These precautions follow <a class="fpw-emergency-official" href="https://boatus.org/study-guide/trip-planning-preparation/boat-transportation-trailering/" target="_blank" rel="noopener noreferrer" data-fpw-guide-source data-source-org="boatus" data-section-id="fuel-dock-fires">BoatUS Foundation fueling guidance<span class="fpw-emergency-new-window"> (opens in a new tab)</span></a>.</p>
+                </section>
+
+                <section class="fpw-emergency-fuel-dock-panel fpw-emergency-fuel-dock-panel--spill">
+                  <h4>If fuel spills but has not ignited</h4>
+                  <ol>
+                    <li>Stop the flow of fuel and notify the marina attendant immediately.</li>
+                    <li>Do not start the engine or operate electrical switches in the affected area.</li>
+                    <li>Keep people away from the spill and eliminate every possible ignition source.</li>
+                    <li>Allow marina personnel to deploy oil-absorbent pads or containment booms.</li>
+                    <li>Never use soap or detergent to make a sheen disappear. It spreads the contamination through the water and is illegal.</li>
+                    <li>Report a spill that creates a sheen to the U.S. Coast Guard National Response Center at <strong>1-800-424-8802</strong>, along with any required state or local notification.</li>
+                  </ol>
+                  <p class="fpw-emergency-fuel-dock-source"><a class="fpw-emergency-official" href="https://www.boatus.org/clean-boating/fueling/fuel-spill-response" target="_blank" rel="noopener noreferrer" data-fpw-guide-source data-source-org="boatus" data-section-id="fuel-dock-fires">BoatUS Foundation spill-response guidance<span class="fpw-emergency-new-window"> (opens in a new tab)</span></a></p>
+                </section>
+
+                <section class="fpw-emergency-fuel-dock-panel fpw-emergency-fuel-dock-panel--fire">
+                  <h4>If the fuel ignites</h4>
+                  <ul>
+                    <li>Shout a warning and get everyone away from the fuel dock immediately.</li>
+                    <li>Call 911 from a safe location and clearly report that fuel is burning on the water.</li>
+                    <li>Activate the fuel-dock emergency shutoff only if it can be reached without approaching the flames or passing through smoke.</li>
+                    <li>Use the dock as the primary escape route when it remains safe. Do not automatically jump into the water—burning fuel can spread across the surface, and marina water may also present electrical hazards.</li>
+                    <li>Do not start or move a burning boat unless emergency personnel direct you to do so.</li>
+                    <li>Attempt to use a properly rated fire extinguisher only when the fire is still small, you know how to use it and you have a clear escape route behind you.</li>
+                    <li>Never throw water onto burning gasoline. Leave a spreading fuel or marina fire to trained responders.</li>
+                  </ul>
+                  <p>Boat and marina fires can spread quickly, so evacuation takes priority over saving the boat or fighting a growing fire. <a class="fpw-emergency-official" href="https://www.usfa.fema.gov/prevention/vehicle-fires/boats-and-marinas/" target="_blank" rel="noopener noreferrer" data-fpw-guide-source data-source-org="usfa" data-section-id="fuel-dock-fires">U.S. Fire Administration marina-fire guidance<span class="fpw-emergency-new-window"> (opens in a new tab)</span></a>.</p>
+                </section>
+              </div>
+
+              <aside class="fpw-emergency-fuel-dock-reminder" role="note">
+                <p><strong>Remember:</strong> A fuel sheen is not harmless, and a fuel dock is never an acceptable place to smoke. If you see either condition, stop fueling and notify the marina before an ignition turns a manageable spill into a life-threatening emergency.</p>
+              </aside>
+            </section>
 
             <h3>If you smell gasoline or discover a fuel leak</h3>
             <ul>
@@ -628,8 +684,8 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <p>The safest response depends on how hard the boat struck, whether the bottom is mud, sand, grass, coral, rock, or debris, whether the tide is rising or falling, and whether the hull or propulsion system is damaged.</p>
             <figure class="fpw-emergency-figure">
               <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess.webp 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="A grounded boat is assessed for damage while a contrasting scene shows sediment churned by immediately reversing." loading="lazy" decoding="async">
+                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess.webp 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-grounding-stop-assess.jpg 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="Two life-jacketed boaters assess a cabin cruiser grounded in shallow water as one checks depth beside the bow and the other remains at the helm." loading="lazy" decoding="async">
               </picture>
               <figcaption>Stop and assess before trying to power free; immediate throttle can worsen damage or clog cooling-water intakes.</figcaption>
             </figure>
@@ -723,10 +779,10 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <p>A person overboard can disappear from view quickly, even in daylight and calm water. Continuous visual contact and stopping propeller danger are essential.</p>
             <figure class="fpw-emergency-figure fpw-emergency-figure--safety-critical">
               <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery.webp 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="A crew keeps pointing to a person overboard as the operator makes a slow return toward thrown flotation and a boarding ladder." loading="lazy" decoding="async">
+                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-640w.webp?v=20260823-owner-approved 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-960w.webp?v=20260823-owner-approved 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery.webp?v=20260823-owner-approved 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery.jpg?v=20260823-owner-approved" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-640w.jpg?v=20260823-owner-approved 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery-960w.jpg?v=20260823-owner-approved 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/person-overboard-controlled-recovery.jpg?v=20260823-owner-approved 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="Two life-jacketed boaters aboard a cabin cruiser respond to a person overboard as one throws a ring buoy with a retrieval line toward the life-jacketed person in the water." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Shout, throw, point, slow, approach under control, and place propulsion in neutral or stop the engine before recovery.</figcaption>
+              <figcaption>Maintain visual contact, deploy flotation and approach under control. Shift to neutral and shut the engine off before the person is alongside or recovery begins.</figcaption>
             </figure>
 
             <h3 class="fpw-emergency-action-heading">Do this first</h3>
@@ -810,10 +866,10 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <p>The best severe-weather maneuver is often the early decision not to be there. Thunderstorms can create abrupt wind shifts, steep waves, lightning, waterspouts, and near-zero visibility. Review the <a class="fpw-emergency-official" href="https://www.weather.gov/safety/safeboating-during" target="_blank" rel="noopener noreferrer" data-fpw-guide-source data-source-org="nws" data-section-id="boating-weather-visibility">National Weather Service safe-boating guidance<span class="fpw-emergency-new-window"> (opens in a new tab)</span></a> before departure.</p>
             <figure class="fpw-emergency-figure">
               <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision.webp 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision.jpg 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="A recreational boat turns toward safe harbor before a distant thunderstorm reaches the route." loading="lazy" decoding="async">
+                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-640w.webp?v=20260823-owner-approved-v2 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-960w.webp?v=20260823-owner-approved-v2 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision.webp?v=20260823-owner-approved-v2 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision.jpg?v=20260823-owner-approved-v2" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-640w.jpg?v=20260823-owner-approved-v2 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision-960w.jpg?v=20260823-owner-approved-v2 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boating-storm-early-shelter-decision.jpg?v=20260823-owner-approved-v2 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="Cabin cruiser moving through a marked channel toward protected water between a red marker on the left and a green marker on the right, with a dark storm and heavy rain behind the boat." loading="lazy" decoding="async">
               </picture>
-              <figcaption>The safest storm tactic is often the early decision to seek shelter before wind, waves, lightning, and visibility close the route.</figcaption>
+              <figcaption>Storms can close in quickly. When one is heading your way, seek safe harbor while you still have time to reach it safely.</figcaption>
             </figure>
 
             <h3>Thunderstorms, lightning, and strong wind</h3>
@@ -889,9 +945,9 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <figure class="fpw-emergency-figure">
               <picture>
                 <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones.webp 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="Exhaust gathers near a boat&rsquo;s stern and can curl toward the swim platform and enclosed cockpit." loading="lazy" decoding="async">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/boat-carbon-monoxide-danger-zones.jpg 1536w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1536" height="1024" alt="Recreational cabin cruiser highlighting carbon-monoxide danger zones at the stern, swim platform, canvas-enclosed cockpit and cabin, with external exhaust backdrafting forward." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Carbon monoxide has no color or odor. Keep people away from exhaust zones and stop machinery if exposure is suspected.</figcaption>
+              <figcaption>Conceptual hazard overlay&mdash;carbon monoxide is colorless and odorless. Exhaust can collect near the stern and be drawn into cockpits or cabins by wind, speed, trim, canvas and open compartments.</figcaption>
             </figure>
 
             <h3>Treat clustered or unexplained symptoms as CO until ruled out</h3>
@@ -936,10 +992,10 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <h2 id="overdue-boat-title">What to do when plans change or the boat is overdue</h2>
             <figure class="fpw-emergency-figure">
               <picture>
-                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-640w.webp 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-960w.webp 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain.webp 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
-                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain.jpg" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-640w.jpg 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-960w.jpg 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain.jpg 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="A boater, shore contact, and rescue coordinator share the same boat, route, passenger, and timing information." loading="lazy" decoding="async">
+                <source type="image/webp" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-640w.webp?v=20260823-owner-approved 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-960w.webp?v=20260823-owner-approved 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain.webp?v=20260823-owner-approved 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px">
+                <img src="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain.jpg?v=20260823-owner-approved" srcset="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-640w.jpg?v=20260823-owner-approved 640w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain-960w.jpg?v=20260823-owner-approved 960w, <cfoutput>#fpwEmergencyBasePath#</cfoutput>/assets/images/boating-guides/common-boating-emergencies/overdue-boater-response-information-chain.jpg?v=20260823-owner-approved 1672w" sizes="(max-width: 480px) calc(100vw - 56px), (max-width: 1100px) calc(100vw - 96px), 760px" width="1672" height="941" alt="Three-panel scene showing a boater at a marina, a shore contact reviewing the boat and route while on the phone, and a rescue coordinator viewing the same vessel and route information." loading="lazy" decoding="async">
               </picture>
-              <figcaption>A complete, current float plan reduces guesswork when a boat is overdue.</figcaption>
+              <figcaption>Conceptual information chain&mdash;not a representation of continuous live vessel tracking.</figcaption>
             </figure>
 
             <h3>If the boat changes route or return time</h3>
@@ -1182,11 +1238,11 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <div class="fpw-emergency-card-downloads" aria-label="Download boating emergency cards">
               <a class="fpw-emergency-card-download" href="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/downloads/floatplanwizard-boating-emergency-card-4x6.pdf" download="floatplanwizard-boating-emergency-card-4x6.pdf" data-fpw-guide-card data-file-name="floatplanwizard-boating-emergency-card-4x6.pdf" data-placement="download_section">
                 <strong>Download the two-sided 4&times;6 card (PDF)</strong>
-                <span>Two 4&times;6-inch pages for duplex printing at 100% scale.</span>
+                <span>Two 6&times;4-inch landscape pages for short-edge duplex printing at 100% / Actual Size.</span>
               </a>
               <a class="fpw-emergency-card-download" href="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/downloads/floatplanwizard-boating-emergency-card-letter.pdf" download="floatplanwizard-boating-emergency-card-letter.pdf" data-fpw-guide-card data-file-name="floatplanwizard-boating-emergency-card-letter.pdf" data-placement="download_section">
                 <strong>Download the letter-size two-up sheet (PDF)</strong>
-                <span>Two full-size cards per letter sheet with front/back alignment and cutting marks.</span>
+                <span>Two full-size cards per Letter sheet for long-edge duplex printing, with alignment and cutting marks.</span>
               </a>
             </div>
 

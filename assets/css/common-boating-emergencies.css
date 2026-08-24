@@ -573,6 +573,102 @@ body.fpw-emergency-body {
   background: rgba(92, 24, 26, 0.4);
 }
 
+.fpw-emergency-fuel-dock {
+  max-width: 76ch;
+  margin-top: 30px;
+  scroll-margin-top: 116px;
+}
+
+.fpw-emergency-fuel-dock > h3 {
+  margin-top: 0;
+}
+
+.fpw-emergency-fuel-dock h4 {
+  margin: 0;
+  color: #0b2438;
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.fpw-emergency-fuel-dock-experience,
+.fpw-emergency-fuel-dock-panel,
+.fpw-emergency-fuel-dock-reminder {
+  min-width: 0;
+  padding: 20px 22px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.fpw-emergency-fuel-dock-experience {
+  margin-top: 22px;
+  border: 1px solid #aebfca;
+  border-left: 4px solid #0b3555;
+  background: #dce8ef;
+}
+
+.fpw-emergency-fuel-dock-experience p,
+.fpw-emergency-fuel-dock-panel p,
+.fpw-emergency-fuel-dock-panel li,
+.fpw-emergency-fuel-dock-reminder p {
+  color: #0b2438;
+}
+
+.fpw-emergency-fuel-dock-experience h4 + p,
+.fpw-emergency-fuel-dock-panel h4 + ul,
+.fpw-emergency-fuel-dock-panel h4 + ol {
+  margin-top: 14px;
+}
+
+.fpw-emergency-fuel-dock-experience p + p {
+  margin-top: 14px;
+}
+
+.fpw-emergency-fuel-dock-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.fpw-emergency-fuel-dock-panel {
+  border: 1px solid #bdcbd5;
+  border-left: 4px solid var(--fpw-emergency-blue);
+  background: #f7fafc;
+}
+
+.fpw-emergency-fuel-dock-panel--spill {
+  border-left-color: #b56700;
+}
+
+.fpw-emergency-fuel-dock-panel--fire {
+  border-left-color: #b3261e;
+}
+
+.fpw-emergency-fuel-dock-panel ul,
+.fpw-emergency-fuel-dock-panel ol {
+  padding-left: 1.35rem;
+}
+
+.fpw-emergency-fuel-dock-panel a {
+  color: #075785;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.fpw-emergency-fuel-dock-panel a:hover {
+  color: #043b5a;
+}
+
+.fpw-emergency-fuel-dock-source {
+  font-size: 0.92rem;
+}
+
+.fpw-emergency-fuel-dock-reminder {
+  margin-top: 20px;
+  border: 1px solid #b77914;
+  background: #fff1cf;
+}
+
 .fpw-emergency-cta-wrap {
   padding: clamp(26px, 4.2vw, 46px);
 }
@@ -869,7 +965,10 @@ body.fpw-emergency-body {
   .fpw-emergency-pace-grid > section,
   .fpw-emergency-checklist-grid > section,
   .fpw-emergency-faq-list > section,
-  .fpw-emergency-card > section {
+  .fpw-emergency-card > section,
+  .fpw-emergency-fuel-dock-experience,
+  .fpw-emergency-fuel-dock-panel,
+  .fpw-emergency-fuel-dock-reminder {
     padding: 17px;
   }
 
@@ -909,7 +1008,10 @@ body.fpw-emergency-body {
   .fpw-emergency-card > section,
   .fpw-emergency-checklist-grid > section,
   .fpw-emergency-pace-grid > section,
-  .fpw-emergency-faq-list > section {
+  .fpw-emergency-faq-list > section,
+  .fpw-emergency-fuel-dock-experience,
+  .fpw-emergency-fuel-dock-panel,
+  .fpw-emergency-fuel-dock-reminder {
     color: #000000;
     background: #ffffff !important;
   }
@@ -927,12 +1029,31 @@ body.fpw-emergency-body {
   .fpw-emergency-toc,
   .fpw-emergency-rail,
   .fpw-emergency-cta-wrap,
-  .fpw-emergency-figure,
   .fpw-emergency-card-downloads,
   .fpw-emergency-print-button,
   .fpw-emergency-back,
   .fpw-emergency-related-guides {
     display: none !important;
+  }
+
+  .fpw-emergency-figure {
+    margin: 10px 0 14px;
+    break-inside: avoid;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .fpw-emergency-figure picture {
+    display: none !important;
+  }
+
+  .fpw-emergency-figure figcaption {
+    margin: 0;
+    padding: 8px 10px;
+    color: #000000 !important;
+    background: #ffffff !important;
+    border-left: 2px solid #777777;
+    font-size: 10pt;
   }
 
   .fpw-emergency-shell {
@@ -956,7 +1077,10 @@ body.fpw-emergency-body {
   .fpw-emergency-card > section,
   .fpw-emergency-checklist-grid > section,
   .fpw-emergency-pace-grid > section,
-  .fpw-emergency-faq-list > section {
+  .fpw-emergency-faq-list > section,
+  .fpw-emergency-fuel-dock-experience,
+  .fpw-emergency-fuel-dock-panel,
+  .fpw-emergency-fuel-dock-reminder {
     border-color: #777777;
     box-shadow: none;
   }
@@ -989,6 +1113,7 @@ body.fpw-emergency-body {
   .fpw-emergency-content h1,
   .fpw-emergency-content h2,
   .fpw-emergency-content h3,
+  .fpw-emergency-content h4,
   .fpw-emergency-hero h1,
   .fpw-emergency-hero p,
   .fpw-emergency-danger h2,
@@ -1024,6 +1149,17 @@ body.fpw-emergency-body {
   .fpw-emergency-script,
   .fpw-emergency-table-region,
   .fpw-emergency-faq-list > section {
+    break-inside: avoid;
+  }
+
+  .fpw-emergency-fuel-dock h3,
+  .fpw-emergency-fuel-dock h4 {
+    break-after: avoid-page;
+  }
+
+  .fpw-emergency-fuel-dock-experience,
+  .fpw-emergency-fuel-dock-panel,
+  .fpw-emergency-fuel-dock-reminder {
     break-inside: avoid;
   }
 

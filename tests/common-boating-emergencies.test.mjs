@@ -13,21 +13,30 @@ const webConfig = read("web.config");
 const sitemap = read("sitemap.xml");
 
 const canonical = "https://floatplanwizard.com/common-boating-emergencies/";
-const heroUrl = "https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.webp";
+const heroUrl = "https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.jpg";
 const imageDirectory = "assets/images/boating-guides/common-boating-emergencies";
+const engineFailureAlt = "Three life-jacketed boaters respond to an engine failure as one checks the engine compartment, one makes a radio call, and one lowers the anchor from the bow.";
+const groundingAlt = "Two life-jacketed boaters assess a cabin cruiser grounded in shallow water as one checks depth beside the bow and the other remains at the helm.";
+const personOverboardAlt = "Two life-jacketed boaters aboard a cabin cruiser respond to a person overboard as one throws a ring buoy with a retrieval line toward the life-jacketed person in the water.";
+const fireAlt = "Thirty-five-foot cabin cruiser docked at a fuel station with smoke and flames coming from the rear engine compartment and spilled fuel burning on the water near the stern.";
+const fireCaption = "Fire at a fuel dock can spread rapidly from the engine compartment to spilled fuel on the water. Stop fueling, alert everyone nearby, evacuate to a safe location and call emergency services&mdash;do not remain aboard to fight a spreading fuel fire.";
+const stormAlt = "Cabin cruiser moving through a marked channel toward protected water between a red marker on the left and a green marker on the right, with a dark storm and heavy rain behind the boat.";
+const stormCaption = "Storms can close in quickly. When one is heading your way, seek safe harbor while you still have time to reach it safely.";
+const maydayAlt = "Two life-jacketed boaters at the helm in rough water while the operator sends a Mayday call on a fixed VHF radio with a prepared emergency card beside the controls.";
+const overdueAlt = "Three-panel scene showing a boater at a marina, a shore contact reviewing the boat and route while on the phone, and a rescue coordinator viewing the same vessel and route information.";
+const paceNote = "Illustrative sequence; equipment and safe actions depend on the vessel and emergency.";
 const figureAssets = [
   ["common-boating-emergencies-hero", 1672, 941, "A boat operator checks the VHF radio while two passengers put on life jackets after the boat loses power.", "Calm, early action preserves options: protect people, establish position, control the boat, and call before the situation worsens."],
-  ["boating-emergency-pace-first-minute", 1536, 1024, "Four scenes show a crew putting on life jackets, assessing hazards, controlling the boat, and making an emergency call.", "P.A.C.E. is FloatPlanWizard&rsquo;s quick-recall framework: People, Assess, Control, Emergency call. Actions may happen at the same time."],
-  ["boat-engine-failure-drift-anchor", 1536, 1024, "A disabled boat drifts toward a hazard while the crew checks position and prepares an anchor.", "Assess depth, bottom, traffic, wind, current, and sea room before anchoring or troubleshooting."],
+  ["boat-engine-failure-drift-anchor", 1672, 941, engineFailureAlt, "Assess depth, bottom, traffic, wind, current, and sea room before anchoring or troubleshooting."],
   ["boat-taking-on-water-checkpoints", 1536, 1024, "A cutaway view highlights several common places water can enter a recreational boat, including fittings, hoses, drains, and hull damage.", "Boat layouts differ. Check only accessible areas you understand, and never delay a distress call while water is rising."],
-  ["boat-grounding-stop-assess", 1536, 1024, "A grounded boat is assessed for damage while a contrasting scene shows sediment churned by immediately reversing.", "Stop and assess before trying to power free; immediate throttle can worsen damage or clog cooling-water intakes."],
-  ["person-overboard-controlled-recovery", 1536, 1024, "A crew keeps pointing to a person overboard as the operator makes a slow return toward thrown flotation and a boarding ladder.", "Shout, throw, point, slow, approach under control, and place propulsion in neutral or stop the engine before recovery."],
-  ["boat-engine-compartment-fire-response", 1536, 1024, "A crew keeps the engine hatch closed, moves upwind, and uses the boat&rsquo;s external fire-system access point.", "Do not open a suspected engine-compartment fire. Shut down sources and use the installed system or fire port as designed."],
-  ["boating-storm-early-shelter-decision", 1672, 941, "A recreational boat turns toward safe harbor before a distant thunderstorm reaches the route.", "The safest storm tactic is often the early decision to seek shelter before wind, waves, lightning, and visibility close the route."],
-  ["marine-vhf-mayday-prepared-card", 1448, 1086, "A boat operator uses the VHF while reading position and vessel details from a prepared emergency card.", "Give position, danger, assistance needed, and people aboard. Keep the full Mayday script in HTML and on the printable card."],
+  ["boat-grounding-stop-assess", 1672, 941, groundingAlt, "Stop and assess before trying to power free; immediate throttle can worsen damage or clog cooling-water intakes."],
+  ["person-overboard-controlled-recovery", 1672, 941, personOverboardAlt, "Maintain visual contact, deploy flotation and approach under control. Shift to neutral and shut the engine off before the person is alongside or recovery begins."],
+  ["boat-engine-compartment-fire-response", 1672, 941, fireAlt, fireCaption],
+  ["boating-storm-early-shelter-decision", 1672, 941, stormAlt, stormCaption],
+  ["marine-vhf-mayday-prepared-card", 1448, 1086, maydayAlt, "Give position, danger, assistance needed, and people aboard. Keep the full Mayday script in HTML and on the printable card."],
   ["capsize-stay-with-boat-visibility", 1672, 941, "From the air, an overturned boat and grouped survivors are much more visible than one person alone in the water.", "Stay with the boat unless fire, fuel, surf, a dam, rocks, or another immediate hazard makes leaving safer."],
-  ["boat-carbon-monoxide-danger-zones", 1536, 1024, "Exhaust gathers near a boat&rsquo;s stern and can curl toward the swim platform and enclosed cockpit.", "Carbon monoxide has no color or odor. Keep people away from exhaust zones and stop machinery if exposure is suspected."],
-  ["overdue-boater-response-information-chain", 1672, 941, "A boater, shore contact, and rescue coordinator share the same boat, route, passenger, and timing information.", "A complete, current float plan reduces guesswork when a boat is overdue."]
+  ["boat-carbon-monoxide-danger-zones", 1536, 1024, "Recreational cabin cruiser highlighting carbon-monoxide danger zones at the stern, swim platform, canvas-enclosed cockpit and cabin, with external exhaust backdrafting forward.", "Conceptual hazard overlay&mdash;carbon monoxide is colorless and odorless. Exhaust can collect near the stern and be drawn into cockpits or cabins by wind, speed, trim, canvas and open compartments."],
+  ["overdue-boater-response-information-chain", 1672, 941, overdueAlt, "Conceptual information chain&mdash;not a representation of continuous live vessel tracking."]
 ];
 const requiredSections = [
   "first-60-seconds",
@@ -63,7 +72,20 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-test("page has the approved discovery metadata and one canonical H1", () => {
+function visibleText(source) {
+  return source
+    .replace(/<span class="fpw-emergency-new-window">[\s\S]*?<\/span>/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&mdash;/g, "—")
+    .replace(/&rsquo;/g, "’")
+    .replace(/&hellip;/g, "…")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}
+
+test("page has the approved discovery metadata, JPEG social image, and one canonical H1", () => {
   assert.equal(countMatches(page, /<title>Common Boating Emergencies: What to Do \| FloatPlanWizard<\/title>/g), 1);
   assert.equal(
     countMatches(page, /<meta name="description" content="Learn what to do if your boat loses power, takes on water, runs aground, catches fire, encounters severe weather, or has a person overboard\.">/g),
@@ -78,7 +100,7 @@ test("page has the approved discovery metadata and one canonical H1", () => {
   assert.match(page, /<meta property="og:title" content="When Something Goes Wrong on the Water">/);
   assert.match(page, new RegExp(`<meta property="og:image" content="${escapeRegExp(heroUrl)}">`));
   assert.match(page, new RegExp(`<meta name="twitter:image" content="${escapeRegExp(heroUrl)}">`));
-  assert.match(page, /<meta property="og:image:type" content="image\/webp">/);
+  assert.match(page, /<meta property="og:image:type" content="image\/jpeg">/);
   assert.match(page, /<meta property="og:image:width" content="1672">/);
   assert.match(page, /<meta property="og:image:height" content="941">/);
 });
@@ -125,6 +147,104 @@ test("all required sections are present, linked, unique, and available in initia
     assert.equal(page.includes(`id="${labelTarget}"`), true, `Missing aria-labelledby target ${labelTarget}`);
   }
   assert.doesNotMatch(page, /FPW_EMERGENCY_GUIDE_CONTENT|document\.write|innerHTML\s*=/);
+});
+
+test("fuel-dock fire subsection preserves the exact approved copy, semantics, links, and placement", () => {
+  const fireSectionStart = page.indexOf('<section id="boat-fire-fuel-leak"');
+  const fireFigureEnd = page.indexOf("</figure>", fireSectionStart);
+  const subsectionStart = page.indexOf('<section class="fpw-emergency-fuel-dock" id="fuel-dock-fires"', fireFigureEnd);
+  const existingFireInstructionsStart = page.indexOf("<h3>If you smell gasoline or discover a fuel leak</h3>", subsectionStart);
+  assert.ok(fireSectionStart >= 0);
+  assert.ok(fireFigureEnd < subsectionStart, "Subsection must follow the fire figure and caption");
+  assert.ok(subsectionStart < existingFireInstructionsStart, "Subsection must precede the existing fire instructions");
+
+  const subsection = page.slice(subsectionStart, existingFireInstructionsStart);
+  const subsectionText = visibleText(subsection);
+  assert.equal(countMatches(page, /\sid="fuel-dock-fires"/g), 1);
+  assert.equal(countMatches(subsection, /<h3\b/g), 1);
+  assert.equal(countMatches(subsection, /<h4\b/g), 4);
+  assert.match(subsection, /^<section class="fpw-emergency-fuel-dock" id="fuel-dock-fires" aria-labelledby="fuel-dock-fires-heading">/);
+  assert.match(subsection, /<h3 id="fuel-dock-fires-heading">Fuel-Dock Fires and Burning Fuel on the Water<\/h3>/);
+  assert.equal(countMatches(subsection, /<aside\b/g), 2);
+  assert.equal(countMatches(subsection, /<aside class="fpw-emergency-fuel-dock-experience">/g), 1);
+  assert.equal(countMatches(subsection, /<aside class="fpw-emergency-fuel-dock-reminder" role="note">/g), 1);
+  assert.equal(countMatches(subsection, /<section class="fpw-emergency-fuel-dock-panel\b/g), 3);
+  assert.equal(page.includes('href="#fuel-dock-fires" data-fpw-guide-toc'), false, "Third-level subsection must not be added to the top-level TOC");
+
+  const approvedCopy = [
+    "Fueling may feel routine, but a fuel dock combines gasoline, vapors, electrical equipment, boats and people in a confined area. Even a small spill can spread across the water and underneath nearby boats or docks.",
+    "The water itself does not burn. A layer of fuel floating on the surface—and the vapor above it—can ignite and carry fire rapidly across the fueling area.",
+    "When I was about 10 years old, I was aboard my father’s 14-foot runabout while we stopped for fuel. A larger boat was fueling beside us. Although nothing appeared to be leaking at that moment, some fuel was already floating on the water.",
+    "A man aboard the other boat was smoking a cigar. He threw it into the water, apparently intending to put it out, and the fuel on the surface ignited almost instantly.",
+    "Everything happened very fast. My mother panicked and jumped into the water. Someone grabbed me and ran with me as quickly as possible to get away from the fire. Thankfully, my mother was unharmed and the fire was extinguished, but the situation could easily have ended very differently.",
+    "That experience stayed with me because every part of it was preventable. Smoking should never have been permitted near the fuel dock, spilled fuel should not have been present, and no passenger—especially a child—should have remained aboard during fueling.",
+    "Put all passengers ashore before fueling begins.",
+    "Secure the boat firmly to the dock.",
+    "Shut down engines, generators and other potential ignition sources.",
+    "Extinguish cigarettes, cigars and every open flame. If anyone begins smoking nearby, stop fueling immediately and alert the dock attendant.",
+    "Close ports, hatches and doors to keep gasoline vapors out of enclosed spaces.",
+    "Keep the fuel nozzle in contact with the fill opening and attend it continuously.",
+    "Fill slowly and never top off the tank.",
+    "Watch the fuel vent, deck and surrounding water for spills or a visible sheen.",
+    "After fueling, open the compartments, ventilate the boat and operate the blower for at least four minutes before starting a gasoline engine. Check carefully for fuel odors. Reboard passengers only after the engine has been started safely. These precautions follow BoatUS Foundation fueling guidance.",
+    "Stop the flow of fuel and notify the marina attendant immediately.",
+    "Do not start the engine or operate electrical switches in the affected area.",
+    "Keep people away from the spill and eliminate every possible ignition source.",
+    "Allow marina personnel to deploy oil-absorbent pads or containment booms.",
+    "Never use soap or detergent to make a sheen disappear. It spreads the contamination through the water and is illegal.",
+    "Report a spill that creates a sheen to the U.S. Coast Guard National Response Center at 1-800-424-8802, along with any required state or local notification.",
+    "BoatUS Foundation spill-response guidance",
+    "Shout a warning and get everyone away from the fuel dock immediately.",
+    "Call 911 from a safe location and clearly report that fuel is burning on the water.",
+    "Activate the fuel-dock emergency shutoff only if it can be reached without approaching the flames or passing through smoke.",
+    "Use the dock as the primary escape route when it remains safe. Do not automatically jump into the water—burning fuel can spread across the surface, and marina water may also present electrical hazards.",
+    "Do not start or move a burning boat unless emergency personnel direct you to do so.",
+    "Attempt to use a properly rated fire extinguisher only when the fire is still small, you know how to use it and you have a clear escape route behind you.",
+    "Never throw water onto burning gasoline. Leave a spreading fuel or marina fire to trained responders.",
+    "Boat and marina fires can spread quickly, so evacuation takes priority over saving the boat or fighting a growing fire. U.S. Fire Administration marina-fire guidance.",
+    "Remember: A fuel sheen is not harmless, and a fuel dock is never an acceptable place to smoke. If you see either condition, stop fueling and notify the marina before an ignition turns a manageable spill into a life-threatening emergency."
+  ];
+  for (const copy of approvedCopy) {
+    assert.equal(subsectionText.split(copy).length - 1, 1, `Approved copy must appear exactly once: ${copy}`);
+  }
+
+  const beforeStart = subsection.indexOf('fpw-emergency-fuel-dock-panel--before');
+  const spillStart = subsection.indexOf('fpw-emergency-fuel-dock-panel--spill');
+  const fireStart = subsection.indexOf('fpw-emergency-fuel-dock-panel--fire');
+  const panelsEnd = subsection.indexOf("</div>", fireStart);
+  const beforePanel = subsection.slice(beforeStart, spillStart);
+  const spillPanel = subsection.slice(spillStart, fireStart);
+  const firePanel = subsection.slice(fireStart, panelsEnd);
+  assert.match(beforePanel, /<h4>Before fueling<\/h4>[\s\S]*?<ul>[\s\S]*?<\/ul>/);
+  assert.equal(countMatches(beforePanel, /<li>/g), 8);
+  assert.match(spillPanel, /<h4>If fuel spills but has not ignited<\/h4>[\s\S]*?<ol>[\s\S]*?<\/ol>/);
+  assert.equal(countMatches(spillPanel, /<li>/g), 6);
+  assert.match(firePanel, /<h4>If the fuel ignites<\/h4>[\s\S]*?<ul>[\s\S]*?<\/ul>/);
+  assert.equal(countMatches(firePanel, /<li>/g), 7);
+  assert.match(spillPanel, /<strong>1-800-424-8802<\/strong>/);
+
+  const approvedLinks = [
+    ["https://boatus.org/study-guide/trip-planning-preparation/boat-transportation-trailering/", "BoatUS Foundation fueling guidance", "boatus"],
+    ["https://www.boatus.org/clean-boating/fueling/fuel-spill-response", "BoatUS Foundation spill-response guidance", "boatus"],
+    ["https://www.usfa.fema.gov/prevention/vehicle-fires/boats-and-marinas/", "U.S. Fire Administration marina-fire guidance", "usfa"]
+  ];
+  const sourceLinks = [...subsection.matchAll(/<a\b[^>]*href="https:\/\/[^>]+>[\s\S]*?<\/a>/g)].map((match) => match[0]);
+  assert.equal(sourceLinks.length, 3);
+  for (const [href, label, organization] of approvedLinks) {
+    const link = sourceLinks.find((candidate) => candidate.includes(`href="${href}"`));
+    assert.ok(link, `Missing approved source ${href}`);
+    assert.equal(visibleText(link), label);
+    assert.match(link, /target="_blank" rel="noopener noreferrer" data-fpw-guide-source/);
+    assert.equal(link.includes(`data-source-org="${organization}" data-section-id="fuel-dock-fires"`), true);
+  }
+
+  assert.match(stylesheet, /\.fpw-emergency-fuel-dock \{[\s\S]*?max-width: 76ch;[\s\S]*?scroll-margin-top: 116px;/);
+  assert.match(stylesheet, /\.fpw-emergency-fuel-dock-panels \{[\s\S]*?grid-template-columns: 1fr;/);
+  assert.match(stylesheet, /\.fpw-emergency-fuel-dock-panel--spill \{[\s\S]*?border-left-color:/);
+  assert.match(stylesheet, /\.fpw-emergency-fuel-dock-panel--fire \{[\s\S]*?border-left-color:/);
+  assert.match(stylesheet, /@media \(max-width: 480px\)[\s\S]*?\.fpw-emergency-fuel-dock-panel,[\s\S]*?\.fpw-emergency-fuel-dock-reminder \{[\s\S]*?padding: 17px;/);
+  assert.match(stylesheet, /@media print[\s\S]*?\.fpw-emergency-fuel-dock-experience,[\s\S]*?\.fpw-emergency-fuel-dock-panel,[\s\S]*?\.fpw-emergency-fuel-dock-reminder \{[\s\S]*?background: #ffffff !important;/);
+  assert.doesNotMatch(stylesheet, /\.fpw-emergency-fuel-dock[^}]*(?:^|[;\s])height\s*:/m);
 });
 
 test("approved emergency, communication, preparation, and limitation language is retained", () => {
@@ -189,13 +309,20 @@ test("links and CTA destinations are limited to verified routes and official sou
   assert.doesNotMatch(page, /fpw-action-cta\.js/);
 });
 
-test("phase-two figures use every approved source, alt, caption, size, and loading policy", () => {
+test("remaining page figures use every approved source, alt, caption, size, and loading policy", () => {
   assert.doesNotMatch(page, /implementation-assets|fpw-common-boating-emergencies-hero-reference|fpw-person-overboard-reference/i);
-  assert.equal(countMatches(page, /<figure class="fpw-emergency-figure/g), 12);
-  assert.equal(countMatches(page, /<picture>/g), 12);
-  assert.equal(countMatches(page, /<figcaption>/g), 12);
+  assert.equal(countMatches(page, /<figure class="fpw-emergency-figure/g), 11);
+  assert.equal(countMatches(page, /<picture>/g), 11);
+  assert.equal(countMatches(page, /<figcaption>/g), 11);
+  assert.equal(countMatches(page, new RegExp(`<p>${escapeRegExp(paceNote)}</p>`, "g")), 1);
+  assert.doesNotMatch(page, /boating-emergency-pace-first-minute/);
 
   for (const [stem, width, height, alt, caption] of figureAssets) {
+    const versionSuffix = ["person-overboard-controlled-recovery", "overdue-boater-response-information-chain"].includes(stem)
+      ? "\\?v=20260823-owner-approved"
+      : ["boat-engine-compartment-fire-response", "boating-storm-early-shelter-decision"].includes(stem)
+        ? "\\?v=20260823-owner-approved-v2"
+        : "";
     const imageMatch = page.match(new RegExp(`<img\\b[^\\n]*${escapeRegExp(stem)}\\.jpg[^\\n]*>`));
     assert.ok(imageMatch, `Missing fallback image tag for ${stem}`);
     const imageTag = imageMatch[0];
@@ -203,9 +330,9 @@ test("phase-two figures use every approved source, alt, caption, size, and loadi
     assert.match(imageTag, new RegExp(`height="${height}"`));
     assert.match(imageTag, new RegExp(`alt="${escapeRegExp(alt)}"`));
     assert.match(imageTag, /decoding="async"/);
-    assert.match(page, new RegExp(`${escapeRegExp(stem)}-640w\\.webp 640w`));
-    assert.match(page, new RegExp(`${escapeRegExp(stem)}-960w\\.webp 960w`));
-    assert.match(page, new RegExp(`${escapeRegExp(stem)}\\.webp ${width}w`));
+    assert.match(page, new RegExp(`${escapeRegExp(stem)}-640w\\.webp${versionSuffix} 640w`));
+    assert.match(page, new RegExp(`${escapeRegExp(stem)}-960w\\.webp${versionSuffix} 960w`));
+    assert.match(page, new RegExp(`${escapeRegExp(stem)}\\.webp${versionSuffix} ${width}w`));
     assert.equal(page.includes(`<figcaption>${caption}</figcaption>`), true, `Missing caption for ${stem}`);
 
     for (const suffix of ["-640w.webp", "-960w.webp", ".webp", "-640w.jpg", "-960w.jpg", ".jpg"]) {
@@ -222,6 +349,25 @@ test("phase-two figures use every approved source, alt, caption, size, and loadi
       assert.doesNotMatch(imageTag, /fetchpriority=/);
     }
   }
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(fireAlt)}"`, "g")), 1);
+  assert.equal(countMatches(page, new RegExp(`<figcaption>${escapeRegExp(fireCaption)}</figcaption>`, "g")), 1);
+  assert.equal(countMatches(page, /boat-engine-compartment-fire-response(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved-v2/g), 7);
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(stormAlt)}"`, "g")), 1);
+  assert.equal(countMatches(page, new RegExp(`<figcaption>${escapeRegExp(stormCaption)}</figcaption>`, "g")), 1);
+  assert.doesNotMatch(page, /alt="Sport cruiser proceeding slowly through a marked no-wake channel toward a protected canal, with a red buoy to the left, a green buoy to the right, a shoal alongside the channel and an ominous storm behind the boat\."/);
+  assert.equal(countMatches(page, /boating-storm-early-shelter-decision(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved-v2/g), 7);
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(maydayAlt)}"`, "g")), 1);
+  assert.doesNotMatch(page, /alt="A boat operator uses the VHF while reading position and vessel details from a prepared emergency card\."/);
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(engineFailureAlt)}"`, "g")), 1);
+  assert.doesNotMatch(page, /alt="A disabled boat drifts toward a hazard while the crew checks position and prepares an anchor\."/);
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(groundingAlt)}"`, "g")), 1);
+  assert.doesNotMatch(page, /alt="A grounded boat is assessed for damage while a contrasting scene shows sediment churned by immediately reversing\."/);
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(personOverboardAlt)}"`, "g")), 1);
+  assert.doesNotMatch(page, /alt="A crew keeps pointing to a person overboard as the operator makes a slow return toward thrown flotation and a boarding ladder\."/);
+  assert.equal(countMatches(page, /person-overboard-controlled-recovery(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved/g), 7);
+  assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(overdueAlt)}"`, "g")), 1);
+  assert.doesNotMatch(page, /alt="A boater, shore contact, and rescue coordinator share the same boat, route, passenger, and timing information\."/);
+  assert.equal(countMatches(page, /overdue-boater-response-information-chain(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved/g), 7);
 });
 
 test("both emergency-card PDFs are direct visible downloads with stable filenames", () => {
@@ -271,7 +417,7 @@ test("analytics use the required low-cardinality event and parameter contracts",
 });
 
 test("styles provide responsive, focus, reduced-motion, table, and print foundations", () => {
-  assert.match(page, /common-boating-emergencies\.css\?v=20260822-phase2/);
+  assert.match(page, /common-boating-emergencies\.css\?v=20260823-fuel-dock/);
   assert.match(page, /common-boating-emergencies\.js\?v=20260822-phase2/);
   assert.match(stylesheet, /body\.fpw-emergency-body/);
   assert.match(stylesheet, /\.fpw-emergency-content > section \{[\s\S]*?scroll-margin-top: 116px;/);
@@ -287,7 +433,9 @@ test("styles provide responsive, focus, reduced-motion, table, and print foundat
   assert.match(stylesheet, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(stylesheet, /@media print/);
   assert.match(stylesheet, /body\.fpw-emergency-body > header,[\s\S]*?body\.fpw-emergency-body > footer/);
-  assert.match(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure,[\s\S]*?\.fpw-emergency-card-downloads,[\s\S]*?display: none !important;/);
+  assert.doesNotMatch(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure,\s*\.fpw-emergency-card-downloads/);
+  assert.match(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure picture \{[\s\S]*?display: none !important;/);
+  assert.match(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure figcaption \{[\s\S]*?background: #ffffff !important;[\s\S]*?font-size: 10pt;/);
 });
 
 test("production clean route and sitemap expose the canonical page once", () => {

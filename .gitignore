@@ -1,4 +1,8 @@
 *.bak
+*.backup
+*.orig
+*~
+.DS_Store
 .playwright-mcp/
 _fpw_private/stripe-config.json
 _fpw_private/stripe-config-prod.json
@@ -7,4 +11,5 @@ assets/uploads/vessels/
 logs/*.log
 tmp/stripe-*.json
 tmp/stripe-*.log
+publishing/common-boating-emergencies/review/
 testbox/
