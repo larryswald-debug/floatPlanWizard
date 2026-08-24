@@ -190,7 +190,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 
   .fpw-footer-plan-links {
     display: grid;
-    grid-template-rows: repeat(5, max-content);
+    grid-template-rows: repeat(7, max-content);
     grid-auto-flow: column;
     grid-auto-columns: max-content;
     column-gap: 32px;
@@ -255,7 +255,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
     }
   }
 
-  @media (max-width: 680px) {
+  @media (max-width: 768px) {
     .fpw-footer-plan-links,
     .fpw-footer-account-links {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -308,7 +308,10 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
         <div class="fpw-footer-plan-links">
           <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
           <a href="#footerBasePath#/app/help.cfm">Help Center</a>
-          <a href="#footerBasePath#/shore-contact-overdue-boater/">Shore Contact Guide</a>
+          <a href="#footerBasePath#/solo-boating-safety-guide/">Boating Safety</a>
+          <a href="#footerBasePath#/solo-boating-safety-guide/">Solo Boating Safety Guide</a>
+          <a href="#footerBasePath#/common-boating-emergencies/">Common Boating Emergencies</a>
+          <a href="#footerBasePath#/shore-contact-overdue-boater/">Shore Contact / Overdue Boater Guide</a>
           <a href="#footerBasePath#/great-loop/locks/">Great Loop Locks</a>
           <a href="#footerBasePath#/great-loop/bridges/">Great Loop Bridges</a>
           <a href="#footerBasePath#/great-loop/ports/">Great Loop Ports</a>

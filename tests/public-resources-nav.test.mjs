@@ -10,6 +10,7 @@ const read = (relativePath) => readFileSync(path.join(repositoryRoot, relativePa
 const topNav = read("includes/top_nav.cfm");
 const topNavCss = read("assets/css/top-nav.css");
 const footer = read("includes/footer.cfm");
+const commonEmergencies = read("common-boating-emergencies.cfm");
 const homepage = read("partials/fpw-conversion-landing.cfm");
 const homepageCss = read("assets/css/fpw-conversion-landing.css");
 const webConfig = read("web.config");
@@ -65,33 +66,37 @@ test("the authenticated secondary navigation remains unchanged", () => {
   }
 });
 
-test("Resources uses the approved two-column taxonomy with two featured guides", () => {
+test("Resources uses the approved two-column taxonomy with a linked Boating Safety group", () => {
   const resourcesBlock = topNav.slice(
     topNav.indexOf('<div class="fpw-dropdown fpw-dropdown--resources"'),
     topNav.indexOf('<span>Pricing</span>')
   );
 
-  assert.ok(resourcesBlock.indexOf("Featured Guides") < resourcesBlock.indexOf("Planning Tools"));
+  assert.ok(resourcesBlock.indexOf("Boating Safety") < resourcesBlock.indexOf("Planning Tools"));
   assert.ok(resourcesBlock.indexOf("Planning Tools") < resourcesBlock.indexOf("Boating Resources"));
   assert.match(resourcesBlock, /<section class="fpw-resource-feature fpw-resource-featured" aria-labelledby="fpwResourceFeaturedTitle">/);
-  assert.match(resourcesBlock, /<h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceFeaturedTitle">Featured Guides<\/h2>/);
+  assert.match(resourcesBlock, /class="fpw-resource-section-link<cfif topNavBoatingSafetyActive> is-active<\/cfif>"[\s\S]*?href="#topNavBasePath#\/solo-boating-safety-guide\/"[\s\S]*?>Boating Safety<\/a>/);
   assert.equal(count(resourcesBlock, /class="fpw-resource-feature-card fpw-featured-guide"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-resource-feature-summary fpw-featured-guide__main"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-featured-guide__icon"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-resource-feature-copy fpw-featured-guide__content"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-featured-guide__title"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-featured-guide__description"/g), 2);
-  assert.equal(count(resourcesBlock, /class="fpw-featured-guide__divider" aria-hidden="true"/g), 1);
+  assert.equal(count(resourcesBlock, /class="fpw-featured-guide__divider" aria-hidden="true"/g), 2);
+  assert.ok(resourcesBlock.indexOf("Solo Boating Safety Guide") < resourcesBlock.indexOf("Common Boating Emergencies"));
+  assert.ok(resourcesBlock.indexOf("Common Boating Emergencies") < resourcesBlock.indexOf("Shore Contact Guide"));
   assert.match(resourcesBlock, /Shore Contact Guide/);
   assert.match(resourcesBlock, /What to do when a boater misses a check-in or expected return\./);
   assert.match(resourcesBlock, /Practical solo boating safety guidance from kayaks to cruisers, with preparation tips and checklists\./);
   assert.match(resourcesBlock, /renderFpwNavIcon\("checklist", "fpw-resource-feature-icon"\)/);
   assert.match(resourcesBlock, /renderFpwNavIcon\("kayak", "fpw-resource-feature-icon"\)/);
+  assert.match(resourcesBlock, /renderFpwNavIcon\("anchor", "fpw-tool-icon"\)#\s+<span>Common Boating Emergencies<\/span>/);
   assert.equal(count(resourcesBlock, /<span>Read the Guide<\/span>/g), 2);
   assert.match(resourcesBlock, /Fuel Calculator/);
   assert.match(resourcesBlock, /Marine Weather/);
   assert.match(resourcesBlock, /Solo Boating Safety Guide/);
-  assert.equal(count(resourcesBlock, /#topNavBasePath#\/solo-boating-safety-guide\//g), 1);
+  assert.equal(count(resourcesBlock, /#topNavBasePath#\/solo-boating-safety-guide\//g), 2);
+  assert.equal(count(resourcesBlock, /#topNavBasePath#\/common-boating-emergencies\//g), 1);
   assert.match(resourcesBlock, /Why Use a Float Plan/);
   assert.match(resourcesBlock, /href="#topNavHowHref#"/);
   assert.match(resourcesBlock, /#topNavBasePath#\/faq\//);
@@ -108,6 +113,7 @@ test("Boating Resources retain the approved three-link icon-row treatment", () =
 
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("checklist", "fpw-tool-icon"\)#\s+<span>Why Use a Float Plan<\/span>/);
   assert.doesNotMatch(boatingResourcesBlock, /Solo Boating Safety Guide/);
+  assert.doesNotMatch(boatingResourcesBlock, /Common Boating Emergencies/);
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("how", "fpw-tool-icon"\)#\s+<span>How It Works<\/span>/);
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("help", "fpw-tool-icon"\)#\s+<span>FAQ<\/span>/);
   assert.match(topNav, /case "help":[\s\S]*?fpw-icon-help[\s\S]*?<circle cx="24" cy="24" r="18"><\/circle>/);
@@ -119,12 +125,16 @@ test("Boating Resources retain the approved three-link icon-row treatment", () =
 test("Resources uses one route map and accessible item-level selected states", () => {
   assert.match(topNav, /topNavResourceRouteMap = \[/);
   assert.match(topNav, /"pattern" = "\/solo-boating-safety-guide", "active" = "resources-solo-boating-guide"/);
+  assert.match(topNav, /"pattern" = "\/common-boating-emergencies", "active" = "resources-common-boating-emergencies"/);
   assert.match(topNav, /"pattern" = "\/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide"/);
   assert.match(topNav, /"pattern" = "\/why-use-a-float-plan", "active" = "resources-why-float-plan"/);
   assert.match(topNav, /"pattern" = "\/faq\/", "active" = "resources-faq"/);
   assert.match(topNav, /topNavResourcesActive = listFindNoCase\(/);
   assert.match(topNav, /topNavSoloBoatingGuideActive> is-active/);
+  assert.match(topNav, /topNavCommonBoatingEmergenciesActive> is-active/);
   assert.match(topNav, /topNavShoreContactGuideActive> is-active/);
+  assert.match(topNav, /topNavBoatingSafetyActive = topNavSoloBoatingGuideActive OR topNavCommonBoatingEmergenciesActive OR topNavShoreContactGuideActive/);
+  assert.match(commonEmergencies, /request\.fpwTopNavActive = "resources-common-boating-emergencies";/);
   assert.match(topNav, /topNavWhyFloatPlanActive> is-active/);
   assert.match(topNav, /topNavFaqActive> is-active/);
   assert.match(topNav, /topNavFuelActive> is-active/);
@@ -139,6 +149,8 @@ test("Resources uses one route map and accessible item-level selected states", (
 test("guide analytics remain one-event, non-sensitive, and navigation-independent", () => {
   assert.equal(count(topNav, /data-fpw-nav-track="public_nav_shore_contact_guide_click"/g), 1);
   assert.equal(count(topNav, /data-fpw-nav-track="public_nav_solo_boating_safety_guide_click"/g), 1);
+  assert.equal(count(topNav, /data-fpw-nav-track="public_nav_common_boating_emergencies_click"/g), 1);
+  assert.equal(count(topNav, /data-fpw-nav-track="public_nav_boating_safety_click"/g), 1);
   for (const field of ["source_page", "nav_location", "menu_group", "label", "destination_key", "auth_state"]) {
     assert.equal(topNav.includes(`${field}:`), true, `Missing analytics field: ${field}`);
   }
@@ -147,6 +159,8 @@ test("guide analytics remain one-event, non-sensitive, and navigation-independen
   assert.match(topNav, /data-fpw-nav-track-auth-state="signed_out"/);
   assert.match(topNav, /<cfif NOT topNavIsLoggedIn>\s+data-fpw-nav-track="public_nav_shore_contact_guide_click"/);
   assert.match(topNav, /<cfif NOT topNavIsLoggedIn>\s+data-fpw-nav-track="public_nav_solo_boating_safety_guide_click"/);
+  assert.match(topNav, /<cfif NOT topNavIsLoggedIn>\s+data-fpw-nav-track="public_nav_common_boating_emergencies_click"/);
+  assert.match(topNav, /<cfif NOT topNavIsLoggedIn>\s+data-fpw-nav-track="public_nav_boating_safety_click"/);
   assert.doesNotMatch(topNav, /public_nav_resources_open/);
 
   const trackingFunction = topNav.match(/function trackPublicNavClick\(link\) \{[\s\S]*?\n      \}/)?.[0] ?? "";
@@ -164,6 +178,8 @@ test("shared CSS provides the spacious layout, public fit, focus states, and clo
   assert.match(topNavCss, /\.fpw-featured-guide \{[\s\S]*?flex-direction: column;[\s\S]*?gap: 20px;/);
   assert.match(topNavCss, /\.fpw-featured-guide__divider \{[\s\S]*?height: 1px;[\s\S]*?margin: 24px 0;[\s\S]*?background: rgba\(169, 186, 203, 0\.18\);/);
   assert.match(topNavCss, /\.fpw-resource-feature-link:focus-visible/);
+  assert.match(topNavCss, /\.fpw-resource-section-link:focus-visible/);
+  assert.match(topNavCss, /:not\(\.fpw-resource-section-link\):focus-visible/);
   assert.match(topNavCss, /\.fpw-resource-link:focus-visible/);
   assert.match(topNavCss, /@media \(max-width: 1320px\) and \(min-width: 1051px\)/);
   assert.match(topNavCss, /\.fpw-site-header:not\(\.fpw-site-header--logged-in\) \.fpw-nav-link/);
@@ -173,17 +189,21 @@ test("shared CSS provides the spacious layout, public fit, focus states, and clo
   assert.match(topNav, /var mobileQuery = window\.matchMedia\("\(max-width: 1050px\)"\);/);
 });
 
-test("every active top-nav stylesheet host uses the Featured Guides cache version", () => {
-  assert.equal(count(topNavStylesheetHosts, /top-nav\.css\?v=20260814-featured-guides-layout-v1/g), 18);
+test("every active top-nav stylesheet host uses the Boating Safety cache version", () => {
+  assert.equal(count(topNavStylesheetHosts, /top-nav\.css\?v=20260824-boating-safety-nav-v2/g), 18);
   assert.doesNotMatch(topNavStylesheetHosts, /top-nav\.css\?v=20260806-resources-mega-v3/);
 });
 
-test("footer and homepage retain their single approved guide links", () => {
+test("footer groups the live Boating Safety destinations without changing the homepage link", () => {
   assert.equal(count(footer, /shore-contact-overdue-boater\//g), 1);
+  assert.equal(count(footer, /solo-boating-safety-guide\//g), 2);
+  assert.equal(count(footer, /common-boating-emergencies\//g), 1);
   assert.match(
     footer,
-    /<nav class="fpw-footer-col fpw-footer-plan"[\s\S]*?<a href="#footerBasePath#\/shore-contact-overdue-boater\/">Shore Contact Guide<\/a>/
+    /<nav class="fpw-footer-col fpw-footer-plan"[\s\S]*?<a href="#footerBasePath#\/solo-boating-safety-guide\/">Boating Safety<\/a>[\s\S]*?<a href="#footerBasePath#\/solo-boating-safety-guide\/">Solo Boating Safety Guide<\/a>[\s\S]*?<a href="#footerBasePath#\/common-boating-emergencies\/">Common Boating Emergencies<\/a>[\s\S]*?<a href="#footerBasePath#\/shore-contact-overdue-boater\/">Shore Contact \/ Overdue Boater Guide<\/a>/
   );
+  assert.match(footer, /\.fpw-footer-plan-links \{[\s\S]*?grid-template-rows: repeat\(7, max-content\);/);
+  assert.match(footer, /@media \(max-width: 768px\) \{[\s\S]*?\.fpw-footer-plan-links,[\s\S]*?\.fpw-footer-account-links/);
   assert.equal(count(homepage, /shore-contact-overdue-boater\//g), 1);
   assert.match(homepage, /fpw-audience-safety-note[\s\S]*?Read the Shore Contact Guide/);
   assert.match(homepageCss, /\.fpw-audience-safety-note__link/);
@@ -192,6 +212,8 @@ test("footer and homepage retain their single approved guide links", () => {
 test("canonical clean guide routes remain contract-backed", () => {
   assert.match(webConfig, /\^shore-contact-overdue-boater\/\$/);
   assert.match(webConfig, /url="\/shore-contact-overdue-boater\.cfm"/);
+  assert.match(webConfig, /\^common-boating-emergencies\/\$/);
+  assert.match(webConfig, /url="\/common-boating-emergencies\.cfm"/);
   assert.match(webConfig, /\^why-use-a-float-plan\/\$/);
   assert.match(webConfig, /url="\/why-use-a-float-plan\.cfm"/);
 });

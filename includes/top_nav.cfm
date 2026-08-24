@@ -15,7 +15,9 @@ topNavEmail = "";
 topNavHowHref = "";
 topNavRequestPath = "";
 topNavResourcesActive = false;
+topNavBoatingSafetyActive = false;
 topNavSoloBoatingGuideActive = false;
+topNavCommonBoatingEmergenciesActive = false;
 topNavShoreContactGuideActive = false;
 topNavWhyFloatPlanActive = false;
 topNavFaqActive = false;
@@ -65,6 +67,7 @@ topNavRequestPath = reReplace(topNavRequestPath, "[?##].*$", "");
 
 topNavResourceRouteMap = [
   { "pattern" = "/solo-boating-safety-guide", "active" = "resources-solo-boating-guide" },
+  { "pattern" = "/common-boating-emergencies", "active" = "resources-common-boating-emergencies" },
   { "pattern" = "/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide" },
   { "pattern" = "/why-use-a-float-plan", "active" = "resources-why-float-plan" },
   { "pattern" = "/faq/", "active" = "resources-faq" }
@@ -80,11 +83,13 @@ if (!len(topNavActive)) {
 }
 
 topNavResourcesActive = listFindNoCase(
-  "resources,resources-solo-boating-guide,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
+  "resources,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
   topNavActive
 ) GT 0;
 topNavSoloBoatingGuideActive = topNavActive EQ "resources-solo-boating-guide";
+topNavCommonBoatingEmergenciesActive = topNavActive EQ "resources-common-boating-emergencies";
 topNavShoreContactGuideActive = topNavActive EQ "resources-shore-contact-guide";
+topNavBoatingSafetyActive = topNavSoloBoatingGuideActive OR topNavCommonBoatingEmergenciesActive OR topNavShoreContactGuideActive;
 topNavWhyFloatPlanActive = topNavActive EQ "resources-why-float-plan";
 topNavFaqActive = topNavActive EQ "resources-faq";
 topNavFuelActive = topNavActive EQ "fuel";
@@ -395,37 +400,20 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 <div class="fpw-dropdown-menu fpw-resources-menu" id="fpwResourcesMenu" role="menu">
                   <div class="fpw-resources-grid">
                     <section class="fpw-resource-feature fpw-resource-featured" aria-labelledby="fpwResourceFeaturedTitle">
-                      <h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceFeaturedTitle">Featured Guides</h2>
-                      <article class="fpw-resource-feature-card fpw-featured-guide">
-                        <div class="fpw-resource-feature-summary fpw-featured-guide__main">
-                          <div class="fpw-featured-guide__icon">
-                            #renderFpwNavIcon("checklist", "fpw-resource-feature-icon")#
-                          </div>
-                          <div class="fpw-resource-feature-copy fpw-featured-guide__content">
-                            <h3 class="fpw-featured-guide__title">Shore Contact Guide</h3>
-                            <p class="fpw-featured-guide__description">What to do when a boater misses a check-in or expected return.</p>
-                          </div>
-                        </div>
+                      <h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceFeaturedTitle">
                         <a
-                          class="fpw-resource-feature-link fpw-featured-guide__button<cfif topNavShoreContactGuideActive> is-active</cfif>"
-                          href="#topNavBasePath#/shore-contact-overdue-boater/"
+                          class="fpw-resource-section-link<cfif topNavBoatingSafetyActive> is-active</cfif>"
+                          href="#topNavBasePath#/solo-boating-safety-guide/"
                           role="menuitem"
-                          aria-label="Read the Shore Contact Guide"
-                          <cfif topNavShoreContactGuideActive>aria-current="page"</cfif>
                           <cfif NOT topNavIsLoggedIn>
-                            data-fpw-nav-track="public_nav_shore_contact_guide_click"
+                            data-fpw-nav-track="public_nav_boating_safety_click"
                             data-fpw-nav-track-location="public_header"
                             data-fpw-nav-track-menu-group="resources"
-                            data-fpw-nav-track-label="Shore Contact Guide"
-                            data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
+                            data-fpw-nav-track-label="Boating Safety"
+                            data-fpw-nav-track-destination-key="solo_boating_safety_guide"
                             data-fpw-nav-track-auth-state="signed_out"
-                          </cfif>>
-                          <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
-                        </a>
-                      </article>
-
-                      <div class="fpw-featured-guide__divider" aria-hidden="true"></div>
-
+                          </cfif>>Boating Safety</a>
+                      </h2>
                       <article class="fpw-resource-feature-card fpw-featured-guide">
                         <div class="fpw-resource-feature-summary fpw-featured-guide__main">
                           <div class="fpw-featured-guide__icon">
@@ -448,6 +436,57 @@ topNavShowAppSubnav = topNavIsLoggedIn
                             data-fpw-nav-track-menu-group="resources"
                             data-fpw-nav-track-label="Solo Boating Safety Guide"
                             data-fpw-nav-track-destination-key="solo_boating_safety_guide"
+                            data-fpw-nav-track-auth-state="signed_out"
+                          </cfif>>
+                          <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>
+                        </a>
+                      </article>
+
+                      <div class="fpw-featured-guide__divider" aria-hidden="true"></div>
+
+                      <div class="fpw-resource-items">
+                        <a
+                          class="fpw-resource-link<cfif topNavCommonBoatingEmergenciesActive> is-active</cfif>"
+                          href="#topNavBasePath#/common-boating-emergencies/"
+                          role="menuitem"
+                          <cfif topNavCommonBoatingEmergenciesActive>aria-current="page"</cfif>
+                          <cfif NOT topNavIsLoggedIn>
+                            data-fpw-nav-track="public_nav_common_boating_emergencies_click"
+                            data-fpw-nav-track-location="public_header"
+                            data-fpw-nav-track-menu-group="resources"
+                            data-fpw-nav-track-label="Common Boating Emergencies"
+                            data-fpw-nav-track-destination-key="common_boating_emergencies"
+                            data-fpw-nav-track-auth-state="signed_out"
+                          </cfif>>
+                          #renderFpwNavIcon("anchor", "fpw-tool-icon")#
+                          <span>Common Boating Emergencies</span><b aria-hidden="true">&rarr;</b>
+                        </a>
+                      </div>
+
+                      <div class="fpw-featured-guide__divider" aria-hidden="true"></div>
+
+                      <article class="fpw-resource-feature-card fpw-featured-guide">
+                        <div class="fpw-resource-feature-summary fpw-featured-guide__main">
+                          <div class="fpw-featured-guide__icon">
+                            #renderFpwNavIcon("checklist", "fpw-resource-feature-icon")#
+                          </div>
+                          <div class="fpw-resource-feature-copy fpw-featured-guide__content">
+                            <h3 class="fpw-featured-guide__title">Shore Contact Guide</h3>
+                            <p class="fpw-featured-guide__description">What to do when a boater misses a check-in or expected return.</p>
+                          </div>
+                        </div>
+                        <a
+                          class="fpw-resource-feature-link fpw-featured-guide__button<cfif topNavShoreContactGuideActive> is-active</cfif>"
+                          href="#topNavBasePath#/shore-contact-overdue-boater/"
+                          role="menuitem"
+                          aria-label="Read the Shore Contact Guide"
+                          <cfif topNavShoreContactGuideActive>aria-current="page"</cfif>
+                          <cfif NOT topNavIsLoggedIn>
+                            data-fpw-nav-track="public_nav_shore_contact_guide_click"
+                            data-fpw-nav-track-location="public_header"
+                            data-fpw-nav-track-menu-group="resources"
+                            data-fpw-nav-track-label="Shore Contact Guide"
+                            data-fpw-nav-track-destination-key="shore_contact_overdue_boater"
                             data-fpw-nav-track-auth-state="signed_out"
                           </cfif>>
                           <span>Read the Guide</span><b aria-hidden="true">&rarr;</b>

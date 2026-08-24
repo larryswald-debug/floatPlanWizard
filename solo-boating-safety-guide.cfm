@@ -164,7 +164,7 @@ fpwCtaConfig = {
   <script type="application/ld+json"><cfoutput>#fpwSoloJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwSoloBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/top-nav.css?v=20260814-featured-guides-layout-v1"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwSoloBasePath#/assets/css/solo-boating-safety-guide.css?v=20260813-ebook"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">

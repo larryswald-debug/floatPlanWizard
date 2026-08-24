@@ -82,18 +82,21 @@ test("public Resources navigation fits and behaves at every required width", asy
     await resourcesToggle.click();
     await expect(resourcesToggle).toHaveAttribute("aria-expanded", "true");
     await expect(resources).toHaveClass(/is-open/);
-    await expect(resources.getByText("Featured Guides", { exact: true })).toBeVisible();
+    await expect(resources.getByRole("menuitem", { name: "Boating Safety", exact: true })).toBeVisible();
     await expect(resources.getByText("Planning Tools", { exact: true })).toBeVisible();
     await expect(resources.getByText("Boating Resources", { exact: true })).toBeVisible();
     await expect(resources.locator(".fpw-resource-feature-card")).toHaveCount(2);
-    await expect(resources.locator(".fpw-resource-feature-card").nth(0).getByRole("heading", { name: "Shore Contact Guide" })).toBeVisible();
-    await expect(resources.locator(".fpw-resource-feature-card").nth(1).getByRole("heading", { name: "Solo Boating Safety Guide" })).toBeVisible();
+    await expect(resources.locator(".fpw-resource-feature-card").nth(0).getByRole("heading", { name: "Solo Boating Safety Guide" })).toBeVisible();
+    await expect(resources.locator(".fpw-resource-feature-card").nth(1).getByRole("heading", { name: "Shore Contact Guide" })).toBeVisible();
+    await expect(resources.getByRole("menuitem", { name: "Common Boating Emergencies", exact: true })).toBeVisible();
     await expect(resources.getByText("Practical solo boating safety guidance from kayaks to cruisers, with preparation tips and checklists.", { exact: true })).toBeVisible();
 
     const resourceLabels = await resources.locator('[role="menuitem"]')
       .evaluateAll((items) => items.map((item) => item.innerText.trim().replace(/\s+/g, " ")));
     expect(resourceLabels).toEqual([
+      "Boating Safety",
       "Read the Guide →",
+      "Common Boating Emergencies →",
       "Read the Guide →",
       "Fuel Calculator Estimate fuel usage, range, and costs. →",
       "Marine Weather Current conditions and extended forecasts. →",
@@ -189,10 +192,16 @@ test("dropdown exclusivity, outside click, Escape, and keyboard focus remain int
   await resourcesToggle.click();
   await expect(resourcesToggle).toHaveAttribute("aria-expanded", "true");
   const featuredLinks = page.locator(".fpw-resource-feature-link");
+  const boatingSafetyLink = page.locator(".fpw-resource-section-link");
+  const commonEmergenciesLink = page.locator('.fpw-resource-link[href="/fpw/common-boating-emergencies/"]');
   await expect(featuredLinks.first()).toBeVisible();
   await resourcesToggle.focus();
   await page.keyboard.press("Tab");
+  await expect(boatingSafetyLink).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(featuredLinks.first()).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(commonEmergenciesLink).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(featuredLinks.nth(1)).toBeFocused();
   await page.keyboard.press("Escape");
@@ -204,6 +213,7 @@ test("guide, educational, FAQ, and tool routes activate Resources and the curren
   const cases = [
     { path: "/shore-contact-overdue-boater.cfm", child: 'a.fpw-resource-feature-link[href="/fpw/shore-contact-overdue-boater/"]' },
     { path: "/solo-boating-safety-guide.cfm", child: 'a.fpw-resource-feature-link[href="/fpw/solo-boating-safety-guide/"]' },
+    { path: "/common-boating-emergencies.cfm", child: 'a.fpw-resource-link[href="/fpw/common-boating-emergencies/"]' },
     { path: "/why-use-a-float-plan.cfm", child: 'a[href="/fpw/why-use-a-float-plan.cfm"]' },
     { path: "/faq/index.cfm", child: 'a[href="/fpw/faq/"]' },
     { path: "/boat-fuel-calculator/boat-fuel-calculator.cfm", child: 'a[href="/fpw/boat-fuel-calculator/boat-fuel-calculator.cfm"]' }
@@ -215,6 +225,10 @@ test("guide, educational, FAQ, and tool routes activate Resources and the curren
     await expect(page.locator(".fpw-dropdown--resources [data-fpw-dropdown-toggle]")).toHaveClass(/is-active/);
     await expect(page.locator(`.fpw-dropdown--resources ${routeCase.child}`)).toHaveClass(/is-active/);
     await expect(page.locator(`.fpw-dropdown--resources ${routeCase.child}`)).toHaveAttribute("aria-current", "page");
+    const isSafetyPage = ["/shore-contact-overdue-boater.cfm", "/solo-boating-safety-guide.cfm", "/common-boating-emergencies.cfm"].includes(routeCase.path);
+    if (isSafetyPage) {
+      await expect(page.locator(".fpw-resource-section-link")).toHaveClass(/is-active/);
+    }
   }
 });
 
@@ -223,28 +237,32 @@ test("guide analytics emit once with safe fields and never control navigation", 
 
   const resourcesToggle = page.locator(".fpw-dropdown--resources [data-fpw-dropdown-toggle]");
   await resourcesToggle.click();
+  const boatingSafetyLink = page.locator('a.fpw-resource-section-link[href="/fpw/solo-boating-safety-guide/"]');
   const shoreGuideLink = page.locator('a.fpw-resource-feature-link[href="/fpw/shore-contact-overdue-boater/"]');
   const soloGuideLink = page.locator('a.fpw-resource-feature-link[href="/fpw/solo-boating-safety-guide/"]');
+  const emergenciesGuideLink = page.locator('a.fpw-resource-link[href="/fpw/common-boating-emergencies/"]');
   await page.evaluate(() => {
     window.__fpwPublicNavEvents = [];
     window.FPWAnalytics.track = (name, fields) => window.__fpwPublicNavEvents.push({ name, fields });
     window.__fpwStopGuideNavigation = (event) => {
-      if (event.target.closest(".fpw-resource-feature-link")) event.preventDefault();
+      if (event.target.closest(".fpw-resource-feature-link, .fpw-resource-section-link, .fpw-resource-link")) event.preventDefault();
     };
     document.addEventListener("click", window.__fpwStopGuideNavigation, true);
   });
-  await shoreGuideLink.click();
+  await boatingSafetyLink.click();
   await soloGuideLink.click();
+  await emergenciesGuideLink.click();
+  await shoreGuideLink.click();
 
   expect(await page.evaluate(() => window.__fpwPublicNavEvents)).toEqual([
     {
-      name: "public_nav_shore_contact_guide_click",
+      name: "public_nav_boating_safety_click",
       fields: {
         source_page: "/fpw/shore-contact-overdue-boater/",
         nav_location: "public_header",
         menu_group: "resources",
-        label: "Shore Contact Guide",
-        destination_key: "shore_contact_overdue_boater",
+        label: "Boating Safety",
+        destination_key: "solo_boating_safety_guide",
         auth_state: "signed_out"
       }
     },
@@ -256,6 +274,28 @@ test("guide analytics emit once with safe fields and never control navigation", 
         menu_group: "resources",
         label: "Solo Boating Safety Guide",
         destination_key: "solo_boating_safety_guide",
+        auth_state: "signed_out"
+      }
+    },
+    {
+      name: "public_nav_common_boating_emergencies_click",
+      fields: {
+        source_page: "/fpw/shore-contact-overdue-boater/",
+        nav_location: "public_header",
+        menu_group: "resources",
+        label: "Common Boating Emergencies",
+        destination_key: "common_boating_emergencies",
+        auth_state: "signed_out"
+      }
+    },
+    {
+      name: "public_nav_shore_contact_guide_click",
+      fields: {
+        source_page: "/fpw/shore-contact-overdue-boater/",
+        nav_location: "public_header",
+        menu_group: "resources",
+        label: "Shore Contact Guide",
+        destination_key: "shore_contact_overdue_boater",
         auth_state: "signed_out"
       }
     }
@@ -272,8 +312,8 @@ test("guide analytics emit once with safe fields and never control navigation", 
   expect(page.url()).toBe(`${baseUrl}/solo-boating-safety-guide/`);
 });
 
-test("destinations and approved footer and homepage guide links remain intact", async ({ page }) => {
-  for (const path of ["/", "/shore-contact-overdue-boater.cfm", "/solo-boating-safety-guide.cfm", "/why-use-a-float-plan.cfm", "/faq/index.cfm", "/boat-fuel-calculator/boat-fuel-calculator.cfm"]) {
+test("destinations and grouped footer safety links remain intact", async ({ page }) => {
+  for (const path of ["/", "/shore-contact-overdue-boater.cfm", "/solo-boating-safety-guide.cfm", "/common-boating-emergencies.cfm", "/why-use-a-float-plan.cfm", "/faq/index.cfm", "/boat-fuel-calculator/boat-fuel-calculator.cfm"]) {
     const response = await page.goto(`${baseUrl}${path}`, { waitUntil: "domcontentloaded" });
     expect(response && response.status(), path).toBe(200);
   }
@@ -285,14 +325,18 @@ test("destinations and approved footer and homepage guide links remain intact", 
   await expect(resources.locator('a[href="/fpw/why-use-a-float-plan.cfm"]')).toHaveCount(1);
   await expect(resources.locator('a.fpw-resource-feature-link[href="/fpw/shore-contact-overdue-boater/"]')).toHaveCount(1);
   await expect(resources.locator('a.fpw-resource-feature-link[href="/fpw/solo-boating-safety-guide/"]')).toHaveCount(1);
+  await expect(resources.locator('a.fpw-resource-link[href="/fpw/common-boating-emergencies/"]')).toHaveCount(1);
+  await expect(resources.locator('a.fpw-resource-section-link[href="/fpw/solo-boating-safety-guide/"]')).toHaveCount(1);
 
   const contextualLink = page.getByRole("link", { name: "Read the Shore Contact Guide" });
   await expect(contextualLink).toHaveCount(1);
   await expect(contextualLink).toHaveAttribute("href", "/fpw/shore-contact-overdue-boater/");
 
-  const footerLink = page.locator(".fpw-footer-plan-links").getByRole("link", { name: "Shore Contact Guide" });
-  await expect(footerLink).toHaveCount(1);
-  await expect(footerLink).toHaveAttribute("href", "/fpw/shore-contact-overdue-boater/");
+  const footer = page.locator(".fpw-footer-plan-links");
+  await expect(footer.getByRole("link", { name: "Boating Safety", exact: true })).toHaveAttribute("href", "/fpw/solo-boating-safety-guide/");
+  await expect(footer.getByRole("link", { name: "Solo Boating Safety Guide", exact: true })).toHaveAttribute("href", "/fpw/solo-boating-safety-guide/");
+  await expect(footer.getByRole("link", { name: "Common Boating Emergencies", exact: true })).toHaveAttribute("href", "/fpw/common-boating-emergencies/");
+  await expect(footer.getByRole("link", { name: "Shore Contact / Overdue Boater Guide", exact: true })).toHaveAttribute("href", "/fpw/shore-contact-overdue-boater/");
 
   const menuIds = await page.locator("#fpwResourcesMenu [id]").evaluateAll((items) => items.map((item) => item.id));
   expect(new Set(menuIds).size).toBe(menuIds.length);

@@ -49,7 +49,7 @@ if (len(fpwEmergencyBasePath) AND left(fpwEmergencyBasePath, 1) NEQ "/") {
 }
 
 request.fpwBase = fpwEmergencyBasePath;
-request.fpwTopNavActive = "resources";
+request.fpwTopNavActive = "resources-common-boating-emergencies";
 
 fpwEmergencyCanonicalUrl = "https://floatplanwizard.com/common-boating-emergencies/";
 fpwEmergencyPageTitle = "Common Boating Emergencies: What to Do | FloatPlanWizard";
