@@ -88,7 +88,9 @@ test("public Resources navigation fits and behaves at every required width", asy
     await expect(resources.locator(".fpw-resource-feature-card")).toHaveCount(2);
     await expect(resources.locator(".fpw-resource-feature-card").nth(0).getByRole("heading", { name: "Solo Boating Safety Guide" })).toBeVisible();
     await expect(resources.locator(".fpw-resource-feature-card").nth(1).getByRole("heading", { name: "Shore Contact Guide" })).toBeVisible();
-    await expect(resources.getByRole("menuitem", { name: "Common Boating Emergencies", exact: true })).toBeVisible();
+    const boatingResources = resources.locator('[aria-labelledby="fpwBoatingResourcesTitle"]');
+    await expect(boatingResources.getByRole("menuitem", { name: "Common Boating Emergencies", exact: true })).toBeVisible();
+    await expect(resources.locator(".fpw-resource-feature").getByRole("menuitem", { name: "Common Boating Emergencies", exact: true })).toHaveCount(0);
     await expect(resources.getByText("Practical solo boating safety guidance from kayaks to cruisers, with preparation tips and checklists.", { exact: true })).toBeVisible();
 
     const resourceLabels = await resources.locator('[role="menuitem"]')
@@ -96,11 +98,11 @@ test("public Resources navigation fits and behaves at every required width", asy
     expect(resourceLabels).toEqual([
       "Boating Safety",
       "Read the Guide →",
-      "Common Boating Emergencies →",
       "Read the Guide →",
       "Fuel Calculator Estimate fuel usage, range, and costs. →",
       "Marine Weather Current conditions and extended forecasts. →",
       "Why Use a Float Plan →",
+      "Common Boating Emergencies →",
       "How It Works →",
       "FAQ →"
     ]);

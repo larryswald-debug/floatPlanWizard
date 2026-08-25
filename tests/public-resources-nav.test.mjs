@@ -82,9 +82,8 @@ test("Resources uses the approved two-column taxonomy with a linked Boating Safe
   assert.equal(count(resourcesBlock, /class="fpw-resource-feature-copy fpw-featured-guide__content"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-featured-guide__title"/g), 2);
   assert.equal(count(resourcesBlock, /class="fpw-featured-guide__description"/g), 2);
-  assert.equal(count(resourcesBlock, /class="fpw-featured-guide__divider" aria-hidden="true"/g), 2);
-  assert.ok(resourcesBlock.indexOf("Solo Boating Safety Guide") < resourcesBlock.indexOf("Common Boating Emergencies"));
-  assert.ok(resourcesBlock.indexOf("Common Boating Emergencies") < resourcesBlock.indexOf("Shore Contact Guide"));
+  assert.equal(count(resourcesBlock, /class="fpw-featured-guide__divider" aria-hidden="true"/g), 1);
+  assert.ok(resourcesBlock.indexOf("Solo Boating Safety Guide") < resourcesBlock.indexOf("Shore Contact Guide"));
   assert.match(resourcesBlock, /Shore Contact Guide/);
   assert.match(resourcesBlock, /What to do when a boater misses a check-in or expected return\./);
   assert.match(resourcesBlock, /Practical solo boating safety guidance from kayaks to cruisers, with preparation tips and checklists\./);
@@ -105,7 +104,7 @@ test("Resources uses the approved two-column taxonomy with a linked Boating Safe
   assert.doesNotMatch(resourcesBlock, /Delayed vs\.|Captain and Shore Contact Checklist/);
 });
 
-test("Boating Resources retain the approved three-link icon-row treatment", () => {
+test("Boating Resources include Common Boating Emergencies in the icon-row treatment", () => {
   const boatingResourcesBlock = topNav.slice(
     topNav.indexOf('<h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>'),
     topNav.indexOf('</div>\n                    </div>\n                  </div>', topNav.indexOf('<h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>'))
@@ -113,7 +112,9 @@ test("Boating Resources retain the approved three-link icon-row treatment", () =
 
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("checklist", "fpw-tool-icon"\)#\s+<span>Why Use a Float Plan<\/span>/);
   assert.doesNotMatch(boatingResourcesBlock, /Solo Boating Safety Guide/);
-  assert.doesNotMatch(boatingResourcesBlock, /Common Boating Emergencies/);
+  assert.match(boatingResourcesBlock, /href="#topNavBasePath#\/common-boating-emergencies\/"[\s\S]*?#renderFpwNavIcon\("anchor", "fpw-tool-icon"\)#\s+<span>Common Boating Emergencies<\/span>/);
+  assert.ok(boatingResourcesBlock.indexOf("Why Use a Float Plan") < boatingResourcesBlock.indexOf("Common Boating Emergencies"));
+  assert.ok(boatingResourcesBlock.indexOf("Common Boating Emergencies") < boatingResourcesBlock.indexOf("How It Works"));
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("how", "fpw-tool-icon"\)#\s+<span>How It Works<\/span>/);
   assert.match(boatingResourcesBlock, /#renderFpwNavIcon\("help", "fpw-tool-icon"\)#\s+<span>FAQ<\/span>/);
   assert.match(topNav, /case "help":[\s\S]*?fpw-icon-help[\s\S]*?<circle cx="24" cy="24" r="18"><\/circle>/);

@@ -43,6 +43,7 @@
     if (cardLink) {
       track("guide_card_download", {
         guide_id: GUIDE_ID,
+        card_id: cardLink.getAttribute("data-card-id") || "unknown",
         file_name: cardLink.getAttribute("data-file-name") || "unknown",
         placement: cardLink.getAttribute("data-placement") || "download_section"
       });

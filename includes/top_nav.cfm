@@ -444,27 +444,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
                       <div class="fpw-featured-guide__divider" aria-hidden="true"></div>
 
-                      <div class="fpw-resource-items">
-                        <a
-                          class="fpw-resource-link<cfif topNavCommonBoatingEmergenciesActive> is-active</cfif>"
-                          href="#topNavBasePath#/common-boating-emergencies/"
-                          role="menuitem"
-                          <cfif topNavCommonBoatingEmergenciesActive>aria-current="page"</cfif>
-                          <cfif NOT topNavIsLoggedIn>
-                            data-fpw-nav-track="public_nav_common_boating_emergencies_click"
-                            data-fpw-nav-track-location="public_header"
-                            data-fpw-nav-track-menu-group="resources"
-                            data-fpw-nav-track-label="Common Boating Emergencies"
-                            data-fpw-nav-track-destination-key="common_boating_emergencies"
-                            data-fpw-nav-track-auth-state="signed_out"
-                          </cfif>>
-                          #renderFpwNavIcon("anchor", "fpw-tool-icon")#
-                          <span>Common Boating Emergencies</span><b aria-hidden="true">&rarr;</b>
-                        </a>
-                      </div>
-
-                      <div class="fpw-featured-guide__divider" aria-hidden="true"></div>
-
                       <article class="fpw-resource-feature-card fpw-featured-guide">
                         <div class="fpw-resource-feature-summary fpw-featured-guide__main">
                           <div class="fpw-featured-guide__icon">
@@ -517,6 +496,22 @@ topNavShowAppSubnav = topNavIsLoggedIn
                           <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
                             #renderFpwNavIcon("checklist", "fpw-tool-icon")#
                             <span>Why Use a Float Plan</span><b aria-hidden="true">&rarr;</b>
+                          </a>
+                          <a
+                            class="fpw-resource-link<cfif topNavCommonBoatingEmergenciesActive> is-active</cfif>"
+                            href="#topNavBasePath#/common-boating-emergencies/"
+                            role="menuitem"
+                            <cfif topNavCommonBoatingEmergenciesActive>aria-current="page"</cfif>
+                            <cfif NOT topNavIsLoggedIn>
+                              data-fpw-nav-track="public_nav_common_boating_emergencies_click"
+                              data-fpw-nav-track-location="public_header"
+                              data-fpw-nav-track-menu-group="resources"
+                              data-fpw-nav-track-label="Common Boating Emergencies"
+                              data-fpw-nav-track-destination-key="common_boating_emergencies"
+                              data-fpw-nav-track-auth-state="signed_out"
+                            </cfif>>
+                            #renderFpwNavIcon("anchor", "fpw-tool-icon")#
+                            <span>Common Boating Emergencies</span><b aria-hidden="true">&rarr;</b>
                           </a>
                           <a class="fpw-resource-link" href="#topNavHowHref#" role="menuitem">
                             #renderFpwNavIcon("how", "fpw-tool-icon")#

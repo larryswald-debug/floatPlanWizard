@@ -15,6 +15,10 @@ const sitemap = read("sitemap.xml");
 const canonical = "https://floatplanwizard.com/common-boating-emergencies/";
 const heroUrl = "https://floatplanwizard.com/assets/images/boating-guides/common-boating-emergencies/common-boating-emergencies-hero.jpg";
 const imageDirectory = "assets/images/boating-guides/common-boating-emergencies";
+const heroAssetPaths = [
+  "publishing/common-boating-emergencies/assets/source/common-boating-emergencies-hero-master.png",
+  ...["-640w.webp", "-960w.webp", ".webp", "-640w.jpg", "-960w.jpg", ".jpg"].map((suffix) => path.join(imageDirectory, `common-boating-emergencies-hero${suffix}`))
+];
 const engineFailureAlt = "Three life-jacketed boaters respond to an engine failure as one checks the engine compartment, one makes a radio call, and one lowers the anchor from the bow.";
 const groundingAlt = "Two life-jacketed boaters assess a cabin cruiser grounded in shallow water as one checks depth beside the bow and the other remains at the helm.";
 const personOverboardAlt = "Two life-jacketed boaters aboard a cabin cruiser respond to a person overboard as one throws a ring buoy with a retrieval line toward the life-jacketed person in the water.";
@@ -25,8 +29,13 @@ const stormCaption = "Storms can close in quickly. When one is heading your way,
 const maydayAlt = "Two life-jacketed boaters at the helm in rough water while the operator sends a Mayday call on a fixed VHF radio with a prepared emergency card beside the controls.";
 const overdueAlt = "Three-panel scene showing a boater at a marina, a shore contact reviewing the boat and route while on the phone, and a rescue coordinator viewing the same vessel and route information.";
 const paceNote = "Illustrative sequence; equipment and safe actions depend on the vessel and emergency.";
+const individualEmergencyCards = [
+  ["emergency-card-pace", "emergency-card-front-title", "First 60 seconds &mdash; P.A.C.E.", "first-60-seconds-pace.pdf"],
+  ["emergency-card-mayday", "emergency-card-back-title", "Mayday voice script &mdash; VHF Channel 16", "mayday-vhf-channel-16-script.pdf"],
+  ["emergency-card-pan-pan", "emergency-card-pan-pan-title", "PAN-PAN voice script &mdash; VHF Channel 16", "pan-pan-vhf-channel-16-script.pdf"],
+  ["emergency-card-boat-fields", "emergency-card-fields-title", "Boat-specific fields", "boat-specific-emergency-fields.pdf"]
+];
 const figureAssets = [
-  ["common-boating-emergencies-hero", 1672, 941, "A boat operator checks the VHF radio while two passengers put on life jackets after the boat loses power.", "Calm, early action preserves options: protect people, establish position, control the boat, and call before the situation worsens."],
   ["boat-engine-failure-drift-anchor", 1672, 941, engineFailureAlt, "Assess depth, bottom, traffic, wind, current, and sea room before anchoring or troubleshooting."],
   ["boat-taking-on-water-checkpoints", 1536, 1024, "A cutaway view highlights several common places water can enter a recreational boat, including fittings, hoses, drains, and hull damage.", "Boat layouts differ. Check only accessible areas you understand, and never delay a distress call while water is rising."],
   ["boat-grounding-stop-assess", 1672, 941, groundingAlt, "Stop and assess before trying to power free; immediate throttle can worsen damage or clog cooling-water intakes."],
@@ -273,6 +282,14 @@ test("approved emergency, communication, preparation, and limitation language is
   assert.doesNotMatch(page, /final accessible 4|reserved for Phase 2|implementation|content owner|Product wording on this page/i);
 });
 
+test("Pan-Pan example and its following note retain dedicated bottom spacing", () => {
+  assert.match(page, /common-boating-emergencies\.css\?v=20260824-individual-card-pdfs/);
+  assert.match(page, /<div class="fpw-emergency-script fpw-emergency-script--pan-pan" aria-label="Pan-Pan call template">/);
+  assert.match(page, /<p class="fpw-emergency-pan-pan-note">This is a practical plain-language template built around the FCC urgency signal and normal marine call content;/);
+  assert.match(stylesheet, /\.fpw-emergency-script--pan-pan \{\s*margin-bottom: 24px;\s*\}/);
+  assert.match(stylesheet, /p\.fpw-emergency-pan-pan-note \{\s*margin-bottom: 44px;\s*\}/);
+});
+
 test("links and CTA destinations are limited to verified routes and official sources", () => {
   for (const destination of [
     "/app/join.cfm",
@@ -309,13 +326,22 @@ test("links and CTA destinations are limited to verified routes and official sou
   assert.doesNotMatch(page, /fpw-action-cta\.js/);
 });
 
-test("remaining page figures use every approved source, alt, caption, size, and loading policy", () => {
+test("remaining page figures use responsive JPEG links with approved alt, caption, size, and loading policy", () => {
   assert.doesNotMatch(page, /implementation-assets|fpw-common-boating-emergencies-hero-reference|fpw-person-overboard-reference/i);
-  assert.equal(countMatches(page, /<figure class="fpw-emergency-figure/g), 11);
-  assert.equal(countMatches(page, /<picture>/g), 11);
-  assert.equal(countMatches(page, /<figcaption>/g), 11);
+  assert.doesNotMatch(page, /fpw-emergency-hero-figure/);
+  assert.doesNotMatch(page, /Calm, early action preserves options: protect people, establish position, control the boat, and call before the situation worsens\./);
+  assert.equal(countMatches(page, /<figure class="fpw-emergency-figure/g), 10);
+  assert.equal(countMatches(page, /<picture>/g), 10);
+  assert.equal(countMatches(page, /<figcaption>/g), 10);
+  assert.equal(countMatches(page, /<source type="image\/webp"/g), 0);
+  assert.doesNotMatch(page, /\.webp(?:\?|["\s])/);
   assert.equal(countMatches(page, new RegExp(`<p>${escapeRegExp(paceNote)}</p>`, "g")), 1);
   assert.doesNotMatch(page, /boating-emergency-pace-first-minute/);
+
+  for (const relativePath of heroAssetPaths) {
+    assert.equal(existsSync(path.join(repositoryRoot, relativePath)), true, `Missing retained hero asset ${relativePath}`);
+    assert.ok(statSync(path.join(repositoryRoot, relativePath)).size > 0, `Empty retained hero asset ${relativePath}`);
+  }
 
   for (const [stem, width, height, alt, caption] of figureAssets) {
     const versionSuffix = ["person-overboard-controlled-recovery", "overdue-boater-response-information-chain"].includes(stem)
@@ -324,15 +350,15 @@ test("remaining page figures use every approved source, alt, caption, size, and 
         ? "\\?v=20260823-owner-approved-v2"
         : "";
     const imageMatch = page.match(new RegExp(`<img\\b[^\\n]*${escapeRegExp(stem)}\\.jpg[^\\n]*>`));
-    assert.ok(imageMatch, `Missing fallback image tag for ${stem}`);
+    assert.ok(imageMatch, `Missing JPEG image tag for ${stem}`);
     const imageTag = imageMatch[0];
     assert.match(imageTag, new RegExp(`width="${width}"`));
     assert.match(imageTag, new RegExp(`height="${height}"`));
     assert.match(imageTag, new RegExp(`alt="${escapeRegExp(alt)}"`));
     assert.match(imageTag, /decoding="async"/);
-    assert.match(page, new RegExp(`${escapeRegExp(stem)}-640w\\.webp${versionSuffix} 640w`));
-    assert.match(page, new RegExp(`${escapeRegExp(stem)}-960w\\.webp${versionSuffix} 960w`));
-    assert.match(page, new RegExp(`${escapeRegExp(stem)}\\.webp${versionSuffix} ${width}w`));
+    assert.match(imageTag, new RegExp(`${escapeRegExp(stem)}-640w\\.jpg${versionSuffix} 640w`));
+    assert.match(imageTag, new RegExp(`${escapeRegExp(stem)}-960w\\.jpg${versionSuffix} 960w`));
+    assert.match(imageTag, new RegExp(`${escapeRegExp(stem)}\\.jpg${versionSuffix} ${width}w`));
     assert.equal(page.includes(`<figcaption>${caption}</figcaption>`), true, `Missing caption for ${stem}`);
 
     for (const suffix of ["-640w.webp", "-960w.webp", ".webp", "-640w.jpg", "-960w.jpg", ".jpg"]) {
@@ -341,21 +367,16 @@ test("remaining page figures use every approved source, alt, caption, size, and 
       assert.ok(statSync(path.join(repositoryRoot, relativePath)).size > 0, `Empty derivative ${relativePath}`);
     }
 
-    if (stem === "common-boating-emergencies-hero") {
-      assert.doesNotMatch(imageTag, /loading="lazy"/);
-      assert.match(imageTag, /fetchpriority="high"/);
-    } else {
-      assert.match(imageTag, /loading="lazy"/);
-      assert.doesNotMatch(imageTag, /fetchpriority=/);
-    }
+    assert.match(imageTag, /loading="lazy"/);
+    assert.doesNotMatch(imageTag, /fetchpriority=/);
   }
   assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(fireAlt)}"`, "g")), 1);
   assert.equal(countMatches(page, new RegExp(`<figcaption>${escapeRegExp(fireCaption)}</figcaption>`, "g")), 1);
-  assert.equal(countMatches(page, /boat-engine-compartment-fire-response(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved-v2/g), 7);
+  assert.equal(countMatches(page, /boat-engine-compartment-fire-response(?:-640w|-960w)?\.jpg\?v=20260823-owner-approved-v2/g), 4);
   assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(stormAlt)}"`, "g")), 1);
   assert.equal(countMatches(page, new RegExp(`<figcaption>${escapeRegExp(stormCaption)}</figcaption>`, "g")), 1);
   assert.doesNotMatch(page, /alt="Sport cruiser proceeding slowly through a marked no-wake channel toward a protected canal, with a red buoy to the left, a green buoy to the right, a shoal alongside the channel and an ominous storm behind the boat\."/);
-  assert.equal(countMatches(page, /boating-storm-early-shelter-decision(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved-v2/g), 7);
+  assert.equal(countMatches(page, /boating-storm-early-shelter-decision(?:-640w|-960w)?\.jpg\?v=20260823-owner-approved-v2/g), 4);
   assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(maydayAlt)}"`, "g")), 1);
   assert.doesNotMatch(page, /alt="A boat operator uses the VHF while reading position and vessel details from a prepared emergency card\."/);
   assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(engineFailureAlt)}"`, "g")), 1);
@@ -364,18 +385,69 @@ test("remaining page figures use every approved source, alt, caption, size, and 
   assert.doesNotMatch(page, /alt="A grounded boat is assessed for damage while a contrasting scene shows sediment churned by immediately reversing\."/);
   assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(personOverboardAlt)}"`, "g")), 1);
   assert.doesNotMatch(page, /alt="A crew keeps pointing to a person overboard as the operator makes a slow return toward thrown flotation and a boarding ladder\."/);
-  assert.equal(countMatches(page, /person-overboard-controlled-recovery(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved/g), 7);
+  assert.equal(countMatches(page, /person-overboard-controlled-recovery(?:-640w|-960w)?\.jpg\?v=20260823-owner-approved/g), 4);
   assert.equal(countMatches(page, new RegExp(`alt="${escapeRegExp(overdueAlt)}"`, "g")), 1);
   assert.doesNotMatch(page, /alt="A boater, shore contact, and rescue coordinator share the same boat, route, passenger, and timing information\."/);
-  assert.equal(countMatches(page, /overdue-boater-response-information-chain(?:-640w|-960w)?\.(?:jpg|webp)\?v=20260823-owner-approved/g), 7);
+  assert.equal(countMatches(page, /overdue-boater-response-information-chain(?:-640w|-960w)?\.jpg\?v=20260823-owner-approved/g), 4);
 });
 
-test("both emergency-card PDFs are direct visible downloads with stable filenames", () => {
+test("each bordered emergency card has one stable individual PDF download", () => {
+  assert.equal(countMatches(page, /class="fpw-emergency-quick-card\b/g), individualEmergencyCards.length);
+  assert.equal(countMatches(page, /class="cbe-card-download"/g), individualEmergencyCards.length);
+  assert.equal(countMatches(page, /data-placement="quick_reference_card"/g), individualEmergencyCards.length);
+  assert.equal(countMatches(page, /<span>Download PDF<\/span>/g), individualEmergencyCards.length);
+  assert.equal(countMatches(page, /<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">/g), individualEmergencyCards.length);
+
+  for (const [cardId, titleId, title, fileName] of individualEmergencyCards) {
+    const cardStart = page.indexOf(`id="${cardId}"`);
+    const nextCardStart = page.indexOf('class="fpw-emergency-quick-card', cardStart + 1);
+    const card = page.slice(cardStart, nextCardStart >= 0 ? nextCardStart : page.indexOf("</div>", cardStart));
+    assert.ok(cardStart >= 0, `Missing card ${cardId}`);
+    assert.equal(countMatches(card, /class="cbe-card-download"/g), 1, `${cardId} must have one download anchor`);
+    assert.match(card, new RegExp(`aria-labelledby="${escapeRegExp(titleId)}"`));
+    assert.match(card, new RegExp(`<h3 id="${escapeRegExp(titleId)}">${escapeRegExp(title)}<\\/h3>`));
+    assert.match(card, new RegExp(`href="<cfoutput>#fpwEmergencyBasePath#<\\/cfoutput>\\/downloads\\/${escapeRegExp(fileName)}"`));
+    assert.match(card, new RegExp(`download="${escapeRegExp(fileName)}" type="application\\/pdf"`));
+    assert.match(card, new RegExp(`data-card-id="${escapeRegExp(fileName.replace(/\.pdf$/, ""))}" data-file-name="${escapeRegExp(fileName)}"`));
+    assert.match(card, new RegExp(`aria-label="Download ${escapeRegExp(title.replaceAll("&mdash;", "—"))} PDF"`));
+    const pdfPath = path.join(repositoryRoot, "downloads", fileName);
+    assert.equal(existsSync(pdfPath), true, `Missing individual PDF ${fileName}`);
+    assert.equal(readFileSync(pdfPath).subarray(0, 5).toString("ascii"), "%PDF-");
+    assert.equal(sitemap.includes(fileName), false, `${fileName} must not appear in the XML sitemap`);
+  }
+
+  const maydayStart = page.indexOf('id="emergency-card-mayday"');
+  const panPanStart = page.indexOf('id="emergency-card-pan-pan"');
+  const boatFieldsStart = page.indexOf('id="emergency-card-boat-fields"');
+  assert.ok(maydayStart < panPanStart && panPanStart < boatFieldsStart, "PAN-PAN must follow Mayday and precede Boat-specific fields");
+  const panPanCard = page.slice(panPanStart, boatFieldsStart);
+  assert.equal(countMatches(page, /<h3 id="emergency-card-pan-pan-title">/g), 1);
+  assert.equal(countMatches(panPanCard, /<strong>PAN-PAN, PAN-PAN, PAN-PAN<\/strong>/g), 1);
+  for (const exactCopy of [
+    "URGENT &mdash; NOT DISTRESS",
+    "ALL STATIONS, ALL STATIONS, ALL STATIONS",
+    "WE HAVE <strong>[nature of urgent safety problem]</strong>",
+    "WE REQUIRE <strong>[assistance requested]</strong>",
+    "Use PAN-PAN when the safety of the boat or a person is in jeopardy, but there is no grave and imminent danger. If the situation becomes grave and imminent, transmit MAYDAY instead.",
+    "Stay by the radio. Repeat the call if no answer is received, and follow Coast Guard instructions.",
+    "PAN-PAN is pronounced &ldquo;pahn-pahn.&rdquo;"
+  ]) {
+    assert.equal(countMatches(panPanCard, new RegExp(escapeRegExp(exactCopy), "g")), 1, exactCopy);
+  }
+
+  assert.match(stylesheet, /\.fpw-emergency-card > section \{[\s\S]*?position: relative;[\s\S]*?cursor: pointer;/);
+  assert.match(stylesheet, /\.cbe-card-download \{[\s\S]*?min-height: 44px;/);
+  assert.match(stylesheet, /\.cbe-card-download::after \{[\s\S]*?position: absolute;[\s\S]*?inset: 0;/);
+  assert.match(stylesheet, /\.cbe-card-download:focus-visible \{[\s\S]*?outline: 3px solid #ffffff;/);
+  assert.doesNotMatch(stylesheet, /\.fpw-emergency-card > section[^}]*height\s*:/);
+});
+
+test("legacy combined emergency-card PDFs remain direct downloads with unchanged filenames", () => {
   const files = [
     "floatplanwizard-boating-emergency-card-4x6.pdf",
     "floatplanwizard-boating-emergency-card-letter.pdf"
   ];
-  assert.equal(countMatches(page, /data-fpw-guide-card/g), 2);
+  assert.equal(countMatches(page, /data-fpw-guide-card/g), 6);
   for (const fileName of files) {
     assert.match(page, new RegExp(`href="<cfoutput>#fpwEmergencyBasePath#<\\/cfoutput>\\/downloads\\/${escapeRegExp(fileName)}"`));
     assert.match(page, new RegExp(`download="${escapeRegExp(fileName)}"`));
@@ -398,6 +470,7 @@ test("analytics use the required low-cardinality event and parameter contracts",
   }
   for (const field of [
     "guide_id",
+    "card_id",
     "file_name",
     "placement",
     "section_id",
@@ -417,8 +490,8 @@ test("analytics use the required low-cardinality event and parameter contracts",
 });
 
 test("styles provide responsive, focus, reduced-motion, table, and print foundations", () => {
-  assert.match(page, /common-boating-emergencies\.css\?v=20260823-fuel-dock/);
-  assert.match(page, /common-boating-emergencies\.js\?v=20260822-phase2/);
+  assert.match(page, /common-boating-emergencies\.css\?v=20260824-individual-card-pdfs/);
+  assert.match(page, /common-boating-emergencies\.js\?v=20260824-individual-card-pdfs/);
   assert.match(stylesheet, /body\.fpw-emergency-body/);
   assert.match(stylesheet, /\.fpw-emergency-content > section \{[\s\S]*?scroll-margin-top: 116px;/);
   assert.match(stylesheet, /\.fpw-emergency-table-region \{[\s\S]*?overflow-x: auto;/);
@@ -436,6 +509,7 @@ test("styles provide responsive, focus, reduced-motion, table, and print foundat
   assert.doesNotMatch(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure,\s*\.fpw-emergency-card-downloads/);
   assert.match(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure picture \{[\s\S]*?display: none !important;/);
   assert.match(stylesheet, /@media print[\s\S]*?\.fpw-emergency-figure figcaption \{[\s\S]*?background: #ffffff !important;[\s\S]*?font-size: 10pt;/);
+  assert.match(stylesheet, /@media print[\s\S]*?\.cbe-card-download,[\s\S]*?display: none !important;/);
 });
 
 test("production clean route and sitemap expose the canonical page once", () => {

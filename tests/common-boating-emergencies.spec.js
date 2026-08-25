@@ -14,6 +14,32 @@ const stormCaption = "Storms can close in quickly. When one is heading your way,
 const maydayAlt = "Two life-jacketed boaters at the helm in rough water while the operator sends a Mayday call on a fixed VHF radio with a prepared emergency card beside the controls.";
 const overdueAlt = "Three-panel scene showing a boater at a marina, a shore contact reviewing the boat and route while on the phone, and a rescue coordinator viewing the same vessel and route information.";
 const paceNote = "Illustrative sequence; equipment and safe actions depend on the vessel and emergency.";
+const individualEmergencyCards = [
+  {
+    id: "emergency-card-pace",
+    cardId: "first-60-seconds-pace",
+    title: "First 60 seconds — P.A.C.E.",
+    filename: "first-60-seconds-pace.pdf"
+  },
+  {
+    id: "emergency-card-mayday",
+    cardId: "mayday-vhf-channel-16-script",
+    title: "Mayday voice script — VHF Channel 16",
+    filename: "mayday-vhf-channel-16-script.pdf"
+  },
+  {
+    id: "emergency-card-pan-pan",
+    cardId: "pan-pan-vhf-channel-16-script",
+    title: "PAN-PAN voice script — VHF Channel 16",
+    filename: "pan-pan-vhf-channel-16-script.pdf"
+  },
+  {
+    id: "emergency-card-boat-fields",
+    cardId: "boat-specific-emergency-fields",
+    title: "Boat-specific fields",
+    filename: "boat-specific-emergency-fields.pdf"
+  }
+];
 const requiredSections = [
   "first-60-seconds",
   "choose-emergency-call",
@@ -226,13 +252,71 @@ test("the page has no document-level overflow from 320 through 1440 CSS pixels",
     await expect(page.getByRole("navigation", { name: "In this guide" }), viewport.name).toBeVisible();
     await expect(page.locator("[data-fpw-action-cta]"), viewport.name).toHaveCount(2);
     await expect(page.locator("[data-fpw-guide-print]"), viewport.name).toHaveCount(2);
-    await expect(page.locator("figure.fpw-emergency-figure"), viewport.name).toHaveCount(11);
+    await expect(page.locator("figure.fpw-emergency-figure"), viewport.name).toHaveCount(10);
+    await expect(page.locator('figure.fpw-emergency-figure source[type="image/webp"]'), viewport.name).toHaveCount(0);
+    await expect(page.locator(".fpw-emergency-hero-figure"), viewport.name).toHaveCount(0);
+    await expect(page.getByText("Calm, early action preserves options: protect people, establish position, control the boat, and call before the situation worsens.", { exact: true }), viewport.name).toHaveCount(0);
     await expect(page.locator("#first-60-seconds figure, #first-60-seconds picture, #first-60-seconds img"), viewport.name).toHaveCount(0);
     await expect(page.locator("#first-60-seconds").getByText(paceNote, { exact: true }), viewport.name).toHaveCount(1);
+    const quickCards = page.locator(".fpw-emergency-quick-card");
+    const cardDownloads = page.locator(".cbe-card-download");
+    await expect(quickCards, viewport.name).toHaveCount(individualEmergencyCards.length);
+    await expect(cardDownloads, viewport.name).toHaveCount(individualEmergencyCards.length);
+    expect(await quickCards.evaluateAll((cards) => cards.map((card) => card.id)), viewport.name).toEqual(
+      individualEmergencyCards.map((card) => card.id)
+    );
+    for (const cardDetails of individualEmergencyCards) {
+      const card = page.locator(`#${cardDetails.id}`);
+      const download = card.locator(".cbe-card-download");
+      await expect(card, viewport.name).toBeVisible();
+      await expect(download, viewport.name).toBeVisible();
+      await expect(download, viewport.name).toHaveAttribute("href", `${baseUrl}/downloads/${cardDetails.filename}`);
+      await expect(download, viewport.name).toHaveAttribute("download", cardDetails.filename);
+      await expect(download, viewport.name).toHaveAttribute("type", "application/pdf");
+      await expect(download, viewport.name).toHaveAttribute("data-card-id", cardDetails.cardId);
+      await expect(download, viewport.name).toHaveAttribute("data-file-name", cardDetails.filename);
+      await expect(download, viewport.name).toHaveAttribute("aria-label", `Download ${cardDetails.title} PDF`);
+      const geometry = await card.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const linkBounds = element.querySelector(".cbe-card-download").getBoundingClientRect();
+        return {
+          cardClientWidth: element.clientWidth,
+          cardScrollWidth: element.scrollWidth,
+          linkWidth: linkBounds.width,
+          linkHeight: linkBounds.height,
+          linkTop: linkBounds.top,
+          linkRight: linkBounds.right,
+          cardTop: bounds.top,
+          cardRight: bounds.right
+        };
+      });
+      expect(geometry.cardScrollWidth, `${viewport.name} ${cardDetails.id} clipping`).toBeLessThanOrEqual(geometry.cardClientWidth);
+      expect(geometry.linkWidth, `${viewport.name} ${cardDetails.id} control width`).toBeGreaterThanOrEqual(44);
+      expect(geometry.linkHeight, `${viewport.name} ${cardDetails.id} control height`).toBeGreaterThanOrEqual(44);
+      expect(geometry.linkTop, `${viewport.name} ${cardDetails.id} upper control`).toBeGreaterThanOrEqual(geometry.cardTop);
+      expect(geometry.linkRight, `${viewport.name} ${cardDetails.id} right control`).toBeLessThanOrEqual(geometry.cardRight);
+    }
+    const cardColumns = await page.locator(".fpw-emergency-card").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+    expect(cardColumns, `${viewport.name} quick-card columns`).toBe(viewport.width > 800 ? 2 : 1);
+    const panPanSpacing = await page.locator("#choose-emergency-call").evaluate((section) => {
+      const script = section.querySelector(".fpw-emergency-script--pan-pan");
+      const note = section.querySelector(".fpw-emergency-pan-pan-note");
+      const nextHeading = note?.nextElementSibling;
+      const scriptBounds = script?.getBoundingClientRect();
+      const noteBounds = note?.getBoundingClientRect();
+      const headingBounds = nextHeading?.getBoundingClientRect();
+      return {
+        scriptToNote: scriptBounds && noteBounds ? noteBounds.top - scriptBounds.bottom : 0,
+        noteToHeading: noteBounds && headingBounds ? headingBounds.top - noteBounds.bottom : 0
+      };
+    });
+    expect(panPanSpacing.scriptToNote, `${viewport.name} spacing below Pan-Pan example`).toBeGreaterThanOrEqual(24);
+    expect(panPanSpacing.noteToHeading, `${viewport.name} spacing below Pan-Pan note`).toBeGreaterThanOrEqual(44);
     for (const image of await page.locator("figure.fpw-emergency-figure img").all()) {
       await image.scrollIntoViewIfNeeded();
       await expect(image, viewport.name).toHaveJSProperty("complete", true);
       expect(await image.evaluate((element) => element.naturalWidth), viewport.name).toBeGreaterThan(0);
+      expect(await image.evaluate((element) => element.currentSrc), viewport.name).toMatch(/\.jpg(?:\?|$)/);
     }
     const fireImage = page.locator("#boat-fire-fuel-leak figure.fpw-emergency-figure img");
     await expect(fireImage, viewport.name).toHaveAttribute("alt", fireAlt);
@@ -335,6 +419,10 @@ test("print mode keeps the complete article and hides site-only controls", async
   await expect(page.locator(".fpw-emergency-toc")).toBeHidden();
   await expect(page.locator("[data-fpw-action-cta]").first()).toBeHidden();
   await expect(page.locator("[data-fpw-guide-print]").first()).toBeHidden();
+  await expect(page.locator(".fpw-emergency-quick-card")).toHaveCount(individualEmergencyCards.length);
+  await expect(page.locator("#emergency-card-pan-pan").getByText("PAN-PAN, PAN-PAN, PAN-PAN", { exact: true })).toBeVisible();
+  await expect(page.locator(".cbe-card-download").first()).toBeHidden();
+  await expect(page.locator(".fpw-emergency-card-downloads").first()).toBeHidden();
   expect(await page.locator(".fpw-emergency-hero").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(255, 255, 255)");
   expect(await page.locator(".fpw-emergency-evidence").evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(255, 255, 255)");
   expect(await page.locator(".fpw-emergency-supplement").evaluate((element) => getComputedStyle(element).color)).toBe("rgb(0, 0, 0)");
@@ -386,7 +474,7 @@ test("TOC, source, CTA, print, and card activations each emit exactly one requir
   await page.locator('[data-fpw-guide-source][data-section-id="mayday-call-script"]').first().click();
   await page.locator('[data-fpw-action-cta][data-fpw-track-section="after_pace"]').click();
   await page.locator('[data-fpw-guide-print][data-placement="hero"]').click();
-  await page.locator('[data-fpw-guide-card][data-file-name="floatplanwizard-boating-emergency-card-4x6.pdf"]').click();
+  await page.locator('[data-fpw-guide-card][data-file-name="first-60-seconds-pace.pdf"]').click();
 
   expect(await page.evaluate(() => window.__fpwGuideEvents)).toEqual([
     {
@@ -419,12 +507,42 @@ test("TOC, source, CTA, print, and card activations each emit exactly one requir
       name: "guide_card_download",
       fields: {
         guide_id: "boating_emergencies",
-        file_name: "floatplanwizard-boating-emergency-card-4x6.pdf",
-        placement: "download_section"
+        card_id: "first-60-seconds-pace",
+        file_name: "first-60-seconds-pace.pdf",
+        placement: "quick_reference_card"
       }
     }
   ]);
   expect(await page.evaluate(() => window.__fpwPrintCalls)).toBe(1);
+});
+
+test("individual card controls and stretched card surfaces download the correct PDFs", async ({ page }) => {
+  await page.goto(rawGuideUrl, { waitUntil: "domcontentloaded" });
+
+  for (const cardDetails of individualEmergencyCards) {
+    const link = page.locator(`#${cardDetails.id} .cbe-card-download`);
+    await link.focus();
+    await expect(link).toBeFocused();
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.keyboard.press("Enter")
+    ]);
+    expect(download.suggestedFilename()).toBe(cardDetails.filename);
+  }
+
+  const paceCard = page.locator("#emergency-card-pace");
+  const paceBounds = await paceCard.boundingBox();
+  expect(paceBounds).not.toBeNull();
+  const bodyPoint = {
+    x: paceBounds.x + paceBounds.width / 2,
+    y: paceBounds.y + paceBounds.height - 18
+  };
+  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("a")?.getAttribute("download"), bodyPoint)).toBe("first-60-seconds-pace.pdf");
+  const [cardSurfaceDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.mouse.click(bodyPoint.x, bodyPoint.y)
+  ]);
+  expect(cardSurfaceDownload.suggestedFilename()).toBe("first-60-seconds-pace.pdf");
 });
 
 test("content stays available with JavaScript disabled", async ({ browser }) => {
@@ -435,7 +553,10 @@ test("content stays available with JavaScript disabled", async ({ browser }) => 
   await expect(page.locator("h1")).toHaveCount(1);
   await expect(page.locator("[data-fpw-guide-toc]")).toHaveCount(requiredSections.length);
   await expect(page.locator("#printable-boating-emergency-card")).toBeVisible();
-  await expect(page.locator("[data-fpw-guide-card]")).toHaveCount(2);
+  await expect(page.locator("[data-fpw-guide-card]")).toHaveCount(6);
+  await expect(page.locator(".fpw-emergency-quick-card")).toHaveCount(individualEmergencyCards.length);
+  await expect(page.locator(".cbe-card-download")).toHaveCount(individualEmergencyCards.length);
+  await expect(page.locator("#emergency-card-pan-pan").getByText("PAN-PAN, PAN-PAN, PAN-PAN", { exact: true })).toBeVisible();
   await expect(page.locator("#sources")).toBeVisible();
   const paceSection = page.locator("#first-60-seconds");
   await expect(paceSection.locator("figure, picture, img")).toHaveCount(0);
@@ -479,7 +600,8 @@ test("content stays available with JavaScript disabled", async ({ browser }) => 
 test("PDF downloads stay public while guide publishing sources and review files are denied", async ({ request }) => {
   for (const filename of [
     "floatplanwizard-boating-emergency-card-4x6.pdf",
-    "floatplanwizard-boating-emergency-card-letter.pdf"
+    "floatplanwizard-boating-emergency-card-letter.pdf",
+    ...individualEmergencyCards.map((card) => card.filename)
   ]) {
     const response = await request.get(`${baseUrl}/downloads/${filename}`);
     expect(response.status()).toBe(200);

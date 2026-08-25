@@ -573,6 +573,14 @@ body.fpw-emergency-body {
   background: rgba(92, 24, 26, 0.4);
 }
 
+.fpw-emergency-script--pan-pan {
+  margin-bottom: 24px;
+}
+
+p.fpw-emergency-pan-pan-note {
+  margin-bottom: 44px;
+}
+
 .fpw-emergency-fuel-dock {
   max-width: 76ch;
   margin-top: 30px;
@@ -743,21 +751,95 @@ body.fpw-emergency-body {
 }
 
 .fpw-emergency-card > section {
+  position: relative;
   min-width: 0;
   padding: 22px;
   border: 2px solid rgba(69, 222, 215, 0.46);
   border-radius: 14px;
   background: rgba(4, 18, 30, 0.74);
   break-inside: avoid;
+  cursor: pointer;
 }
 
-.fpw-emergency-card > section:nth-child(2) {
+.fpw-emergency-card > .fpw-emergency-quick-card--mayday {
   border-color: rgba(255, 116, 109, 0.62);
 }
 
+.fpw-emergency-card > .fpw-emergency-quick-card--pan-pan {
+  border-color: rgba(255, 209, 138, 0.68);
+}
+
 .fpw-emergency-card > .fpw-emergency-card-fields {
-  grid-column: 1 / -1;
   border-color: rgba(101, 185, 243, 0.5);
+}
+
+.fpw-emergency-quick-card:hover,
+.fpw-emergency-quick-card:focus-within {
+  border-color: rgba(140, 234, 229, 0.86);
+  box-shadow: 0 0 0 1px rgba(140, 234, 229, 0.2), 0 14px 28px rgba(0, 0, 0, 0.18);
+}
+
+.fpw-emergency-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 14px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.fpw-emergency-card-header--download-only {
+  justify-content: flex-end;
+}
+
+.fpw-emergency-card-header .fpw-emergency-label {
+  margin: 0;
+}
+
+.cbe-card-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid rgba(140, 234, 229, 0.7);
+  border-radius: 8px;
+  color: #eaffff !important;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.cbe-card-download::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
+}
+
+.cbe-card-download svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.cbe-card-download:hover {
+  border-color: #ffffff;
+  color: #ffffff !important;
+  background: rgba(69, 222, 215, 0.17);
+}
+
+.cbe-card-download:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 3px;
 }
 
 .fpw-emergency-card h3 {
@@ -932,9 +1014,6 @@ body.fpw-emergency-body {
     grid-template-columns: 1fr;
   }
 
-  .fpw-emergency-card > .fpw-emergency-card-fields {
-    grid-column: auto;
-  }
 }
 
 @media (max-width: 480px) {
@@ -974,6 +1053,10 @@ body.fpw-emergency-body {
 
   .fpw-emergency-new-window {
     white-space: normal;
+  }
+
+  .cbe-card-download {
+    max-width: 100%;
   }
 }
 
@@ -1030,6 +1113,7 @@ body.fpw-emergency-body {
   .fpw-emergency-rail,
   .fpw-emergency-cta-wrap,
   .fpw-emergency-card-downloads,
+  .cbe-card-download,
   .fpw-emergency-print-button,
   .fpw-emergency-back,
   .fpw-emergency-related-guides {
@@ -1134,10 +1218,6 @@ body.fpw-emergency-body {
   .fpw-emergency-card {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-  }
-
-  .fpw-emergency-card > .fpw-emergency-card-fields {
-    grid-column: 1 / -1;
   }
 
   .fpw-emergency-pace-grid > section,
