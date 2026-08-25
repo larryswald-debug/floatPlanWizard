@@ -29,7 +29,7 @@
     <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260825-planning-first-copy">
 </head>
 <body class="auth-page-body fpw-public-form-page fpw-signup-page">
 
@@ -64,10 +64,9 @@
                 </a>
 
                 <div class="fpw-signup-story-copy">
-                    <h1>Plan safer days on the water.</h1>
+                    <h1>Plan the trip. Share the plan. Stay connected.</h1>
                     <p>
-                        Create and share a clear boating float plan with the people who need
-                        to know where you are going and when you expect to return.
+                        Use the free Boat Trip Planner to map your route and stops, calculate mileage, travel time, fuel, reserve, and cost, and prepare for the day on the water.
                     </p>
                 </div>
 
@@ -75,12 +74,28 @@
                     <div class="fpw-signup-benefit">
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
+                            <strong>Free Boat Trip Planner</strong>
+                            <span>Plan and save routes and stops, then see how speed and weather assumptions affect your trip estimates.</span>
+                        </div>
+                    </div>
+
+                    <div class="fpw-signup-benefit">
+                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
+                        <div>
+                            <strong>Turn your trip into a float plan</strong>
+                            <span>When departure approaches, reuse your saved trip and share clear details with your shore contact.</span>
+                        </div>
+                    </div>
+
+                    <div class="fpw-signup-benefit">
+                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
+                        <div>
                             <cfif joinCreditModelEnabled>
                                 <strong>Your first complete Premium trip is included</strong>
-                                <span>Planning is free. Use one included trip for Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access.</span>
+                                <span>Try Active Cruise, monitoring, and private Trip/Follow access when you are ready to leave.</span>
                             <cfelse>
-                                <strong>Premium route tools included for your first month</strong>
-                                <span>Plan with waypoints, routes, Active Cruise pages, and a private Trip status page.</span>
+                                <strong>Premium tools are included for your first month</strong>
+                                <span>Try Active Cruise, monitoring, and private Trip/Follow access when you are ready to leave.</span>
                             </cfif>
                         </div>
                     </div>
@@ -89,23 +104,7 @@
                         <span class="fpw-signup-check" aria-hidden="true">✓</span>
                         <div>
                             <strong>No credit card required</strong>
-                            <span>Start your account without entering payment details.</span>
-                        </div>
-                    </div>
-
-                    <div class="fpw-signup-benefit">
-                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
-                        <div>
-                            <strong>Mobile-friendly — no app required</strong>
-                            <span>Use FPW from a modern phone, tablet, or desktop browser.</span>
-                        </div>
-                    </div>
-
-                    <div class="fpw-signup-benefit">
-                        <span class="fpw-signup-check" aria-hidden="true">✓</span>
-                        <div>
-                            <strong>Share your plan with a shore contact</strong>
-                            <span>Give trusted people clearer trip information before you leave.</span>
+                            <span>Create your free account without entering payment information.</span>
                         </div>
                     </div>
                 </div>
@@ -117,19 +116,16 @@
                 <div class="fpw-signup-user-icon" aria-hidden="true">👤</div>
                 <div>
                     <h2>Create your free FPW account</h2>
+                    <p>
+                        Start with the free Boat Trip Planner. Plot and save your route, calculate mileage, travel time, fuel, reserve, and cost, and adjust speed and weather assumptions before you leave.
+                    </p>
                     <cfif joinCreditModelEnabled>
-                        <p>
-                            FPW membership is free. Plan routes, save your boating information, and send Basic float plans at no cost.
-                        </p>
                         <p class="fpw-form-header-note">
-                            Your first complete Premium trip is included for new members, with Premium PDF/email delivery, Active Cruise, monitoring, and private Trip/Follow access. Additional Premium trips are available individually or through monthly and annual membership.
+                            When departure approaches, turn your saved trip into a float plan. Basic float-plan sending remains free, and every new member receives one complete Premium trip to try Active Cruise, monitoring, and private Trip/Follow access.
                         </p>
                     <cfelse>
-                        <p>
-                            Start with one free month of Premium tools &mdash; no credit card required.
-                        </p>
                         <p class="fpw-form-header-note">
-                            Your free month gives you access to custom route tools, Active Cruise pages, and a private Trip status page for friends and family. After one month, your account automatically moves to the Basic plan unless you choose to upgrade.
+                            When departure approaches, turn your saved trip into a float plan. Basic float-plan sending remains free, and your free Premium month includes Active Cruise, monitoring, and private Trip/Follow access.
                         </p>
                     </cfif>
                 </div>
@@ -250,8 +246,7 @@
                     <div>
                         <strong>We respect your privacy.</strong>
                         <p>
-                            Your information stays with your FPW account and is used only for
-                            float plans, monitoring, and account support.
+                            Your information stays with your FPW account and is used only for trip planning, float plans, monitoring, and account support.
                         </p>
                     </div>
                 </div>
@@ -260,7 +255,7 @@
 
                 <button type="submit" class="fpw-signup-submit" id="joinButton">
                     <span aria-hidden="true">🔒</span>
-                    <span class="fpw-submit-label">Start My Free Account</span>
+                    <span class="fpw-submit-label">Start Planning My Trip</span>
                 </button>
 
                 <p class="fpw-login-link">
@@ -286,8 +281,8 @@
                 </div>
                 <div>
                     <span aria-hidden="true">✓</span>
-                    <strong>Cancel anytime</strong>
-                    <small>No commitment</small>
+                    <strong>Free Trip Planner</strong>
+                    <small>Plan and save trips at no cost</small>
                 </div>
                 <div>
                     <span aria-hidden="true">☸</span>
@@ -310,7 +305,7 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=20260530-signup-trust-2"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=20260825-planning-first-copy"></script>
 
 </body>
 </html>

@@ -247,9 +247,9 @@
 
       btn.disabled = true;
       if (btnLabel) {
-        btnLabel.textContent = "Creating...";
+        btnLabel.textContent = "Creating Your Account…";
       } else {
-        btn.textContent = "Creating...";
+        btn.textContent = "Creating Your Account…";
       }
 
       try {
@@ -311,9 +311,9 @@
       } finally {
         btn.disabled = false;
         if (btnLabel) {
-          btnLabel.textContent = "Start My Free Account";
+          btnLabel.textContent = "Start Planning My Trip";
         } else {
-          btn.textContent = "Start My Free Account";
+          btn.textContent = "Start Planning My Trip";
         }
       }
     });

@@ -76,6 +76,132 @@ async function openJoin(page, storedValue) {
   await captureAnalytics(page);
 }
 
+test("Join presents the planning-first account copy and preserves the form contract", async ({ page }) => {
+  await openJoin(page);
+
+  await expect(page.locator(".fpw-signup-story-copy h1")).toHaveText(
+    "Plan the trip. Share the plan. Stay connected."
+  );
+  await expect(page.locator(".fpw-signup-story-copy p")).toHaveText(
+    "Use the free Boat Trip Planner to map your route and stops, calculate mileage, travel time, fuel, reserve, and cost, and prepare for the day on the water."
+  );
+
+  const benefitHeadings = page.locator(".fpw-signup-benefit strong");
+  await expect(benefitHeadings).toHaveText([
+    "Free Boat Trip Planner",
+    "Turn your trip into a float plan",
+    "Your first complete Premium trip is included",
+    "No credit card required"
+  ]);
+  await expect(page.locator(".fpw-signup-benefit > div > span")).toHaveText([
+    "Plan and save routes and stops, then see how speed and weather assumptions affect your trip estimates.",
+    "When departure approaches, reuse your saved trip and share clear details with your shore contact.",
+    "Try Active Cruise, monitoring, and private Trip/Follow access when you are ready to leave.",
+    "Create your free account without entering payment information."
+  ]);
+
+  await expect(page.locator(".fpw-signup-form-header h2")).toHaveText("Create your free FPW account");
+  await expect(page.locator(".fpw-signup-form-header p")).toHaveText([
+    "Start with the free Boat Trip Planner. Plot and save your route, calculate mileage, travel time, fuel, reserve, and cost, and adjust speed and weather assumptions before you leave.",
+    "When departure approaches, turn your saved trip into a float plan. Basic float-plan sending remains free, and every new member receives one complete Premium trip to try Active Cruise, monitoring, and private Trip/Follow access."
+  ]);
+  await expect(page.locator("#joinButton .fpw-submit-label")).toHaveText("Start Planning My Trip");
+  await expect(page.locator(".fpw-privacy-note p")).toHaveText(
+    "Your information stays with your FPW account and is used only for trip planning, float plans, monitoring, and account support."
+  );
+  await expect(page.locator(".fpw-signup-trust-strip strong")).toHaveText([
+    "Secure account",
+    "No credit card required",
+    "Free Trip Planner",
+    "Mobile-friendly"
+  ]);
+
+  for (const id of [
+    "website",
+    "firstName",
+    "lastName",
+    "email",
+    "password",
+    "confirmPassword",
+    "termsAccepted",
+    "joinButton"
+  ]) {
+    await expect(page.locator(`#${id}`)).toHaveCount(1);
+  }
+  await expect(page.locator("#joinForm")).toHaveCount(1);
+  await expect(page.locator('label[for="termsAccepted"] a')).toHaveText([
+    "Terms of Service",
+    "Privacy Policy"
+  ]);
+  await expect(page.locator(".fpw-login-link a")).toHaveText(["Log in", "Read the FAQ"]);
+  await expect(page.getByText("Route Generator", { exact: true })).toHaveCount(0);
+});
+
+test("Join uses the approved pending button label without changing signup behavior", async ({ page }) => {
+  await page.route("**/api/v1/join.cfc?method=handle", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ SUCCESS: true, AUTH: true, USERID: 1099, MESSAGE: "User created successfully." })
+    });
+  });
+  await openJoin(page);
+  await fillValidJoinForm(page);
+
+  await page.locator("#joinButton").click();
+  await expect(page.locator("#joinButton")).toBeDisabled();
+  await expect(page.locator("#joinButton .fpw-submit-label")).toHaveText("Creating Your Account…");
+  await expect(page.locator("#joinButton")).toBeEnabled();
+  await expect(page.locator("#joinButton .fpw-submit-label")).toHaveText("Start Planning My Trip");
+});
+
+test("Join keeps all benefits and the account form usable at supported layouts", async ({ page }) => {
+  const viewports = [
+    { width: 320, height: 844 },
+    { width: 390, height: 844 },
+    { width: 768, height: 900 },
+    { width: 1024, height: 900 },
+    { width: 1440, height: 1000 },
+    { width: 1366, height: 640 },
+    { width: 720, height: 450 }
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await openJoin(page);
+
+    const layout = await page.evaluate(() => {
+      const card = document.querySelector(".fpw-signup-card").getBoundingClientRect();
+      const panels = [
+        document.querySelector(".fpw-signup-form-panel"),
+        document.querySelector(".fpw-signup-story"),
+        document.querySelector(".fpw-signup-disclaimer")
+      ].map((element) => element.getBoundingClientRect());
+
+      return {
+        benefitCount: document.querySelectorAll(".fpw-signup-benefit").length,
+        trustCount: document.querySelectorAll(".fpw-signup-trust-strip > div").length,
+        hasForm: Boolean(document.querySelector("#joinForm")),
+        hasButton: Boolean(document.querySelector("#joinButton")),
+        horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        panelsInsideCard: panels.every((panel) => (
+          panel.left >= card.left - 1 && panel.right <= card.right + 1
+        ))
+      };
+    });
+
+    expect(layout).toEqual({
+      benefitCount: 4,
+      trustCount: 4,
+      hasForm: true,
+      hasButton: true,
+      horizontalOverflow: false,
+      panelsInsideCard: true
+    });
+  }
+});
+
 for (const landing of landingPages) {
   test(`${landing.name} signed-out CTA stores only its approved signup attribution`, async ({ page }) => {
     const response = await page.goto(landing.url, { waitUntil: "domcontentloaded" });
@@ -234,6 +360,67 @@ test("failed request preserves attribution and retry does not duplicate signup_s
   expect(await page.evaluate((key) => window.sessionStorage.getItem(key), storageKey)).toBeNull();
 });
 
+test("Join shows the exact server error and restores the planning button", async ({ page }) => {
+  const requests = await stubSignup(page, [{
+    status: 503,
+    body: { SUCCESS: false, MESSAGE: "Synthetic account service failure." }
+  }]);
+  await openJoin(page);
+  await fillValidJoinForm(page);
+
+  await page.locator("#joinButton").click();
+  await expect.poll(() => requests.length).toBe(1);
+
+  await expect(page.locator("#joinAlert")).toHaveText("Synthetic account service failure.");
+  await expect(page.locator("#joinAlert")).toHaveClass(/alert-danger/);
+  await expect(page.locator("#joinButton")).toBeEnabled();
+  await expect(page.locator("#joinButton .fpw-submit-label")).toHaveText("Start Planning My Trip");
+});
+
+test("duplicate email handling preserves the server message and entered email", async ({ page }) => {
+  const requests = await stubSignup(page, [{
+    status: 409,
+    body: {
+      SUCCESS: false,
+      MESSAGE: "That email is already registered.",
+      ERROR: "EMAIL_EXISTS"
+    }
+  }]);
+  await openJoin(page);
+  await fillValidJoinForm(page);
+
+  await page.locator("#joinButton").click();
+  await expect.poll(() => requests.length).toBe(1);
+
+  await expect(page.locator("#joinAlert")).toHaveText("That email is already registered.");
+  await expect(page.locator("#email")).toHaveValue("codex-attribution@example.com");
+  await expect(page.locator("#joinButton")).toBeEnabled();
+  await expect(page.locator("#joinButton .fpw-submit-label")).toHaveText("Start Planning My Trip");
+});
+
+test("confirmed signup honors the server-provided post-signup redirect", async ({ page }) => {
+  const redirectUrl = `${joinUrl}?signup-redirect-test=1`;
+  const requests = await stubSignup(page, [{
+    body: {
+      SUCCESS: true,
+      AUTH: true,
+      USERID: 1006,
+      MESSAGE: "User created successfully.",
+      redirectUrl
+    }
+  }]);
+  await openJoin(page);
+  await fillValidJoinForm(page);
+
+  await Promise.all([
+    page.waitForURL(redirectUrl),
+    page.locator("#joinButton").click()
+  ]);
+
+  expect(requests).toHaveLength(1);
+  expect(page.url()).toBe(redirectUrl);
+});
+
 test("non-auth success does not emit sign_up or clear attribution", async ({ page }) => {
   const attribution = landingPages[0].attribution;
   const requests = await stubSignup(page, [{
@@ -283,6 +470,9 @@ test("server source accepts only the approved tuples on sign_up metadata", () =>
   expect(joinSource).toContain('(landingKey EQ "great_loop_locks" AND sourceContentType EQ "seo_hub")');
   expect(joinSource).toContain('ctaType NEQ "plan_route"');
   expect(joinSource).toContain("metadata = signUpEventMetadata");
+  expect(joinSource).toContain('eventName = "sign_up"');
+  expect(joinSource).toContain('idempotencyKey = "sign_up:user:" & newUserId');
+  expect(eventServiceSource).toContain('definitions["sign_up"] = {');
   expect(eventServiceSource).toContain('landing_key = [ "boat_fuel_calculator", "great_loop_locks" ]');
   expect(eventServiceSource).toContain('source_content_type = [ "seo_tool", "seo_hub" ]');
   expect(eventServiceSource).toContain('cta_type = [ "plan_route" ]');

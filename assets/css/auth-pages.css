@@ -876,6 +876,30 @@
   }
 }
 
+@media (max-width: 340px) {
+  .fpw-public-form-page.fpw-signup-page .fpw-signup-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fpw-public-form-page.fpw-signup-page .fpw-signup-brand {
+    gap: 10px;
+  }
+
+  .fpw-public-form-page.fpw-signup-page .fpw-signup-story .fpw-brand__mark {
+    width: 44px;
+    height: 44px;
+  }
+
+  .fpw-public-form-page.fpw-signup-page .fpw-signup-story .fpw-brand__name {
+    font-size: 1.5rem;
+  }
+
+  .fpw-public-form-page.fpw-signup-page .fpw-signup-story .fpw-brand__tagline {
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+  }
+}
+
 @media (max-width: 480px) {
   .fpw-signup-trust-strip {
     grid-template-columns: 1fr;
