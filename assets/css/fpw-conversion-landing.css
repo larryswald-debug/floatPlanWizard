@@ -85,6 +85,10 @@ body.fpw-home-page {
   box-shadow: 0 12px 28px rgba(255, 197, 51, .26);
 }
 
+.fpw-hero .fpw-btn-primary {
+  color: #071529;
+}
+
 .fpw-btn-primary:hover {
   box-shadow: 0 18px 34px rgba(255, 197, 51, .33);
 }

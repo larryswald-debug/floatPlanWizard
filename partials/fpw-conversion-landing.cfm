@@ -35,18 +35,18 @@
     <section class="fpw-hero" aria-labelledby="fpwHeroTitle">
       <div class="fpw-container fpw-hero-inner">
         <div class="fpw-hero-copy">
-          <h1 id="fpwHeroTitle">Plan your cruise. Share the journey. Return safely.</h1>
-          <p>Build your route, organize your vessel and crew, create a complete float plan, and give friends and family a Trip Page for planned stops, estimated progress, latest check-ins, and trip updates.</p>
+          <h1 id="fpwHeroTitle">Plan the trip. Share the plan. Stay connected.</h1>
+          <p>Use the free Trip Planner to plot your route and stops and calculate mileage, travel time, fuel, reserve, and cost using your speed and weather assumptions. When departure approaches, turn your saved trip into a float plan and share a private Trip Page with family and friends.</p>
 
           <div class="fpw-hero-actions">
-            <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" data-fpw-track="homepage_hero_primary_cta_click" data-fpw-track-label="Plan Your Trip" data-fpw-track-section="hero"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Plan Your Trip</a>
+            <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" aria-label="Open the free FloatPlanWizard Trip Planner" data-fpw-track="homepage_hero_primary_cta_click" data-fpw-track-label="Plan Your Trip Free" data-fpw-track-section="hero"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Plan Your Trip Free</a>
             <a class="fpw-btn fpw-btn-secondary" href="#fpwProductPreview" data-fpw-open-preview="follow" data-fpw-track="homepage_hero_secondary_cta_click" data-fpw-track-label="See What Family Sees" data-fpw-track-section="hero"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-play"></use></svg>See What Family Sees</a>
           </div>
 
           <div class="fpw-trust-row" aria-label="Quick trust points">
             <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>No credit card required</span></div>
-            <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Route, weather, and fuel</span></div>
-            <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Private Trip Page</span></div>
+            <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Mileage, time, fuel, and cost</span></div>
+            <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>Float plan when you depart</span></div>
             <div class="fpw-trust-item"><span class="fpw-check-dot">✓</span><span>No account for followers</span></div>
           </div>
 
