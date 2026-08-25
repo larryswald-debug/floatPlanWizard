@@ -41,6 +41,7 @@ adminReportPages = [
     { "file" = "great-loop-locks.cfm", "label" = "Great Loop Locks" },
     { "file" = "great-loop-locks-import.cfm", "label" = "Great Loop Locks Import" },
     { "file" = "metar-seed-test.cfm", "label" = "METAR Seed Test" },
+    { "file" = "email-test.cfm", "label" = "Email Delivery Test" },
     { "file" = "raw-weather.cfm", "label" = "Raw Weather" },
     { "file" = "monitoring-dashboard.cfm", "label" = "Monitoring Dashboard" },
     { "file" = "promo-codes.cfm", "label" = "Promo Codes" },
