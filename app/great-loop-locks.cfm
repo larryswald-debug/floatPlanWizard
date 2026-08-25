@@ -17,9 +17,10 @@ if (structKeyExists(session, "user") AND isStruct(session.user)) {
 fpwLocksCtaSignedIn = fpwLocksCtaUserId GT 0;
 fpwCtaConfig = {
   "id" = "great-loop-locks-plan-route-cta",
-  "headline" = "Planning your Great Loop route?",
-  "supportingText" = "Use FloatPlanWizard to organize your route, stops, timing, and trip details.",
-  "buttonLabel" = "Plan a Route",
+  "headline" = "Plan your Great Loop trip for free",
+  "supportingText" = "Plot your route and stops, calculate mileage, travel time, fuel, reserve, and cost, and adjust speed and weather assumptions as you plan.",
+  "secondaryText" = "Free account required to save your trip.",
+  "buttonLabel" = "Plan My Trip Free",
   "destinationUrl" = request.fpwBase & (fpwLocksCtaSignedIn ? "/app/dashboard.cfm" : "/app/join.cfm"),
   "ctaType" = "plan_route",
   "sourcePage" = "great_loop_locks",
@@ -27,7 +28,7 @@ fpwCtaConfig = {
   "authState" = fpwLocksCtaSignedIn ? "signed_in" : "signed_out",
   "destinationKey" = fpwLocksCtaSignedIn ? "dashboard" : "join",
   "analyticsEvent" = "great_loop_locks_plan_route_cta_click",
-  "ariaLabel" = "Plan a Route with FloatPlanWizard from the Great Loop Locks hub"
+  "ariaLabel" = "Open the free FloatPlanWizard Trip Planner for this Great Loop trip"
 };
 filters = {
   "q" = structKeyExists(url, "q") ? trim(toString(url.q)) : "",
@@ -361,7 +362,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/fpw-action-cta.css?v=20260804-pilot">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260814-safety-resources">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260825-trip-planner-cta">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -402,6 +403,7 @@ if (isCleanLockRoute AND taxonomyType NEQ "not-found") {
   <cfif isLockHubRoute>
     <div class="fpw-lock-cta">
       <cfinclude template="../partials/fpw-action-cta.cfm">
+      <p class="fpw-lock-cta__supporting-note"><cfoutput>#encodeForHTML(fpwCtaConfig.secondaryText)#</cfoutput></p>
     </div>
 
     <aside class="fpw-lock-safety-resources" aria-label="Related boating safety resources">

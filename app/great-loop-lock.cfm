@@ -6,6 +6,19 @@
 <cfscript>
 request.fpwTopNavActive = "great-loop-locks";
 slugValue = structKeyExists(url, "slug") ? trim(toString(url.slug)) : "";
+fpwLockDetailCtaUserId = 0;
+if (structKeyExists(session, "user") AND isStruct(session.user)) {
+  for (fpwLockDetailCtaUserIdKey in [ "userId", "id", "USERID", "ID" ]) {
+    if (structKeyExists(session.user, fpwLockDetailCtaUserIdKey) AND isNumeric(session.user[fpwLockDetailCtaUserIdKey])) {
+      fpwLockDetailCtaUserId = val(session.user[fpwLockDetailCtaUserIdKey]);
+      break;
+    }
+  }
+}
+fpwLockDetailCtaSignedIn = fpwLockDetailCtaUserId GT 0;
+fpwLockDetailCtaDestinationUrl = request.fpwBase & (fpwLockDetailCtaSignedIn ? "/app/dashboard.cfm" : "/app/join.cfm");
+fpwLockDetailCtaAuthState = fpwLockDetailCtaSignedIn ? "signed_in" : "signed_out";
+fpwLockDetailCtaDestinationKey = fpwLockDetailCtaSignedIn ? "dashboard" : "join";
 
 try {
   lockSvc = createObject("component", "api.v1.GreatLoopLocksService").init();
@@ -213,7 +226,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260814-detail-context-links-v3">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260825-lock-detail-trip-planner-cta">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -319,6 +332,31 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
           </cfif>
         </section>
 
+        <section class="fpw-lock-panel fpw-lock-detail-trip-cta" aria-labelledby="fpwLockDetailTripCtaTitle">
+          <div class="fpw-lock-detail-trip-cta__content">
+            <h3 id="fpwLockDetailTripCtaTitle">Planning your Great Loop trip?</h3>
+            <p>Use the free FPW Trip Planner to plot your route and stops, calculate mileage, travel time, fuel, reserve, and cost, and adjust speed and weather assumptions.</p>
+          </div>
+          <div class="fpw-lock-detail-trip-cta__action">
+            <a
+              class="fpw-cta fpw-cta-primary"
+              href="<cfoutput>#encodeForHTMLAttribute(fpwLockDetailCtaDestinationUrl)#</cfoutput>"
+              aria-label="Open the free FloatPlanWizard Trip Planner"
+              data-fpw-action-cta
+              data-fpw-track="great_loop_locks_plan_route_cta_click"
+              data-fpw-track-source-page="great_loop_locks"
+              data-fpw-track-section="lock_detail_main"
+              data-fpw-track-cta-type="plan_route"
+              data-fpw-track-label="Plan My Trip Free"
+              data-fpw-track-auth-state="<cfoutput>#encodeForHTMLAttribute(fpwLockDetailCtaAuthState)#</cfoutput>"
+              data-fpw-track-destination-key="<cfoutput>#encodeForHTMLAttribute(fpwLockDetailCtaDestinationKey)#</cfoutput>">
+              <span>Plan My Trip Free</span>
+              <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
+            </a>
+            <p class="fpw-lock-detail-trip-cta__note">Free account required to save your trip.</p>
+          </div>
+        </section>
+
         <div class="fpw-lock-detail-grid">
           <aside class="fpw-lock-panel fpw-lock-snapshot">
             <h3>Boater Snapshot</h3>
@@ -380,9 +418,26 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
         </section>
 
         <section class="fpw-lock-panel fpw-lock-plan-panel">
-          <h3>Plan With FPW</h3>
-          <p>Add lock planning context to your route and account for lock delays in your float plan.</p>
-          <a class="fpw-lock-btn fpw-lock-btn--primary fpw-lock-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Plan Your Route</a>
+          <h3>Plan your Great Loop trip</h3>
+          <p class="fpw-lock-plan-panel__body">Plot your route and stops, then calculate mileage, travel time, fuel, reserve, and cost with the free FPW Trip Planner.</p>
+          <div class="fpw-lock-plan-panel__action">
+            <a
+              class="fpw-cta fpw-cta-primary"
+              href="<cfoutput>#encodeForHTMLAttribute(fpwLockDetailCtaDestinationUrl)#</cfoutput>"
+              aria-label="Open the free FloatPlanWizard Trip Planner"
+              data-fpw-action-cta
+              data-fpw-track="great_loop_locks_plan_route_cta_click"
+              data-fpw-track-source-page="great_loop_locks"
+              data-fpw-track-section="lock_detail_sidebar"
+              data-fpw-track-cta-type="plan_route"
+              data-fpw-track-label="Plan My Trip Free"
+              data-fpw-track-auth-state="<cfoutput>#encodeForHTMLAttribute(fpwLockDetailCtaAuthState)#</cfoutput>"
+              data-fpw-track-destination-key="<cfoutput>#encodeForHTMLAttribute(fpwLockDetailCtaDestinationKey)#</cfoutput>">
+              <span>Plan My Trip Free</span>
+              <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
+            </a>
+            <p class="fpw-lock-plan-panel__note">Free account required to save your trip.</p>
+          </div>
         </section>
 
         <section class="fpw-lock-panel fpw-lock-related-resources" aria-labelledby="fpwLockRelatedResourcesTitle">
@@ -450,6 +505,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
 <cfif detailModel.SUCCESS>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260619-nautical-charts"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/fpw-action-cta.js?v=20260825-lock-detail-trip-planner"></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/great-loop-locks.js?v=20260619-noaa-charts"></script>
 </cfif>
 </body>
