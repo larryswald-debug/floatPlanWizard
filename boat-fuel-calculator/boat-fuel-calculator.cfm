@@ -134,9 +134,9 @@ if (structKeyExists(session, "user") AND isStruct(session.user)) {
 fpwFuelCtaSignedIn = fpwFuelCtaUserId GT 0;
 fpwCtaConfig = {
   "id" = "boat-fuel-calculator-plan-route-cta",
-  "headline" = "Turn your fuel estimate into a trip plan",
-  "supportingText" = "Use FloatPlanWizard to organize your route, stops, schedule, vessel details, and shore contact.",
-  "buttonLabel" = "Plan a Route",
+  "headline" = "Turn this fuel estimate into a complete trip plan",
+  "supportingText" = "Plan the route and stops, then recalculate mileage, travel time, fuel, reserve, and cost from the saved route. When departure approaches, turn the trip into a float plan. Free account required to save a trip.",
+  "buttonLabel" = "Plan This Trip Free",
   "destinationUrl" = fpwFuelCtaSignedIn ? "../app/dashboard.cfm" : "../app/join.cfm",
   "ctaType" = "plan_route",
   "sourcePage" = "boat_fuel_calculator",
@@ -144,7 +144,7 @@ fpwCtaConfig = {
   "authState" = fpwFuelCtaSignedIn ? "signed_in" : "signed_out",
   "destinationKey" = fpwFuelCtaSignedIn ? "dashboard" : "join",
   "analyticsEvent" = "boat_fuel_calculator_plan_route_cta_click",
-  "ariaLabel" = "Plan a Route with FloatPlanWizard from the Boat Fuel Calculator results"
+  "ariaLabel" = "Plan this trip free with FloatPlanWizard from the Boat Fuel Calculator results"
 };
 </cfscript>
 
@@ -503,6 +503,27 @@ fpwCtaConfig = {
       font-size: 0.92rem;
       font-weight: 700;
       line-height: 1.25;
+    }
+
+    .fpw-trip-planner-helper {
+      grid-column: 2;
+      margin: -4px 0 0;
+      color: var(--fuel-soft);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .fpw-trip-planner-helper a {
+      color: #7df7f0;
+      font-weight: 800;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    .fpw-trip-planner-helper a:hover,
+    .fpw-trip-planner-helper a:focus-visible {
+      color: #ffffff;
     }
 
     .fpw-label-row {
@@ -1627,6 +1648,10 @@ fpwCtaConfig = {
         gap: 8px;
       }
 
+      .fpw-trip-planner-helper {
+        grid-column: 1;
+      }
+
       .field-note {
         grid-column: 1;
       }
@@ -1680,57 +1705,6 @@ fpwCtaConfig = {
       <div class="fpw-compact-tool-hero__image" aria-hidden="true"></div>
     </section>
 
-    <section class="fpw-fuel-why" aria-labelledby="why-fuel-planning-title">
-      <div class="fpw-section-rule">
-        <span></span>
-        <h2 id="why-fuel-planning-title">Why Fuel Planning Matters</h2>
-        <span></span>
-      </div>
-
-      <div class="fpw-why-grid">
-        <article class="fpw-why-card">
-          <div class="fpw-card-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" focusable="false">
-              <path d="M16 3 27 7v8c0 7-4.7 11.8-11 14-6.3-2.2-11-7-11-14V7z"></path>
-              <path d="m10.8 15.8 3.2 3.2 7.4-8"></path>
-            </svg>
-          </div>
-          <div>
-            <h3>Safety First</h3>
-            <p>Running out of fuel isn&rsquo;t an option. Plan ahead and stay in control.</p>
-          </div>
-        </article>
-
-        <article class="fpw-why-card">
-          <div class="fpw-card-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" focusable="false">
-              <path d="M10 23H8a5 5 0 0 1 0-10 8 8 0 0 1 15.5-2A6 6 0 0 1 24 23h-2"></path>
-              <path d="m17 14-5 8h5l-2 6 6-10h-5z"></path>
-            </svg>
-          </div>
-          <div>
-            <h3>Weather Changes Everything</h3>
-            <p>Wind, current, and sea state can significantly impact fuel burn.</p>
-          </div>
-        </article>
-
-        <article class="fpw-why-card">
-          <div class="fpw-card-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" focusable="false">
-              <path d="M8 29V4h12a4 4 0 0 1 4 4v21"></path>
-              <path d="M8 13h16"></path>
-              <path d="M24 10h2l3 4v10a3 3 0 0 1-3 3h-2"></path>
-              <path d="M13 7h5"></path>
-            </svg>
-          </div>
-          <div>
-            <h3>Plan With Reserve</h3>
-            <p>Build in reserve so you have options when conditions or plans change.</p>
-          </div>
-        </article>
-      </div>
-    </section>
-
     <section class="fpw-fuel-calculator-panel" aria-labelledby="fuel-planning-inputs-title">
       <div class="fpw-panel-heading">
         <h2 id="fuel-planning-inputs-title">Fuel Planning Inputs</h2>
@@ -1747,10 +1721,13 @@ fpwCtaConfig = {
               <button type="button" class="fpw-help" aria-label="More information about Total Distance" aria-expanded="false" aria-describedby="tip-totalNm" data-tooltip-target="tip-totalNm">?</button>
             </div>
             <span class="fpw-field__control">
-              <input id="totalNm" name="totalNm" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Enter nautical miles">
+              <input id="totalNm" name="totalNm" type="number" inputmode="decimal" step="0.1" min="0" value="" placeholder="Enter nautical miles" aria-describedby="trip-planner-distance-helper">
               <em class="fpw-field__unit">NM</em>
             </span>
             <div class="fpw-tooltip" id="tip-totalNm" role="tooltip">Total trip distance used to estimate total run time and fuel needed. Greater distance increases fuel use.</div>
+            <p class="fpw-trip-planner-helper" id="trip-planner-distance-helper">
+              Need the route distance first? <a href="<cfoutput>#encodeForHTMLAttribute(fpwCtaConfig.destinationUrl)#</cfoutput>">Plot your route in the free Trip Planner.</a>
+            </p>
           </div>
 
           <div class="field fpw-field">
@@ -2009,6 +1986,57 @@ fpwCtaConfig = {
     </section>
 
     <cfinclude template="../partials/fpw-action-cta.cfm">
+
+    <section class="fpw-fuel-why" aria-labelledby="why-fuel-planning-title">
+      <div class="fpw-section-rule">
+        <span></span>
+        <h2 id="why-fuel-planning-title">Why Fuel Planning Matters</h2>
+        <span></span>
+      </div>
+
+      <div class="fpw-why-grid">
+        <article class="fpw-why-card">
+          <div class="fpw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M16 3 27 7v8c0 7-4.7 11.8-11 14-6.3-2.2-11-7-11-14V7z"></path>
+              <path d="m10.8 15.8 3.2 3.2 7.4-8"></path>
+            </svg>
+          </div>
+          <div>
+            <h3>Safety First</h3>
+            <p>Running out of fuel isn&rsquo;t an option. Plan ahead and stay in control.</p>
+          </div>
+        </article>
+
+        <article class="fpw-why-card">
+          <div class="fpw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M10 23H8a5 5 0 0 1 0-10 8 8 0 0 1 15.5-2A6 6 0 0 1 24 23h-2"></path>
+              <path d="m17 14-5 8h5l-2 6 6-10h-5z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3>Weather Changes Everything</h3>
+            <p>Wind, current, and sea state can significantly impact fuel burn.</p>
+          </div>
+        </article>
+
+        <article class="fpw-why-card">
+          <div class="fpw-card-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" focusable="false">
+              <path d="M8 29V4h12a4 4 0 0 1 4 4v21"></path>
+              <path d="M8 13h16"></path>
+              <path d="M24 10h2l3 4v10a3 3 0 0 1-3 3h-2"></path>
+              <path d="M13 7h5"></path>
+            </svg>
+          </div>
+          <div>
+            <h3>Plan With Reserve</h3>
+            <p>Build in reserve so you have options when conditions or plans change.</p>
+          </div>
+        </article>
+      </div>
+    </section>
 
     <div class="fpw-fuel-guide" aria-label="Boat fuel consumption guide">
       <section class="fpw-guide-section" aria-labelledby="fuel-use-per-hour-title">

@@ -395,10 +395,25 @@ test("metadata, structured data, accessible input, responsive layout, and reusab
   expect(schema["@graph"].some((entity) => entity.aggregateRating || entity.review || entity.offers)).toBe(false);
 
   await expect(page.locator("#boat-fuel-calculator-plan-route-cta")).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Turn your fuel estimate into a trip plan" })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Turn this fuel estimate into a complete trip plan" })).toHaveCount(1);
+  await expect(page.locator("#boat-fuel-calculator-plan-route-cta")).toContainText(
+    "Plan the route and stops, then recalculate mileage, travel time, fuel, reserve, and cost from the saved route. When departure approaches, turn the trip into a float plan. Free account required to save a trip."
+  );
+  const distanceHelper = page.locator("#trip-planner-distance-helper");
+  await expect(distanceHelper).toHaveText("Need the route distance first? Plot your route in the free Trip Planner.");
+  await expect(distanceHelper.getByRole("link", { name: "Plot your route in the free Trip Planner." })).toHaveAttribute("href", "../app/join.cfm");
+  const pageSectionOrder = await page.locator("main > section, main > .fpw-fuel-guide").evaluateAll((elements) =>
+    elements.map((element) => element.id || element.className)
+  );
+  expect(pageSectionOrder.indexOf("boat-fuel-calculator-plan-route-cta")).toBeLessThan(
+    pageSectionOrder.indexOf("fpw-fuel-why")
+  );
+  expect(pageSectionOrder.indexOf("fpw-fuel-why")).toBeLessThan(
+    pageSectionOrder.indexOf("fpw-fuel-guide")
+  );
   const cta = page.locator("#boat-fuel-calculator-plan-route-cta [data-fpw-action-cta]");
   await expect(cta).toHaveCount(1);
-  await expect(cta).toHaveText(/Plan a Route/);
+  await expect(cta).toHaveText(/Plan This Trip Free/);
   await expect(cta).toHaveAttribute("data-fpw-track", "boat_fuel_calculator_plan_route_cta_click");
   await expect(cta).toHaveAttribute("data-fpw-track-source-page", "boat_fuel_calculator");
   await expect(cta).toHaveAttribute("data-fpw-track-section", "calculator_results");
@@ -423,7 +438,7 @@ test("metadata, structured data, accessible input, responsive layout, and reusab
       source_page: "boat_fuel_calculator",
       section: "calculator_results",
       cta_type: "plan_route",
-      label: "Plan a Route",
+      label: "Plan This Trip Free",
       auth_state: "signed_out",
       destination_key: "join"
     }
