@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const testsDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(testsDir, "..");
 const partial = fs.readFileSync(path.join(root, "partials/fpw-conversion-landing.cfm"), "utf8");
+const homepage = fs.readFileSync(path.join(root, "index.cfm"), "utf8");
 const css = fs.readFileSync(path.join(root, "assets/css/fpw-conversion-landing.css"), "utf8");
 const landingJs = fs.readFileSync(path.join(root, "assets/js/fpw-conversion-landing.js"), "utf8");
 const entitlement = fs.readFileSync(path.join(root, "api/v1/MemberEntitlementService.cfc"), "utf8");
@@ -115,6 +116,7 @@ test("existing CSS and analytics implementation retain the hero presentation and
   assert.match(css, /\.fpw-hero\s*\{[\s\S]*?min-height:\s*360px;[\s\S]*?background:\s*#04152f;/);
   assert.match(css, /\.fpw-hero-copy h1\s*\{[\s\S]*?font-size:\s*clamp\(38px, 4\.1vw, 48px\);/);
   assert.match(css, /\.fpw-hero \.fpw-btn-primary\s*\{[\s\S]*?color:\s*#071529;/);
+  assert.match(homepage, /fpw-conversion-landing\.css\?v=20260825-homepage-trip-planner-hero/);
   assert.match(css, /\.fpw-trust-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/);
   assert.match(css, /@media \(max-width:\s*720px\)[\s\S]*?\.fpw-hero-copy h1\s*\{[\s\S]*?font-size:\s*31px;/);
   assert.match(css, /@media \(max-width:\s*720px\)[\s\S]*?\.fpw-trust-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
