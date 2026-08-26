@@ -741,6 +741,10 @@ fpwCtaConfig = {
       color: var(--fuel-muted);
     }
 
+    #requiredEfficientInputsMsg {
+      display: none;
+    }
+
     .msg.warn strong,
     .msg.warn ul {
       color: var(--fuel-text);
