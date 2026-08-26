@@ -154,7 +154,7 @@ fpwCtaConfig = {
 
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Free Boat Fuel Calculator – Fuel Needed, Range & Trip Cost</title>
+  <title>Free Boat Fuel Calculator &#8211; Fuel Needed, Range & Trip Cost</title>
 
 <meta name="description" content="Free boat fuel calculator. Enter trip distance, cruising speed and fuel burn to estimate gallons needed, safe reserve, cruising range, travel time and trip cost.">
 
@@ -711,6 +711,11 @@ fpwCtaConfig = {
       align-items: center;
       margin-top: 20px;
       padding: 14px 18px;
+    }
+
+    #qaFuelCalcForm > .fpw-fuel-note {
+      grid-column: 1 / -1;
+      margin-top: 0;
     }
 
     .fpw-fuel-note span {
@@ -1697,9 +1702,6 @@ fpwCtaConfig = {
         <p class="fpw-compact-tool-hero__intro">
           Calculate the fuel required for your trip, safe reserve, cruising range, travel time and estimated cost using your boat's actual fuel burn.
         </p>
-        <p class="fpw-compact-tool-hero__intent">
-          Use the boat fuel calculator to estimate how many gallons of fuel you'll need for a trip based on distance, cruising speed and your boat's gallons-per-hour fuel burn.
-        </p>
         <p class="fpw-compact-tool-hero__accent">Free. No account required.</p>
       </div>
       <div class="fpw-compact-tool-hero__image" aria-hidden="true"></div>
@@ -1900,10 +1902,11 @@ fpwCtaConfig = {
             <div class="fpw-tooltip" id="tip-fuelPricePerGal" role="tooltip">Used only to estimate fuel cost. It does not change the fuel burn calculation itself.</div>
           </div>
 
-          <div class="fpw-fuel-note">
-            <span aria-hidden="true">i</span>
-            <p>Estimated range is a planning value. Actual range can vary with sea conditions, current, wind, vessel load, engine condition, throttle use, and the amount of fuel that is practically usable.</p>
-          </div>
+        </div>
+
+        <div class="fpw-fuel-note">
+          <span aria-hidden="true">i</span>
+          <p>Estimated range is a planning value. Actual range can vary with sea conditions, current, wind, vessel load, engine condition, throttle use, and the amount of fuel that is practically usable.</p>
         </div>
       </form>
 

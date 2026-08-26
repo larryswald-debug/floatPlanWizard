@@ -310,7 +310,7 @@ test("metadata, structured data, accessible input, responsive layout, and reusab
     await expect(page.locator("h1")).toHaveText("Boat Fuel Calculator");
     await expect(page.getByRole("heading", { level: 2, name: expectedSupportingHeading, exact: true })).toBeVisible();
     await expect(page.getByText(expectedIntro, { exact: true })).toBeVisible();
-    await expect(page.getByText(expectedIntent, { exact: true })).toBeVisible();
+    await expect(page.getByText(expectedIntent, { exact: true })).toHaveCount(0);
     await expect(page.getByText("Free. No account required.", { exact: true })).toBeVisible();
     await expect(page.locator(".fpw-fuel-calculator-panel")).toBeVisible();
 
