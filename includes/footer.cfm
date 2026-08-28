@@ -172,6 +172,11 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
     font-size: 0.95rem;
   }
 
+  .fpw-footer-col,
+  .fpw-footer-col a {
+    min-width: 0;
+  }
+
   .fpw-footer-col h3 {
     margin: 0 0 12px;
     color: #ffffff;
@@ -192,7 +197,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
     display: grid;
     grid-template-rows: repeat(7, max-content);
     grid-auto-flow: column;
-    grid-auto-columns: max-content;
+    grid-auto-columns: minmax(0, 1fr);
     column-gap: 32px;
     row-gap: 0;
     align-items: start;
@@ -202,7 +207,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
     display: grid;
     grid-template-rows: repeat(4, max-content);
     grid-auto-flow: column;
-    grid-auto-columns: max-content;
+    grid-auto-columns: minmax(0, 1fr);
     column-gap: 32px;
     row-gap: 0;
     align-items: start;
