@@ -236,6 +236,160 @@
         </cftry>
     </cffunction>
 
+    <cffunction name="sendDepartureReminderEmail" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="floatPlanName" type="string" required="false" default="">
+        <cfargument name="scheduledDepartureLabel" type="string" required="true">
+        <cfargument name="departureTimezone" type="string" required="true">
+        <cfargument name="reminderType" type="string" required="true">
+
+        <cfset var result = {
+            success = false,
+            messageType = "DEPARTURE_REMINDER",
+            errorCode = "",
+            message = ""
+        }>
+        <cfset var toAddress = lCase(trim(arguments.toEmail))>
+        <cfset var reminderTypeValue = uCase(trim(arguments.reminderType))>
+        <cfset var emailMessage = {}>
+
+        <cfif int(arguments.userId) LTE 0 OR int(arguments.floatPlanId) LTE 0>
+            <cfset result.errorCode = "INVALID_TRIP_OWNER">
+            <cfset result.message = "Departure reminder trip ownership is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT isValid("email", toAddress)>
+            <cfset result.errorCode = "INVALID_RECIPIENT">
+            <cfset result.message = "Departure reminder recipient is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT listFindNoCase("PRE_DEPARTURE,NOT_STARTED", reminderTypeValue)>
+            <cfset result.errorCode = "INVALID_REMINDER_TYPE">
+            <cfset result.message = "Departure reminder type is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT len(trim(arguments.scheduledDepartureLabel)) OR NOT len(trim(arguments.departureTimezone))>
+            <cfset result.errorCode = "INVALID_DEPARTURE_TIME">
+            <cfset result.message = "Departure reminder schedule is invalid.">
+            <cfreturn result>
+        </cfif>
+
+        <cftry>
+            <cfset emailMessage = buildDepartureReminderEmail(
+                floatPlanId = arguments.floatPlanId,
+                floatPlanName = arguments.floatPlanName,
+                scheduledDepartureLabel = arguments.scheduledDepartureLabel,
+                departureTimezone = arguments.departureTimezone,
+                reminderType = reminderTypeValue
+            )>
+            <cfset sendMultipartEmail(
+                toEmail = toAddress,
+                subject = emailMessage.subject,
+                htmlBody = emailMessage.htmlBody,
+                textBody = emailMessage.textBody,
+                spoolEnable = false,
+                rethrowOnFailure = true
+            )>
+            <cfset result.success = true>
+            <cfset result.messageType = "DEPARTURE_REMINDER_" & reminderTypeValue>
+            <cfset result.message = "Departure reminder accepted for delivery.">
+            <cfreturn result>
+
+            <cfcatch type="any">
+                <cfset logSafeEmailFailure(
+                    messageType = "DEPARTURE_REMINDER_" & reminderTypeValue,
+                    userId = arguments.userId,
+                    toEmail = toAddress,
+                    exceptionType = (structKeyExists(cfcatch, "type") ? cfcatch.type : "any")
+                )>
+                <cfset result.errorCode = "SEND_FAILED">
+                <cfset result.message = "The departure reminder could not be sent.">
+                <cfreturn result>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
+    <cffunction name="buildDepartureReminderEmail" access="private" returntype="struct" output="false">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="floatPlanName" type="string" required="false" default="">
+        <cfargument name="scheduledDepartureLabel" type="string" required="true">
+        <cfargument name="departureTimezone" type="string" required="true">
+        <cfargument name="reminderType" type="string" required="true">
+
+        <cfset var config = getEmailConfig()>
+        <cfset var reminderTypeValue = uCase(trim(arguments.reminderType))>
+        <cfset var planName = cleanDepartureReminderTextValue(arguments.floatPlanName)>
+        <cfset var departureLabel = cleanDepartureReminderTextValue(arguments.scheduledDepartureLabel)>
+        <cfset var timezoneLabel = cleanDepartureReminderTextValue(arguments.departureTimezone)>
+        <cfset var ctaPath = "/app/active-cruise.cfm?floatPlanId=" & int(arguments.floatPlanId)>
+        <cfset var ctaUrl = reReplace(config.publicBaseUrl, "/+$", "") & ctaPath>
+        <cfset var subject = "">
+        <cfset var textLines = []>
+        <cfset var textBody = "">
+        <cfset var htmlContent = "">
+        <cfset var htmlBody = "">
+        <cfset var complianceFooter = buildEmailComplianceFooter(footerType = "service")>
+
+        <cfif NOT len(planName)>
+            <cfset planName = "Your FloatPlanWizard trip">
+        </cfif>
+
+        <cfif reminderTypeValue EQ "PRE_DEPARTURE">
+            <cfset subject = "Your FloatPlanWizard trip is coming up">
+            <cfset textLines = [
+                "Hello,",
+                "",
+                planName & " is scheduled to depart " & departureLabel & " (" & timezoneLabel & ").",
+                "",
+                "This is a reminder that your scheduled departure is coming up.",
+                "",
+                "Open Active Cruise:",
+                ctaUrl
+            ]>
+            <cfsavecontent variable="htmlContent"><cfoutput>
+<p style="margin:0 0 16px 0;">Hello,</p>
+<p style="margin:0 0 16px 0;"><strong>#encodeForHtml(planName)#</strong> is scheduled to depart <strong>#encodeForHtml(departureLabel)# (#encodeForHtml(timezoneLabel)#)</strong>.</p>
+<p style="margin:0 0 22px 0;">This is a reminder that your scheduled departure is coming up.</p>
+<p style="margin:0;"><a href="#encodeForHtmlAttribute(ctaUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">Open Active Cruise</a></p>
+#complianceFooter.htmlBody#
+            </cfoutput></cfsavecontent>
+        <cfelse>
+            <cfset subject = "Your scheduled trip has not started yet">
+            <cfset textLines = [
+                "Hello,",
+                "",
+                "The scheduled departure for " & planName & " was " & departureLabel & " (" & timezoneLabel & ").",
+                "",
+                "FPW has not recorded an actual trip start.",
+                "If your plans changed, review the trip. If you are leaving now, open Active Cruise to start or manage it.",
+                "",
+                "Open Active Cruise:",
+                ctaUrl
+            ]>
+            <cfsavecontent variable="htmlContent"><cfoutput>
+<p style="margin:0 0 16px 0;">Hello,</p>
+<p style="margin:0 0 16px 0;">The scheduled departure for <strong>#encodeForHtml(planName)#</strong> was <strong>#encodeForHtml(departureLabel)# (#encodeForHtml(timezoneLabel)#)</strong>.</p>
+<p style="margin:0 0 12px 0;">FPW has not recorded an actual trip start.</p>
+<p style="margin:0 0 22px 0;">If your plans changed, review the trip. If you are leaving now, open Active Cruise to start or manage it.</p>
+<p style="margin:0;"><a href="#encodeForHtmlAttribute(ctaUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">Open Active Cruise</a></p>
+#complianceFooter.htmlBody#
+            </cfoutput></cfsavecontent>
+        </cfif>
+
+        <cfset textBody = arrayToList(textLines, chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
+        <cfset htmlBody = renderBaseEmailLayout(title = subject, bodyHtml = htmlContent)>
+        <cfreturn {
+            subject = subject,
+            textBody = textBody,
+            htmlBody = htmlBody,
+            ctaPath = ctaPath,
+            ctaUrl = ctaUrl,
+            reminderType = reminderTypeValue
+        }>
+    </cffunction>
+
     <cffunction name="buildWelcomeMemberEmail" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="toEmail" type="string" required="true">
@@ -695,6 +849,12 @@
         <cfreturn arguments.defaultDashboardUrl>
     </cffunction>
 
+    <cffunction name="cleanDepartureReminderTextValue" access="private" returntype="string" output="false">
+        <cfargument name="value" type="string" required="false" default="">
+
+        <cfreturn reReplace(trim(arguments.value), "[\r\n\t]+", " ", "all")>
+    </cffunction>
+
     <cffunction name="cleanTextValue" access="private" returntype="string" output="false">
         <cfargument name="value" type="string" required="false" default="">
 
@@ -724,4 +884,3 @@
     </cffunction>
 
 </cfcomponent>
-

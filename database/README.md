@@ -150,6 +150,33 @@ does not create the ColdFusion scheduled task; production scheduling is a
 separate operator action. Request-time authorization still enforces the exact
 database UTC expiration boundary between scheduled runs.
 
+## Day 36 departure reminders
+
+After migration `20260831_001_departure_reminder_deliveries` and the matching
+application release are deployed, configure a production ColdFusion scheduled
+task to request this token-protected endpoint every 15 minutes:
+
+```text
+/app/scheduled/run-departure-reminders.cfm?token=<production monitor token>
+```
+
+The endpoint uses the existing application monitor token, defaults to a bounded
+batch of 100, and accepts an optional `limit` from 1 through 500. Each reminder
+has a 30-minute due window: the pre-departure occurrence opens two hours before
+the persisted UTC departure, and the not-started occurrence opens 30 minutes
+after it. The delivery ledger and its unique occurrence key prevent repeated or
+concurrent scheduler runs from sending the same reminder for the same scheduled
+departure. A materially changed `departureTimeUTC` creates a new occurrence.
+Known failed sends may be reclaimed only while the occurrence window remains
+open and only up to three total attempts. A `CLAIMED` delivery is never
+automatically reclaimed, because SMTP may have accepted the message before an
+interrupted worker recorded `SENT`.
+
+Keep the token out of the repository, deployment logs, and validation output.
+Repository code does not create the ColdFusion scheduled task; production
+scheduling remains a separate operator action. Do not enable this task until the
+ledger migration and matching application release are both live.
+
 Rollback is destructive to the new lifecycle metadata. First place Premium
 Save & Send and all trip-lifecycle request paths in maintenance, drain in-flight
 requests, and stop the expiration task. While that traffic remains quiesced,
