@@ -99,7 +99,7 @@ test("Resources uses the approved two-column taxonomy with a linked Boating Safe
   assert.match(resourcesBlock, /Why Use a Float Plan/);
   assert.match(resourcesBlock, /href="#topNavHowHref#"/);
   assert.match(resourcesBlock, /#topNavBasePath#\/faq\//);
-  assert.equal(count(resourcesBlock, /#topNavBasePath#\/why-use-a-float-plan\//g), 1);
+  assert.equal(count(resourcesBlock, /#topNavBasePath#\/why-use-a-float-plan\.cfm/g), 1);
   assert.doesNotMatch(resourcesBlock, /Float Plan Basics/);
   assert.doesNotMatch(resourcesBlock, /Delayed vs\.|Captain and Shore Contact Checklist/);
 });

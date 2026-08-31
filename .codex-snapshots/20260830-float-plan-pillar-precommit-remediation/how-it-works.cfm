@@ -38,8 +38,7 @@ fpwHowFaqItems = [
     "question": "What is a float plan?",
     "answer": [
       "A float plan is a written record of your boating trip. It usually includes your vessel information, passengers, departure point, destination, expected return time, route notes, emergency contacts, and instructions for what someone should do if you are overdue.",
-      "FloatPlanWizard helps you create a more organized digital float plan that can be updated and shared with trusted family and friends.",
-      "Learn more in our complete Float Plan Guide."
+      "FloatPlanWizard helps you create a more organized digital float plan that can be updated and shared with trusted family and friends."
     ]
   },
   {
@@ -778,13 +777,6 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
       margin-top: 12px;
     }
 
-    body.fpw-how-body .fpw-faq-answer a {
-      color: #95f8ff;
-      text-decoration: underline;
-      text-decoration-thickness: 1px;
-      text-underline-offset: 3px;
-    }
-
     .fpw-faq-full-link {
       display: flex;
       justify-content: center;
@@ -1216,7 +1208,6 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         <div class="fpw-faq-answer" id="fpw-faq-answer-what-is-a-float-plan" role="region" aria-labelledby="fpw-faq-question-what-is-a-float-plan" hidden>
           <p>A float plan is a written record of your boating trip. It usually includes your vessel information, passengers, departure point, destination, expected return time, route notes, emergency contacts, and instructions for what someone should do if you are overdue.</p>
           <p>FloatPlanWizard helps you create a more organized digital float plan that can be updated and shared with trusted family and friends.</p>
-          <p>Learn more in our <a href="<cfoutput>#fpwHowBasePath#</cfoutput>/why-use-a-float-plan/">complete Float Plan Guide</a>.</p>
         </div>
       </article>
 

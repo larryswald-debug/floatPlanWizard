@@ -165,7 +165,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwFloatPlanBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/float-plan-guide.css?v=20260830-pillar-full-span-v1"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/float-plan-guide.css?v=20260830-pillar-no-hero-width-v1"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
   <cfinclude template="includes/trustedsite.cfm">

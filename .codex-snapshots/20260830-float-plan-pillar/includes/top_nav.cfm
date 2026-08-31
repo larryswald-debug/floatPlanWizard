@@ -493,7 +493,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                       <div class="fpw-resource-group" role="group" aria-labelledby="fpwBoatingResourcesTitle">
                         <h2 id="fpwBoatingResourcesTitle">Boating Resources</h2>
                         <div class="fpw-resource-items">
-                          <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan/" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
+                          <a class="fpw-resource-link<cfif topNavWhyFloatPlanActive> is-active</cfif>" href="#topNavBasePath#/why-use-a-float-plan.cfm" role="menuitem"<cfif topNavWhyFloatPlanActive> aria-current="page"</cfif>>
                             #renderFpwNavIcon("checklist", "fpw-tool-icon")#
                             <span>Why Use a Float Plan</span><b aria-hidden="true">&rarr;</b>
                           </a>

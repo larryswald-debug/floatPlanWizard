@@ -58,6 +58,8 @@ fpwFloatPlanHeadline = "Float Plan Guide: What It Is, Why It Matters, and How to
 fpwFloatPlanSocialTitle = "The Complete Float Plan Guide for Recreational Boaters";
 fpwFloatPlanSocialDescription = "What a float plan is, what to include, who should hold it, how overdue timing works, and how to keep the plan useful when the trip changes.";
 fpwFloatPlanSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
+fpwFloatPlanExistingHeroImage = fpwFloatPlanBasePath & "/assets/images/float-plan/float-plan-hero-bg.png";
+fpwFloatPlanRequiredHeroImage = fpwFloatPlanBasePath & "/assets/images/float-plan/float-plan-guide-hero.webp";
 fpwFloatPlanOfficialPdf = "https://floatplancentral.cgaux.org/download/USCGFloatPlan.pdf";
 
 fpwFloatPlanCtaUserId = 0;
@@ -165,7 +167,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwFloatPlanBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/float-plan-guide.css?v=20260830-pillar-full-span-v1"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/float-plan-guide.css?v=20260830-pillar-v1"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
   <cfinclude template="includes/trustedsite.cfm">
@@ -195,6 +197,10 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
             <a class="fpw-float-guide-button fpw-float-guide-button--quiet" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="hero" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>"><cfoutput>#fpwFloatPlanProductCtaLabel#</cfoutput></a>
           </div>
         </div>
+        <figure class="fpw-float-guide-hero__media" data-required-hero-asset="<cfoutput>#fpwFloatPlanRequiredHeroImage#</cfoutput>">
+          <img src="<cfoutput>#fpwFloatPlanExistingHeroImage#</cfoutput>" alt="A recreational boat travels on calm water." width="1916" height="821" fetchpriority="high" decoding="async">
+          <figcaption>A float plan is a before-departure communication habit.</figcaption>
+        </figure>
       </header>
 
       <section class="fpw-float-guide-quick-answer" id="quick-answer" aria-labelledby="quick-answer-title">

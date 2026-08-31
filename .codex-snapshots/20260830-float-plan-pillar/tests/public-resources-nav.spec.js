@@ -107,7 +107,7 @@ test("public Resources navigation fits and behaves at every required width", asy
       "FAQ →"
     ]);
     await expect(resources.getByText("Float Plan Basics", { exact: true })).toHaveCount(0);
-    await expect(resources.locator('a[href="/fpw/why-use-a-float-plan/"]')).toHaveCount(1);
+    await expect(resources.locator('a[href="/fpw/why-use-a-float-plan.cfm"]')).toHaveCount(1);
     await expectPublicNavWithinViewport(page);
 
     if (width > 1050) {
@@ -216,7 +216,7 @@ test("guide, educational, FAQ, and tool routes activate Resources and the curren
     { path: "/shore-contact-overdue-boater.cfm", child: 'a.fpw-resource-feature-link[href="/fpw/shore-contact-overdue-boater/"]' },
     { path: "/solo-boating-safety-guide.cfm", child: 'a.fpw-resource-feature-link[href="/fpw/solo-boating-safety-guide/"]' },
     { path: "/common-boating-emergencies.cfm", child: 'a.fpw-resource-link[href="/fpw/common-boating-emergencies/"]' },
-    { path: "/why-use-a-float-plan.cfm", child: 'a[href="/fpw/why-use-a-float-plan/"]' },
+    { path: "/why-use-a-float-plan.cfm", child: 'a[href="/fpw/why-use-a-float-plan.cfm"]' },
     { path: "/faq/index.cfm", child: 'a[href="/fpw/faq/"]' },
     { path: "/boat-fuel-calculator/boat-fuel-calculator.cfm", child: 'a[href="/fpw/boat-fuel-calculator/boat-fuel-calculator.cfm"]' }
   ];
@@ -324,7 +324,7 @@ test("destinations and grouped footer safety links remain intact", async ({ page
   const resources = page.locator(".fpw-dropdown--resources");
   await expect(resources.locator('a[href="/fpw/app/weather.cfm"]')).toHaveCount(1);
   await expect(resources.locator('a[href="/fpw/boat-fuel-calculator/boat-fuel-calculator.cfm"]')).toHaveCount(1);
-  await expect(resources.locator('a[href="/fpw/why-use-a-float-plan/"]')).toHaveCount(1);
+  await expect(resources.locator('a[href="/fpw/why-use-a-float-plan.cfm"]')).toHaveCount(1);
   await expect(resources.locator('a.fpw-resource-feature-link[href="/fpw/shore-contact-overdue-boater/"]')).toHaveCount(1);
   await expect(resources.locator('a.fpw-resource-feature-link[href="/fpw/solo-boating-safety-guide/"]')).toHaveCount(1);
   await expect(resources.locator('a.fpw-resource-link[href="/fpw/common-boating-emergencies/"]')).toHaveCount(1);

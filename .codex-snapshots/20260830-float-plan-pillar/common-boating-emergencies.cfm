@@ -1333,7 +1333,6 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
             <div class="fpw-emergency-related-guides" aria-labelledby="related-guides-title">
               <h3 id="related-guides-title">Related guides and tools</h3>
               <ul>
-                <li><a href="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/why-use-a-float-plan/">Review what a float plan should include</a></li>
                 <li><a href="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/shore-contact-overdue-boater/">Learn how shore contacts should respond to an overdue boater</a></li>
                 <li><a href="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/solo-boating-safety-guide/">Solo Boating Safety Guide</a></li>
                 <li><a href="<cfoutput>#fpwEmergencyBasePath#</cfoutput>/boat-fuel-calculator/">Boat Fuel Calculator</a></li>

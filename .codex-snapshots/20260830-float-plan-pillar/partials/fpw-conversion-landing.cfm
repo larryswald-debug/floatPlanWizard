@@ -36,7 +36,7 @@
       <div class="fpw-container fpw-hero-inner">
         <div class="fpw-hero-copy">
           <h1 id="fpwHeroTitle">Plan the trip. Share the plan. Stay connected.</h1>
-          <p>Use the free Trip Planner to plot your route and stops and calculate mileage, travel time, fuel, reserve, and cost using your speed and weather assumptions. When departure approaches, turn your saved trip into a <a class="fpw-hero-inline-link" href="<cfoutput>#landingBasePath#</cfoutput>/why-use-a-float-plan/">float plan</a> and share a private Trip Page with family and friends.</p>
+          <p>Use the free Trip Planner to plot your route and stops and calculate mileage, travel time, fuel, reserve, and cost using your speed and weather assumptions. When departure approaches, turn your saved trip into a float plan and share a private Trip Page with family and friends.</p>
 
           <div class="fpw-hero-actions">
             <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm" aria-label="Open the free FloatPlanWizard Trip Planner" data-fpw-track="homepage_hero_primary_cta_click" data-fpw-track-label="Plan Your Trip Free" data-fpw-track-section="hero"><svg class="fpw-icon" aria-hidden="true"><use href="#fpw-i-pencil"></use></svg>Plan Your Trip Free</a>

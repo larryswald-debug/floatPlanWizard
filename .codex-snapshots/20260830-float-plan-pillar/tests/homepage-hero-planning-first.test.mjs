@@ -44,14 +44,7 @@ test("homepage hero uses the exact approved planning-first copy", () => {
   const hero = heroBlock();
 
   assert.match(hero, new RegExp(`<h1 id="fpwHeroTitle">${expected.headline.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}</h1>`));
-  const contextualLink = '<a class="fpw-hero-inline-link" href="<cfoutput>#landingBasePath#</cfoutput>/why-use-a-float-plan/">float plan</a>';
-  const heroParagraph = hero.match(/<p>Use the free Trip Planner[\s\S]*?<\/p>/)?.[0] || "";
-  assert.ok(heroParagraph.includes(contextualLink));
-  assert.equal(
-    heroParagraph.replace(/^<p>|<\/p>$/g, "").replace(contextualLink, "float plan"),
-    expected.body
-  );
-  assert.match(css, /\.fpw-hero-copy \.fpw-hero-inline-link \{[\s\S]*?text-decoration: underline;[\s\S]*?text-underline-offset: 3px;/);
+  assert.ok(hero.includes(`<p>${expected.body}</p>`));
   assert.equal((hero.match(/Plan Your Trip Free/g) || []).length, 2);
   assert.ok(hero.includes(`aria-label="${expected.primaryAccessibleName}"`));
   assert.ok(hero.includes(`data-fpw-track-label="${expected.primary}"`));
@@ -123,7 +116,7 @@ test("existing CSS and analytics implementation retain the hero presentation and
   assert.match(css, /\.fpw-hero\s*\{[\s\S]*?min-height:\s*360px;[\s\S]*?background:\s*#04152f;/);
   assert.match(css, /\.fpw-hero-copy h1\s*\{[\s\S]*?font-size:\s*clamp\(38px, 4\.1vw, 48px\);/);
   assert.match(css, /\.fpw-hero \.fpw-btn-primary\s*\{[\s\S]*?color:\s*#071529;/);
-  assert.match(homepage, /fpw-conversion-landing\.css\?v=20260830-float-plan-pillar-link/);
+  assert.match(homepage, /fpw-conversion-landing\.css\?v=20260825-homepage-trip-planner-hero/);
   assert.match(css, /\.fpw-trust-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/);
   assert.match(css, /@media \(max-width:\s*720px\)[\s\S]*?\.fpw-hero-copy h1\s*\{[\s\S]*?font-size:\s*31px;/);
   assert.match(css, /@media \(max-width:\s*720px\)[\s\S]*?\.fpw-trust-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);

@@ -412,7 +412,7 @@ fpwHomeJsonLdText = replace(serializeJSON(fpwHomeJsonLd), "</", "<\/", "all");
 <script type="application/ld+json"><cfoutput>#fpwHomeJsonLdText#</cfoutput></script>
 
   <link rel="icon" type="image/svg+xml" href="<cfoutput>#landingBasePath#</cfoutput>/assets/images/landing/fpw-logo.svg">
-  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260830-float-plan-pillar-link">
+  <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/fpw-conversion-landing.css?v=20260825-homepage-trip-planner-hero">
   <link rel="stylesheet" href="<cfoutput>#landingBasePath#</cfoutput>/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2">
   <style>
     .fpw-member-required-modal {

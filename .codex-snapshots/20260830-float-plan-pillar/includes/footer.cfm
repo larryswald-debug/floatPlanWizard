@@ -314,7 +314,6 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
           <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
           <a href="#footerBasePath#/app/help.cfm">Help Center</a>
           <a href="#footerBasePath#/solo-boating-safety-guide/">Boating Safety</a>
-          <a href="#footerBasePath#/why-use-a-float-plan/">Float Plan Guide</a>
           <a href="#footerBasePath#/solo-boating-safety-guide/">Solo Boating Safety Guide</a>
           <a href="#footerBasePath#/common-boating-emergencies/">Common Boating Emergencies</a>
           <a href="#footerBasePath#/shore-contact-overdue-boater/">Shore Contact / Overdue Boater Guide</a>

@@ -2292,7 +2292,6 @@ fpwCtaConfig = {
       <aside class="fpw-fuel-safety-resources" aria-label="Related boating safety resources">
         <p><strong>Boating alone?</strong> Review the <a href="../solo-boating-safety-guide/">Solo Boating Safety Guide</a> before departure.</p>
         <p>Make sure your <a href="../shore-contact-overdue-boater/">shore contact knows what to do if you become overdue</a>.</p>
-        <p>Before departure, review <a href="../why-use-a-float-plan/">what a float plan should include</a>.</p>
       </aside>
 
       <section class="fpw-guide-section fpw-guide-section--sources" aria-labelledby="fuel-sources-title">

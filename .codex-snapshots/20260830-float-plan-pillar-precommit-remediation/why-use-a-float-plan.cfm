@@ -58,6 +58,8 @@ fpwFloatPlanHeadline = "Float Plan Guide: What It Is, Why It Matters, and How to
 fpwFloatPlanSocialTitle = "The Complete Float Plan Guide for Recreational Boaters";
 fpwFloatPlanSocialDescription = "What a float plan is, what to include, who should hold it, how overdue timing works, and how to keep the plan useful when the trip changes.";
 fpwFloatPlanSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
+fpwFloatPlanExistingHeroImage = fpwFloatPlanBasePath & "/assets/images/float-plan/float-plan-hero-bg.png";
+fpwFloatPlanRequiredHeroImage = fpwFloatPlanBasePath & "/assets/images/float-plan/float-plan-guide-hero.webp";
 fpwFloatPlanOfficialPdf = "https://floatplancentral.cgaux.org/download/USCGFloatPlan.pdf";
 
 fpwFloatPlanCtaUserId = 0;
@@ -72,7 +74,6 @@ if (structKeyExists(session, "user") AND isStruct(session.user)) {
 fpwFloatPlanCtaSignedIn = fpwFloatPlanCtaUserId GT 0;
 fpwFloatPlanProductUrl = fpwFloatPlanCtaSignedIn ? fpwFloatPlanBasePath & "/app/dashboard.cfm" : fpwFloatPlanBasePath & "/app/join.cfm";
 fpwFloatPlanAuthState = fpwFloatPlanCtaSignedIn ? "signed_in" : "signed_out";
-fpwFloatPlanProductCtaLabel = fpwFloatPlanCtaSignedIn ? "Open Your FPW Dashboard" : "Create Your Free FPW Account";
 
 fpwFloatPlanOrganizationId = "https://floatplanwizard.com/##organization";
 fpwFloatPlanWebsiteId = "https://floatplanwizard.com/##website";
@@ -165,7 +166,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwFloatPlanBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/float-plan-guide.css?v=20260830-pillar-full-span-v1"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwFloatPlanBasePath#/assets/css/float-plan-guide.css?v=20260830-pillar-v1"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
   <cfinclude template="includes/trustedsite.cfm">
@@ -192,9 +193,13 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
           <div class="fpw-float-guide-actions" aria-label="Float plan guide actions">
             <a class="fpw-float-guide-button fpw-float-guide-button--primary" href="#what-to-include" data-fpw-float-guide-toc data-section-id="what-to-include">See what a float plan should include</a>
             <a class="fpw-float-guide-button fpw-float-guide-button--secondary" href="<cfoutput>#fpwFloatPlanOfficialPdf#</cfoutput>" target="_blank" rel="noopener noreferrer" data-fpw-float-guide-source data-source-org="uscg_auxiliary" data-section-id="hero">Download the official USCG Float Plan</a>
-            <a class="fpw-float-guide-button fpw-float-guide-button--quiet" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="hero" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>"><cfoutput>#fpwFloatPlanProductCtaLabel#</cfoutput></a>
+            <a class="fpw-float-guide-button fpw-float-guide-button--quiet" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="hero" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>">Create a Float Plan with FPW</a>
           </div>
         </div>
+        <figure class="fpw-float-guide-hero__media" data-required-hero-asset="<cfoutput>#fpwFloatPlanRequiredHeroImage#</cfoutput>">
+          <img src="<cfoutput>#fpwFloatPlanExistingHeroImage#</cfoutput>" alt="A recreational boat travels on calm water." width="1916" height="821" fetchpriority="high" decoding="async">
+          <figcaption>A float plan is a before-departure communication habit.</figcaption>
+        </figure>
       </header>
 
       <section class="fpw-float-guide-quick-answer" id="quick-answer" aria-labelledby="quick-answer-title">
@@ -450,7 +455,7 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
             <p>FloatPlanWizard is a boating trip-planning and communication tool. It helps recreational boaters organize the route, vessel, people, contacts, timing, and float-plan information and share selected trip information with trusted people.</p>
             <p>Depending on the trip and plan features in use, FPW can also support captain-reported check-ins, trip updates, and automated expected-check-in monitoring.</p>
             <p>FloatPlanWizard is <strong>not</strong> an emergency dispatch or rescue service. It does not guarantee continuous tracking, guarantee message delivery, determine that an emergency exists, or automatically replace official emergency communication.</p>
-            <p><a class="fpw-float-guide-button fpw-float-guide-button--primary" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="paper_vs_digital" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>"><cfoutput>#fpwFloatPlanProductCtaLabel#</cfoutput></a></p>
+            <p><a class="fpw-float-guide-button fpw-float-guide-button--primary" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="paper_vs_digital" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>">Create Your Float Plan</a></p>
           </section>
 
           <section id="common-float-plan-mistakes" aria-labelledby="common-float-plan-mistakes-title">
@@ -563,17 +568,17 @@ fpwFloatPlanJsonLdText = replace(serializeJSON(fpwFloatPlanJsonLd), "</", "<\/",
               <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/solo-boating-safety-guide/" data-fpw-float-guide-related data-guide-key="solo_safety" data-placement="related_guides"><strong>Solo Boating Safety Guide</strong><span>Build practical safety layers for boating alone.</span></a>
               <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/common-boating-emergencies/" data-fpw-float-guide-related data-guide-key="common_emergencies" data-placement="related_guides"><strong>Common Boating Emergencies</strong><span>Review practical first actions when something goes wrong.</span></a>
               <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/boat-fuel-calculator/" data-fpw-float-guide-related data-guide-key="fuel_calculator" data-placement="related_guides"><strong>Boat Fuel Calculator</strong><span>Estimate fuel, range, reserve, time, and cost.</span></a>
-              <a href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="plan_trip" data-placement="related_guides" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>"><strong><cfoutput>#fpwFloatPlanProductCtaLabel#</cfoutput></strong><span>Plan the current route in FPW.</span></a>
+              <a href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="plan_trip" data-placement="related_guides" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>"><strong>Trip Planner</strong><span>Plan the current route in FPW.</span></a>
               <a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/how-it-works/" data-fpw-float-guide-related data-guide-key="how_it_works" data-placement="related_guides"><strong>How It Works</strong><span>See how FPW connects planning, sharing, and trip updates.</span></a>
             </div>
           </section>
 
           <section id="create-your-float-plan" class="fpw-float-guide-final-cta" aria-labelledby="create-your-float-plan-title">
             <p class="fpw-float-guide-section-kicker">FloatPlanWizard</p>
-            <h2 id="create-your-float-plan-title">Make the next float plan easier to use—not easier to skip</h2>
+            <h2 id="create-your-float-plan-title">17. Make the next float plan easier to use—not easier to skip</h2>
             <p>A useful float plan should be simple enough to become part of the normal boating routine and complete enough to help the person waiting ashore understand the trip.</p>
             <p>FloatPlanWizard helps organize the route, boat, people, contacts, timing, and float-plan details so you can prepare ahead of departure, reuse information you should not have to retype, and share the current plan with trusted people.</p>
-            <div class="fpw-float-guide-actions"><a class="fpw-float-guide-button fpw-float-guide-button--primary" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="final_cta" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>"><cfoutput>#fpwFloatPlanProductCtaLabel#</cfoutput></a></div>
+            <div class="fpw-float-guide-actions"><a class="fpw-float-guide-button fpw-float-guide-button--primary" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="create_float_plan" data-placement="final_cta" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>">Create Your Float Plan</a><a class="fpw-float-guide-button fpw-float-guide-button--secondary" href="<cfoutput>#fpwFloatPlanProductUrl#</cfoutput>" data-fpw-float-guide-cta data-cta-name="plan_trip" data-placement="final_cta" data-auth-state="<cfoutput>#fpwFloatPlanAuthState#</cfoutput>">Plan the Trip First</a></div>
             <p class="fpw-float-guide-supporting-links"><a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/shore-contact-overdue-boater/" data-fpw-float-guide-related data-guide-key="shore_contact" data-placement="final_cta">Shore Contact Guide</a><span aria-hidden="true">·</span><a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/solo-boating-safety-guide/" data-fpw-float-guide-related data-guide-key="solo_safety" data-placement="final_cta">Solo Boating Safety Guide</a><span aria-hidden="true">·</span><a href="<cfoutput>#fpwFloatPlanBasePath#</cfoutput>/common-boating-emergencies/" data-fpw-float-guide-related data-guide-key="common_emergencies" data-placement="final_cta">Common Boating Emergencies</a></p>
           </section>
         </div>

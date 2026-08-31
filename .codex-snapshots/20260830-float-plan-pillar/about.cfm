@@ -165,7 +165,7 @@ fpwAboutIsLoggedIn = fpwAboutUserId GT 0;
       <div class="fpw-about-prose">
         <p>FloatPlanWizard began with a simple personal need.</p>
         <p>I go boating alone most of the time, and I wanted an easy, dependable way to let my family know where I planned to go, when I expected to return, and what information they would need if something did not go according to plan.</p>
-        <p>I did not want to recreate the same <cfoutput><a href="#fpwAboutBasePath#/why-use-a-float-plan/">float plan</a></cfoutput> every time I used the boat. I wanted to save my information once, prepare the trip ahead of time, and send the plan when I was ready to leave.</p>
+        <p>I did not want to recreate the same float plan every time I used the boat. I wanted to save my information once, prepare the trip ahead of time, and send the plan when I was ready to leave.</p>
         <p class="fpw-about-short-statement">So I built it.</p>
       </div>
     </div>
