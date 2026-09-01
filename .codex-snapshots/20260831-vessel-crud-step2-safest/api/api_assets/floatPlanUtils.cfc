@@ -31,7 +31,6 @@
             var readonlyFileName = "";
             var readonlyPath = "";
             var vessel = {};
-            var accountHomePort = {};
             var operatorInfo = {};
             var passengers = [];
             var contacts = [];
@@ -73,8 +72,6 @@
 
                 preparationStage = "vessel-load";
                 vessel = loadVessel(getNumeric(plan, "vesselId", 0), arguments.userId, ds);
-                preparationStage = "account-home-port-load";
-                accountHomePort = loadAccountHomePort(arguments.userId, ds);
                 preparationStage = "operator-load";
                 operatorInfo = loadOperator(getNumeric(plan, "operatorId", 0), arguments.userId, ds);
                 preparationStage = "passenger-load";
@@ -154,7 +151,6 @@
 
             // Vessel values
             var vesselName = getString(vessel, "vesselName", "");
-            var vesselIdentification = "";
             var docRegNum = getString(vessel, "registration", "");
             var draft = getString(vessel, "draft", "");
             var hin = getString(vessel, "hin", "");
@@ -177,13 +173,13 @@
             var cellSatPhone = joinNonEmpty([getString(vessel, "mobilePhone", ""), getString(vessel, "sattelite", "")], " | ");
             var primEngType = getString(vessel, "primaryPropulsionType", "");
             var primNumEngines = getString(vessel, "numberPrimary", "");
-            var primFuelCapacity = formatPdfGallons(getString(vessel, "primaryFuelCapacity", ""));
+            var primFuelCapacity = getString(vessel, "primaryFuelCapacity", "");
             var auxEngType = getString(vessel, "auxPropulsionType", "");
             if (auxEngType EQ "None") {
                 auxEngType = "none";
             }
             var auxNumEng = getString(vessel, "numberAux", "");
-            var auxFuelCapacity = formatPdfGallons(getString(vessel, "auxFuelCapacity", ""));
+            var auxFuelCapacity = getString(vessel, "auxFuelCapacity", "");
             var vdsList = getString(vessel, "visualDistressSignals", "");
             var adsList = getString(vessel, "audibleDistressSignals", "");
             var anchor = isTrueValue(getAny(vessel, "anchor", ""));
@@ -241,8 +237,6 @@
 	                }
 	            }
 
-            vesselIdentification = buildVesselIdentification(vesselName, accountHomePort);
-
             try {
                 routeItinerary = createFloatPlanPdfItineraryService(ds).getItinerary(arguments.floatPlanId);
             } catch (any itineraryErr) {
@@ -276,7 +270,7 @@
         <cftry>
         <cfpdfform action="populate" source="#templatePath#" destination="#destinationPath#" overwrite="true">
             <!-- Vessel -->
-            <cfpdfformparam name="ID-VesselName" value="#vesselIdentification#">
+            <cfpdfformparam name="ID-VesselName" value="#vesselName#">
             <cfpdfformparam name="ID-DocRegNum" value="#docRegNum#">
             <cfpdfformparam name="ID-Draft" value="#draft#">
             <cfpdfformparam name="ID-HIN" value="#hin#">
@@ -754,28 +748,6 @@
         </cfscript>
     </cffunction>
 
-    <cffunction name="loadAccountHomePort" access="private" output="false" returntype="struct">
-        <cfargument name="userId" type="numeric" required="true">
-        <cfargument name="datasource" type="string" required="true">
-        <cfscript>
-            if (arguments.userId LTE 0) {
-                return {};
-            }
-            var qHomePort = queryExecute(
-                "SELECT city, state
-                   FROM users_address
-                  WHERE userId = :userId
-                    AND isHomePort = 1
-                  LIMIT 1",
-                {
-                    userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
-                },
-                { datasource = arguments.datasource }
-            );
-            return queryRowToStruct(qHomePort);
-        </cfscript>
-    </cffunction>
-
     <cffunction name="loadOperator" access="private" output="false" returntype="struct">
         <cfargument name="operatorId" type="numeric" required="true">
         <cfargument name="userId" type="numeric" required="true">
@@ -1015,34 +987,6 @@
             var model = getString(arguments.vessel, "model", "");
             var combined = joinNonEmpty([yearBuilt, make, model], " - ");
             return combined;
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="formatPdfGallons" access="private" output="false" returntype="string">
-        <cfargument name="value" required="false" default="">
-        <cfscript>
-            if (isNull(arguments.value) OR !isSimpleValue(arguments.value)) {
-                return "";
-            }
-            var rawValue = trim(toString(arguments.value));
-            if (!len(rawValue) OR !isNumeric(rawValue) OR val(rawValue) LT 0) {
-                return "";
-            }
-            var formattedValue = numberFormat(val(rawValue), "0.00");
-            formattedValue = reReplace(formattedValue, "0+$", "", "one");
-            formattedValue = reReplace(formattedValue, "[.]$", "", "one");
-            return formattedValue & " gal";
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="buildVesselIdentification" access="private" output="false" returntype="string">
-        <cfargument name="vesselName" type="string" required="true">
-        <cfargument name="accountHomePort" type="struct" required="true">
-        <cfscript>
-            var city = trim(getString(arguments.accountHomePort, "city", ""));
-            var stateCode = uCase(trim(getString(arguments.accountHomePort, "state", "")));
-            var homePortLabel = joinNonEmpty([city, stateCode], ", ");
-            return joinNonEmpty([arguments.vesselName, homePortLabel], " — ");
         </cfscript>
     </cffunction>
 

@@ -59,12 +59,18 @@ isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpw
     .msg.error { background: #ffecec; border: 1px solid #ffb4b4; color: #7f1d1d; display: block; }
     .small-muted { color: #666; font-size: 12px; }
     .row-gap { row-gap: 10px; }
+    .vessel-form-section { border: 1px solid #d7dce1; border-radius: 8px; padding: 14px; margin: 0 0 16px; min-inline-size: 0; }
+    .vessel-form-section legend { float: none; width: auto; margin: 0 0 8px; padding: 0 6px; font-size: 16px; font-weight: 700; }
+    .vessel-choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
+    .vessel-choice-group { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+    .vessel-choice-group legend { font-size: 14px; margin-bottom: 8px; padding: 0; }
     @media (max-width: 1200px) {
       .toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 768px) {
       .toolbar { grid-template-columns: repeat(1, minmax(0, 1fr)); }
       .wrap { margin: 10px; padding: 14px; }
+      .vessel-choice-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
     }
   </style>
 </head>
@@ -171,93 +177,184 @@ isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpw
           <div class="modal-body">
             <form id="adminVesselForm" novalidate>
               <input type="hidden" id="modalVesselId" value="0">
-              <div class="small-muted mb-2" id="modalOwnerModeHint">Owner can only be set when creating a vessel.</div>
-              <div class="row row-gap">
-                <div class="col-md-4">
-                  <label class="form-label" for="modalUserId">Owner User ID *</label>
-                  <input type="text" class="form-control" id="modalUserId" required>
+              <fieldset class="vessel-form-section">
+                <legend>Vessel Basics</legend>
+                <div class="small-muted mb-2" id="modalOwnerModeHint">Owner can only be set when creating a vessel.</div>
+                <div class="row row-gap">
+                  <div class="col-md-4">
+                    <label class="form-label" for="modalUserId">Owner User ID *</label>
+                    <input type="text" class="form-control" id="modalUserId" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="modalUserLookup">Owner Lookup</label>
+                    <div class="input-group">
+                      <input type="text" class="form-control" id="modalUserSearch" placeholder="Search user email/name/id">
+                      <button class="btn btn-outline-secondary" type="button" id="modalLoadUsersBtn">Load</button>
+                      <select class="form-select" id="modalUserLookup" style="max-width: 420px;">
+                        <option value="">Select user…</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label" for="modalUsageCount">Usage</label>
+                    <input type="text" class="form-control" id="modalUsageCount" value="0" readonly>
+                  </div>
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label" for="modalUserLookup">Owner Lookup</label>
-                  <div class="input-group">
-                    <input type="text" class="form-control" id="modalUserSearch" placeholder="Search user email/name/id">
-                    <button class="btn btn-outline-secondary" type="button" id="modalLoadUsersBtn">Load</button>
-                    <select class="form-select" id="modalUserLookup" style="max-width: 420px;">
-                      <option value="">Select user…</option>
+                <div class="row row-gap mt-1">
+                  <div class="col-md-6">
+                    <label class="form-label" for="modalVesselName">Vessel Name *</label>
+                    <input type="text" class="form-control" id="modalVesselName" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="modalRegistration">Registration</label>
+                    <input type="text" class="form-control" id="modalRegistration">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="modalTypeOfVessel">Type *</label>
+                    <input type="text" class="form-control" id="modalTypeOfVessel" required>
+                  </div>
+                </div>
+                <div class="row row-gap mt-1">
+                  <div class="col-md-3">
+                    <label class="form-label" for="modalLengthOfVessel">Length of Vessel *</label>
+                    <input type="text" class="form-control" id="modalLengthOfVessel" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="modalHullColor">Hull Color *</label>
+                    <input type="text" class="form-control" id="modalHullColor" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="modalMake">Make</label>
+                    <input type="text" class="form-control" id="modalMake">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label" for="modalModel">Model</label>
+                    <input type="text" class="form-control" id="modalModel">
+                  </div>
+                </div>
+                <div class="row row-gap mt-1">
+                  <div class="col-md-4">
+                    <label class="form-label" for="modalHailingPort">Hailing Port</label>
+                    <input type="text" class="form-control" id="modalHailingPort">
+                  </div>
+                  <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" id="modalIsDefaultVessel">
+                      <label class="form-check-label" for="modalIsDefaultVessel">Default Vessel</label>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Identification</legend>
+                <div class="row row-gap">
+                  <div class="col-md-4"><label class="form-label" for="modalHin">HIN</label><input type="text" class="form-control" id="modalHin" maxlength="255"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalYearBuilt">Year Built</label><input type="text" class="form-control" id="modalYearBuilt" maxlength="45" inputmode="numeric"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalDraft">Draft</label><input type="text" class="form-control" id="modalDraft" maxlength="45"></div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="modalHullMaterial">Hull Material</label>
+                    <select class="form-select" id="modalHullMaterial">
+                      <option value="">Unknown / not specified</option>
+                      <option value="Aluminum">Aluminum</option><option value="Composite">Composite</option><option value="Concrete">Concrete</option><option value="Fabric">Fabric</option>
+                      <option value="Fiberglass">Fiberglass</option><option value="Plastic">Plastic</option><option value="Steel">Steel</option><option value="Wood">Wood</option>
                     </select>
                   </div>
+                  <div class="col-12"><label class="form-label" for="modalProminentFeatures">Prominent Features</label><input type="text" class="form-control" id="modalProminentFeatures" maxlength="255"></div>
                 </div>
-                <div class="col-md-2">
-                  <label class="form-label" for="modalUsageCount">Usage</label>
-                  <input type="text" class="form-control" id="modalUsageCount" value="0" readonly>
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Communications</legend>
+                <div class="row row-gap">
+                  <div class="col-md-3"><label class="form-label" for="modalCallSignNumber">Radio Call Sign</label><input type="text" class="form-control" id="modalCallSignNumber" maxlength="255"></div>
+                  <div class="col-md-3"><label class="form-label" for="modalDscmmsi">MMSI</label><input type="text" class="form-control" id="modalDscmmsi" maxlength="150" inputmode="numeric"></div>
+                  <div class="col-md-3"><label class="form-label" for="modalMobilePhone">Vessel / Onboard Mobile Phone</label><input type="tel" class="form-control" id="modalMobilePhone" maxlength="45"></div>
+                  <div class="col-md-3"><label class="form-label" for="modalSattelite">Satellite Phone</label><input type="tel" class="form-control" id="modalSattelite" maxlength="45"></div>
+                  <div class="col-md-3"><label class="form-label" for="modalRadio1Type">Primary Radio Type</label><select class="form-select" id="modalRadio1Type"><option value="">Unknown / not specified</option><option value="none">None</option><option value="CB">CB</option><option value="HF">HF</option><option value="MF">MF</option><option value="VHF-FM">VHF-FM</option></select></div>
+                  <div class="col-md-3"><label class="form-label" for="modalRadio1Channel">Primary Channel / Frequency Monitored</label><input type="text" class="form-control" id="modalRadio1Channel" maxlength="255"></div>
+                  <div class="col-md-3"><label class="form-label" for="modalRadio2Type">Secondary Radio Type</label><select class="form-select" id="modalRadio2Type"><option value="">Unknown / not specified</option><option value="none">None</option><option value="CB">CB</option><option value="HF">HF</option><option value="MF">MF</option><option value="VHF-FM">VHF-FM</option></select></div>
+                  <div class="col-md-3"><label class="form-label" for="modalRadio2Channel">Secondary Channel / Frequency Monitored</label><input type="text" class="form-control" id="modalRadio2Channel" maxlength="255"></div>
                 </div>
-              </div>
-              <div class="row row-gap mt-1">
-                <div class="col-md-6">
-                  <label class="form-label" for="modalVesselName">Vessel Name *</label>
-                  <input type="text" class="form-control" id="modalVesselName" required>
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Propulsion &amp; Fuel</legend>
+                <div class="row row-gap">
+                  <div class="col-md-4"><label class="form-label" for="modalPrimaryPropulsion">Primary Propulsion Details</label><input type="text" class="form-control" id="modalPrimaryPropulsion" maxlength="45"></div>
+                  <div class="col-md-4"><label class="form-label" for="modalPrimaryPropulsionType">Primary Propulsion Type</label><select class="form-select" id="modalPrimaryPropulsionType"><option value="">Unknown / not specified</option><option>Diesel IB</option><option>Diesel IO</option><option>Diesel OB</option><option>Electric IB</option><option>Electric IO</option><option>Electric OB</option><option>Fan</option><option>Gas IB</option><option>Gas IO</option><option>Gas OB</option><option>Oar</option><option>Paddle</option><option>Wind</option></select></div>
+                  <div class="col-md-2"><label class="form-label" for="modalNumberPrimary">Number of Engines</label><input type="number" class="form-control" id="modalNumberPrimary" min="0" step="1" inputmode="numeric"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalPrimaryFuelCapacity">Primary Fuel Capacity</label><div class="input-group"><input type="number" class="form-control" id="modalPrimaryFuelCapacity" min="0" step="0.01" inputmode="decimal"><span class="input-group-text">gallons</span></div></div>
+                  <div class="col-md-4"><label class="form-label" for="modalAuxPropulsion">Auxiliary Propulsion Details</label><input type="text" class="form-control" id="modalAuxPropulsion" maxlength="45"></div>
+                  <div class="col-md-4"><label class="form-label" for="modalAuxPropulsionType">Auxiliary Propulsion Type</label><select class="form-select" id="modalAuxPropulsionType"><option value="">Unknown / not specified</option><option value="none">None</option><option>Diesel IB</option><option>Diesel IO</option><option>Diesel OB</option><option>Electric IB</option><option>Electric IO</option><option>Electric OB</option><option>Fan</option><option>Gas IB</option><option>Gas IO</option><option>Gas OB</option><option>Oar</option><option>Paddle</option><option>Wind</option></select></div>
+                  <div class="col-md-2"><label class="form-label" for="modalNumberAux">Number of Engines</label><input type="number" class="form-control" id="modalNumberAux" min="0" step="1" inputmode="numeric"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalAuxFuelCapacity">Auxiliary Fuel Capacity</label><div class="input-group"><input type="number" class="form-control" id="modalAuxFuelCapacity" min="0" step="0.01" inputmode="decimal"><span class="input-group-text">gallons</span></div></div>
+                  <div class="col-md-3"><label class="form-label" for="modalMaxSpeed">Max Speed</label><input type="number" class="form-control" id="modalMaxSpeed" min="0" step="0.01" inputmode="decimal"></div>
+                  <div class="col-md-3"><label class="form-label" for="modalMostEfficientSpeed">Most Efficient Speed</label><input type="number" class="form-control" id="modalMostEfficientSpeed" min="0" step="0.01" inputmode="decimal"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalGallonsPerHour">Gallons / Hr</label><input type="number" class="form-control" id="modalGallonsPerHour" min="0" step="0.01" inputmode="decimal"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalGphAtMaxSpeed">GPH @ Max</label><input type="number" class="form-control" id="modalGphAtMaxSpeed" min="0" step="0.01" inputmode="decimal"></div>
+                  <div class="col-md-2"><label class="form-label" for="modalFuelCapacity">Total Fuel Capacity</label><div class="input-group"><input type="number" class="form-control" id="modalFuelCapacity" min="0" step="0.01" inputmode="decimal"><span class="input-group-text">gallons</span></div></div>
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="modalRegistration">Registration</label>
-                  <input type="text" class="form-control" id="modalRegistration">
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Navigation</legend>
+                <div class="vessel-choice-grid">
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationCompass" value="compass"><label class="form-check-label" for="modalNavigationCompass">Compass</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationRadar" value="radar"><label class="form-check-label" for="modalNavigationRadar">Radar</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationGps" value="gps_dgps"><label class="form-check-label" for="modalNavigationGps">GPS / DGPS</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationDepth" value="depthSounder"><label class="form-check-label" for="modalNavigationDepth">Depth Sounder</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationCharts" value="charts"><label class="form-check-label" for="modalNavigationCharts">Charts</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationMaps" value="maps"><label class="form-check-label" for="modalNavigationMaps">Maps</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" name="modalNavigation" id="modalNavigationOther" value="other"><label class="form-check-label" for="modalNavigationOther">Other</label></div>
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="modalTypeOfVessel">Type *</label>
-                  <input type="text" class="form-control" id="modalTypeOfVessel" required>
+                <div class="mt-3" id="modalOtherNavigationWrap" hidden><label class="form-label" for="modalOtherNavigation">Other Navigation Equipment</label><input type="text" class="form-control" id="modalOtherNavigation" maxlength="255"></div>
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Safety &amp; Distress Equipment</legend>
+                <div class="row row-gap">
+                  <fieldset class="col-md-6 vessel-choice-group"><legend>Visual Distress Signals</legend><div class="vessel-choice-grid">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalVisualDistressSignals" id="modalVdsElectric" value="ElectricDistressLight"><label class="form-check-label" for="modalVdsElectric">Electric Distress Light</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalVisualDistressSignals" id="modalVdsFlag" value="Flag"><label class="form-check-label" for="modalVdsFlag">Flag</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalVisualDistressSignals" id="modalVdsAerial" value="FlareAerial"><label class="form-check-label" for="modalVdsAerial">Aerial Flare</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalVisualDistressSignals" id="modalVdsHandheld" value="FlareHandheld"><label class="form-check-label" for="modalVdsHandheld">Handheld Flare</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalVisualDistressSignals" id="modalVdsMirror" value="SignalMirror"><label class="form-check-label" for="modalVdsMirror">Signal Mirror</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalVisualDistressSignals" id="modalVdsSmoke" value="Smoke"><label class="form-check-label" for="modalVdsSmoke">Smoke</label></div>
+                  </div></fieldset>
+                  <fieldset class="col-md-6 vessel-choice-group"><legend>Audible Distress Signals</legend><div class="vessel-choice-grid">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAudibleDistressSignals" id="modalAdsBell" value="Bell"><label class="form-check-label" for="modalAdsBell">Bell</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAudibleDistressSignals" id="modalAdsHorn" value="Horn"><label class="form-check-label" for="modalAdsHorn">Horn</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAudibleDistressSignals" id="modalAdsWhistle" value="Whistle"><label class="form-check-label" for="modalAdsWhistle">Whistle</label></div>
+                  </div></fieldset>
+                  <div class="col-md-6"><label class="form-label" for="modalAepirb">EPIRB UIN</label><input type="text" class="form-control" id="modalAepirb" maxlength="150" aria-describedby="modalAepirbHelp"><div class="form-text" id="modalAepirbHelp">When available, enter the 15-character UIN.</div></div>
                 </div>
-              </div>
-              <div class="row row-gap mt-1">
-                <div class="col-md-3">
-                  <label class="form-label" for="modalLengthOfVessel">Length of Vessel *</label>
-                  <input type="text" class="form-control" id="modalLengthOfVessel" required>
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Anchor &amp; Additional Gear</legend>
+                <div class="row row-gap">
+                  <div class="col-md-3 d-flex align-items-end"><div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="modalAnchor"><label class="form-check-label" for="modalAnchor">Anchor aboard</label></div></div>
+                  <div class="col-md-4"><label class="form-label" for="modalAnchorLineLength">Anchor Line / Rode Length</label><div class="input-group"><input type="text" class="form-control" id="modalAnchorLineLength" maxlength="150"><span class="input-group-text">feet</span></div></div>
+                  <fieldset class="col-12 vessel-choice-group"><legend>Additional Gear</legend><div class="vessel-choice-grid">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAdditionalGear" id="modalGearDewatering" value="DewateringDevice"><label class="form-check-label" for="modalGearDewatering">Dewatering Device</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAdditionalGear" id="modalGearExposure" value="ExposureSuits"><label class="form-check-label" for="modalGearExposure">Exposure Suits</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAdditionalGear" id="modalGearFire" value="FireExtinguisher"><label class="form-check-label" for="modalGearFire">Fire Extinguisher</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAdditionalGear" id="modalGearLight" value="FlashlightSearchLight"><label class="form-check-label" for="modalGearLight">Flashlight / Searchlight</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="modalAdditionalGear" id="modalGearRaft" value="RaftDinghy"><label class="form-check-label" for="modalGearRaft">Raft / Dinghy</label></div>
+                  </div></fieldset>
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="modalHullColor">Hull Color *</label>
-                  <input type="text" class="form-control" id="modalHullColor" required>
+              </fieldset>
+
+              <fieldset class="vessel-form-section">
+                <legend>Other Equipment</legend>
+                <div class="row row-gap">
+                  <div class="col-md-6"><label class="form-label" for="modalOtherEquipment">Other Equipment 1</label><input type="text" class="form-control" id="modalOtherEquipment" maxlength="255"></div>
+                  <div class="col-md-6"><label class="form-label" for="modalOtherEquipmentB">Other Equipment 2</label><input type="text" class="form-control" id="modalOtherEquipmentB" maxlength="255"></div>
+                  <div class="col-md-6"><label class="form-label" for="modalOtherEquipmentC">Other Equipment 3</label><input type="text" class="form-control" id="modalOtherEquipmentC" maxlength="255"></div>
+                  <div class="col-md-6"><label class="form-label" for="modalOtherEquipmentD">Other Equipment 4</label><input type="text" class="form-control" id="modalOtherEquipmentD" maxlength="255"></div>
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="modalMake">Make</label>
-                  <input type="text" class="form-control" id="modalMake">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="modalModel">Model</label>
-                  <input type="text" class="form-control" id="modalModel">
-                </div>
-              </div>
-              <div class="row row-gap mt-1">
-                <div class="col-md-4">
-                  <label class="form-label" for="modalHailingPort">Hailing Port</label>
-                  <input type="text" class="form-control" id="modalHailingPort">
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                  <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="modalIsDefaultVessel">
-                    <label class="form-check-label" for="modalIsDefaultVessel">Default Vessel</label>
-                  </div>
-                </div>
-              </div>
-              <div class="row row-gap mt-1">
-                <div class="col-md-3">
-                  <label class="form-label" for="modalMaxSpeed">Max Speed</label>
-                  <input type="number" class="form-control" id="modalMaxSpeed" min="0" step="0.01" inputmode="decimal">
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="modalMostEfficientSpeed">Most Efficient Speed</label>
-                  <input type="number" class="form-control" id="modalMostEfficientSpeed" min="0" step="0.01" inputmode="decimal">
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label" for="modalGallonsPerHour">Gallons / Hr</label>
-                  <input type="number" class="form-control" id="modalGallonsPerHour" min="0" step="0.01" inputmode="decimal">
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label" for="modalGphAtMaxSpeed">GPH @ Max</label>
-                  <input type="number" class="form-control" id="modalGphAtMaxSpeed" min="0" step="0.01" inputmode="decimal">
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label" for="modalFuelCapacity">Fuel Capacity</label>
-                  <input type="number" class="form-control" id="modalFuelCapacity" min="0" step="0.01" inputmode="decimal">
-                </div>
-              </div>
+              </fieldset>
             </form>
           </div>
           <div class="modal-footer">
@@ -277,12 +374,10 @@ isAuthorized = structKeyExists(request, "fpwAdminAuthorization") AND request.fpw
     </script>
   </cfoutput>
   <cfif isAuthorized>
-    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/vessel-manager.js?v=<cfoutput>#encodeForHTMLAttribute(request.fpwAdminAssetVersion)#</cfoutput>"></script>
+    <script src="<cfoutput>#encodeForHTMLAttribute(request.fpwBase)#</cfoutput>/assets/js/app/admin/vessel-manager.js?v=20260831-vessel-expanded-fields"></script>
   </cfif>
 </body>
 </html>
-
-
 
 
 

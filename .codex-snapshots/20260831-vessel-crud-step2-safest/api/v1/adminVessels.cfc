@@ -148,39 +148,6 @@
                     v.isDefaultVessel,
                     v.hullColor,
                     v.hailingPort,
-                    v.hin,
-                    v.yearBuilt,
-                    v.draft,
-                    v.hullMaterial,
-                    v.prominentFeatures,
-                    v.callSignNumber,
-                    v.DSCMMSI,
-                    v.radio_1_type,
-                    v.radio_1_channel,
-                    v.radio_2_type,
-                    v.radio_2_channel,
-                    v.mobilePhone,
-                    v.sattelite,
-                    v.primaryPropulsion,
-                    v.primaryPropulsionType,
-                    v.numberPrimary,
-                    v.primaryFuelCapacity,
-                    v.auxPropulsion,
-                    v.auxPropulsionType,
-                    v.numberAux,
-                    v.auxFuelCapacity,
-                    v.navigation,
-                    v.otherNavigation,
-                    v.visualDistressSignals,
-                    v.audibleDistressSignals,
-                    v.aepirb,
-                    v.anchor,
-                    v.anchorLineLength,
-                    v.additionalGear,
-                    v.otherEquipment,
-                    v.otherEquipment_b,
-                    v.otherEquipment_c,
-                    v.otherEquipment_d,
                     u.email,
                     u.fName,
                     u.lName,
@@ -285,20 +252,6 @@
             var hasGallonsPerHour = false;
             var hasGphAtMaxSpeed = false;
             var hasFuelCapacity = false;
-            var optionalFieldSpecs = getOptionalVesselFieldSpecs();
-            var optionalValues = {};
-            var optionalPresent = {};
-            var optionalKey = "";
-            var optionalResult = {};
-            var optionalSpec = {};
-            var optionalIndex = 0;
-            var updateAssignments = [];
-            var updateParams = {};
-            var updateSql = "";
-            var insertColumns = [];
-            var insertPlaceholders = [];
-            var insertParams = {};
-            var insertSql = "";
 
             if (structKeyExists(arguments.body, "vessel") AND isStruct(arguments.body.vessel)) {
                 payload = arguments.body.vessel;
@@ -330,21 +283,6 @@
             hasGallonsPerHour = len(gallonsPerHourRaw);
             hasGphAtMaxSpeed = len(gphAtMaxSpeedRaw);
             hasFuelCapacity = len(fuelCapacityRaw);
-
-            for (optionalIndex = 1; optionalIndex LTE arrayLen(optionalFieldSpecs); optionalIndex++) {
-                optionalSpec = optionalFieldSpecs[optionalIndex];
-                optionalKey = findFirstPresentKey(payload, optionalSpec.aliases);
-                optionalPresent[optionalSpec.name] = len(optionalKey) GT 0;
-                if (optionalPresent[optionalSpec.name]) {
-                    optionalResult = normalizeOptionalVesselValue(payload[optionalKey], optionalSpec);
-                    if (!optionalResult.valid) {
-                        return buildResponse(false, true, "Validation failed", {}, optionalResult.message);
-                    }
-                    optionalValues[optionalSpec.name] = optionalResult.value;
-                } else {
-                    optionalValues[optionalSpec.name] = "";
-                }
-            }
 
             if (!len(vesselName)) {
                 return buildResponse(false, true, "Validation failed", {}, "Vessel name is required.");
@@ -424,87 +362,96 @@
             }
 
             if (vesselId GT 0) {
-                updateAssignments = [
-                    "vesselName = :vesselName",
-                    "registration = :registration",
-                    "typeOfVessel = :typeOfVessel",
-                    "make = :makeVal",
-                    "model = :modelVal",
-                    "lengthOfVessel = :lengthVal",
-                    "max_speed = :maxSpeed",
-                    "most_efficient_speed = :mostEfficientSpeed",
-                    "gallons_per_hour = :gallonsPerHour",
-                    "gph_at_max_speed = :gphAtMaxSpeed",
-                    "fuel_capacity = :fuelCapacity",
-                    "isDefaultVessel = :isDefaultVessel",
-                    "hullColor = :hullColor",
-                    "hailingPort = :hailingPort"
-                ];
-                updateParams = {
-                    vesselName = { value = vesselName, cfsqltype = "cf_sql_varchar" },
-                    registration = { value = registration, cfsqltype = "cf_sql_varchar" },
-                    typeOfVessel = { value = vesselType, cfsqltype = "cf_sql_varchar" },
-                    makeVal = { value = makeVal, cfsqltype = "cf_sql_varchar" },
-                    modelVal = { value = modelVal, cfsqltype = "cf_sql_varchar" },
-                    lengthVal = { value = lengthVal, cfsqltype = "cf_sql_varchar" },
-                    maxSpeed = { value = (hasMaxSpeed ? val(maxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMaxSpeed), scale = 2, maxlength = 6 },
-                    mostEfficientSpeed = { value = (hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMostEfficientSpeed), scale = 2, maxlength = 6 },
-                    gallonsPerHour = { value = (hasGallonsPerHour ? val(gallonsPerHourRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGallonsPerHour), scale = 2, maxlength = 8 },
-                    gphAtMaxSpeed = { value = (hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGphAtMaxSpeed), scale = 2, maxlength = 8 },
-                    fuelCapacity = { value = (hasFuelCapacity ? val(fuelCapacityRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasFuelCapacity), scale = 2, maxlength = 10 },
-                    isDefaultVessel = { value = isDefaultVessel, cfsqltype = "cf_sql_tinyint" },
-                    hullColor = { value = colorVal, cfsqltype = "cf_sql_varchar" },
-                    hailingPort = { value = homePortVal, cfsqltype = "cf_sql_varchar" },
-                    vesselId = { value = vesselId, cfsqltype = "cf_sql_integer" }
-                };
-
-                for (optionalIndex = 1; optionalIndex LTE arrayLen(optionalFieldSpecs); optionalIndex++) {
-                    optionalSpec = optionalFieldSpecs[optionalIndex];
-                    if (!optionalPresent[optionalSpec.name]) continue;
-                    arrayAppend(updateAssignments, optionalSpec.column & " = :" & optionalSpec.param);
-                    updateParams[optionalSpec.param] = optionalVesselParam(optionalValues[optionalSpec.name], optionalSpec);
-                }
-
-                updateSql = "UPDATE vessels SET " & arrayToList(updateAssignments, ", ") & " WHERE vesselID = :vesselId";
-                queryExecute(updateSql, updateParams, { datasource = getDatasource() });
+                queryExecute(
+                    "UPDATE vessels
+                     SET vesselName = :vesselName,
+                         registration = :registration,
+                         typeOfVessel = :typeOfVessel,
+                         make = :makeVal,
+                         model = :modelVal,
+                         lengthOfVessel = :lengthVal,
+                         max_speed = :maxSpeed,
+                         most_efficient_speed = :mostEfficientSpeed,
+                         gallons_per_hour = :gallonsPerHour,
+                         gph_at_max_speed = :gphAtMaxSpeed,
+                         fuel_capacity = :fuelCapacity,
+                         isDefaultVessel = :isDefaultVessel,
+                         hullColor = :hullColor,
+                         hailingPort = :hailingPort
+                     WHERE vesselID = :vesselId",
+                    {
+                        vesselName = { value = vesselName, cfsqltype = "cf_sql_varchar" },
+                        registration = { value = registration, cfsqltype = "cf_sql_varchar" },
+                        typeOfVessel = { value = vesselType, cfsqltype = "cf_sql_varchar" },
+                        makeVal = { value = makeVal, cfsqltype = "cf_sql_varchar" },
+                        modelVal = { value = modelVal, cfsqltype = "cf_sql_varchar" },
+                        lengthVal = { value = lengthVal, cfsqltype = "cf_sql_varchar" },
+                        maxSpeed = { value = (hasMaxSpeed ? val(maxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMaxSpeed), scale = 2, maxlength = 6 },
+                        mostEfficientSpeed = { value = (hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMostEfficientSpeed), scale = 2, maxlength = 6 },
+                        gallonsPerHour = { value = (hasGallonsPerHour ? val(gallonsPerHourRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGallonsPerHour), scale = 2, maxlength = 8 },
+                        gphAtMaxSpeed = { value = (hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGphAtMaxSpeed), scale = 2, maxlength = 8 },
+                        fuelCapacity = { value = (hasFuelCapacity ? val(fuelCapacityRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasFuelCapacity), scale = 2, maxlength = 10 },
+                        isDefaultVessel = { value = isDefaultVessel, cfsqltype = "cf_sql_tinyint" },
+                        hullColor = { value = colorVal, cfsqltype = "cf_sql_varchar" },
+                        hailingPort = { value = homePortVal, cfsqltype = "cf_sql_varchar" },
+                        vesselId = { value = vesselId, cfsqltype = "cf_sql_integer" }
+                    },
+                    { datasource = getDatasource() }
+                );
             } else {
-                insertColumns = [
-                    "userId", "vesselName", "registration", "typeOfVessel", "make", "model", "lengthOfVessel",
-                    "max_speed", "most_efficient_speed", "gallons_per_hour", "gph_at_max_speed", "fuel_capacity",
-                    "isDefaultVessel", "hullColor", "hailingPort"
-                ];
-                insertPlaceholders = [
-                    ":userId", ":vesselName", ":registration", ":typeOfVessel", ":makeVal", ":modelVal", ":lengthVal",
-                    ":maxSpeed", ":mostEfficientSpeed", ":gallonsPerHour", ":gphAtMaxSpeed", ":fuelCapacity",
-                    ":isDefaultVessel", ":hullColor", ":hailingPort"
-                ];
-                insertParams = {
-                    userId = { value = userIdTxt, cfsqltype = "cf_sql_varchar" },
-                    vesselName = { value = vesselName, cfsqltype = "cf_sql_varchar" },
-                    registration = { value = registration, cfsqltype = "cf_sql_varchar" },
-                    typeOfVessel = { value = vesselType, cfsqltype = "cf_sql_varchar" },
-                    makeVal = { value = makeVal, cfsqltype = "cf_sql_varchar" },
-                    modelVal = { value = modelVal, cfsqltype = "cf_sql_varchar" },
-                    lengthVal = { value = lengthVal, cfsqltype = "cf_sql_varchar" },
-                    maxSpeed = { value = (hasMaxSpeed ? val(maxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMaxSpeed), scale = 2, maxlength = 6 },
-                    mostEfficientSpeed = { value = (hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMostEfficientSpeed), scale = 2, maxlength = 6 },
-                    gallonsPerHour = { value = (hasGallonsPerHour ? val(gallonsPerHourRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGallonsPerHour), scale = 2, maxlength = 8 },
-                    gphAtMaxSpeed = { value = (hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGphAtMaxSpeed), scale = 2, maxlength = 8 },
-                    fuelCapacity = { value = (hasFuelCapacity ? val(fuelCapacityRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasFuelCapacity), scale = 2, maxlength = 10 },
-                    isDefaultVessel = { value = isDefaultVessel, cfsqltype = "cf_sql_tinyint" },
-                    hullColor = { value = colorVal, cfsqltype = "cf_sql_varchar" },
-                    hailingPort = { value = homePortVal, cfsqltype = "cf_sql_varchar" }
-                };
-
-                for (optionalIndex = 1; optionalIndex LTE arrayLen(optionalFieldSpecs); optionalIndex++) {
-                    optionalSpec = optionalFieldSpecs[optionalIndex];
-                    arrayAppend(insertColumns, optionalSpec.column);
-                    arrayAppend(insertPlaceholders, ":" & optionalSpec.param);
-                    insertParams[optionalSpec.param] = optionalVesselParam(optionalValues[optionalSpec.name], optionalSpec);
-                }
-
-                insertSql = "INSERT INTO vessels (" & arrayToList(insertColumns, ", ") & ") VALUES (" & arrayToList(insertPlaceholders, ", ") & ")";
-                queryExecute(insertSql, insertParams, { datasource = getDatasource() });
+                queryExecute(
+                    "INSERT INTO vessels (
+                        userId,
+                        vesselName,
+                        registration,
+                        typeOfVessel,
+                        make,
+                        model,
+                        lengthOfVessel,
+                        max_speed,
+                        most_efficient_speed,
+                        gallons_per_hour,
+                        gph_at_max_speed,
+                        fuel_capacity,
+                        isDefaultVessel,
+                        hullColor,
+                        hailingPort
+                     ) VALUES (
+                        :userId,
+                        :vesselName,
+                        :registration,
+                        :typeOfVessel,
+                        :makeVal,
+                        :modelVal,
+                        :lengthVal,
+                        :maxSpeed,
+                        :mostEfficientSpeed,
+                        :gallonsPerHour,
+                        :gphAtMaxSpeed,
+                        :fuelCapacity,
+                        :isDefaultVessel,
+                        :hullColor,
+                        :hailingPort
+                     )",
+                    {
+                        userId = { value = userIdTxt, cfsqltype = "cf_sql_varchar" },
+                        vesselName = { value = vesselName, cfsqltype = "cf_sql_varchar" },
+                        registration = { value = registration, cfsqltype = "cf_sql_varchar" },
+                        typeOfVessel = { value = vesselType, cfsqltype = "cf_sql_varchar" },
+                        makeVal = { value = makeVal, cfsqltype = "cf_sql_varchar" },
+                        modelVal = { value = modelVal, cfsqltype = "cf_sql_varchar" },
+                        lengthVal = { value = lengthVal, cfsqltype = "cf_sql_varchar" },
+                        maxSpeed = { value = (hasMaxSpeed ? val(maxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMaxSpeed), scale = 2, maxlength = 6 },
+                        mostEfficientSpeed = { value = (hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasMostEfficientSpeed), scale = 2, maxlength = 6 },
+                        gallonsPerHour = { value = (hasGallonsPerHour ? val(gallonsPerHourRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGallonsPerHour), scale = 2, maxlength = 8 },
+                        gphAtMaxSpeed = { value = (hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasGphAtMaxSpeed), scale = 2, maxlength = 8 },
+                        fuelCapacity = { value = (hasFuelCapacity ? val(fuelCapacityRaw) : 0), cfsqltype = "cf_sql_decimal", null = (!hasFuelCapacity), scale = 2, maxlength = 10 },
+                        isDefaultVessel = { value = isDefaultVessel, cfsqltype = "cf_sql_tinyint" },
+                        hullColor = { value = colorVal, cfsqltype = "cf_sql_varchar" },
+                        hailingPort = { value = homePortVal, cfsqltype = "cf_sql_varchar" }
+                    },
+                    { datasource = getDatasource() }
+                );
 
                 qInsertId = queryExecute(
                     "SELECT LAST_INSERT_ID() AS new_id",
@@ -764,39 +711,6 @@
                     v.isDefaultVessel,
                     v.hullColor,
                     v.hailingPort,
-                    v.hin,
-                    v.yearBuilt,
-                    v.draft,
-                    v.hullMaterial,
-                    v.prominentFeatures,
-                    v.callSignNumber,
-                    v.DSCMMSI,
-                    v.radio_1_type,
-                    v.radio_1_channel,
-                    v.radio_2_type,
-                    v.radio_2_channel,
-                    v.mobilePhone,
-                    v.sattelite,
-                    v.primaryPropulsion,
-                    v.primaryPropulsionType,
-                    v.numberPrimary,
-                    v.primaryFuelCapacity,
-                    v.auxPropulsion,
-                    v.auxPropulsionType,
-                    v.numberAux,
-                    v.auxFuelCapacity,
-                    v.navigation,
-                    v.otherNavigation,
-                    v.visualDistressSignals,
-                    v.audibleDistressSignals,
-                    v.aepirb,
-                    v.anchor,
-                    v.anchorLineLength,
-                    v.additionalGear,
-                    v.otherEquipment,
-                    v.otherEquipment_b,
-                    v.otherEquipment_c,
-                    v.otherEquipment_d,
                     u.email,
                     u.fName,
                     u.lName,
@@ -842,264 +756,10 @@
                 "ISDEFAULTVESSEL" = toBoolean((isNull(arguments.q.isDefaultVessel[arguments.idx]) ? "" : toString(arguments.q.isDefaultVessel[arguments.idx])), true),
                 "COLOR" = (isNull(arguments.q.hullColor[arguments.idx]) ? "" : toString(arguments.q.hullColor[arguments.idx])),
                 "HOMEPORT" = (isNull(arguments.q.hailingPort[arguments.idx]) ? "" : toString(arguments.q.hailingPort[arguments.idx])),
-                "HIN" = (isNull(arguments.q.hin[arguments.idx]) ? "" : toString(arguments.q.hin[arguments.idx])),
-                "YEARBUILT" = (isNull(arguments.q.yearBuilt[arguments.idx]) ? "" : toString(arguments.q.yearBuilt[arguments.idx])),
-                "DRAFT" = (isNull(arguments.q.draft[arguments.idx]) ? "" : toString(arguments.q.draft[arguments.idx])),
-                "HULLMATERIAL" = (isNull(arguments.q.hullMaterial[arguments.idx]) ? "" : toString(arguments.q.hullMaterial[arguments.idx])),
-                "PROMINENTFEATURES" = (isNull(arguments.q.prominentFeatures[arguments.idx]) ? "" : toString(arguments.q.prominentFeatures[arguments.idx])),
-                "CALLSIGNNUMBER" = (isNull(arguments.q.callSignNumber[arguments.idx]) ? "" : toString(arguments.q.callSignNumber[arguments.idx])),
-                "DSCMMSI" = (isNull(arguments.q.DSCMMSI[arguments.idx]) ? "" : toString(arguments.q.DSCMMSI[arguments.idx])),
-                "RADIO_1_TYPE" = (isNull(arguments.q.radio_1_type[arguments.idx]) ? "" : toString(arguments.q.radio_1_type[arguments.idx])),
-                "RADIO_1_CHANNEL" = (isNull(arguments.q.radio_1_channel[arguments.idx]) ? "" : toString(arguments.q.radio_1_channel[arguments.idx])),
-                "RADIO_2_TYPE" = (isNull(arguments.q.radio_2_type[arguments.idx]) ? "" : toString(arguments.q.radio_2_type[arguments.idx])),
-                "RADIO_2_CHANNEL" = (isNull(arguments.q.radio_2_channel[arguments.idx]) ? "" : toString(arguments.q.radio_2_channel[arguments.idx])),
-                "MOBILEPHONE" = (isNull(arguments.q.mobilePhone[arguments.idx]) ? "" : toString(arguments.q.mobilePhone[arguments.idx])),
-                "SATTELITE" = (isNull(arguments.q.sattelite[arguments.idx]) ? "" : toString(arguments.q.sattelite[arguments.idx])),
-                "PRIMARYPROPULSION" = (isNull(arguments.q.primaryPropulsion[arguments.idx]) ? "" : toString(arguments.q.primaryPropulsion[arguments.idx])),
-                "PRIMARYPROPULSIONTYPE" = (isNull(arguments.q.primaryPropulsionType[arguments.idx]) ? "" : toString(arguments.q.primaryPropulsionType[arguments.idx])),
-                "NUMBERPRIMARY" = (isNull(arguments.q.numberPrimary[arguments.idx]) ? "" : toString(arguments.q.numberPrimary[arguments.idx])),
-                "PRIMARYFUELCAPACITY" = (isNull(arguments.q.primaryFuelCapacity[arguments.idx]) ? "" : toString(arguments.q.primaryFuelCapacity[arguments.idx])),
-                "AUXPROPULSION" = (isNull(arguments.q.auxPropulsion[arguments.idx]) ? "" : toString(arguments.q.auxPropulsion[arguments.idx])),
-                "AUXPROPULSIONTYPE" = (isNull(arguments.q.auxPropulsionType[arguments.idx]) ? "" : toString(arguments.q.auxPropulsionType[arguments.idx])),
-                "NUMBERAUX" = (isNull(arguments.q.numberAux[arguments.idx]) ? "" : toString(arguments.q.numberAux[arguments.idx])),
-                "AUXFUELCAPACITY" = (isNull(arguments.q.auxFuelCapacity[arguments.idx]) ? "" : toString(arguments.q.auxFuelCapacity[arguments.idx])),
-                "NAVIGATION" = (isNull(arguments.q.navigation[arguments.idx]) ? "" : toString(arguments.q.navigation[arguments.idx])),
-                "OTHERNAVIGATION" = (isNull(arguments.q.otherNavigation[arguments.idx]) ? "" : toString(arguments.q.otherNavigation[arguments.idx])),
-                "VISUALDISTRESSSIGNALS" = (isNull(arguments.q.visualDistressSignals[arguments.idx]) ? "" : toString(arguments.q.visualDistressSignals[arguments.idx])),
-                "AUDIBLEDISTRESSSIGNALS" = (isNull(arguments.q.audibleDistressSignals[arguments.idx]) ? "" : toString(arguments.q.audibleDistressSignals[arguments.idx])),
-                "AEPIRB" = (isNull(arguments.q.aepirb[arguments.idx]) ? "" : toString(arguments.q.aepirb[arguments.idx])),
-                "ANCHOR" = (isNull(arguments.q.anchor[arguments.idx]) ? "" : toString(arguments.q.anchor[arguments.idx])),
-                "ANCHORLINELENGTH" = (isNull(arguments.q.anchorLineLength[arguments.idx]) ? "" : toString(arguments.q.anchorLineLength[arguments.idx])),
-                "ADDITIONALGEAR" = (isNull(arguments.q.additionalGear[arguments.idx]) ? "" : toString(arguments.q.additionalGear[arguments.idx])),
-                "OTHEREQUIPMENT" = (isNull(arguments.q.otherEquipment[arguments.idx]) ? "" : toString(arguments.q.otherEquipment[arguments.idx])),
-                "OTHEREQUIPMENT_B" = (isNull(arguments.q.otherEquipment_b[arguments.idx]) ? "" : toString(arguments.q.otherEquipment_b[arguments.idx])),
-                "OTHEREQUIPMENT_C" = (isNull(arguments.q.otherEquipment_c[arguments.idx]) ? "" : toString(arguments.q.otherEquipment_c[arguments.idx])),
-                "OTHEREQUIPMENT_D" = (isNull(arguments.q.otherEquipment_d[arguments.idx]) ? "" : toString(arguments.q.otherEquipment_d[arguments.idx])),
                 "USER_EMAIL" = (isNull(arguments.q.email[arguments.idx]) ? "" : toString(arguments.q.email[arguments.idx])),
                 "USER_FIRSTNAME" = (isNull(arguments.q.fName[arguments.idx]) ? "" : toString(arguments.q.fName[arguments.idx])),
                 "USER_LASTNAME" = (isNull(arguments.q.lName[arguments.idx]) ? "" : toString(arguments.q.lName[arguments.idx])),
                 "USAGE_COUNT" = (isNull(arguments.q.usage_count[arguments.idx]) ? 0 : val(arguments.q.usage_count[arguments.idx]))
-            };
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="getOptionalVesselFieldSpecs" access="private" returntype="array" output="false">
-        <cfscript>
-            var propulsionTypes = ["Diesel IB", "Diesel IO", "Diesel OB", "Electric IB", "Electric IO", "Electric OB", "Fan", "Gas IB", "Gas IO", "Gas OB", "Oar", "Paddle", "Wind"];
-            var auxiliaryPropulsionTypes = duplicate(propulsionTypes);
-            arrayPrepend(auxiliaryPropulsionTypes, "none");
-
-            return [
-                { name = "hin", column = "hin", param = "optionalHin", aliases = ["hin"], kind = "text", label = "HIN", maxLength = 255 },
-                { name = "yearBuilt", column = "yearBuilt", param = "optionalYearBuilt", aliases = ["yearBuilt"], kind = "text", label = "Year Built", maxLength = 45 },
-                { name = "draft", column = "draft", param = "optionalDraft", aliases = ["draft"], kind = "text", label = "Draft", maxLength = 45 },
-                { name = "hullMaterial", column = "hullMaterial", param = "optionalHullMaterial", aliases = ["hullMaterial"], kind = "choice", label = "Hull Material", maxLength = 155, allowed = ["Aluminum", "Composite", "Concrete", "Fabric", "Fiberglass", "Plastic", "Steel", "Wood"] },
-                { name = "prominentFeatures", column = "prominentFeatures", param = "optionalProminentFeatures", aliases = ["prominentFeatures"], kind = "text", label = "Prominent Features", maxLength = 255 },
-                { name = "callSignNumber", column = "callSignNumber", param = "optionalCallSignNumber", aliases = ["callSignNumber"], kind = "text", label = "Radio Call Sign", maxLength = 255 },
-                { name = "DSCMMSI", column = "DSCMMSI", param = "optionalDscmmsi", aliases = ["DSCMMSI"], kind = "text", label = "MMSI", maxLength = 150 },
-                { name = "radio_1_type", column = "radio_1_type", param = "optionalRadio1Type", aliases = ["radio_1_type"], kind = "choice", label = "Primary Radio Type", maxLength = 45, allowed = ["none", "CB", "HF", "MF", "VHF-FM"] },
-                { name = "radio_1_channel", column = "radio_1_channel", param = "optionalRadio1Channel", aliases = ["radio_1_channel"], kind = "text", label = "Primary Channel / Frequency Monitored", maxLength = 255 },
-                { name = "radio_2_type", column = "radio_2_type", param = "optionalRadio2Type", aliases = ["radio_2_type"], kind = "choice", label = "Secondary Radio Type", maxLength = 45, allowed = ["none", "CB", "HF", "MF", "VHF-FM"] },
-                { name = "radio_2_channel", column = "radio_2_channel", param = "optionalRadio2Channel", aliases = ["radio_2_channel"], kind = "text", label = "Secondary Channel / Frequency Monitored", maxLength = 255 },
-                { name = "mobilePhone", column = "mobilePhone", param = "optionalMobilePhone", aliases = ["mobilePhone"], kind = "text", label = "Vessel / Onboard Mobile Phone", maxLength = 45 },
-                { name = "sattelite", column = "sattelite", param = "optionalSattelite", aliases = ["sattelite"], kind = "text", label = "Satellite Phone", maxLength = 45 },
-                { name = "primaryPropulsion", column = "primaryPropulsion", param = "optionalPrimaryPropulsion", aliases = ["primaryPropulsion"], kind = "text", label = "Primary Propulsion Details", maxLength = 45 },
-                { name = "primaryPropulsionType", column = "primaryPropulsionType", param = "optionalPrimaryPropulsionType", aliases = ["primaryPropulsionType"], kind = "choice", label = "Primary Propulsion Type", maxLength = 45, allowed = propulsionTypes },
-                { name = "numberPrimary", column = "numberPrimary", param = "optionalNumberPrimary", aliases = ["numberPrimary"], kind = "integer", label = "Primary engine count", maxLength = 45 },
-                { name = "primaryFuelCapacity", column = "primaryFuelCapacity", param = "optionalPrimaryFuelCapacity", aliases = ["primaryFuelCapacity"], kind = "decimal", label = "Primary Fuel Capacity", maxLength = 45 },
-                { name = "auxPropulsion", column = "auxPropulsion", param = "optionalAuxPropulsion", aliases = ["auxPropulsion"], kind = "text", label = "Auxiliary Propulsion Details", maxLength = 45 },
-                { name = "auxPropulsionType", column = "auxPropulsionType", param = "optionalAuxPropulsionType", aliases = ["auxPropulsionType"], kind = "choice", label = "Auxiliary Propulsion Type", maxLength = 45, allowed = auxiliaryPropulsionTypes },
-                { name = "numberAux", column = "numberAux", param = "optionalNumberAux", aliases = ["numberAux"], kind = "integer", label = "Auxiliary engine count", maxLength = 45 },
-                { name = "auxFuelCapacity", column = "auxFuelCapacity", param = "optionalAuxFuelCapacity", aliases = ["auxFuelCapacity"], kind = "decimal", label = "Auxiliary Fuel Capacity", maxLength = 45 },
-                { name = "navigation", column = "navigation", param = "optionalNavigation", aliases = ["navigation"], kind = "list", label = "Navigation", maxLength = 255, allowed = ["compass", "radar", "gps_dgps", "depthSounder", "charts", "maps", "other"] },
-                { name = "otherNavigation", column = "otherNavigation", param = "optionalOtherNavigation", aliases = ["otherNavigation"], kind = "text", label = "Other Navigation Equipment", maxLength = 255 },
-                { name = "visualDistressSignals", column = "visualDistressSignals", param = "optionalVisualDistressSignals", aliases = ["visualDistressSignals"], kind = "list", label = "Visual Distress Signals", maxLength = 255, allowed = ["ElectricDistressLight", "Flag", "FlareAerial", "FlareHandheld", "SignalMirror", "Smoke"] },
-                { name = "audibleDistressSignals", column = "audibleDistressSignals", param = "optionalAudibleDistressSignals", aliases = ["audibleDistressSignals"], kind = "list", label = "Audible Distress Signals", maxLength = 255, allowed = ["Bell", "Horn", "Whistle"] },
-                { name = "aepirb", column = "aepirb", param = "optionalAepirb", aliases = ["aepirb"], kind = "text", label = "EPIRB UIN", maxLength = 150 },
-                { name = "anchor", column = "anchor", param = "optionalAnchor", aliases = ["anchor"], kind = "boolean", label = "Anchor aboard", maxLength = 150 },
-                { name = "anchorLineLength", column = "anchorLineLength", param = "optionalAnchorLineLength", aliases = ["anchorLineLength"], kind = "text", label = "Anchor Line / Rode Length", maxLength = 150 },
-                { name = "additionalGear", column = "additionalGear", param = "optionalAdditionalGear", aliases = ["additionalGear"], kind = "list", label = "Additional Gear", maxLength = 255, allowed = ["DewateringDevice", "ExposureSuits", "FireExtinguisher", "FlashlightSearchLight", "RaftDinghy"] },
-                { name = "otherEquipment", column = "otherEquipment", param = "optionalOtherEquipment", aliases = ["otherEquipment"], kind = "text", label = "Other Equipment 1", maxLength = 255 },
-                { name = "otherEquipment_b", column = "otherEquipment_b", param = "optionalOtherEquipmentB", aliases = ["otherEquipment_b"], kind = "text", label = "Other Equipment 2", maxLength = 255 },
-                { name = "otherEquipment_c", column = "otherEquipment_c", param = "optionalOtherEquipmentC", aliases = ["otherEquipment_c"], kind = "text", label = "Other Equipment 3", maxLength = 255 },
-                { name = "otherEquipment_d", column = "otherEquipment_d", param = "optionalOtherEquipmentD", aliases = ["otherEquipment_d"], kind = "text", label = "Other Equipment 4", maxLength = 255 }
-            ];
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="findFirstPresentKey" access="private" returntype="string" output="false">
-        <cfargument name="source" type="struct" required="true">
-        <cfargument name="keys" type="array" required="true">
-        <cfscript>
-            var keyIndex = 0;
-            for (keyIndex = 1; keyIndex LTE arrayLen(arguments.keys); keyIndex++) {
-                if (structKeyExists(arguments.source, arguments.keys[keyIndex])) {
-                    return arguments.keys[keyIndex];
-                }
-            }
-            return "";
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="normalizeOptionalVesselValue" access="private" returntype="struct" output="false">
-        <cfargument name="rawValue" required="true">
-        <cfargument name="spec" type="struct" required="true">
-        <cfscript>
-            var result = { valid = true, value = "", message = "" };
-            var value = "";
-            var canonical = "";
-            var trueTokens = "1,true,yes,y,on";
-            var falseTokens = "0,false,no,n,off";
-
-            if (arguments.spec.kind EQ "list") {
-                return canonicalTokenList(arguments.rawValue, arguments.spec.allowed, arguments.spec.label);
-            }
-            if (isNull(arguments.rawValue)) {
-                return result;
-            }
-            if (!isSimpleValue(arguments.rawValue)) {
-                result.valid = false;
-                result.message = arguments.spec.label & " must be a single value.";
-                return result;
-            }
-
-            value = trim(toString(arguments.rawValue));
-            if (!len(value)) {
-                return result;
-            }
-
-            if (arguments.spec.kind EQ "choice") {
-                canonical = canonicalChoice(value, arguments.spec.allowed);
-                if (!len(canonical)) {
-                    result.valid = false;
-                    result.message = arguments.spec.label & " contains an unsupported value.";
-                    return result;
-                }
-                value = canonical;
-            } else if (arguments.spec.kind EQ "integer") {
-                if (!reFind("^[0-9]+$", value)) {
-                    result.valid = false;
-                    result.message = arguments.spec.label & " must be a non-negative whole number.";
-                    return result;
-                }
-            } else if (arguments.spec.kind EQ "decimal") {
-                if (!reFind("^[0-9]+([.][0-9]{1,2})?$", value) OR !isNumeric(value) OR val(value) GT 99999999.99) {
-                    result.valid = false;
-                    result.message = arguments.spec.label & " must be a non-negative number with no more than two decimal places.";
-                    return result;
-                }
-            } else if (arguments.spec.kind EQ "boolean") {
-                if (listFindNoCase(trueTokens, value)) {
-                    value = "1";
-                } else if (listFindNoCase(falseTokens, value)) {
-                    value = "0";
-                } else {
-                    result.valid = false;
-                    result.message = arguments.spec.label & " must be true or false.";
-                    return result;
-                }
-            }
-
-            if (len(value) GT arguments.spec.maxLength) {
-                result.valid = false;
-                result.message = arguments.spec.label & " is too long.";
-                return result;
-            }
-
-            result.value = value;
-            return result;
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="canonicalChoice" access="private" returntype="string" output="false">
-        <cfargument name="value" type="string" required="true">
-        <cfargument name="allowed" type="array" required="true">
-        <cfscript>
-            var choiceIndex = 0;
-            for (choiceIndex = 1; choiceIndex LTE arrayLen(arguments.allowed); choiceIndex++) {
-                if (compareNoCase(arguments.value, arguments.allowed[choiceIndex]) EQ 0) {
-                    return arguments.allowed[choiceIndex];
-                }
-            }
-            return "";
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="canonicalTokenList" access="private" returntype="struct" output="false">
-        <cfargument name="rawValue" required="true">
-        <cfargument name="allowed" type="array" required="true">
-        <cfargument name="label" type="string" required="true">
-        <cfscript>
-            var result = { valid = true, value = "", message = "" };
-            var incoming = [];
-            var seen = {};
-            var output = [];
-            var itemIndex = 0;
-            var allowedIndex = 0;
-            var rawItem = "";
-            var canonical = "";
-
-            if (isNull(arguments.rawValue)) {
-                return result;
-            }
-            if (isArray(arguments.rawValue)) {
-                incoming = arguments.rawValue;
-            } else if (isSimpleValue(arguments.rawValue)) {
-                if (!len(trim(toString(arguments.rawValue)))) return result;
-                incoming = listToArray(toString(arguments.rawValue), ",");
-            } else {
-                result.valid = false;
-                result.message = arguments.label & " must be a comma-separated list.";
-                return result;
-            }
-
-            for (itemIndex = 1; itemIndex LTE arrayLen(incoming); itemIndex++) {
-                if (!isSimpleValue(incoming[itemIndex])) {
-                    result.valid = false;
-                    result.message = arguments.label & " contains an unsupported value.";
-                    return result;
-                }
-                rawItem = trim(toString(incoming[itemIndex]));
-                if (!len(rawItem)) continue;
-                canonical = canonicalChoice(rawItem, arguments.allowed);
-                if (!len(canonical)) {
-                    result.valid = false;
-                    result.message = arguments.label & " contains an unsupported value: " & rawItem & ".";
-                    return result;
-                }
-                seen[lCase(canonical)] = true;
-            }
-
-            for (allowedIndex = 1; allowedIndex LTE arrayLen(arguments.allowed); allowedIndex++) {
-                canonical = arguments.allowed[allowedIndex];
-                if (structKeyExists(seen, lCase(canonical))) {
-                    arrayAppend(output, canonical);
-                }
-            }
-
-            result.value = arrayToList(output, ",");
-            return result;
-        </cfscript>
-    </cffunction>
-
-    <cffunction name="optionalVesselParam" access="private" returntype="struct" output="false">
-        <cfargument name="value" type="string" required="true">
-        <cfargument name="spec" type="struct" required="true">
-        <cfscript>
-            if (arguments.spec.kind EQ "decimal") {
-                return {
-                    value = len(arguments.value) ? val(arguments.value) : 0,
-                    cfsqltype = "cf_sql_decimal",
-                    null = !len(arguments.value),
-                    scale = 2,
-                    maxlength = 10
-                };
-            }
-            return {
-                value = arguments.value,
-                cfsqltype = "cf_sql_varchar",
-                null = !len(arguments.value),
-                maxlength = arguments.spec.maxLength
             };
         </cfscript>
     </cffunction>
@@ -1259,3 +919,9 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+
+
+

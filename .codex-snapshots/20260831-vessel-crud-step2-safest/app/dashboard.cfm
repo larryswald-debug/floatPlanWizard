@@ -606,206 +606,91 @@
             <div class="modal-body card-body">
                 <form id="vesselForm" novalidate>
                     <input type="hidden" id="vesselId" value="0">
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Vessel Basics</legend>
-                        <div class="mb-3">
-                            <label class="form-label" for="vesselImage">Vessel Image</label>
-                            <div class="fpw-vessel-image-editor">
-                                <div class="fpw-vessel-image-preview" id="vesselImagePreview">
-                                    <img class="d-none" id="vesselImagePreviewImg" alt="Vessel image preview">
-                                    <span id="vesselImagePreviewEmpty">No image selected</span>
-                                </div>
-                                <div>
-                                    <input type="file" class="form-control" id="vesselImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
-                                    <div class="form-text">Public/shareable. JPG, PNG, or WebP up to 5MB.</div>
-                                    <div class="invalid-feedback" id="vesselImageError"></div>
-                                    <button type="button" class="btn-secondary mt-2 d-none" id="removeVesselImageBtn">Remove image</button>
-                                </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselImage">Vessel Image</label>
+                        <div class="fpw-vessel-image-editor">
+                            <div class="fpw-vessel-image-preview" id="vesselImagePreview">
+                                <img class="d-none" id="vesselImagePreviewImg" alt="Vessel image preview">
+                                <span id="vesselImagePreviewEmpty">No image selected</span>
+                            </div>
+                            <div>
+                                <input type="file" class="form-control" id="vesselImage" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                <div class="form-text">Public/shareable. JPG, PNG, or WebP up to 5MB.</div>
+                                <div class="invalid-feedback" id="vesselImageError"></div>
+                                <button type="button" class="btn-secondary mt-2 d-none" id="removeVesselImageBtn">Remove image</button>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="vesselName">Vessel Name *</label>
-                            <input type="text" class="form-control" id="vesselName" required>
-                            <div class="invalid-feedback" id="vesselNameError"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselName">Vessel Name *</label>
+                        <input type="text" class="form-control" id="vesselName" required>
+                        <div class="invalid-feedback" id="vesselNameError"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselType">Type *</label>
+                            <input type="text" class="form-control" id="vesselType" required>
+                            <div class="invalid-feedback" id="vesselTypeError"></div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselType">Type *</label>
-                                <input type="text" class="form-control" id="vesselType" required>
-                                <div class="invalid-feedback" id="vesselTypeError"></div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselLength">Length *</label>
-                                <input type="text" class="form-control" id="vesselLength" required>
-                                <div class="invalid-feedback" id="vesselLengthError"></div>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselColor">Hull Color *</label>
-                                <input type="text" class="form-control" id="vesselColor" required>
-                                <div class="invalid-feedback" id="vesselColorError"></div>
-                            </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselLength">Length *</label>
+                            <input type="text" class="form-control" id="vesselLength" required>
+                            <div class="invalid-feedback" id="vesselLengthError"></div>
                         </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="vesselIsDefault">
-                            <label class="form-check-label" for="vesselIsDefault">Default Vessel - used for route calculations</label>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselColor">Hull Color *</label>
+                            <input type="text" class="form-control" id="vesselColor" required>
+                            <div class="invalid-feedback" id="vesselColorError"></div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="vesselRegistration">Registration</label>
-                            <input type="text" class="form-control" id="vesselRegistration">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="vesselIsDefault">
+                        <label class="form-check-label" for="vesselIsDefault">Default Vessel - used for route calculations</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="vesselRegistration">Registration</label>
+                        <input type="text" class="form-control" id="vesselRegistration">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label" for="vesselHomePort">Hailing Port</label>
+                            <input type="text" class="form-control" id="vesselHomePort">
                         </div>
-                        <div class="row">
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label" for="vesselHomePort">Hailing Port</label>
-                                <input type="text" class="form-control" id="vesselHomePort">
-                            </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="vesselMaxSpeed">Max Speed (KPH)</label>
+                            <input type="number" class="form-control" id="vesselMaxSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="vesselMake">Make</label>
-                                <input type="text" class="form-control" id="vesselMake">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label" for="vesselModel">Model</label>
-                                <input type="text" class="form-control" id="vesselModel">
-                            </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="vesselMostEfficientSpeed">Most Efficient (KPH)</label>
+                            <input type="number" class="form-control" id="vesselMostEfficientSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Identification</legend>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselHin">HIN</label><input type="text" class="form-control" id="vesselHin" maxlength="255"></div>
-                            <div class="col-md-3 mb-3"><label class="form-label" for="vesselYearBuilt">Year Built</label><input type="text" class="form-control" id="vesselYearBuilt" maxlength="45"></div>
-                            <div class="col-md-3 mb-3"><label class="form-label" for="vesselDraft">Draft</label><input type="text" class="form-control" id="vesselDraft" maxlength="45"></div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="vesselGallonsPerHour">GPH@efficient</label>
+                            <input type="number" class="form-control" id="vesselGallonsPerHour" min="0" step="0.01" inputmode="decimal">
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselHullMaterial">Hull Material</label>
-                                <select class="form-select" id="vesselHullMaterial">
-                                    <option value="">Select hull material</option><option value="Aluminum">Aluminum</option><option value="Composite">Composite</option><option value="Concrete">Concrete</option><option value="Fabric">Fabric</option><option value="Fiberglass">Fiberglass</option><option value="Plastic">Plastic</option><option value="Steel">Steel</option><option value="Wood">Wood</option>
-                                </select>
-                            </div>
-                            <div class="col-md-8 mb-3"><label class="form-label" for="vesselProminentFeatures">Prominent Features</label><input type="text" class="form-control" id="vesselProminentFeatures" maxlength="255"></div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label" for="vesselGphAtMaxSpeed">GPH@max</label>
+                            <input type="number" class="form-control" id="vesselGphAtMaxSpeed" min="0" step="0.01" inputmode="decimal">
                         </div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Communications</legend>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselCallSignNumber">Radio Call Sign</label><input type="text" class="form-control" id="vesselCallSignNumber" maxlength="255"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselDscMmsi">MMSI</label><input type="text" class="form-control" id="vesselDscMmsi" maxlength="150"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label" for="vesselFuelCapacity">Fuel Capacity (gal)</label>
+                            <input type="number" class="form-control" id="vesselFuelCapacity" min="0" step="0.01" inputmode="decimal">
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselRadio1Type">Primary Radio Type</label>
-                                <select class="form-select" id="vesselRadio1Type"><option value="">Select radio type</option><option value="none">None</option><option value="CB">CB</option><option value="HF">HF</option><option value="MF">MF</option><option value="VHF-FM">VHF-FM</option></select>
-                            </div>
-                            <div class="col-md-8 mb-3"><label class="form-label" for="vesselRadio1Channel">Primary Channel / Frequency Monitored</label><input type="text" class="form-control" id="vesselRadio1Channel" maxlength="255"></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselMake">Make</label>
+                            <input type="text" class="form-control" id="vesselMake">
                         </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselRadio2Type">Secondary Radio Type</label>
-                                <select class="form-select" id="vesselRadio2Type"><option value="">Select radio type</option><option value="none">None</option><option value="CB">CB</option><option value="HF">HF</option><option value="MF">MF</option><option value="VHF-FM">VHF-FM</option></select>
-                            </div>
-                            <div class="col-md-8 mb-3"><label class="form-label" for="vesselRadio2Channel">Secondary Channel / Frequency Monitored</label><input type="text" class="form-control" id="vesselRadio2Channel" maxlength="255"></div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label" for="vesselModel">Model</label>
+                            <input type="text" class="form-control" id="vesselModel">
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselMobilePhone">Vessel / Onboard Mobile Phone</label><input type="tel" class="form-control" id="vesselMobilePhone" maxlength="45"><div class="form-text">This does not change the phone number on your Account.</div></div>
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselSatellitePhone">Satellite Phone</label><input type="tel" class="form-control" id="vesselSatellitePhone" maxlength="45"></div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Propulsion &amp; Fuel</legend>
-                        <h6>Primary Propulsion</h6>
-                        <div class="row">
-                            <div class="col-md-4 mb-3"><label class="form-label" for="vesselPrimaryPropulsion">Primary Propulsion Details</label><input type="text" class="form-control" id="vesselPrimaryPropulsion" maxlength="45"></div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselPrimaryPropulsionType">Propulsion Type</label>
-                                <select class="form-select" id="vesselPrimaryPropulsionType"><option value="">Select propulsion type</option><option value="Diesel IB">Diesel IB</option><option value="Diesel IO">Diesel IO</option><option value="Diesel OB">Diesel OB</option><option value="Electric IB">Electric IB</option><option value="Electric IO">Electric IO</option><option value="Electric OB">Electric OB</option><option value="Fan">Fan</option><option value="Gas IB">Gas IB</option><option value="Gas IO">Gas IO</option><option value="Gas OB">Gas OB</option><option value="Oar">Oar</option><option value="Paddle">Paddle</option><option value="Wind">Wind</option></select>
-                            </div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselNumberPrimary">Number of Engines</label><input type="number" class="form-control" id="vesselNumberPrimary" min="0" step="1" inputmode="numeric"></div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselPrimaryFuelCapacity">Primary Fuel Capacity (gal)</label><input type="number" class="form-control" id="vesselPrimaryFuelCapacity" min="0" step="0.01" inputmode="decimal"></div>
-                        </div>
-                        <h6>Auxiliary Propulsion</h6>
-                        <div class="row">
-                            <div class="col-md-4 mb-3"><label class="form-label" for="vesselAuxPropulsion">Auxiliary Propulsion Details</label><input type="text" class="form-control" id="vesselAuxPropulsion" maxlength="45"></div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label" for="vesselAuxPropulsionType">Propulsion Type</label>
-                                <select class="form-select" id="vesselAuxPropulsionType"><option value="">Select propulsion type</option><option value="none">None</option><option value="Diesel IB">Diesel IB</option><option value="Diesel IO">Diesel IO</option><option value="Diesel OB">Diesel OB</option><option value="Electric IB">Electric IB</option><option value="Electric IO">Electric IO</option><option value="Electric OB">Electric OB</option><option value="Fan">Fan</option><option value="Gas IB">Gas IB</option><option value="Gas IO">Gas IO</option><option value="Gas OB">Gas OB</option><option value="Oar">Oar</option><option value="Paddle">Paddle</option><option value="Wind">Wind</option></select>
-                            </div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselNumberAux">Number of Engines</label><input type="number" class="form-control" id="vesselNumberAux" min="0" step="1" inputmode="numeric"></div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselAuxFuelCapacity">Auxiliary Fuel Capacity (gal)</label><input type="number" class="form-control" id="vesselAuxFuelCapacity" min="0" step="0.01" inputmode="decimal"></div>
-                        </div>
-                        <h6>Performance &amp; Total Fuel</h6>
-                        <div class="row">
-                            <div class="col-md-3 mb-3"><label class="form-label" for="vesselMaxSpeed">Max Speed (KPH)</label><input type="number" class="form-control" id="vesselMaxSpeed" min="0" step="0.01" inputmode="decimal"></div>
-                            <div class="col-md-3 mb-3"><label class="form-label" for="vesselMostEfficientSpeed">Most Efficient (KPH)</label><input type="number" class="form-control" id="vesselMostEfficientSpeed" min="0" step="0.01" inputmode="decimal"></div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselGallonsPerHour">GPH@efficient</label><input type="number" class="form-control" id="vesselGallonsPerHour" min="0" step="0.01" inputmode="decimal"></div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselGphAtMaxSpeed">GPH@max</label><input type="number" class="form-control" id="vesselGphAtMaxSpeed" min="0" step="0.01" inputmode="decimal"></div>
-                            <div class="col-md-2 mb-3"><label class="form-label" for="vesselFuelCapacity">Total Fuel Capacity (gal)</label><input type="number" class="form-control" id="vesselFuelCapacity" min="0" step="0.01" inputmode="decimal"></div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Navigation</legend>
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2 mb-3">
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationCompass" value="compass"><label class="form-check-label" for="vesselNavigationCompass">Compass</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationRadar" value="radar"><label class="form-check-label" for="vesselNavigationRadar">Radar</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationGps" value="gps_dgps"><label class="form-check-label" for="vesselNavigationGps">GPS / DGPS</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationDepthSounder" value="depthSounder"><label class="form-check-label" for="vesselNavigationDepthSounder">Depth Sounder</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationCharts" value="charts"><label class="form-check-label" for="vesselNavigationCharts">Charts</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationMaps" value="maps"><label class="form-check-label" for="vesselNavigationMaps">Maps</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-navigation-option" type="checkbox" id="vesselNavigationOther" value="other"><label class="form-check-label" for="vesselNavigationOther">Other</label></div></div>
-                        </div>
-                        <div class="mb-3 d-none" id="vesselOtherNavigationGroup"><label class="form-label" for="vesselOtherNavigation">Other Navigation Equipment</label><input type="text" class="form-control" id="vesselOtherNavigation" maxlength="255"></div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Safety &amp; Distress Equipment</legend>
-                        <h6>Visual Distress Signals</h6>
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2 mb-3">
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-visual-distress-option" type="checkbox" id="vesselVisualElectricLight" value="ElectricDistressLight"><label class="form-check-label" for="vesselVisualElectricLight">Electric Distress Light</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-visual-distress-option" type="checkbox" id="vesselVisualFlag" value="Flag"><label class="form-check-label" for="vesselVisualFlag">Flag</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-visual-distress-option" type="checkbox" id="vesselVisualFlareAerial" value="FlareAerial"><label class="form-check-label" for="vesselVisualFlareAerial">Aerial Flare</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-visual-distress-option" type="checkbox" id="vesselVisualFlareHandheld" value="FlareHandheld"><label class="form-check-label" for="vesselVisualFlareHandheld">Handheld Flare</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-visual-distress-option" type="checkbox" id="vesselVisualSignalMirror" value="SignalMirror"><label class="form-check-label" for="vesselVisualSignalMirror">Signal Mirror</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-visual-distress-option" type="checkbox" id="vesselVisualSmoke" value="Smoke"><label class="form-check-label" for="vesselVisualSmoke">Smoke</label></div></div>
-                        </div>
-                        <h6>Audible Distress Signals</h6>
-                        <div class="row row-cols-1 row-cols-sm-3 g-2 mb-3">
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-audible-distress-option" type="checkbox" id="vesselAudibleBell" value="Bell"><label class="form-check-label" for="vesselAudibleBell">Bell</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-audible-distress-option" type="checkbox" id="vesselAudibleHorn" value="Horn"><label class="form-check-label" for="vesselAudibleHorn">Horn</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-audible-distress-option" type="checkbox" id="vesselAudibleWhistle" value="Whistle"><label class="form-check-label" for="vesselAudibleWhistle">Whistle</label></div></div>
-                        </div>
-                        <div class="mb-3"><label class="form-label" for="vesselAepirb">EPIRB UIN</label><input type="text" class="form-control" id="vesselAepirb" maxlength="150" aria-describedby="vesselAepirbHelp"><div class="form-text" id="vesselAepirbHelp">If available, enter the EPIRB's 15-character unique identifier.</div></div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-3">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Anchor &amp; Additional Gear</legend>
-                        <div class="row align-items-end">
-                            <div class="col-md-4 mb-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="vesselAnchor"><label class="form-check-label" for="vesselAnchor">Anchor aboard</label></div></div>
-                            <div class="col-md-8 mb-3"><label class="form-label" for="vesselAnchorLineLength">Anchor Line / Rode Length (ft)</label><input type="text" class="form-control" id="vesselAnchorLineLength" maxlength="150" inputmode="decimal"></div>
-                        </div>
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2 mb-3">
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-additional-gear-option" type="checkbox" id="vesselGearDewatering" value="DewateringDevice"><label class="form-check-label" for="vesselGearDewatering">Dewatering Device</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-additional-gear-option" type="checkbox" id="vesselGearExposureSuits" value="ExposureSuits"><label class="form-check-label" for="vesselGearExposureSuits">Exposure Suits</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-additional-gear-option" type="checkbox" id="vesselGearFireExtinguisher" value="FireExtinguisher"><label class="form-check-label" for="vesselGearFireExtinguisher">Fire Extinguisher</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-additional-gear-option" type="checkbox" id="vesselGearFlashlight" value="FlashlightSearchLight"><label class="form-check-label" for="vesselGearFlashlight">Flashlight / Searchlight</label></div></div>
-                            <div class="col"><div class="form-check"><input class="form-check-input vessel-additional-gear-option" type="checkbox" id="vesselGearRaft" value="RaftDinghy"><label class="form-check-label" for="vesselGearRaft">Raft / Dinghy</label></div></div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="border rounded p-3 mb-0">
-                        <legend class="float-none w-auto px-2 fs-6 fw-semibold">Other Equipment</legend>
-                        <div class="row">
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselOtherEquipment">Other Equipment 1</label><input type="text" class="form-control" id="vesselOtherEquipment" maxlength="255"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselOtherEquipmentB">Other Equipment 2</label><input type="text" class="form-control" id="vesselOtherEquipmentB" maxlength="255"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselOtherEquipmentC">Other Equipment 3</label><input type="text" class="form-control" id="vesselOtherEquipmentC" maxlength="255"></div>
-                            <div class="col-md-6 mb-3"><label class="form-label" for="vesselOtherEquipmentD">Other Equipment 4</label><input type="text" class="form-control" id="vesselOtherEquipmentD" maxlength="255"></div>
-                        </div>
-                    </fieldset>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer card-footer">
@@ -1550,7 +1435,7 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/floatplans.js?v=20260801-single-trip-expired"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260831-vessel-profile-fields"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/vessels.js?v=20260711-vessel-image-id-fix"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/contacts.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/passengers.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>

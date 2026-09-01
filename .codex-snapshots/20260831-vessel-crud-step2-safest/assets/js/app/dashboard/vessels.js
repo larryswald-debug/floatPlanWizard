@@ -37,13 +37,6 @@
   var vesselTypeError = null;
   var vesselLengthError = null;
   var vesselColorError = null;
-  var vesselOptionalInputs = {};
-  var vesselNavigationInputs = [];
-  var vesselVisualDistressInputs = [];
-  var vesselAudibleDistressInputs = [];
-  var vesselAdditionalGearInputs = [];
-  var vesselNavigationOtherInput = null;
-  var vesselOtherNavigationGroup = null;
   var vesselCurrentImage = null;
   var vesselImageRemoveRequested = false;
   var vesselImagePreviewObjectUrl = "";
@@ -355,46 +348,6 @@
     renderVesselImagePreview("", false);
   }
 
-  function optionalInputValue(name) {
-    var input = vesselOptionalInputs[name];
-    return input ? String(input.value || "").trim() : "";
-  }
-
-  function setOptionalInputValue(name, value) {
-    var input = vesselOptionalInputs[name];
-    if (!input) return;
-    input.value = value === null || value === undefined ? "" : String(value);
-  }
-
-  function collectCheckedValues(inputs) {
-    return (inputs || []).filter(function (input) {
-      return !!input.checked;
-    }).map(function (input) {
-      return input.value;
-    }).join(",");
-  }
-
-  function setCheckedValues(inputs, storedValue) {
-    var selected = String(storedValue === null || storedValue === undefined ? "" : storedValue)
-      .split(",")
-      .map(function (value) { return value.trim().toLowerCase(); })
-      .filter(function (value) { return !!value; });
-
-    (inputs || []).forEach(function (input) {
-      input.checked = selected.indexOf(String(input.value || "").toLowerCase()) !== -1;
-    });
-  }
-
-  function isCheckedValue(value) {
-    var normalized = String(value === null || value === undefined ? "" : value).trim().toLowerCase();
-    return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-  }
-
-  function syncOtherNavigationVisibility() {
-    if (!vesselOtherNavigationGroup) return;
-    vesselOtherNavigationGroup.classList.toggle("d-none", !(vesselNavigationOtherInput && vesselNavigationOtherInput.checked));
-  }
-
   function ensureVesselModal() {
     if (!vesselModalEl) {
       vesselModalEl = document.getElementById("vesselModal");
@@ -426,43 +379,6 @@
         vesselTypeError = vesselModalEl.querySelector("#vesselTypeError");
         vesselLengthError = vesselModalEl.querySelector("#vesselLengthError");
         vesselColorError = vesselModalEl.querySelector("#vesselColorError");
-        vesselOptionalInputs = {
-          hin: vesselModalEl.querySelector("#vesselHin"),
-          yearBuilt: vesselModalEl.querySelector("#vesselYearBuilt"),
-          draft: vesselModalEl.querySelector("#vesselDraft"),
-          hullMaterial: vesselModalEl.querySelector("#vesselHullMaterial"),
-          prominentFeatures: vesselModalEl.querySelector("#vesselProminentFeatures"),
-          callSignNumber: vesselModalEl.querySelector("#vesselCallSignNumber"),
-          dscMmsi: vesselModalEl.querySelector("#vesselDscMmsi"),
-          radio1Type: vesselModalEl.querySelector("#vesselRadio1Type"),
-          radio1Channel: vesselModalEl.querySelector("#vesselRadio1Channel"),
-          radio2Type: vesselModalEl.querySelector("#vesselRadio2Type"),
-          radio2Channel: vesselModalEl.querySelector("#vesselRadio2Channel"),
-          mobilePhone: vesselModalEl.querySelector("#vesselMobilePhone"),
-          satellitePhone: vesselModalEl.querySelector("#vesselSatellitePhone"),
-          primaryPropulsion: vesselModalEl.querySelector("#vesselPrimaryPropulsion"),
-          primaryPropulsionType: vesselModalEl.querySelector("#vesselPrimaryPropulsionType"),
-          numberPrimary: vesselModalEl.querySelector("#vesselNumberPrimary"),
-          primaryFuelCapacity: vesselModalEl.querySelector("#vesselPrimaryFuelCapacity"),
-          auxPropulsion: vesselModalEl.querySelector("#vesselAuxPropulsion"),
-          auxPropulsionType: vesselModalEl.querySelector("#vesselAuxPropulsionType"),
-          numberAux: vesselModalEl.querySelector("#vesselNumberAux"),
-          auxFuelCapacity: vesselModalEl.querySelector("#vesselAuxFuelCapacity"),
-          otherNavigation: vesselModalEl.querySelector("#vesselOtherNavigation"),
-          aepirb: vesselModalEl.querySelector("#vesselAepirb"),
-          anchor: vesselModalEl.querySelector("#vesselAnchor"),
-          anchorLineLength: vesselModalEl.querySelector("#vesselAnchorLineLength"),
-          otherEquipment: vesselModalEl.querySelector("#vesselOtherEquipment"),
-          otherEquipmentB: vesselModalEl.querySelector("#vesselOtherEquipmentB"),
-          otherEquipmentC: vesselModalEl.querySelector("#vesselOtherEquipmentC"),
-          otherEquipmentD: vesselModalEl.querySelector("#vesselOtherEquipmentD")
-        };
-        vesselNavigationInputs = Array.prototype.slice.call(vesselModalEl.querySelectorAll(".vessel-navigation-option"));
-        vesselVisualDistressInputs = Array.prototype.slice.call(vesselModalEl.querySelectorAll(".vessel-visual-distress-option"));
-        vesselAudibleDistressInputs = Array.prototype.slice.call(vesselModalEl.querySelectorAll(".vessel-audible-distress-option"));
-        vesselAdditionalGearInputs = Array.prototype.slice.call(vesselModalEl.querySelectorAll(".vessel-additional-gear-option"));
-        vesselNavigationOtherInput = vesselModalEl.querySelector("#vesselNavigationOther");
-        vesselOtherNavigationGroup = vesselModalEl.querySelector("#vesselOtherNavigationGroup");
       }
     }
 
@@ -502,9 +418,6 @@
       if (removeVesselImageBtn) {
         removeVesselImageBtn.addEventListener("click", handleVesselImageRemoval);
       }
-      if (vesselNavigationOtherInput) {
-        vesselNavigationOtherInput.addEventListener("change", syncOtherNavigationVisibility);
-      }
       if (vesselSaveBtn) {
         vesselSaveBtn.addEventListener("click", function () {
           saveVessel();
@@ -528,7 +441,6 @@
     }
     if (vesselIdInput) vesselIdInput.value = "0";
     if (vesselIsDefaultInput) vesselIsDefaultInput.checked = false;
-    syncOtherNavigationVisibility();
     resetVesselImageState(null);
     clearVesselValidation();
   }
@@ -556,42 +468,6 @@
     if (vesselModelInput) vesselModelInput.value = utils.pick(vessel, ["MODEL"], "");
     if (vesselColorInput) vesselColorInput.value = utils.pick(vessel, ["COLOR"], "");
     if (vesselHomePortInput) vesselHomePortInput.value = utils.pick(vessel, ["HOMEPORT"], "");
-    setOptionalInputValue("hin", utils.pick(vessel, ["HIN", "hin"], ""));
-    setOptionalInputValue("yearBuilt", utils.pick(vessel, ["YEARBUILT", "yearBuilt"], ""));
-    setOptionalInputValue("draft", utils.pick(vessel, ["DRAFT", "draft"], ""));
-    setOptionalInputValue("hullMaterial", utils.pick(vessel, ["HULLMATERIAL", "hullMaterial"], ""));
-    setOptionalInputValue("prominentFeatures", utils.pick(vessel, ["PROMINENTFEATURES", "prominentFeatures"], ""));
-    setOptionalInputValue("callSignNumber", utils.pick(vessel, ["CALLSIGNNUMBER", "callSignNumber"], ""));
-    setOptionalInputValue("dscMmsi", utils.pick(vessel, ["DSCMMSI", "dscMmsi"], ""));
-    setOptionalInputValue("radio1Type", utils.pick(vessel, ["RADIO_1_TYPE", "radio_1_type"], ""));
-    setOptionalInputValue("radio1Channel", utils.pick(vessel, ["RADIO_1_CHANNEL", "radio_1_channel"], ""));
-    setOptionalInputValue("radio2Type", utils.pick(vessel, ["RADIO_2_TYPE", "radio_2_type"], ""));
-    setOptionalInputValue("radio2Channel", utils.pick(vessel, ["RADIO_2_CHANNEL", "radio_2_channel"], ""));
-    setOptionalInputValue("mobilePhone", utils.pick(vessel, ["MOBILEPHONE", "mobilePhone"], ""));
-    setOptionalInputValue("satellitePhone", utils.pick(vessel, ["SATTELITE", "sattelite"], ""));
-    setOptionalInputValue("primaryPropulsion", utils.pick(vessel, ["PRIMARYPROPULSION", "primaryPropulsion"], ""));
-    setOptionalInputValue("primaryPropulsionType", utils.pick(vessel, ["PRIMARYPROPULSIONTYPE", "primaryPropulsionType"], ""));
-    setOptionalInputValue("numberPrimary", utils.pick(vessel, ["NUMBERPRIMARY", "numberPrimary"], ""));
-    setOptionalInputValue("primaryFuelCapacity", utils.pick(vessel, ["PRIMARYFUELCAPACITY", "primaryFuelCapacity"], ""));
-    setOptionalInputValue("auxPropulsion", utils.pick(vessel, ["AUXPROPULSION", "auxPropulsion"], ""));
-    setOptionalInputValue("auxPropulsionType", utils.pick(vessel, ["AUXPROPULSIONTYPE", "auxPropulsionType"], ""));
-    setOptionalInputValue("numberAux", utils.pick(vessel, ["NUMBERAUX", "numberAux"], ""));
-    setOptionalInputValue("auxFuelCapacity", utils.pick(vessel, ["AUXFUELCAPACITY", "auxFuelCapacity"], ""));
-    setCheckedValues(vesselNavigationInputs, utils.pick(vessel, ["NAVIGATION", "navigation"], ""));
-    setOptionalInputValue("otherNavigation", utils.pick(vessel, ["OTHERNAVIGATION", "otherNavigation"], ""));
-    setCheckedValues(vesselVisualDistressInputs, utils.pick(vessel, ["VISUALDISTRESSSIGNALS", "visualDistressSignals"], ""));
-    setCheckedValues(vesselAudibleDistressInputs, utils.pick(vessel, ["AUDIBLEDISTRESSSIGNALS", "audibleDistressSignals"], ""));
-    setOptionalInputValue("aepirb", utils.pick(vessel, ["AEPIRB", "aepirb"], ""));
-    if (vesselOptionalInputs.anchor) {
-      vesselOptionalInputs.anchor.checked = isCheckedValue(utils.pick(vessel, ["ANCHOR", "anchor"], ""));
-    }
-    setOptionalInputValue("anchorLineLength", utils.pick(vessel, ["ANCHORLINELENGTH", "anchorLineLength"], ""));
-    setCheckedValues(vesselAdditionalGearInputs, utils.pick(vessel, ["ADDITIONALGEAR", "additionalGear"], ""));
-    setOptionalInputValue("otherEquipment", utils.pick(vessel, ["OTHEREQUIPMENT", "otherEquipment"], ""));
-    setOptionalInputValue("otherEquipmentB", utils.pick(vessel, ["OTHEREQUIPMENT_B", "otherEquipment_b"], ""));
-    setOptionalInputValue("otherEquipmentC", utils.pick(vessel, ["OTHEREQUIPMENT_C", "otherEquipment_c"], ""));
-    setOptionalInputValue("otherEquipmentD", utils.pick(vessel, ["OTHEREQUIPMENT_D", "otherEquipment_d"], ""));
-    syncOtherNavigationVisibility();
     resetVesselImageState(vessel);
     clearVesselValidation();
   }
@@ -625,40 +501,7 @@
       MAKE: vesselMakeInput ? vesselMakeInput.value.trim() : "",
       MODEL: vesselModelInput ? vesselModelInput.value.trim() : "",
       COLOR: vesselColorInput ? vesselColorInput.value.trim() : "",
-      HOMEPORT: vesselHomePortInput ? vesselHomePortInput.value.trim() : "",
-      HIN: optionalInputValue("hin"),
-      YEARBUILT: optionalInputValue("yearBuilt"),
-      DRAFT: optionalInputValue("draft"),
-      HULLMATERIAL: optionalInputValue("hullMaterial"),
-      PROMINENTFEATURES: optionalInputValue("prominentFeatures"),
-      CALLSIGNNUMBER: optionalInputValue("callSignNumber"),
-      DSCMMSI: optionalInputValue("dscMmsi"),
-      RADIO_1_TYPE: optionalInputValue("radio1Type"),
-      RADIO_1_CHANNEL: optionalInputValue("radio1Channel"),
-      RADIO_2_TYPE: optionalInputValue("radio2Type"),
-      RADIO_2_CHANNEL: optionalInputValue("radio2Channel"),
-      MOBILEPHONE: optionalInputValue("mobilePhone"),
-      SATTELITE: optionalInputValue("satellitePhone"),
-      PRIMARYPROPULSION: optionalInputValue("primaryPropulsion"),
-      PRIMARYPROPULSIONTYPE: optionalInputValue("primaryPropulsionType"),
-      NUMBERPRIMARY: optionalInputValue("numberPrimary"),
-      PRIMARYFUELCAPACITY: optionalInputValue("primaryFuelCapacity"),
-      AUXPROPULSION: optionalInputValue("auxPropulsion"),
-      AUXPROPULSIONTYPE: optionalInputValue("auxPropulsionType"),
-      NUMBERAUX: optionalInputValue("numberAux"),
-      AUXFUELCAPACITY: optionalInputValue("auxFuelCapacity"),
-      NAVIGATION: collectCheckedValues(vesselNavigationInputs),
-      OTHERNAVIGATION: optionalInputValue("otherNavigation"),
-      VISUALDISTRESSSIGNALS: collectCheckedValues(vesselVisualDistressInputs),
-      AUDIBLEDISTRESSSIGNALS: collectCheckedValues(vesselAudibleDistressInputs),
-      AEPIRB: optionalInputValue("aepirb"),
-      ANCHOR: vesselOptionalInputs.anchor && vesselOptionalInputs.anchor.checked ? 1 : 0,
-      ANCHORLINELENGTH: optionalInputValue("anchorLineLength"),
-      ADDITIONALGEAR: collectCheckedValues(vesselAdditionalGearInputs),
-      OTHEREQUIPMENT: optionalInputValue("otherEquipment"),
-      OTHEREQUIPMENT_B: optionalInputValue("otherEquipmentB"),
-      OTHEREQUIPMENT_C: optionalInputValue("otherEquipmentC"),
-      OTHEREQUIPMENT_D: optionalInputValue("otherEquipmentD")
+      HOMEPORT: vesselHomePortInput ? vesselHomePortInput.value.trim() : ""
     };
   }
 
@@ -688,22 +531,6 @@
     }
     if (!payload.COLOR) {
       utils.setFieldError(vesselColorInput, vesselColorError, "Hull color is required.");
-      hasError = true;
-    }
-    if (vesselOptionalInputs.primaryFuelCapacity && !vesselOptionalInputs.primaryFuelCapacity.checkValidity()) {
-      vesselOptionalInputs.primaryFuelCapacity.reportValidity();
-      hasError = true;
-    }
-    if (vesselOptionalInputs.auxFuelCapacity && !vesselOptionalInputs.auxFuelCapacity.checkValidity()) {
-      vesselOptionalInputs.auxFuelCapacity.reportValidity();
-      hasError = true;
-    }
-    if (vesselOptionalInputs.numberPrimary && !vesselOptionalInputs.numberPrimary.checkValidity()) {
-      vesselOptionalInputs.numberPrimary.reportValidity();
-      hasError = true;
-    }
-    if (vesselOptionalInputs.numberAux && !vesselOptionalInputs.numberAux.checkValidity()) {
-      vesselOptionalInputs.numberAux.reportValidity();
       hasError = true;
     }
     if (hasError) {
@@ -893,6 +720,8 @@
     init: initVessels
   };
 })(window, document);
+
+
 
 
 

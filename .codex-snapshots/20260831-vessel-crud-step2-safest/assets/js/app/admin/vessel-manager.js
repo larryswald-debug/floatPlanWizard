@@ -49,52 +49,6 @@
     return (txt === "1" || txt === "true" || txt === "yes" || txt === "y" || txt === "on") ? "Yes" : "No";
   }
 
-  function setValue(element, value) {
-    if (element) element.value = String(value === null || value === undefined ? "" : value);
-  }
-
-  function collectCheckedValues(elements) {
-    return Array.prototype.filter.call(elements || [], function (element) {
-      return element.checked;
-    }).map(function (element) {
-      return element.value;
-    }).join(",");
-  }
-
-  function setCheckedValues(elements, rawValue) {
-    var selected = String(rawValue === null || rawValue === undefined ? "" : rawValue)
-      .split(",")
-      .map(function (value) { return value.trim(); })
-      .filter(function (value) { return value.length > 0; });
-    Array.prototype.forEach.call(elements || [], function (element) {
-      element.checked = selected.indexOf(element.value) >= 0;
-    });
-  }
-
-  function syncOtherNavigationVisibility() {
-    if (!els.modalOtherNavigationWrap) return;
-    var hasOther = Array.prototype.some.call(els.modalNavigation || [], function (element) {
-      return element.value === "other" && element.checked;
-    });
-    els.modalOtherNavigationWrap.hidden = !hasOther;
-  }
-
-  function validateOptionalDecimal(value, label) {
-    var text = String(value || "").trim();
-    if (!text.length) return;
-    if (!/^\d+(?:\.\d{1,2})?$/.test(text) || Number(text) > 99999999.99) {
-      throw new Error(label + " must be a non-negative number with no more than two decimal places.");
-    }
-  }
-
-  function validateOptionalWholeNumber(value, label) {
-    var text = String(value || "").trim();
-    if (!text.length) return;
-    if (!/^\d+$/.test(text)) {
-      throw new Error(label + " must be a non-negative whole number.");
-    }
-  }
-
   async function callApi(action, payload) {
     var requestPayload = Object.assign({ action: action }, payload || {});
     var response = await fetch(endpoint + "&action=" + encodeURIComponent(action), {
@@ -277,40 +231,6 @@
     els.modalHullColor.value = "";
     els.modalHailingPort.value = "";
     els.modalUsageCount.value = "0";
-    setValue(els.modalHin, "");
-    setValue(els.modalYearBuilt, "");
-    setValue(els.modalDraft, "");
-    setValue(els.modalHullMaterial, "");
-    setValue(els.modalProminentFeatures, "");
-    setValue(els.modalCallSignNumber, "");
-    setValue(els.modalDscmmsi, "");
-    setValue(els.modalRadio1Type, "");
-    setValue(els.modalRadio1Channel, "");
-    setValue(els.modalRadio2Type, "");
-    setValue(els.modalRadio2Channel, "");
-    setValue(els.modalMobilePhone, "");
-    setValue(els.modalSattelite, "");
-    setValue(els.modalPrimaryPropulsion, "");
-    setValue(els.modalPrimaryPropulsionType, "");
-    setValue(els.modalNumberPrimary, "");
-    setValue(els.modalPrimaryFuelCapacity, "");
-    setValue(els.modalAuxPropulsion, "");
-    setValue(els.modalAuxPropulsionType, "");
-    setValue(els.modalNumberAux, "");
-    setValue(els.modalAuxFuelCapacity, "");
-    setCheckedValues(els.modalNavigation, "");
-    setValue(els.modalOtherNavigation, "");
-    setCheckedValues(els.modalVisualDistressSignals, "");
-    setCheckedValues(els.modalAudibleDistressSignals, "");
-    setValue(els.modalAepirb, "");
-    els.modalAnchor.checked = false;
-    setValue(els.modalAnchorLineLength, "");
-    setCheckedValues(els.modalAdditionalGear, "");
-    setValue(els.modalOtherEquipment, "");
-    setValue(els.modalOtherEquipmentB, "");
-    setValue(els.modalOtherEquipmentC, "");
-    setValue(els.modalOtherEquipmentD, "");
-    syncOtherNavigationVisibility();
     els.ownerModeHint.textContent = "Owner can only be set when creating a vessel.";
   }
 
@@ -347,40 +267,6 @@
     els.modalHullColor.value = String(row.COLOR || "");
     els.modalHailingPort.value = String(row.HOMEPORT || "");
     els.modalUsageCount.value = String(row.USAGE_COUNT || 0);
-    setValue(els.modalHin, row.HIN);
-    setValue(els.modalYearBuilt, row.YEARBUILT);
-    setValue(els.modalDraft, row.DRAFT);
-    setValue(els.modalHullMaterial, row.HULLMATERIAL);
-    setValue(els.modalProminentFeatures, row.PROMINENTFEATURES);
-    setValue(els.modalCallSignNumber, row.CALLSIGNNUMBER);
-    setValue(els.modalDscmmsi, row.DSCMMSI);
-    setValue(els.modalRadio1Type, row.RADIO_1_TYPE);
-    setValue(els.modalRadio1Channel, row.RADIO_1_CHANNEL);
-    setValue(els.modalRadio2Type, row.RADIO_2_TYPE);
-    setValue(els.modalRadio2Channel, row.RADIO_2_CHANNEL);
-    setValue(els.modalMobilePhone, row.MOBILEPHONE);
-    setValue(els.modalSattelite, row.SATTELITE);
-    setValue(els.modalPrimaryPropulsion, row.PRIMARYPROPULSION);
-    setValue(els.modalPrimaryPropulsionType, row.PRIMARYPROPULSIONTYPE);
-    setValue(els.modalNumberPrimary, row.NUMBERPRIMARY);
-    setValue(els.modalPrimaryFuelCapacity, row.PRIMARYFUELCAPACITY);
-    setValue(els.modalAuxPropulsion, row.AUXPROPULSION);
-    setValue(els.modalAuxPropulsionType, row.AUXPROPULSIONTYPE);
-    setValue(els.modalNumberAux, row.NUMBERAUX);
-    setValue(els.modalAuxFuelCapacity, row.AUXFUELCAPACITY);
-    setCheckedValues(els.modalNavigation, row.NAVIGATION);
-    setValue(els.modalOtherNavigation, row.OTHERNAVIGATION);
-    setCheckedValues(els.modalVisualDistressSignals, row.VISUALDISTRESSSIGNALS);
-    setCheckedValues(els.modalAudibleDistressSignals, row.AUDIBLEDISTRESSSIGNALS);
-    setValue(els.modalAepirb, row.AEPIRB);
-    els.modalAnchor.checked = boolLabel(row.ANCHOR) === "Yes";
-    setValue(els.modalAnchorLineLength, row.ANCHORLINELENGTH);
-    setCheckedValues(els.modalAdditionalGear, row.ADDITIONALGEAR);
-    setValue(els.modalOtherEquipment, row.OTHEREQUIPMENT);
-    setValue(els.modalOtherEquipmentB, row.OTHEREQUIPMENT_B);
-    setValue(els.modalOtherEquipmentC, row.OTHEREQUIPMENT_C);
-    setValue(els.modalOtherEquipmentD, row.OTHEREQUIPMENT_D);
-    syncOtherNavigationVisibility();
     setOwnerEditable(false);
   }
 
@@ -455,10 +341,6 @@
     if (!colorVal.length) {
       throw new Error("Hull color is required.");
     }
-    validateOptionalWholeNumber(els.modalNumberPrimary.value, "Primary engine count");
-    validateOptionalWholeNumber(els.modalNumberAux.value, "Auxiliary engine count");
-    validateOptionalDecimal(els.modalPrimaryFuelCapacity.value, "Primary fuel capacity");
-    validateOptionalDecimal(els.modalAuxFuelCapacity.value, "Auxiliary fuel capacity");
   }
 
   function buildModalPayload() {
@@ -479,40 +361,7 @@
         fuel_capacity: (els.modalFuelCapacity.value || "").trim(),
         isDefaultVessel: els.modalIsDefaultVessel.checked ? 1 : 0,
         hullColor: (els.modalHullColor.value || "").trim(),
-        hailingPort: (els.modalHailingPort.value || "").trim(),
-        hin: (els.modalHin.value || "").trim(),
-        yearBuilt: (els.modalYearBuilt.value || "").trim(),
-        draft: (els.modalDraft.value || "").trim(),
-        hullMaterial: (els.modalHullMaterial.value || "").trim(),
-        prominentFeatures: (els.modalProminentFeatures.value || "").trim(),
-        callSignNumber: (els.modalCallSignNumber.value || "").trim(),
-        DSCMMSI: (els.modalDscmmsi.value || "").trim(),
-        radio_1_type: (els.modalRadio1Type.value || "").trim(),
-        radio_1_channel: (els.modalRadio1Channel.value || "").trim(),
-        radio_2_type: (els.modalRadio2Type.value || "").trim(),
-        radio_2_channel: (els.modalRadio2Channel.value || "").trim(),
-        mobilePhone: (els.modalMobilePhone.value || "").trim(),
-        sattelite: (els.modalSattelite.value || "").trim(),
-        primaryPropulsion: (els.modalPrimaryPropulsion.value || "").trim(),
-        primaryPropulsionType: (els.modalPrimaryPropulsionType.value || "").trim(),
-        numberPrimary: (els.modalNumberPrimary.value || "").trim(),
-        primaryFuelCapacity: (els.modalPrimaryFuelCapacity.value || "").trim(),
-        auxPropulsion: (els.modalAuxPropulsion.value || "").trim(),
-        auxPropulsionType: (els.modalAuxPropulsionType.value || "").trim(),
-        numberAux: (els.modalNumberAux.value || "").trim(),
-        auxFuelCapacity: (els.modalAuxFuelCapacity.value || "").trim(),
-        navigation: collectCheckedValues(els.modalNavigation),
-        otherNavigation: (els.modalOtherNavigation.value || "").trim(),
-        visualDistressSignals: collectCheckedValues(els.modalVisualDistressSignals),
-        audibleDistressSignals: collectCheckedValues(els.modalAudibleDistressSignals),
-        aepirb: (els.modalAepirb.value || "").trim(),
-        anchor: els.modalAnchor.checked ? 1 : 0,
-        anchorLineLength: (els.modalAnchorLineLength.value || "").trim(),
-        additionalGear: collectCheckedValues(els.modalAdditionalGear),
-        otherEquipment: (els.modalOtherEquipment.value || "").trim(),
-        otherEquipment_b: (els.modalOtherEquipmentB.value || "").trim(),
-        otherEquipment_c: (els.modalOtherEquipmentC.value || "").trim(),
-        otherEquipment_d: (els.modalOtherEquipmentD.value || "").trim()
+        hailingPort: (els.modalHailingPort.value || "").trim()
       }
     };
   }
@@ -682,10 +531,6 @@
         els.modalUserId.value = String(selected);
       }
     });
-
-    Array.prototype.forEach.call(els.modalNavigation || [], function (element) {
-      element.addEventListener("change", syncOtherNavigationVisibility);
-    });
   }
 
   function cacheDom() {
@@ -728,40 +573,6 @@
     els.modalHullColor = byId("modalHullColor");
     els.modalHailingPort = byId("modalHailingPort");
     els.modalUsageCount = byId("modalUsageCount");
-    els.modalHin = byId("modalHin");
-    els.modalYearBuilt = byId("modalYearBuilt");
-    els.modalDraft = byId("modalDraft");
-    els.modalHullMaterial = byId("modalHullMaterial");
-    els.modalProminentFeatures = byId("modalProminentFeatures");
-    els.modalCallSignNumber = byId("modalCallSignNumber");
-    els.modalDscmmsi = byId("modalDscmmsi");
-    els.modalRadio1Type = byId("modalRadio1Type");
-    els.modalRadio1Channel = byId("modalRadio1Channel");
-    els.modalRadio2Type = byId("modalRadio2Type");
-    els.modalRadio2Channel = byId("modalRadio2Channel");
-    els.modalMobilePhone = byId("modalMobilePhone");
-    els.modalSattelite = byId("modalSattelite");
-    els.modalPrimaryPropulsion = byId("modalPrimaryPropulsion");
-    els.modalPrimaryPropulsionType = byId("modalPrimaryPropulsionType");
-    els.modalNumberPrimary = byId("modalNumberPrimary");
-    els.modalPrimaryFuelCapacity = byId("modalPrimaryFuelCapacity");
-    els.modalAuxPropulsion = byId("modalAuxPropulsion");
-    els.modalAuxPropulsionType = byId("modalAuxPropulsionType");
-    els.modalNumberAux = byId("modalNumberAux");
-    els.modalAuxFuelCapacity = byId("modalAuxFuelCapacity");
-    els.modalNavigation = document.querySelectorAll('[name="modalNavigation"]');
-    els.modalOtherNavigationWrap = byId("modalOtherNavigationWrap");
-    els.modalOtherNavigation = byId("modalOtherNavigation");
-    els.modalVisualDistressSignals = document.querySelectorAll('[name="modalVisualDistressSignals"]');
-    els.modalAudibleDistressSignals = document.querySelectorAll('[name="modalAudibleDistressSignals"]');
-    els.modalAepirb = byId("modalAepirb");
-    els.modalAnchor = byId("modalAnchor");
-    els.modalAnchorLineLength = byId("modalAnchorLineLength");
-    els.modalAdditionalGear = document.querySelectorAll('[name="modalAdditionalGear"]');
-    els.modalOtherEquipment = byId("modalOtherEquipment");
-    els.modalOtherEquipmentB = byId("modalOtherEquipmentB");
-    els.modalOtherEquipmentC = byId("modalOtherEquipmentC");
-    els.modalOtherEquipmentD = byId("modalOtherEquipmentD");
     els.ownerModeHint = byId("modalOwnerModeHint");
     els.saveVesselBtn = byId("saveVesselBtn");
   }
@@ -785,3 +596,4 @@
     init();
   }
 })(window, document);
+

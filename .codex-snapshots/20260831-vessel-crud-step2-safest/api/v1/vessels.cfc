@@ -84,14 +84,6 @@
                 SELECT v.vesselId, v.userId, v.vesselName, v.registration, v.typeOfVessel, v.make, v.model,
                        v.lengthOfVessel, v.max_speed, v.most_efficient_speed, v.gallons_per_hour, v.gph_at_max_speed,
                        v.fuel_capacity, v.isDefaultVessel, v.hullColor, v.hailingPort,
-                       v.hin, v.yearBuilt, v.draft, v.hullMaterial, v.prominentFeatures,
-                       v.callSignNumber, v.DSCMMSI, v.radio_1_type, v.radio_1_channel, v.radio_2_type,
-                       v.radio_2_channel, v.mobilePhone, v.sattelite,
-                       v.primaryPropulsion, v.primaryPropulsionType, v.numberPrimary, v.primaryFuelCapacity,
-                       v.auxPropulsion, v.auxPropulsionType, v.numberAux, v.auxFuelCapacity,
-                       v.navigation, v.otherNavigation, v.visualDistressSignals, v.audibleDistressSignals,
-                       v.aepirb, v.anchor, v.anchorLineLength, v.additionalGear,
-                       v.otherEquipment, v.otherEquipment_b, v.otherEquipment_c, v.otherEquipment_d,
                        vi.local_image_path, vi.thumbnail_image_path, vi.original_filename, vi.mime_type
                 FROM vessels v
                 LEFT JOIN vessel_images vi
@@ -131,39 +123,6 @@
                     ISDEFAULTVESSEL = qVessels.isDefaultVessel,
                     COLOR        = qVessels.hullColor,
                     HOMEPORT     = qVessels.hailingPort,
-                    HIN          = isNull(qVessels.hin) ? "" : qVessels.hin,
-                    YEARBUILT    = isNull(qVessels.yearBuilt) ? "" : qVessels.yearBuilt,
-                    DRAFT        = isNull(qVessels.draft) ? "" : qVessels.draft,
-                    HULLMATERIAL = isNull(qVessels.hullMaterial) ? "" : qVessels.hullMaterial,
-                    PROMINENTFEATURES = isNull(qVessels.prominentFeatures) ? "" : qVessels.prominentFeatures,
-                    CALLSIGNNUMBER = isNull(qVessels.callSignNumber) ? "" : qVessels.callSignNumber,
-                    DSCMMSI      = isNull(qVessels.DSCMMSI) ? "" : qVessels.DSCMMSI,
-                    RADIO_1_TYPE = isNull(qVessels.radio_1_type) ? "" : qVessels.radio_1_type,
-                    RADIO_1_CHANNEL = isNull(qVessels.radio_1_channel) ? "" : qVessels.radio_1_channel,
-                    RADIO_2_TYPE = isNull(qVessels.radio_2_type) ? "" : qVessels.radio_2_type,
-                    RADIO_2_CHANNEL = isNull(qVessels.radio_2_channel) ? "" : qVessels.radio_2_channel,
-                    MOBILEPHONE  = isNull(qVessels.mobilePhone) ? "" : qVessels.mobilePhone,
-                    SATTELITE    = isNull(qVessels.sattelite) ? "" : qVessels.sattelite,
-                    PRIMARYPROPULSION = isNull(qVessels.primaryPropulsion) ? "" : qVessels.primaryPropulsion,
-                    PRIMARYPROPULSIONTYPE = isNull(qVessels.primaryPropulsionType) ? "" : qVessels.primaryPropulsionType,
-                    NUMBERPRIMARY = isNull(qVessels.numberPrimary) ? "" : qVessels.numberPrimary,
-                    PRIMARYFUELCAPACITY = isNull(qVessels.primaryFuelCapacity) ? "" : qVessels.primaryFuelCapacity,
-                    AUXPROPULSION = isNull(qVessels.auxPropulsion) ? "" : qVessels.auxPropulsion,
-                    AUXPROPULSIONTYPE = isNull(qVessels.auxPropulsionType) ? "" : qVessels.auxPropulsionType,
-                    NUMBERAUX    = isNull(qVessels.numberAux) ? "" : qVessels.numberAux,
-                    AUXFUELCAPACITY = isNull(qVessels.auxFuelCapacity) ? "" : qVessels.auxFuelCapacity,
-                    NAVIGATION   = isNull(qVessels.navigation) ? "" : qVessels.navigation,
-                    OTHERNAVIGATION = isNull(qVessels.otherNavigation) ? "" : qVessels.otherNavigation,
-                    VISUALDISTRESSSIGNALS = isNull(qVessels.visualDistressSignals) ? "" : qVessels.visualDistressSignals,
-                    AUDIBLEDISTRESSSIGNALS = isNull(qVessels.audibleDistressSignals) ? "" : qVessels.audibleDistressSignals,
-                    AEPIRB       = isNull(qVessels.aepirb) ? "" : qVessels.aepirb,
-                    ANCHOR       = isNull(qVessels.anchor) ? "" : qVessels.anchor,
-                    ANCHORLINELENGTH = isNull(qVessels.anchorLineLength) ? "" : qVessels.anchorLineLength,
-                    ADDITIONALGEAR = isNull(qVessels.additionalGear) ? "" : qVessels.additionalGear,
-                    OTHEREQUIPMENT = isNull(qVessels.otherEquipment) ? "" : qVessels.otherEquipment,
-                    OTHEREQUIPMENT_B = isNull(qVessels.otherEquipment_b) ? "" : qVessels.otherEquipment_b,
-                    OTHEREQUIPMENT_C = isNull(qVessels.otherEquipment_c) ? "" : qVessels.otherEquipment_c,
-                    OTHEREQUIPMENT_D = isNull(qVessels.otherEquipment_d) ? "" : qVessels.otherEquipment_d,
                     IMAGE        = vesselImage,
                     IMAGE_URL    = vesselImage.thumbnailUrl,
                     THUMBNAIL_URL = vesselImage.thumbnailUrl
@@ -197,6 +156,7 @@
     </cffunction>
 
 </cfcomponent>
+
 
 
 

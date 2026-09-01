@@ -1,0 +1,414 @@
+<cfcomponent output="false">
+
+    <cffunction name="handle" access="remote" returntype="void" output="true">
+        <cfsetting enablecfoutputonly="true" showdebugoutput="false">
+        <cfcontent type="application/json; charset=utf-8">
+        <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
+
+        <cftry>
+
+            <!-- Require authenticated session -->
+            <cfif NOT structKeyExists(session, "user") OR NOT isStruct(session.user)>
+                <cfset response = {
+                    SUCCESS = false,
+                    AUTH    = false,
+                    ERROR   = "NOT_LOGGED_IN",
+                    MESSAGE = "Not logged in."
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <!-- Resolve userId from session -->
+            <cfset userId = 0>
+            <cfif structKeyExists(session.user, "userId")>
+                <cfset userId = session.user.userId>
+            <cfelseif structKeyExists(session.user, "id")>
+                <cfset userId = session.user.id>
+            <cfelseif structKeyExists(session.user, "USERID")>
+                <cfset userId = session.user.USERID>
+            </cfif>
+
+            <cfif NOT isNumeric(userId) OR userId LTE 0>
+                <cfset response = {
+                    SUCCESS = false,
+                    AUTH    = false,
+                    ERROR   = "INVALID_SESSION",
+                    MESSAGE = "Session user is invalid."
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <!-- Optional JSON body -->
+            <cfset httpData = getHttpRequestData()>
+            <cfset rawBody  = toString(httpData.content)>
+            <cfset body     = {}>
+
+            <cfif len(trim(rawBody))>
+                <cftry>
+                    <cfset body = deserializeJSON(rawBody, false)>
+                <cfcatch>
+                    <cfset body = {}>
+                </cfcatch>
+                </cftry>
+            </cfif>
+
+            <cfset action = "">
+            <cfif structKeyExists(url, "action")>
+                <cfset action = lcase(trim(url.action))>
+            <cfelseif structKeyExists(body, "action")>
+                <cfset action = lcase(trim(body.action))>
+            </cfif>
+
+	            <cfif action EQ "save">
+	                <cfset memberGateResult = getMemberAccessGateService().requirePlanningAccess(userId)>
+	                <cfif NOT memberGateResult.allowed>
+	                    <cfoutput>#serializeJSON(memberGateResult.response)#</cfoutput>
+	                    <cfsetting enablecfoutputonly="false">
+	                    <cfabort>
+	                </cfif>
+
+	                <cfset vessel = {}>
+                <cfif structKeyExists(body, "vessel")>
+                    <cfset vessel = body.vessel>
+                <cfelseif structKeyExists(body, "VESSEL")>
+                    <cfset vessel = body.VESSEL>
+                </cfif>
+
+                <cfset vesselId = 0>
+                <cfif structKeyExists(vessel, "VESSELID")>
+                    <cfset vesselId = val(vessel.VESSELID)>
+                <cfelseif structKeyExists(vessel, "vesselId")>
+                    <cfset vesselId = val(vessel.vesselId)>
+                </cfif>
+
+                <cfset vesselName = structKeyExists(vessel, "VESSELNAME") ? trim(vessel.VESSELNAME) : (structKeyExists(vessel, "vesselName") ? trim(vessel.vesselName) : "")>
+                <cfif NOT len(vesselName)>
+                    <cfthrow message="Vessel name is required.">
+                </cfif>
+
+                <cfset registration = structKeyExists(vessel, "REGISTRATION") ? trim(vessel.REGISTRATION) : (structKeyExists(vessel, "registration") ? trim(vessel.registration) : "")>
+                <cfset vesselType  = structKeyExists(vessel, "TYPE") ? trim(vessel.TYPE) : (structKeyExists(vessel, "type") ? trim(vessel.type) : "")>
+                <cfset make        = structKeyExists(vessel, "MAKE") ? trim(vessel.MAKE) : (structKeyExists(vessel, "make") ? trim(vessel.make) : "")>
+                <cfset model       = structKeyExists(vessel, "MODEL") ? trim(vessel.MODEL) : (structKeyExists(vessel, "model") ? trim(vessel.model) : "")>
+                <cfset length      = structKeyExists(vessel, "LENGTH") ? trim(vessel.LENGTH) : (structKeyExists(vessel, "length") ? trim(vessel.length) : "")>
+                <cfset color       = structKeyExists(vessel, "COLOR") ? trim(vessel.COLOR) : (structKeyExists(vessel, "color") ? trim(vessel.color) : "")>
+                <cfset homePort    = structKeyExists(vessel, "HOMEPORT") ? trim(vessel.HOMEPORT) : (structKeyExists(vessel, "homePort") ? trim(vessel.homePort) : "")>
+                <cfset maxSpeedRaw = structKeyExists(vessel, "MAX_SPEED") ? trim(vessel.MAX_SPEED) : (structKeyExists(vessel, "max_speed") ? trim(vessel.max_speed) : (structKeyExists(vessel, "maxSpeed") ? trim(vessel.maxSpeed) : ""))>
+                <cfset mostEfficientSpeedRaw = structKeyExists(vessel, "MOST_EFFICIENT_SPEED") ? trim(vessel.MOST_EFFICIENT_SPEED) : (structKeyExists(vessel, "most_efficient_speed") ? trim(vessel.most_efficient_speed) : (structKeyExists(vessel, "mostEfficientSpeed") ? trim(vessel.mostEfficientSpeed) : ""))>
+                <cfset gallonsPerHourRaw = structKeyExists(vessel, "GALLONS_PER_HOUR") ? trim(vessel.GALLONS_PER_HOUR) : (structKeyExists(vessel, "gallons_per_hour") ? trim(vessel.gallons_per_hour) : (structKeyExists(vessel, "gallonsPerHour") ? trim(vessel.gallonsPerHour) : ""))>
+                <cfset gphAtMaxSpeedRaw = structKeyExists(vessel, "GPH_AT_MAX_SPEED") ? trim(vessel.GPH_AT_MAX_SPEED) : (structKeyExists(vessel, "gph_at_max_speed") ? trim(vessel.gph_at_max_speed) : (structKeyExists(vessel, "gphAtMaxSpeed") ? trim(vessel.gphAtMaxSpeed) : ""))>
+                <cfset fuelCapacityRaw = structKeyExists(vessel, "FUEL_CAPACITY") ? trim(vessel.FUEL_CAPACITY) : (structKeyExists(vessel, "fuel_capacity") ? trim(vessel.fuel_capacity) : (structKeyExists(vessel, "fuelCapacity") ? trim(vessel.fuelCapacity) : ""))>
+                <cfset isDefaultRaw = "1">
+                <cfif structKeyExists(vessel, "ISDEFAULTVESSEL")>
+                    <cfset isDefaultRaw = trim(vessel.ISDEFAULTVESSEL)>
+                <cfelseif structKeyExists(vessel, "isDefaultVessel")>
+                    <cfset isDefaultRaw = trim(vessel.isDefaultVessel)>
+                </cfif>
+                <cfset isDefaultVessel = 1>
+                <cfif isNumeric(isDefaultRaw)>
+                    <cfset isDefaultVessel = (val(isDefaultRaw) GT 0 ? 1 : 0)>
+                <cfelseif isBoolean(isDefaultRaw)>
+                    <cfset isDefaultVessel = (isDefaultRaw ? 1 : 0)>
+                <cfelseif lcase(isDefaultRaw) EQ "true" OR lcase(isDefaultRaw) EQ "yes" OR lcase(isDefaultRaw) EQ "on">
+                    <cfset isDefaultVessel = 1>
+                <cfelseif lcase(isDefaultRaw) EQ "false" OR lcase(isDefaultRaw) EQ "no" OR lcase(isDefaultRaw) EQ "off">
+                    <cfset isDefaultVessel = 0>
+                </cfif>
+                <cfset hasMaxSpeed = len(maxSpeedRaw)>
+                <cfset hasMostEfficientSpeed = len(mostEfficientSpeedRaw)>
+                <cfset hasGallonsPerHour = len(gallonsPerHourRaw)>
+                <cfset hasGphAtMaxSpeed = len(gphAtMaxSpeedRaw)>
+                <cfset hasFuelCapacity = len(fuelCapacityRaw)>
+                <cfif NOT len(vesselType)>
+                    <cfthrow message="Vessel type is required.">
+                </cfif>
+                <cfif NOT len(length)>
+                    <cfthrow message="Vessel length is required.">
+                </cfif>
+                <cfif NOT len(color)>
+                    <cfthrow message="Hull color is required.">
+                </cfif>
+                <cfif hasMaxSpeed AND NOT isNumeric(maxSpeedRaw)>
+                    <cfthrow message="Max speed must be numeric.">
+                </cfif>
+                <cfif hasMostEfficientSpeed AND NOT isNumeric(mostEfficientSpeedRaw)>
+                    <cfthrow message="Most efficient speed must be numeric.">
+                </cfif>
+                <cfif hasGallonsPerHour AND NOT isNumeric(gallonsPerHourRaw)>
+                    <cfthrow message="Gallons per hour must be numeric.">
+                </cfif>
+                <cfif hasGphAtMaxSpeed AND NOT isNumeric(gphAtMaxSpeedRaw)>
+                    <cfthrow message="GPH at max speed must be numeric.">
+                </cfif>
+                <cfif hasFuelCapacity AND NOT isNumeric(fuelCapacityRaw)>
+                    <cfthrow message="Fuel capacity must be numeric.">
+                </cfif>
+
+                <cfif vesselId GT 0>
+                    <cfif isDefaultVessel EQ 1>
+                        <cfquery datasource="fpw">
+                            UPDATE vessels
+                            SET isDefaultVessel = <cfqueryparam cfsqltype="cf_sql_tinyint" value="0">
+                            WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                              AND vesselId <> <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                        </cfquery>
+                    </cfif>
+                    <cfquery datasource="fpw">
+                        UPDATE vessels
+                        SET vesselName = <cfqueryparam cfsqltype="cf_sql_varchar" value="#vesselName#">,
+                            registration = <cfqueryparam cfsqltype="cf_sql_varchar" value="#registration#">,
+                            typeOfVessel = <cfqueryparam cfsqltype="cf_sql_varchar" value="#vesselType#">,
+                            make = <cfqueryparam cfsqltype="cf_sql_varchar" value="#make#">,
+                            model = <cfqueryparam cfsqltype="cf_sql_varchar" value="#model#">,
+                            lengthOfVessel = <cfqueryparam cfsqltype="cf_sql_varchar" value="#length#">,
+                            max_speed = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMaxSpeed ? val(maxSpeedRaw) : 0#" null="#NOT hasMaxSpeed#" scale="2" maxlength="6">,
+                            most_efficient_speed = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0#" null="#NOT hasMostEfficientSpeed#" scale="2" maxlength="6">,
+                            gallons_per_hour = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGallonsPerHour ? val(gallonsPerHourRaw) : 0#" null="#NOT hasGallonsPerHour#" scale="2" maxlength="8">,
+                            gph_at_max_speed = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0#" null="#NOT hasGphAtMaxSpeed#" scale="2" maxlength="8">,
+                            fuel_capacity = <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasFuelCapacity ? val(fuelCapacityRaw) : 0#" null="#NOT hasFuelCapacity#" scale="2" maxlength="10">,
+                            isDefaultVessel = <cfqueryparam cfsqltype="cf_sql_tinyint" value="#isDefaultVessel#">,
+                            hullColor = <cfqueryparam cfsqltype="cf_sql_varchar" value="#color#">,
+                            hailingPort = <cfqueryparam cfsqltype="cf_sql_varchar" value="#homePort#">
+                        WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                    </cfquery>
+                <cfelse>
+                    <cfset insertResult = {}>
+                    <cfif isDefaultVessel EQ 1>
+                        <cfquery datasource="fpw">
+                            UPDATE vessels
+                            SET isDefaultVessel = <cfqueryparam cfsqltype="cf_sql_tinyint" value="0">
+                            WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        </cfquery>
+                    </cfif>
+                    <cfquery datasource="fpw" result="insertResult">
+                        INSERT INTO vessels (userId, vesselName, registration, typeOfVessel, make, model, lengthOfVessel, max_speed, most_efficient_speed, gallons_per_hour, gph_at_max_speed, fuel_capacity, isDefaultVessel, hullColor, hailingPort)
+                        VALUES (
+                            <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#vesselName#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#registration#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#vesselType#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#make#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#model#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#length#">,
+                            <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMaxSpeed ? val(maxSpeedRaw) : 0#" null="#NOT hasMaxSpeed#" scale="2" maxlength="6">,
+                            <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasMostEfficientSpeed ? val(mostEfficientSpeedRaw) : 0#" null="#NOT hasMostEfficientSpeed#" scale="2" maxlength="6">,
+                            <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGallonsPerHour ? val(gallonsPerHourRaw) : 0#" null="#NOT hasGallonsPerHour#" scale="2" maxlength="8">,
+                            <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasGphAtMaxSpeed ? val(gphAtMaxSpeedRaw) : 0#" null="#NOT hasGphAtMaxSpeed#" scale="2" maxlength="8">,
+                            <cfqueryparam cfsqltype="cf_sql_decimal" value="#hasFuelCapacity ? val(fuelCapacityRaw) : 0#" null="#NOT hasFuelCapacity#" scale="2" maxlength="10">,
+                            <cfqueryparam cfsqltype="cf_sql_tinyint" value="#isDefaultVessel#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#color#">,
+                            <cfqueryparam cfsqltype="cf_sql_varchar" value="#homePort#">
+                        )
+                    </cfquery>
+                    <cfif structKeyExists(insertResult, "generatedKey")>
+                        <cfset vesselId = insertResult.generatedKey>
+                    </cfif>
+                    <cfif vesselId GT 0>
+                        <cftry>
+                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
+                                userId = userId,
+                                eventName = "vessel_created",
+                                entityType = "vessel",
+                                entityId = vesselId,
+                                eventSource = "member_api",
+                                metadata = {
+                                    creation_source = "member"
+                                },
+                                idempotencyKey = "vessel_created:vessel:" & vesselId,
+                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
+                            )>
+                        <cfcatch type="any">
+                            <cflog file="fpw_product_events" type="error" text="vessel.cfc PRODUCT_EVENT_CALL_FAILED | event=vessel_created">
+                        </cfcatch>
+                        </cftry>
+                    </cfif>
+                </cfif>
+
+                <cfset response = {
+                    SUCCESS = true,
+                    AUTH    = true,
+                    VESSELID = vesselId
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif action EQ "removeimage">
+                <cfset vesselId = 0>
+                <cfif structKeyExists(body, "vesselId")>
+                    <cfset vesselId = val(body.vesselId)>
+                <cfelseif structKeyExists(body, "VESSELID")>
+                    <cfset vesselId = val(body.VESSELID)>
+                <cfelseif structKeyExists(url, "vesselId")>
+                    <cfset vesselId = val(url.vesselId)>
+                </cfif>
+
+                <cfif vesselId LTE 0>
+                    <cfthrow message="Vessel id is required.">
+                </cfif>
+
+                <cfset imageResult = getVesselImageService().removeVesselImage(vesselId, userId)>
+                <cfset response = {
+                    SUCCESS = imageResult.SUCCESS,
+                    AUTH    = true,
+                    MESSAGE = imageResult.MESSAGE
+                }>
+                <cfif NOT imageResult.SUCCESS>
+                    <cfset response.ERROR = "IMAGE_REMOVE_FAILED">
+                </cfif>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif action EQ "candelete">
+                <cfset vesselId = 0>
+                <cfif structKeyExists(body, "vesselId")>
+                    <cfset vesselId = val(body.vesselId)>
+                <cfelseif structKeyExists(body, "VESSELID")>
+                    <cfset vesselId = val(body.VESSELID)>
+                <cfelseif structKeyExists(url, "vesselId")>
+                    <cfset vesselId = val(url.vesselId)>
+                </cfif>
+
+                <cfif vesselId LTE 0>
+                    <cfthrow message="Vessel id is required.">
+                </cfif>
+
+                <cfquery name="qVesselUsage" datasource="fpw">
+                    SELECT floatPlanName
+                    FROM floatplans
+                    WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                      AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                </cfquery>
+
+                <cfif qVesselUsage.recordCount GT 0>
+                    <cfset planNames = []>
+                    <cfloop query="qVesselUsage">
+                        <cfset arrayAppend(planNames, qVesselUsage.floatPlanName)>
+                    </cfloop>
+                    <cfset planCount = arrayLen(planNames)>
+                    <cfset planList = arrayToList(planNames, ", ")>
+                    <cfset response = {
+                        SUCCESS = true,
+                        AUTH    = true,
+                        CANDELETE = false,
+                        MESSAGE = "This vessel is used in " & planCount & " float plan" & (planCount EQ 1 ? "" : "s") & ": " & planList & ". Edit the float plan to remove it before deleting."
+                    }>
+                <cfelse>
+                    <cfset response = {
+                        SUCCESS = true,
+                        AUTH    = true,
+                        CANDELETE = true
+                    }>
+                </cfif>
+
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfif action EQ "delete">
+                <cfset vesselId = 0>
+                <cfif structKeyExists(body, "vesselId")>
+                    <cfset vesselId = val(body.vesselId)>
+                <cfelseif structKeyExists(body, "VESSELID")>
+                    <cfset vesselId = val(body.VESSELID)>
+                <cfelseif structKeyExists(url, "vesselId")>
+                    <cfset vesselId = val(url.vesselId)>
+                </cfif>
+
+                <cfif vesselId LTE 0>
+                    <cfthrow message="Vessel id is required.">
+                </cfif>
+
+                <cfquery name="qVesselUsage" datasource="fpw">
+                    SELECT floatPlanName
+                    FROM floatplans
+                    WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                      AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                </cfquery>
+
+                <cfif qVesselUsage.recordCount GT 0>
+                    <cfset planNames = []>
+                    <cfloop query="qVesselUsage">
+                        <cfset arrayAppend(planNames, qVesselUsage.floatPlanName)>
+                    </cfloop>
+                    <cfset planCount = arrayLen(planNames)>
+                    <cfset planList = arrayToList(planNames, ", ")>
+                    <cfset response = {
+                        SUCCESS = false,
+                        AUTH    = true,
+                        ERROR   = "IN_USE",
+                        MESSAGE = "This vessel is used in " & planCount & " float plan" & (planCount EQ 1 ? "" : "s") & ": " & planList & ". Edit the float plan to remove it before deleting."
+                    }>
+                    <cfoutput>#serializeJSON(response)#</cfoutput>
+                    <cfsetting enablecfoutputonly="false">
+                    <cfabort>
+                </cfif>
+
+                <cfquery datasource="fpw">
+                    DELETE FROM vessels
+                    WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                      AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                </cfquery>
+                <cfset getVesselImageService().deleteVesselImageFiles(vesselId, userId)>
+
+                <cfset response = {
+                    SUCCESS = true,
+                    AUTH    = true
+                }>
+                <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
+            <cfset response = {
+                SUCCESS = false,
+                AUTH    = true,
+                ERROR   = "INVALID_ACTION",
+                MESSAGE = "Unknown action."
+            }>
+            <cfoutput>#serializeJSON(response)#</cfoutput>
+
+            <cfcatch type="any">
+                <cfset errResponse = {
+                    SUCCESS = false,
+                    AUTH    = true,
+                    ERROR   = "SERVER_ERROR",
+                    MESSAGE = "Vessel API error.",
+                    DETAIL  = cfcatch.message
+                }>
+                <cfoutput>#serializeJSON(errResponse)#</cfoutput>
+            </cfcatch>
+
+        </cftry>
+
+        <cfsetting enablecfoutputonly="false">
+	    </cffunction>
+
+	    <cffunction name="getVesselImageService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.VesselImageService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.VesselImageService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
+
+	    <cffunction name="getMemberAccessGateService" access="private" returntype="any" output="false">
+	        <cftry>
+	            <cfreturn createObject("component", "fpw.api.v1.MemberAccessGateService").init("fpw")>
+	            <cfcatch>
+	                <cfreturn createObject("component", "api.v1.MemberAccessGateService").init("fpw")>
+	            </cfcatch>
+	        </cftry>
+	    </cffunction>
+
+</cfcomponent>

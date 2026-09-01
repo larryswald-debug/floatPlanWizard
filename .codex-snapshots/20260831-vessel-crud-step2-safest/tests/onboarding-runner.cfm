@@ -1,7 +1,6 @@
 <cfsetting showdebugoutput="false" enablecfoutputonly="true" requesttimeout="120">
 <cfparam name="url.confirm" default="">
 <cfparam name="url.reporter" default="json">
-<cfparam name="url.cleanupOnly" default="0">
 
 <cfset expectedConfirmation = "RUN_DISPOSABLE_WELCOME_ONBOARDING_TESTS">
 <cfset serverName = structKeyExists(cgi, "server_name") ? lCase(trim(toString(cgi.server_name))) : "">
@@ -11,11 +10,8 @@
 <cfset isLocalHostHeader = reFindNoCase("^(localhost|127\.0\.0\.1|\[::1\])(:8500)?$", httpHost) GT 0>
 <cfset isLocalDevRequest = isLocalServerName AND isLocalHostHeader AND serverPort EQ 8500>
 <cfset isJsonReporter = lCase(trim(toString(url.reporter))) EQ "json">
-<cfset isCleanupOnly = listFindNoCase("1,true,yes,on", trim(toString(url.cleanupOnly))) GT 0>
 <cfset testboxSystemPath = expandPath("/testbox/system")>
-<cfset fixtureEmailPattern = isCleanupOnly
-  ? "codex-welcome-onboarding-vessel-crud-%"
-  : "codex-welcome-onboarding-%">
+<cfset fixtureEmailPattern = "codex-welcome-onboarding-%">
 
 <cfif trim(toString(url.confirm)) NEQ expectedConfirmation>
   <cfheader statuscode="404">
@@ -50,7 +46,7 @@
   <cfabort>
 </cfif>
 
-<cfif NOT isCleanupOnly AND NOT directoryExists(testboxSystemPath)>
+<cfif NOT directoryExists(testboxSystemPath)>
   <cfheader statuscode="503">
   <cfcontent type="application/json; charset=utf-8" reset="true">
   <cfoutput>#serializeJSON({
@@ -79,7 +75,6 @@
   <cfabort>
 </cfif>
 
-<cfif NOT isCleanupOnly>
 <cfquery name="qOnboardingColumn" datasource="fpw">
   SELECT COUNT(*) AS compatible_column_count
   FROM information_schema.COLUMNS
@@ -134,7 +129,6 @@
   })#</cfoutput>
   <cfabort>
 </cfif>
-</cfif>
 
 <cfset runnerStatus = 500>
 <cfset runnerResponse = {
@@ -148,14 +142,6 @@
 }>
 
 <cftry>
-  <cfif isCleanupOnly>
-    <cfset runnerStatus = 200>
-    <cfset runnerResponse = {
-      SUCCESS = true,
-      CLEANUP_ONLY = true,
-      message = "Disposable Vessel CRUD fixture cleanup requested."
-    }>
-  <cfelse>
   <cfset testboxRunner = createObject("component", "testbox.system.TestBox").init(
     bundles = "fpw.tests.specs.WelcomeOnboardingContractSpec"
   )>
@@ -177,7 +163,6 @@
     totalErrors = totalErrors,
     results = resultMemento
   }>
-  </cfif>
 
   <cfcatch type="any">
     <cfset runnerStatus = 500>
@@ -400,17 +385,6 @@
             <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
         )
       </cfquery>
-      <cfif isCleanupOnly>
-        <cfquery datasource="fpw">
-          DELETE FROM users_address
-          WHERE userId IN (
-            SELECT userId
-            FROM users
-            WHERE email LIKE
-              <cfqueryparam value="#fixtureEmailPattern#" cfsqltype="cf_sql_varchar">
-          )
-        </cfquery>
-      </cfif>
       <cfquery datasource="fpw">
         DELETE FROM users
         WHERE email LIKE
@@ -418,9 +392,7 @@
       </cfquery>
       <cfset cleanupResult = {
         SUCCESS = true,
-        message = isCleanupOnly
-          ? "All disposable Vessel CRUD validation fixtures were removed."
-          : "All disposable Welcome Onboarding contract fixtures were removed."
+        message = "All disposable Welcome Onboarding contract fixtures were removed."
       }>
 
       <cfcatch type="any">
