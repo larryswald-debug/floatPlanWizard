@@ -23,6 +23,16 @@ fpwGaIsBlockedPath = (
 );
 </cfscript>
 
+<cfif NOT structKeyExists(request, "fpwPlausibleTagRendered")>
+  <cfset request.fpwPlausibleTagRendered = true>
+<!-- Privacy-friendly analytics by Plausible -->
+<script async src="https://plausible.io/js/pa-RzmzzpwAcdcGg_-4y94nc.js"></script>
+<script>
+  window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+  plausible.init()
+</script>
+</cfif>
+
 <cfif NOT structKeyExists(request, "fpwGa4HelperRendered")>
   <cfset request.fpwGa4HelperRendered = true>
   <script>
