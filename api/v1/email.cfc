@@ -411,6 +411,7 @@
         }>
         <cfset var toAddress = lCase(trim(arguments.toEmail))>
         <cfset var emailMessage = {}>
+        <cfset var includeReferral = false>
 
         <cfif int(arguments.userId) LTE 0 OR int(arguments.floatPlanId) LTE 0>
             <cfset result.errorCode = "INVALID_TRIP_OWNER">
@@ -431,6 +432,8 @@
             <cfreturn result>
         </cfif>
 
+        <cfset includeReferral = shouldIncludeSafeArrivalReferral(toAddress)>
+
         <cftry>
             <cfset emailMessage = buildSafeArrivalShoreContactEmail(
                 recipientName = arguments.recipientName,
@@ -441,7 +444,8 @@
                 destination = arguments.destination,
                 completionLabel = arguments.completionLabel,
                 completionTimezone = arguments.completionTimezone,
-                followPath = arguments.followPath
+                followPath = arguments.followPath,
+                includeReferral = includeReferral
             )>
             <cfset sendMultipartEmail(
                 toEmail = toAddress,
@@ -559,6 +563,7 @@
         <cfargument name="completionLabel" type="string" required="true">
         <cfargument name="completionTimezone" type="string" required="true">
         <cfargument name="followPath" type="string" required="false" default="">
+        <cfargument name="includeReferral" type="boolean" required="false" default="false">
 
         <cfset var recipient = cleanSafeArrivalTextValue(arguments.recipientName)>
         <cfset var captain = cleanSafeArrivalTextValue(arguments.captainName)>
@@ -569,6 +574,8 @@
         <cfset var timezoneValue = cleanSafeArrivalTextValue(arguments.completionTimezone)>
         <cfset var followPathValue = trim(arguments.followPath)>
         <cfset var followUrl = len(followPathValue) ? resolveAbsolutePublicUrl(followPathValue) : "">
+        <cfset var referralPath = "/app/join.cfm?utm_source=shore_contact&utm_medium=email&utm_campaign=safe_arrival&utm_content=plan_own_trip">
+        <cfset var referralUrl = arguments.includeReferral ? resolveAbsolutePublicUrl(referralPath) : "">
         <cfset var subject = "">
         <cfset var textLines = []>
         <cfset var textBody = "">
@@ -604,6 +611,13 @@
             <cfset arrayAppend(textLines, "View Final Trip Status:")>
             <cfset arrayAppend(textLines, followUrl)>
         </cfif>
+        <cfif len(referralUrl)>
+            <cfset arrayAppend(textLines, "")>
+            <cfset arrayAppend(textLines, "Plan your own boating trip.")>
+            <cfset arrayAppend(textLines, "Create a free FPW account to plan your route, stops, and trip estimates with the Trip Planner.")>
+            <cfset arrayAppend(textLines, "Plan Your Own Trip:")>
+            <cfset arrayAppend(textLines, referralUrl)>
+        </cfif>
         <cfset textBody = arrayToList(textLines, chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
 
         <cfsavecontent variable="htmlContent"><cfoutput>
@@ -617,6 +631,11 @@
 </table>
 <p style="margin:0 0 22px 0;">Monitoring or follow-up for this trip is no longer required.</p>
 <cfif len(followUrl)><p style="margin:0;"><a href="#encodeForHtmlAttribute(followUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">View Final Trip Status</a></p></cfif>
+<cfif len(referralUrl)><div style="margin-top:24px; padding-top:18px; border-top:1px solid ##dee2e6; color:##495057; font-size:14px; line-height:1.5;">
+    <p style="margin:0 0 8px 0;"><strong>Plan your own boating trip.</strong></p>
+    <p style="margin:0 0 8px 0;">Create a free FPW account to plan your route, stops, and trip estimates with the Trip Planner.</p>
+    <p style="margin:0;"><a href="#encodeForHtmlAttribute(referralUrl)#" style="color:##0d6efd; font-weight:600;">Plan Your Own Trip</a></p>
+</div></cfif>
 #complianceFooter.htmlBody#
         </cfoutput></cfsavecontent>
 
@@ -628,6 +647,9 @@
             followPath = followPathValue,
             followUrl = followUrl,
             hasFollowLink = len(followUrl) GT 0,
+            referralPath = (len(referralUrl) ? referralPath : ""),
+            referralUrl = referralUrl,
+            hasReferral = len(referralUrl) GT 0,
             floatPlanId = int(arguments.floatPlanId),
             completionTimezone = timezoneValue
         }>
@@ -835,6 +857,40 @@
             htmlBody = htmlBody,
             textBody = textBody
         }>
+    </cffunction>
+
+    <cffunction name="shouldIncludeSafeArrivalReferral" access="private" returntype="boolean" output="false">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="optOutService" type="any" required="false">
+
+        <cfset var recipient = lCase(trim(arguments.toEmail))>
+        <cfset var preferenceService = "">
+
+        <cfif NOT isValid("email", recipient)>
+            <cfreturn false>
+        </cfif>
+
+        <cftry>
+            <cfif structKeyExists(arguments, "optOutService") AND isObject(arguments.optOutService)>
+                <cfset preferenceService = arguments.optOutService>
+            <cfelse>
+                <cftry>
+                    <cfset preferenceService = createObject("component", "api.v1.EmailOptOutService").init()>
+                    <cfcatch type="any">
+                        <cfset preferenceService = createObject("component", "fpw.api.v1.EmailOptOutService").init()>
+                    </cfcatch>
+                </cftry>
+            </cfif>
+
+            <cfreturn NOT preferenceService.isOptedOut(
+                email = recipient,
+                optOutType = "non_essential"
+            )>
+
+            <cfcatch type="any">
+                <cfreturn false>
+            </cfcatch>
+        </cftry>
     </cffunction>
 
     <cffunction name="buildWelcomeMemberOptOutUrl" access="private" returntype="string" output="false">
@@ -1245,6 +1301,5 @@
     </cffunction>
 
 </cfcomponent>
-
 
 

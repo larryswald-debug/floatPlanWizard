@@ -62,6 +62,10 @@
   <cffinally>
     <cftry>
       <cfquery datasource="fpw">
+        DELETE FROM email_optout
+        WHERE email LIKE <cfqueryparam value="#fixturePattern#" cfsqltype="cf_sql_varchar">
+      </cfquery>
+      <cfquery datasource="fpw">
         DELETE FROM floatplan_alert_history
         WHERE floatPlanId IN (
           SELECT floatPlanId FROM floatplans
@@ -147,5 +151,4 @@
 <cfheader statuscode="#runnerStatus#">
 <cfcontent type="application/json; charset=utf-8" reset="true">
 <cfoutput>#serializeJSON(runnerResponse)#</cfoutput>
-
 

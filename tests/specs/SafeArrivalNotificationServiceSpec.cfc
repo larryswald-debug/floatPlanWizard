@@ -227,11 +227,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(arrayLen(variables.mailStub.getCalls())).toBe(2);
       });
 
-      it("builds operational email variants with the authorized destination contract", function() {
+      it("builds operational email variants with the approved shore-contact referral contract", function() {
         var emailService = createObject("component", "fpw.api.v1.email").init();
         var captain = {};
         var shore = {};
         var basicShore = {};
+        var excludedShore = {};
+        var referralPath = "/app/join.cfm?utm_source=shore_contact&utm_medium=email&utm_campaign=safe_arrival&utm_content=plan_own_trip";
 
         makePublic(emailService, "buildSafeArrivalCaptainEmail", "buildSafeArrivalCaptainEmailForTest");
         makePublic(emailService, "buildSafeArrivalShoreContactEmail", "buildSafeArrivalShoreContactEmailForTest");
@@ -248,26 +250,40 @@ component extends="testbox.system.BaseSpec" output="false" {
           "/fpw/app/completed-trip.cfm?id=42"
         );
         shore = emailService.buildSafeArrivalShoreContactEmailForTest(
-          "Trusted Contact",
-          "Casey Captain",
-          42,
-          "Harbor Return",
-          "Waypoint",
-          "Test Anchorage",
-          "Sep 1, 2026 4:15 PM America/New_York",
-          "America/New_York",
-          "/fpw/app/follow.cfm?slug=trip-safe&t=opaque-token"
+          recipientName = "Trusted Contact",
+          captainName = "Casey Captain",
+          floatPlanId = 42,
+          tripName = "Harbor Return",
+          vesselName = "Waypoint",
+          destination = "Test Anchorage",
+          completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
+          completionTimezone = "America/New_York",
+          followPath = "/fpw/app/follow.cfm?slug=trip-safe&t=opaque-token",
+          includeReferral = true
         );
         basicShore = emailService.buildSafeArrivalShoreContactEmailForTest(
-          "Trusted Contact",
-          "Casey Captain",
-          42,
-          "Harbor Return",
-          "Waypoint",
-          "Test Anchorage",
-          "Sep 1, 2026 4:15 PM America/New_York",
-          "America/New_York",
-          ""
+          recipientName = "Trusted Contact",
+          captainName = "Casey Captain",
+          floatPlanId = 42,
+          tripName = "Harbor Return",
+          vesselName = "Waypoint",
+          destination = "Test Anchorage",
+          completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
+          completionTimezone = "America/New_York",
+          followPath = "",
+          includeReferral = true
+        );
+        excludedShore = emailService.buildSafeArrivalShoreContactEmailForTest(
+          recipientName = "Trusted Contact",
+          captainName = "Casey Captain",
+          floatPlanId = 42,
+          tripName = "Harbor Return",
+          vesselName = "Waypoint",
+          destination = "Test Anchorage",
+          completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
+          completionTimezone = "America/New_York",
+          followPath = "",
+          includeReferral = false
         );
 
         expect(captain.subject).toBe("Your FloatPlanWizard trip is complete");
@@ -276,13 +292,128 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(countOccurrences(captain.htmlBody, ">View Completed Trip</a>")).toBe(1);
         expect(findNoCase("completed safely", captain.textBody)).toBeGT(0);
         expect(shore.hasFollowLink).toBeTrue();
+        expect(shore.hasReferral).toBeTrue();
         expect(findNoCase("/fpw/app/follow.cfm?", shore.followPath)).toBeGT(0);
         expect(findNoCase("completed-trip.cfm", shore.htmlBody)).toBe(0);
+        expect(shore.referralPath).toBe(referralPath);
+        expect(findNoCase("/app/join.cfm?", shore.referralUrl)).toBeGT(0);
+        expect(findNoCase("utm_source=shore_contact", shore.referralUrl)).toBeGT(0);
+        expect(findNoCase("utm_medium=email", shore.referralUrl)).toBeGT(0);
+        expect(findNoCase("utm_campaign=safe_arrival", shore.referralUrl)).toBeGT(0);
+        expect(findNoCase("utm_content=plan_own_trip", shore.referralUrl)).toBeGT(0);
+        expect(findNoCase("Plan your own boating trip.", shore.htmlBody)).toBeGT(0);
+        expect(findNoCase("Create a free FPW account to plan your route, stops, and trip estimates with the Trip Planner.", shore.htmlBody)).toBeGT(0);
+        expect(countOccurrences(shore.htmlBody, ">Plan Your Own Trip</a>")).toBe(1);
+        expect(findNoCase("Plan your own boating trip.", shore.textBody)).toBeGT(0);
+        expect(findNoCase("Plan Your Own Trip:", shore.textBody)).toBeGT(0);
+        expect(findNoCase(shore.referralUrl, shore.textBody)).toBeGT(0);
+        expect(findNoCase("display:inline-block", mid(shore.htmlBody, findNoCase(">Plan Your Own Trip</a>", shore.htmlBody) - 250, 250))).toBe(0);
+        expect(findNoCase("Trusted Contact", shore.referralUrl)).toBe(0);
+        expect(findNoCase("Casey Captain", shore.referralUrl)).toBe(0);
+        expect(findNoCase("Harbor Return", shore.referralUrl)).toBe(0);
+        expect(findNoCase("Waypoint", shore.referralUrl)).toBe(0);
+        expect(findNoCase("Test Anchorage", shore.referralUrl)).toBe(0);
+        expect(findNoCase("42", shore.referralUrl)).toBe(0);
+        expect(findNoCase("opaque-token", shore.referralUrl)).toBe(0);
         expect(basicShore.hasFollowLink).toBeFalse();
+        expect(basicShore.hasReferral).toBeTrue();
         expect(findNoCase("View Final Trip Status", basicShore.htmlBody)).toBe(0);
+        expect(findNoCase("Plan your own boating trip.", basicShore.htmlBody)).toBeGT(0);
+        expect(excludedShore.hasReferral).toBeFalse();
+        expect(findNoCase("Plan your own boating trip.", excludedShore.htmlBody & excludedShore.textBody)).toBe(0);
+        expect(findNoCase("Plan your own boating trip.", captain.htmlBody & captain.textBody)).toBe(0);
+        expect(findNoCase("utm_source=shore_contact", captain.htmlBody & captain.textBody)).toBe(0);
         expect(findNoCase("upgrade", captain.textBody & shore.textBody)).toBe(0);
         expect(findNoCase("pricing", captain.textBody & shore.textBody)).toBe(0);
-        expect(findNoCase("referral", captain.textBody & shore.textBody)).toBe(0);
+      });
+
+      it("honors non-essential opt-outs and omits the referral when preference lookup fails", function() {
+        var emailService = createObject("component", "fpw.api.v1.email").init();
+        var optOutService = createObject("component", "fpw.api.v1.EmailOptOutService").init(
+          datasource = variables.datasource
+        );
+        var failingOptOutService = createObject("component", "fpw.api.v1.EmailOptOutService").init(
+          datasource = "fpw_referral_lookup_failure"
+        );
+        var recipientEmail = variables.fixturePrefix & lCase(reReplace(createUUID(), "[^A-Za-z0-9]", "", "all")) & "@example.test";
+        var recordResult = {};
+        var includeBeforeOptOut = false;
+        var includeAfterOptOut = true;
+        var includeAfterFailure = true;
+        var optedOutMessage = {};
+        var lookupFailureMessage = {};
+        var senderService = prepareMock(createObject("component", "fpw.api.v1.email").init());
+        var sendResult = {};
+
+        makePublic(emailService, "shouldIncludeSafeArrivalReferral", "shouldIncludeSafeArrivalReferralForTest");
+        makePublic(emailService, "buildSafeArrivalShoreContactEmail", "buildSafeArrivalShoreContactEmailForTest");
+
+        includeBeforeOptOut = emailService.shouldIncludeSafeArrivalReferralForTest(
+          recipientEmail,
+          optOutService
+        );
+        recordResult = optOutService.recordOptOut(
+          email = recipientEmail,
+          optOutType = "non_essential",
+          source = "codex_safe_arrival_referral_test"
+        );
+        includeAfterOptOut = emailService.shouldIncludeSafeArrivalReferralForTest(
+          recipientEmail,
+          optOutService
+        );
+        includeAfterFailure = emailService.shouldIncludeSafeArrivalReferralForTest(
+          recipientEmail,
+          failingOptOutService
+        );
+        optedOutMessage = emailService.buildSafeArrivalShoreContactEmailForTest(
+          recipientName = "Trusted Contact",
+          captainName = "Casey Captain",
+          floatPlanId = 42,
+          tripName = "Harbor Return",
+          vesselName = "Waypoint",
+          destination = "Test Anchorage",
+          completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
+          completionTimezone = "America/New_York",
+          followPath = "",
+          includeReferral = includeAfterOptOut
+        );
+        lookupFailureMessage = emailService.buildSafeArrivalShoreContactEmailForTest(
+          recipientName = "Trusted Contact",
+          captainName = "Casey Captain",
+          floatPlanId = 42,
+          tripName = "Harbor Return",
+          vesselName = "Waypoint",
+          destination = "Test Anchorage",
+          completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
+          completionTimezone = "America/New_York",
+          followPath = "",
+          includeReferral = includeAfterFailure
+        );
+        senderService.$("shouldIncludeSafeArrivalReferral", false);
+        senderService.$("sendMultipartEmail");
+        sendResult = senderService.sendSafeArrivalShoreContactEmail(
+          userId = 42,
+          toEmail = recipientEmail,
+          recipientName = "Trusted Contact",
+          captainName = "Casey Captain",
+          floatPlanId = 42,
+          tripName = "Harbor Return",
+          vesselName = "Waypoint",
+          destination = "Test Anchorage",
+          completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
+          completionTimezone = "America/New_York",
+          followPath = ""
+        );
+
+        expect(includeBeforeOptOut).toBeTrue();
+        expect(recordResult.SUCCESS).toBeTrue();
+        expect(includeAfterOptOut).toBeFalse();
+        expect(includeAfterFailure).toBeFalse();
+        expect(sendResult.SUCCESS).toBeTrue();
+        expect(findNoCase("completed safely", optedOutMessage.textBody)).toBeGT(0);
+        expect(findNoCase("completed safely", lookupFailureMessage.textBody)).toBeGT(0);
+        expect(findNoCase("Plan your own boating trip.", optedOutMessage.htmlBody & optedOutMessage.textBody)).toBe(0);
+        expect(findNoCase("Plan your own boating trip.", lookupFailureMessage.htmlBody & lookupFailureMessage.textBody)).toBe(0);
       });
 
       it("uses stable recipient claims and both post-commit closure hooks by source contract", function() {
@@ -715,6 +846,11 @@ component extends="testbox.system.BaseSpec" output="false" {
     };
 
     queryExecute(
+      "DELETE FROM email_optout WHERE email LIKE :emailPrefix",
+      params,
+      { datasource = variables.datasource }
+    );
+    queryExecute(
       "DELETE FROM floatplan_alert_history
        WHERE floatPlanId IN (
          SELECT floatPlanId FROM floatplans WHERE floatPlanName LIKE :planPrefix
@@ -788,7 +924,6 @@ component extends="testbox.system.BaseSpec" output="false" {
     );
   }
 }
-
 
 
 
