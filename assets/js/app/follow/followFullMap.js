@@ -212,6 +212,11 @@
       stream_id: state.streamId,
       t: state.token
     }).then(function (res) {
+      if (res.view_mode === "completed_read_only") {
+        setTitles("Trip Completed Safely", "Live monitoring has ended.");
+        setStatus("Use Back to Follow Page to view the read-only completed-trip confirmation.");
+        return res;
+      }
       var stream = (res.stream && typeof res.stream === "object") ? res.stream : {};
       var topCards = (res.topCards && typeof res.topCards === "object") ? res.topCards : {};
       var nextStop = String(topCards.next_stop || "").trim();

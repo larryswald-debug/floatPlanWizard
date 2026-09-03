@@ -8,7 +8,7 @@
 
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260818-qa6-002-terminal-loader" />
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260903-completed-contact" />
   <style>
     body.follow-loading { overflow: hidden; }
     body.follow-loading .app { visibility: hidden; }
@@ -44,6 +44,19 @@
       <p class="follow-terminal-error__message" id="followTerminalErrorMessage">Unable to load voyage stream.</p>
     </div>
   </div>
+  <main class="follow-completed" id="followCompleted" aria-labelledby="followCompletedHeading" hidden>
+    <section class="follow-completed__card">
+      <div class="follow-loader__eyebrow">FloatPlanWizard</div>
+      <h1 id="followCompletedHeading" tabindex="-1">Trip Completed Safely</h1>
+      <p class="follow-completed__trip" id="followCompletedTrip"></p>
+      <dl class="follow-completed__details">
+        <div><dt>Vessel</dt><dd id="followCompletedVessel"></dd></div>
+        <div><dt>Destination</dt><dd id="followCompletedDestination"></dd></div>
+        <div><dt>Completed</dt><dd><time id="followCompletedTime"></time></dd></div>
+      </dl>
+      <p class="follow-completed__notice">Live monitoring has ended. This is a read-only confirmation of the completed trip.</p>
+    </section>
+  </main>
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
@@ -415,6 +428,6 @@
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260526-cache-bump"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260818-qa6-002-terminal-loader"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260903-completed-contact"></script>
 </body>
 </html>

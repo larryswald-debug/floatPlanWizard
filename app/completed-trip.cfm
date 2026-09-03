@@ -672,7 +672,7 @@ completedTripPageTitle = completedTripModel.SUCCESS
           <p class="ct-inline-note">The completed-trip URL for safe-arrival email use is <a href="<cfoutput>#ctAttr(ctGet(completedTripModel, "completedTripUrl"))#</cfoutput>"><cfoutput>#ctHtml(ctGet(completedTripModel, "completedTripUrl"))#</cfoutput></a>.</p>
         </section>
 
-        <section class="ct-card ct-card--third" aria-labelledby="completedTripContactTitle">
+        <section class="ct-card ct-card--half" aria-labelledby="completedTripContactTitle">
           <h2 id="completedTripContactTitle">Shore Contact</h2>
           <dl class="ct-field-list">
             <div class="ct-field">
@@ -687,7 +687,7 @@ completedTripPageTitle = completedTripModel.SUCCESS
           <p class="ct-inline-note"><cfoutput>#ctHtml(ctGet(completedShoreContact, "message"), "Live shore-contact details are intentionally not shown as historical facts.")#</cfoutput></p>
         </section>
 
-        <section class="ct-card ct-card--third" aria-labelledby="completedTripSourcesTitle">
+        <section class="ct-card ct-card--half" aria-labelledby="completedTripSourcesTitle">
           <h2 id="completedTripSourcesTitle">Data Sources</h2>
           <div class="ct-source-list">
             <div><strong>Trip</strong><span><cfoutput>#ctHtml(ctGet(completedDataSources, "trip"), "floatplans")#</cfoutput></span></div>
@@ -697,17 +697,6 @@ completedTripPageTitle = completedTripModel.SUCCESS
           </div>
         </section>
 
-        <section class="ct-card ct-card--third" aria-labelledby="completedTripIntegrityTitle">
-          <h2 id="completedTripIntegrityTitle">Integrity Notes</h2>
-          <ul class="ct-warning-list">
-            <cfloop array="#completedTripModel.warnings#" index="completedTripWarning">
-              <li>
-                <strong><cfoutput>#ctHtml(ctGet(completedTripWarning, "code"), "Notice")#</cfoutput></strong>
-                <cfoutput>#ctHtml(ctGet(completedTripWarning, "message"), "Historical source note unavailable.")#</cfoutput>
-              </li>
-            </cfloop>
-          </ul>
-        </section>
       </div>
     <cfelse>
       <section class="ct-empty-state" aria-labelledby="completedTripUnavailableTitle">

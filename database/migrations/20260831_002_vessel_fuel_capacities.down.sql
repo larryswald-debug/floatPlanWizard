@@ -11,6 +11,13 @@ SET @fpw_down_20260831_002_primary_source_nonnull = 0;
 SET @fpw_down_20260831_002_aux_source_nonnull = 0;
 SET @fpw_down_20260831_002_primary_source_total = 0;
 SET @fpw_down_20260831_002_aux_source_total = 0;
+SET @fpw_down_20260831_002_is_mariadb = LOCATE('MariaDB', VERSION()) > 0;
+SET @fpw_down_20260831_002_utf8mb3_available = 0;
+SET @fpw_down_20260831_002_restore_legacy_utf8_alias = 0;
+SET @fpw_down_20260831_002_restore_charset = '';
+SET @fpw_down_20260831_002_restore_collation = '';
+SET @fpw_down_20260831_002_restore_default_sql = '';
+SET @fpw_down_20260831_002_restore_sql = '';
 
 SELECT COUNT(*)
 INTO @fpw_down_20260831_002_table_count
@@ -37,8 +44,35 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND NUMERIC_PRECISION = 10
   AND NUMERIC_SCALE = 2
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    (LOCATE('MariaDB', VERSION()) > 0 AND CAST(COLUMN_DEFAULT AS CHAR) = 'NULL')
+    OR (LOCATE('MariaDB', VERSION()) = 0 AND COLUMN_DEFAULT IS NULL)
+  )
   AND EXTRA = '';
+
+SELECT COUNT(*)
+INTO @fpw_down_20260831_002_utf8mb3_available
+FROM information_schema.COLLATIONS
+WHERE COLLATION_NAME = 'utf8mb3_general_ci'
+  AND CHARACTER_SET_NAME = 'utf8mb3';
+
+SET @fpw_down_20260831_002_restore_legacy_utf8_alias = IF(
+  @fpw_down_20260831_002_is_mariadb = 1
+  AND @fpw_down_20260831_002_utf8mb3_available = 0,
+  1,
+  0
+);
+SET @fpw_down_20260831_002_restore_charset = IF(
+  @fpw_down_20260831_002_restore_legacy_utf8_alias = 1,
+  'utf8',
+  'utf8mb3'
+);
+SET @fpw_down_20260831_002_restore_collation = IF(
+  @fpw_down_20260831_002_restore_legacy_utf8_alias = 1,
+  'utf8_general_ci',
+  'utf8mb3_general_ci'
+);
+SET @fpw_down_20260831_002_restore_default_sql = 'DEFAULT NULL';
 
 SET @fpw_down_20260831_002_data_sql = IF(
   @fpw_down_20260831_002_table_count = 1
@@ -88,11 +122,24 @@ PREPARE fpw_down_20260831_002_guard FROM @fpw_down_20260831_002_guard_sql;
 EXECUTE fpw_down_20260831_002_guard;
 DEALLOCATE PREPARE fpw_down_20260831_002_guard;
 
-ALTER TABLE `vessels`
-  MODIFY COLUMN `primaryFuelCapacity` VARCHAR(45)
-    CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NULL DEFAULT NULL,
-  MODIFY COLUMN `auxFuelCapacity` VARCHAR(45)
-    CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NULL DEFAULT NULL;
+SET @fpw_down_20260831_002_restore_sql = CONCAT(
+  'ALTER TABLE `vessels` ',
+  'MODIFY COLUMN `primaryFuelCapacity` VARCHAR(45) CHARACTER SET ',
+  @fpw_down_20260831_002_restore_charset,
+  ' COLLATE ',
+  @fpw_down_20260831_002_restore_collation,
+  ' NULL ',
+  @fpw_down_20260831_002_restore_default_sql,
+  ', MODIFY COLUMN `auxFuelCapacity` VARCHAR(45) CHARACTER SET ',
+  @fpw_down_20260831_002_restore_charset,
+  ' COLLATE ',
+  @fpw_down_20260831_002_restore_collation,
+  ' NULL ',
+  @fpw_down_20260831_002_restore_default_sql
+);
+PREPARE fpw_down_20260831_002_restore FROM @fpw_down_20260831_002_restore_sql;
+EXECUTE fpw_down_20260831_002_restore;
+DEALLOCATE PREPARE fpw_down_20260831_002_restore;
 
 SELECT COUNT(*)
 INTO @fpw_down_20260831_002_target_column_count
@@ -102,10 +149,13 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND COLUMN_NAME IN ('primaryFuelCapacity', 'auxFuelCapacity')
   AND DATA_TYPE = 'varchar'
   AND CHARACTER_MAXIMUM_LENGTH = 45
-  AND CHARACTER_SET_NAME = 'utf8mb3'
-  AND COLLATION_NAME = 'utf8mb3_general_ci'
+  AND CHARACTER_SET_NAME = @fpw_down_20260831_002_restore_charset
+  AND COLLATION_NAME = @fpw_down_20260831_002_restore_collation
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    (LOCATE('MariaDB', VERSION()) > 0 AND CAST(COLUMN_DEFAULT AS CHAR) = 'NULL')
+    OR (LOCATE('MariaDB', VERSION()) = 0 AND COLUMN_DEFAULT IS NULL)
+  )
   AND EXTRA = '';
 
 SELECT
@@ -140,6 +190,9 @@ SELECT
   IF(@fpw_down_20260831_002_post_error IS NULL, 'PASS', 'FAIL') AS rollback_status,
   @fpw_down_20260831_002_primary_target_nonblank AS primary_values_preserved,
   @fpw_down_20260831_002_aux_target_nonblank AS auxiliary_values_preserved,
+  @fpw_down_20260831_002_restore_charset AS restored_character_set,
+  @fpw_down_20260831_002_restore_collation AS restored_collation,
+  'SQL_NULL' AS restored_default_contract,
   @fpw_down_20260831_002_post_error AS rollback_error;
 
 SET @fpw_down_20260831_002_post_guard_sql = IF(
@@ -160,6 +213,13 @@ SET @fpw_down_20260831_002_primary_source_nonnull = NULL;
 SET @fpw_down_20260831_002_aux_source_nonnull = NULL;
 SET @fpw_down_20260831_002_primary_source_total = NULL;
 SET @fpw_down_20260831_002_aux_source_total = NULL;
+SET @fpw_down_20260831_002_is_mariadb = NULL;
+SET @fpw_down_20260831_002_utf8mb3_available = NULL;
+SET @fpw_down_20260831_002_restore_legacy_utf8_alias = NULL;
+SET @fpw_down_20260831_002_restore_charset = NULL;
+SET @fpw_down_20260831_002_restore_collation = NULL;
+SET @fpw_down_20260831_002_restore_default_sql = NULL;
+SET @fpw_down_20260831_002_restore_sql = NULL;
 SET @fpw_down_20260831_002_target_column_count = NULL;
 SET @fpw_down_20260831_002_primary_target_nonblank = NULL;
 SET @fpw_down_20260831_002_aux_target_nonblank = NULL;
@@ -170,3 +230,16 @@ SET @fpw_down_20260831_002_post_error = NULL;
 SET @fpw_down_20260831_002_data_sql = NULL;
 SET @fpw_down_20260831_002_guard_sql = NULL;
 SET @fpw_down_20260831_002_post_guard_sql = NULL;
+
+
+
+
+
+
+
+
+
+
+
+
+

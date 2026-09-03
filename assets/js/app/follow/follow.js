@@ -2314,6 +2314,37 @@
     return targetUrl;
   }
 
+  function renderCompletedTrip(res) {
+    var trip = res.completed_trip;
+    var panel = document.getElementById("followCompleted");
+    var heading = document.getElementById("followCompletedHeading");
+    var time = document.getElementById("followCompletedTime");
+    if (!trip || typeof trip !== "object" || !panel || !time || !trip.completed_at_utc || !trip.completed_at_local) {
+      throw new Error("The completed trip confirmation is unavailable.");
+    }
+
+    document.getElementById("followCompletedTrip").textContent = trip.trip_name || "Completed Float Plan";
+    document.getElementById("followCompletedVessel").textContent = trip.vessel_name || "Not provided";
+    document.getElementById("followCompletedDestination").textContent = trip.destination || "Not provided";
+    time.dateTime = String(trip.completed_at_utc);
+    time.textContent = String(trip.completed_at_local) + " " + String(trip.completion_timezone || "UTC");
+    state.isOwner = false;
+    state.followerToken = "";
+    if (dom.app) {
+      dom.app.hidden = true;
+      dom.app.setAttribute("aria-hidden", "true");
+    }
+    if (dom.loader) {
+      dom.loader.hidden = true;
+      dom.loader.setAttribute("aria-hidden", "true");
+    }
+    if (dom.terminalError) dom.terminalError.hidden = true;
+    document.body.classList.add("follow-completed-view");
+    document.body.classList.remove("follow-loading", "follow-load-error");
+    panel.hidden = false;
+    if (heading) heading.focus();
+  }
+
   function bootstrapStream() {
     setLoaderMilestone("bootstrap");
     return fetchJson("getStreamBootstrap", {
@@ -2321,6 +2352,10 @@
       stream_id: state.streamId,
       t: state.token
     }).then(function (res) {
+      if (res.view_mode === "completed_read_only") {
+        renderCompletedTrip(res);
+        return res;
+      }
       state.bootstrap = res;
       state.stream = res.stream || {};
       state.streamId = toInt(state.stream.id || state.stream.stream_id || state.streamId, state.streamId);

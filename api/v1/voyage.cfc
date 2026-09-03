@@ -51,7 +51,11 @@
                 <cfset slugVal = trim(toString(pickArg(body, "slug", "route_slug", arguments.slug)))>
                 <cfset tokenVal = trim(toString(pickArg(body, "t", "token", arguments.t)))>
                 <cfset streamIdVal = val(pickArg(body, "stream_id", "streamId", arguments.stream_id))>
-                <cfset payload = getStreamBootstrap(slugVal, tokenVal, streamIdVal, currentUserId)>
+                <cfset payload = getStreamBootstrap(slugVal, tokenVal, streamIdVal, currentUserId, {
+                    "body" = body,
+                    "query" = url,
+                    "arguments" = { "slug" = arguments.slug, "t" = arguments.t, "stream_id" = arguments.stream_id }
+                })>
                 <cfoutput>#serializeJSON(payload)#</cfoutput>
                 <cfreturn>
 
@@ -469,6 +473,7 @@
 	        <cfargument name="shareToken" type="string" required="false" default="">
 	        <cfargument name="streamId" type="numeric" required="false" default="0">
 	        <cfargument name="currentUserId" type="numeric" required="false" default="0">
+	        <cfargument name="requestIdentifiers" type="struct" required="false" default="#structNew()#">
 	        <cfscript>
 	            var tTotalStart = getTickCount();
 	            var tSectionStart = 0;
@@ -655,6 +660,7 @@
             var routeMapActiveLegOrder = 0;
             var actualResumeLegOrder = 0;
             var awaitingDepartureState = false;
+            var completedContact = {};
 
 	            if (!structCount(streamRow)) {
 	                out.MESSAGE = "Stream not found";
@@ -672,6 +678,23 @@
 	                writeLog(file="fpw-bootstrap-timing", text="[FPW_BOOTSTRAP_TIMING] total=" & (getTickCount() - tTotalStart) & "ms map=" & tMap & "ms timeline=" & tTimeline & "ms weather=" & tWeather & "ms", type="information");
 	                return out;
 	            }
+
+            // Historical contact access is a separate read-only capability, never an operational grant.
+            try {
+                completedContact = getCompletedContactBootstrap(
+                    streamRow, arguments.slug, arguments.shareToken, arguments.streamId, arguments.requestIdentifiers
+                );
+            } catch (any completedContactErr) {
+                writeLog(file="fpw-errors", type="error", text="Completed contact authorization could not be evaluated.");
+                return {
+                    "SUCCESS" = false, "STATUS_CODE" = 503,
+                    "MESSAGE" = "The trip confirmation is temporarily unavailable.",
+                    "ERROR" = { "CODE" = "COMPLETED_CONTACT_UNAVAILABLE", "MESSAGE" = "The trip confirmation is temporarily unavailable." }
+                };
+            }
+            if (structCount(completedContact)) {
+                return completedContact;
+            }
 
             memberGateResult = requireOwnerPremiumFollowAccess(streamRow.owner_user_id, streamRow.floatplan_id);
             if (!memberGateResult.SUCCESS) {
@@ -5993,6 +6016,152 @@
                 out.lock_message = "OK";
             }
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getCompletedContactBootstrap" access="private" returntype="struct" output="false">
+        <cfargument name="streamRow" type="struct" required="true">
+        <cfargument name="slug" type="string" required="true">
+        <cfargument name="shareToken" type="string" required="true">
+        <cfargument name="streamId" type="numeric" required="true">
+        <cfargument name="requestIdentifiers" type="struct" required="false" default="#structNew()#">
+        <cfscript>
+            var qCompleted = queryNew("");
+            var identifierGroups = [
+                { "slug" = arguments.slug, "t" = arguments.shareToken, "stream_id" = arguments.streamId }
+            ];
+            var groupKey = "";
+            var identifiers = {};
+            var identifierKey = "";
+            var identifier = "";
+            var completionTimezone = "";
+            var tripName = "";
+            var destination = "";
+            var completionRaw = "";
+
+            // Unlike live Follow's owner/public paths, completed access always needs the share token.
+            if (!len(trim(arguments.shareToken)) OR !len(trim(arguments.streamRow.share_token))
+                OR compare(trim(arguments.shareToken), trim(arguments.streamRow.share_token)) NEQ 0) {
+                return {};
+            }
+            for (groupKey in arguments.requestIdentifiers) {
+                if (!isStruct(arguments.requestIdentifiers[groupKey])) {
+                    return {};
+                }
+                arrayAppend(identifierGroups, arguments.requestIdentifiers[groupKey]);
+            }
+            // Validate raw aliases too: val() and stream-id precedence must not hide a conflicting request.
+            for (identifiers in identifierGroups) {
+                for (identifierKey in ["slug", "route_slug", "t", "token", "stream_id", "streamId"]) {
+                    if (!structKeyExists(identifiers, identifierKey)) {
+                        continue;
+                    }
+                    if (isNull(identifiers[identifierKey]) OR !isSimpleValue(identifiers[identifierKey])) {
+                        return {};
+                    }
+                    identifier = trim(toString(identifiers[identifierKey]));
+                    if (listFindNoCase("stream_id,streamId", identifierKey)) {
+                        if (!reFind("^(0|[1-9][0-9]*)$", identifier)
+                            OR (val(identifier) GT 0 AND val(identifier) NEQ arguments.streamRow.id)) {
+                            return {};
+                        }
+                    } else if (len(identifier)) {
+                        if (listFindNoCase("slug,route_slug", identifierKey)) {
+                            if (compareNoCase(identifier, arguments.streamRow.slug) NEQ 0) {
+                                return {};
+                            }
+                        } else if (compare(identifier, arguments.streamRow.share_token) NEQ 0) {
+                            return {};
+                        }
+                    }
+                }
+            }
+
+            // Read only. The CLOSED receipt plus finalized owned route is the successful-close contract.
+            // Do not call the operational gate or current-membership resolver to grant this capability.
+            qCompleted = queryExecute(
+                "SELECT fp.floatPlanName, COALESCE(v.vesselName, '') AS vessel_name,
+                        fp.`returning`, ri.end_location, fp.returnTZ, fp.returnTimezone,
+                        fp.departureTZ, fp.departTimezone,
+                        DATE_FORMAT(ri.completed_at, '%Y-%m-%d %H:%i:%s') AS completed_at_raw
+                 FROM floatplans fp
+                 INNER JOIN voyage_streams vs
+                   ON vs.floatplan_id = fp.floatPlanId
+                  AND TRIM(CAST(vs.owner_user_id AS CHAR)) = TRIM(CAST(fp.userId AS CHAR))
+                 INNER JOIN route_instances ri
+                   ON ri.id = fp.route_instance_id
+                  AND TRIM(CAST(ri.user_id AS CHAR)) = TRIM(CAST(fp.userId AS CHAR))
+                 INNER JOIN premium_send_receipts r
+                   ON r.float_plan_id = fp.floatPlanId
+                  AND TRIM(CAST(r.user_id AS CHAR)) = TRIM(CAST(fp.userId AS CHAR))
+                 LEFT JOIN member_entitlements me
+                   ON me.id = r.member_entitlement_id AND me.user_id = r.user_id
+                 LEFT JOIN premium_send_credits c
+                   ON c.id = r.credit_id AND c.user_id = r.user_id
+                 LEFT JOIN vessels v
+                   ON v.vesselID = fp.vesselId
+                  AND TRIM(CAST(v.userId AS CHAR)) = TRIM(CAST(fp.userId AS CHAR))
+                 WHERE vs.id = :streamId AND vs.floatplan_id = :floatPlanId
+                   AND vs.owner_user_id = :ownerUserId AND BINARY vs.share_token = BINARY :shareToken
+                   AND UPPER(TRIM(fp.status)) = 'CLOSED' AND fp.closedAt IS NOT NULL
+                   AND fp.expiredAt IS NULL AND TRIM(COALESCE(fp.end_reason, '')) = ''
+                   AND UPPER(TRIM(ri.status)) = 'COMPLETED' AND ri.completed_at IS NOT NULL
+                   AND r.access_started_at_utc IS NOT NULL AND r.access_ended_at_utc IS NOT NULL
+                   AND r.access_end_reason = 'CLOSED'
+                   AND (
+                     (r.access_source = 'general_premium'
+                      AND r.credit_id IS NULL AND r.access_expires_at_utc IS NULL
+                      AND me.entitlement_type = 'premium' AND me.status IN ('active', 'expired')
+                      AND me.revoked_at_utc IS NULL)
+                     OR
+                     (r.access_source = 'premium_send_credit' AND r.member_entitlement_id IS NULL
+                      AND c.status = 'CONSUMED' AND c.consumed_float_plan_id = fp.floatPlanId
+                      AND r.access_started_at_utc >= c.consumed_at_utc
+                      AND r.access_expires_at_utc = DATE_ADD(r.access_started_at_utc, INTERVAL 21 DAY))
+                   )
+                 LIMIT 1",
+                {
+                    streamId = { value = arguments.streamRow.id, cfsqltype = "cf_sql_integer" },
+                    floatPlanId = { value = arguments.streamRow.floatplan_id, cfsqltype = "cf_sql_integer" },
+                    ownerUserId = { value = arguments.streamRow.owner_user_id, cfsqltype = "cf_sql_integer" },
+                    shareToken = { value = trim(arguments.shareToken), cfsqltype = "cf_sql_varchar" }
+                },
+                { datasource = resolveDatasource() }
+            );
+            if (qCompleted.recordCount NEQ 1 OR !isDate(qCompleted.completed_at_raw[1])) {
+                return {};
+            }
+
+            // Match CompletedTripViewModelService's completion-timezone precedence.
+            completionTimezone = normalizeVoyageDisplayTimezone(
+                len(trim(toString(qCompleted.returnTZ[1]))) ? qCompleted.returnTZ[1] : qCompleted.returnTimezone[1]
+            );
+            if (!len(completionTimezone) OR completionTimezone EQ "UTC") {
+                completionTimezone = normalizeVoyageDisplayTimezone(
+                    len(trim(toString(qCompleted.departureTZ[1]))) ? qCompleted.departureTZ[1] : qCompleted.departTimezone[1]
+                );
+            }
+            if (!len(completionTimezone)) {
+                completionTimezone = "UTC";
+            }
+            tripName = trim(toString(qCompleted.floatPlanName[1]));
+            destination = trim(toString(qCompleted.returning[1]));
+            if (!len(destination)) {
+                destination = trim(toString(qCompleted.end_location[1]));
+            }
+            completionRaw = toString(qCompleted.completed_at_raw[1]);
+            return {
+                "SUCCESS" = true,
+                "view_mode" = "completed_read_only",
+                "completed_trip" = {
+                    "trip_name" = len(tripName) ? tripName : "Completed Float Plan",
+                    "vessel_name" = trim(toString(qCompleted.vessel_name[1])),
+                    "destination" = destination,
+                    "completed_at_utc" = replace(completionRaw, " ", "T", "one") & "Z",
+                    "completed_at_local" = formatVoyageUtcDisplayLabel(completionRaw, completionTimezone),
+                    "completion_timezone" = completionTimezone
+                }
+            };
         </cfscript>
     </cffunction>
 

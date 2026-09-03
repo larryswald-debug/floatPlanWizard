@@ -42,10 +42,15 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND COLUMN_NAME IN ('primaryFuelCapacity', 'auxFuelCapacity')
   AND DATA_TYPE = 'varchar'
   AND CHARACTER_MAXIMUM_LENGTH = 45
-  AND CHARACTER_SET_NAME = 'utf8mb3'
-  AND COLLATION_NAME = 'utf8mb3_general_ci'
+  AND (
+    (CHARACTER_SET_NAME = 'utf8mb3' AND COLLATION_NAME = 'utf8mb3_general_ci')
+    OR (CHARACTER_SET_NAME = 'utf8' AND COLLATION_NAME = 'utf8_general_ci')
+  )
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    (LOCATE('MariaDB', VERSION()) > 0 AND CAST(COLUMN_DEFAULT AS CHAR) = 'NULL')
+    OR (LOCATE('MariaDB', VERSION()) = 0 AND COLUMN_DEFAULT IS NULL)
+  )
   AND EXTRA = '';
 
 SET @fpw_preflight_20260831_002_data_sql = IF(
@@ -53,14 +58,14 @@ SET @fpw_preflight_20260831_002_data_sql = IF(
   AND @fpw_preflight_20260831_002_named_column_count = 2
   AND @fpw_preflight_20260831_002_source_column_count = 2,
   'SELECT
-     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) = '''' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) = '''' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) <> ''NULL'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) <> ''NULL'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND (TRIM(CAST(`primaryFuelCapacity` AS CHAR)) = '''' OR UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) = ''NULL'') THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND (TRIM(CAST(`auxFuelCapacity` AS CHAR)) = '''' OR UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) = ''NULL'') THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`auxFuelCapacity` AS CHAR)) REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) <> ''NULL'' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) <> ''NULL'' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND LOCATE(''.'', TRIM(CAST(`primaryFuelCapacity` AS CHAR))) > 0 AND LENGTH(SUBSTRING_INDEX(TRIM(CAST(`primaryFuelCapacity` AS CHAR)), ''.'', -1)) > 2 THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`auxFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND LOCATE(''.'', TRIM(CAST(`auxFuelCapacity` AS CHAR))) > 0 AND LENGTH(SUBSTRING_INDEX(TRIM(CAST(`auxFuelCapacity` AS CHAR)), ''.'', -1)) > 2 THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND CAST(TRIM(CAST(`primaryFuelCapacity` AS CHAR)) AS DECIMAL(65,10)) > 99999999.99 THEN 1 ELSE 0 END), 0),
@@ -96,7 +101,7 @@ SET @fpw_preflight_20260831_002_error = CASE
   WHEN @fpw_preflight_20260831_002_named_column_count <> 2 THEN
     'Refusing preflight: both vessel fuel-capacity source columns must exist.'
   WHEN @fpw_preflight_20260831_002_source_column_count <> 2 THEN
-    'Refusing preflight: primaryFuelCapacity and auxFuelCapacity must match the snapshotted nullable utf8mb3 VARCHAR(45) definition with NULL defaults.'
+    'Refusing preflight: primaryFuelCapacity and auxFuelCapacity must be nullable three-byte UTF-8 VARCHAR(45) columns with explicit SQL NULL defaults as reported by MySQL or MariaDB.'
   WHEN @fpw_preflight_20260831_002_primary_negative + @fpw_preflight_20260831_002_aux_negative > 0 THEN
     'Refusing preflight: negative primary or auxiliary fuel-capacity values require owner review.'
   WHEN @fpw_preflight_20260831_002_primary_invalid + @fpw_preflight_20260831_002_aux_invalid > 0 THEN
@@ -116,8 +121,8 @@ SELECT
   @fpw_preflight_20260831_002_source_column_count AS compatible_source_columns,
   @fpw_preflight_20260831_002_primary_nonblank AS primary_nonblank_values,
   @fpw_preflight_20260831_002_aux_nonblank AS auxiliary_nonblank_values,
-  @fpw_preflight_20260831_002_primary_blank AS primary_blank_values_to_normalize,
-  @fpw_preflight_20260831_002_aux_blank AS auxiliary_blank_values_to_normalize,
+  @fpw_preflight_20260831_002_primary_blank AS primary_empty_or_text_null_values_to_normalize,
+  @fpw_preflight_20260831_002_aux_blank AS auxiliary_empty_or_text_null_values_to_normalize,
   @fpw_preflight_20260831_002_primary_negative AS primary_negative_values,
   @fpw_preflight_20260831_002_aux_negative AS auxiliary_negative_values,
   @fpw_preflight_20260831_002_primary_invalid AS primary_mixed_or_invalid_values,
@@ -157,3 +162,10 @@ SET @fpw_preflight_20260831_002_primary_out_of_range = NULL;
 SET @fpw_preflight_20260831_002_aux_out_of_range = NULL;
 SET @fpw_preflight_20260831_002_data_sql = NULL;
 SET @fpw_preflight_20260831_002_guard_sql = NULL;
+
+
+
+
+
+
+

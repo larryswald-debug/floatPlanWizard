@@ -31,6 +31,36 @@ body {
   color: var(--text);
 }
 
+.follow-completed[hidden], body.follow-completed-view .app {
+  display: none;
+}
+
+.follow-completed {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 48px);
+}
+
+.follow-completed__card {
+  width: min(640px, 100%);
+  padding: clamp(24px, 5vw, 44px);
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--success);
+  border-radius: var(--radius-xl);
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  overflow-wrap: anywhere;
+}
+
+.follow-completed h1 { font-size: clamp(26px, 5vw, 36px); line-height: 1.15; }
+.follow-completed__trip { font-size: 20px; font-weight: 700; }
+.follow-completed__details { margin: 24px 0; }
+.follow-completed__details > div { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.follow-completed__details dt { color: var(--muted); font-size: 13px; margin-bottom: 5px; }
+.follow-completed__details dd { margin: 0; line-height: 1.5; }
+.follow-completed__notice { margin-bottom: 0; color: var(--muted); line-height: 1.6; }
+
 body.follow-loading {
   overflow: hidden;
 }

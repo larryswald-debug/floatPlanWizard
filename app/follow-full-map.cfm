@@ -256,6 +256,6 @@ if (request.fpwBase == "/") {
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/fpw-weather-overlays.js?v=20260526-cache-bump"></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260526-cache-bump"></script>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followFullMap.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followFullMap.js?v=20260903-completed-contact"></script>
 </body>
 </html>

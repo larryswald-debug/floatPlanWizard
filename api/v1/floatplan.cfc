@@ -5903,6 +5903,7 @@
             var accessEndResult = {};
             var routeProgressService = {};
             var routeInstanceFinalizationResult = {};
+            var safeArrivalResult = {};
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "INVALID_ID";
                 result.MESSAGE = "Float plan id is required.";
@@ -6144,7 +6145,45 @@
                     text = "Route action event writer exception for close floatPlanId=" & arguments.floatPlanId & " message=" & left(trim(toString(closeCanonicalActivityErr.message)), 500)
                 );
             }
+
+            safeArrivalResult = requestSafeArrivalNotifications(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId
+            );
+            result.SAFE_ARRIVAL = safeArrivalResult;
             return result;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="requestSafeArrivalNotifications" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var notificationService = {};
+            try {
+                notificationService = createObject(
+                    "component",
+                    resolveApiV1ComponentPath("SafeArrivalNotificationService")
+                ).init("fpw");
+                return notificationService.processCompletedTrip(
+                    userId = arguments.userId,
+                    floatPlanId = arguments.floatPlanId
+                );
+            } catch (any safeArrivalErr) {
+                writeLog(
+                    file = "fpw-safe-arrival",
+                    type = "error",
+                    text = "SAFE_ARRIVAL_HOOK_FAILED floatPlanId=" & arguments.floatPlanId
+                        & " type=" & left(trim(toString(safeArrivalErr.type)), 120)
+                        & " message=" & left(reReplace(trim(toString(safeArrivalErr.message)), "[\r\n\t]+", " ", "all"), 500)
+                );
+                return {
+                    SUCCESS = false,
+                    ELIGIBLE = true,
+                    REASON = "SAFE_ARRIVAL_HOOK_FAILED",
+                    failed = 1
+                };
+            }
         </cfscript>
     </cffunction>
 
@@ -8262,6 +8301,7 @@
             var basicScope = {};
             var monitoringService = {};
             var monitoringResult = {};
+            var safeArrivalResult = {};
 
             if (arguments.floatPlanId LTE 0) {
                 result.ERROR = "MISSING_PLAN_ID";
@@ -8337,6 +8377,11 @@
             result.MONITORING_RESULT = monitoringResult;
             result.BASIC_OPERATIONAL_ONLY = true;
             result.CURRENT = getBasicOperationalCurrentPlan(arguments.userId, ds);
+            safeArrivalResult = requestSafeArrivalNotifications(
+                userId = arguments.userId,
+                floatPlanId = arguments.floatPlanId
+            );
+            result.SAFE_ARRIVAL = safeArrivalResult;
             return result;
         </cfscript>
     </cffunction>
@@ -9822,3 +9867,7 @@
     </cffunction>
 
 </cfcomponent>
+
+
+
+

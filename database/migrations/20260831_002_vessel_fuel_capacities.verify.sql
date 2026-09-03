@@ -29,7 +29,10 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND NUMERIC_PRECISION = 10
   AND NUMERIC_SCALE = 2
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    (LOCATE('MariaDB', VERSION()) > 0 AND CAST(COLUMN_DEFAULT AS CHAR) = 'NULL')
+    OR (LOCATE('MariaDB', VERSION()) = 0 AND COLUMN_DEFAULT IS NULL)
+  )
   AND EXTRA = '';
 
 SELECT
@@ -76,3 +79,5 @@ SET @fpw_verify_20260831_002_target_column_count = NULL;
 SET @fpw_verify_20260831_002_negative_count = NULL;
 SET @fpw_verify_20260831_002_status = NULL;
 SET @fpw_verify_20260831_002_guard_sql = NULL;
+
+

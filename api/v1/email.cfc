@@ -311,6 +311,328 @@
         </cftry>
     </cffunction>
 
+    <cffunction name="sendSafeArrivalCaptainEmail" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="recipientName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="tripName" type="string" required="false" default="">
+        <cfargument name="vesselName" type="string" required="false" default="">
+        <cfargument name="departureLocation" type="string" required="false" default="">
+        <cfargument name="destination" type="string" required="false" default="">
+        <cfargument name="completionLabel" type="string" required="true">
+        <cfargument name="completionTimezone" type="string" required="true">
+        <cfargument name="completedTripPath" type="string" required="true">
+
+        <cfset var result = {
+            success = false,
+            messageType = "SAFE_ARRIVAL_CAPTAIN",
+            errorCode = "",
+            message = ""
+        }>
+        <cfset var toAddress = lCase(trim(arguments.toEmail))>
+        <cfset var emailMessage = {}>
+
+        <cfif int(arguments.userId) LTE 0 OR int(arguments.floatPlanId) LTE 0>
+            <cfset result.errorCode = "INVALID_TRIP_OWNER">
+            <cfset result.message = "Safe-arrival trip ownership is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT isValid("email", toAddress)>
+            <cfset result.errorCode = "INVALID_RECIPIENT">
+            <cfset result.message = "Safe-arrival captain recipient is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif
+            NOT len(trim(arguments.completedTripPath))
+            OR findNoCase("/app/completed-trip.cfm?id=", arguments.completedTripPath) EQ 0
+        >
+            <cfset result.errorCode = "INVALID_COMPLETED_TRIP_LINK">
+            <cfset result.message = "Completed Trip link is invalid.">
+            <cfreturn result>
+        </cfif>
+
+        <cftry>
+            <cfset emailMessage = buildSafeArrivalCaptainEmail(
+                recipientName = arguments.recipientName,
+                floatPlanId = arguments.floatPlanId,
+                tripName = arguments.tripName,
+                vesselName = arguments.vesselName,
+                departureLocation = arguments.departureLocation,
+                destination = arguments.destination,
+                completionLabel = arguments.completionLabel,
+                completionTimezone = arguments.completionTimezone,
+                completedTripPath = arguments.completedTripPath
+            )>
+            <cfset sendMultipartEmail(
+                toEmail = toAddress,
+                subject = emailMessage.subject,
+                htmlBody = emailMessage.htmlBody,
+                textBody = emailMessage.textBody,
+                spoolEnable = false,
+                rethrowOnFailure = true
+            )>
+            <cfset result.success = true>
+            <cfset result.message = "Captain safe-arrival confirmation accepted for delivery.">
+            <cfreturn result>
+
+            <cfcatch type="any">
+                <cfset logSafeEmailFailure(
+                    messageType = "SAFE_ARRIVAL_CAPTAIN",
+                    userId = arguments.userId,
+                    toEmail = toAddress,
+                    exceptionType = (structKeyExists(cfcatch, "type") ? cfcatch.type : "any")
+                )>
+                <cfset result.errorCode = "SEND_FAILED">
+                <cfset result.message = "Captain safe-arrival confirmation could not be sent.">
+                <cfreturn result>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
+    <cffunction name="sendSafeArrivalShoreContactEmail" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="recipientName" type="string" required="false" default="">
+        <cfargument name="captainName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="tripName" type="string" required="false" default="">
+        <cfargument name="vesselName" type="string" required="false" default="">
+        <cfargument name="destination" type="string" required="false" default="">
+        <cfargument name="completionLabel" type="string" required="true">
+        <cfargument name="completionTimezone" type="string" required="true">
+        <cfargument name="followPath" type="string" required="false" default="">
+
+        <cfset var result = {
+            success = false,
+            messageType = "SAFE_ARRIVAL_SHORE",
+            errorCode = "",
+            message = ""
+        }>
+        <cfset var toAddress = lCase(trim(arguments.toEmail))>
+        <cfset var emailMessage = {}>
+
+        <cfif int(arguments.userId) LTE 0 OR int(arguments.floatPlanId) LTE 0>
+            <cfset result.errorCode = "INVALID_TRIP_OWNER">
+            <cfset result.message = "Safe-arrival trip ownership is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif NOT isValid("email", toAddress)>
+            <cfset result.errorCode = "INVALID_RECIPIENT">
+            <cfset result.message = "Safe-arrival shore-contact recipient is invalid.">
+            <cfreturn result>
+        </cfif>
+        <cfif
+            len(trim(arguments.followPath))
+            AND findNoCase("/app/follow.cfm?", arguments.followPath) EQ 0
+        >
+            <cfset result.errorCode = "INVALID_FOLLOW_LINK">
+            <cfset result.message = "Safe Follow link is invalid.">
+            <cfreturn result>
+        </cfif>
+
+        <cftry>
+            <cfset emailMessage = buildSafeArrivalShoreContactEmail(
+                recipientName = arguments.recipientName,
+                captainName = arguments.captainName,
+                floatPlanId = arguments.floatPlanId,
+                tripName = arguments.tripName,
+                vesselName = arguments.vesselName,
+                destination = arguments.destination,
+                completionLabel = arguments.completionLabel,
+                completionTimezone = arguments.completionTimezone,
+                followPath = arguments.followPath
+            )>
+            <cfset sendMultipartEmail(
+                toEmail = toAddress,
+                subject = emailMessage.subject,
+                htmlBody = emailMessage.htmlBody,
+                textBody = emailMessage.textBody,
+                spoolEnable = false,
+                rethrowOnFailure = true
+            )>
+            <cfset result.success = true>
+            <cfset result.message = "Shore-contact safe-arrival confirmation accepted for delivery.">
+            <cfreturn result>
+
+            <cfcatch type="any">
+                <cfset logSafeEmailFailure(
+                    messageType = "SAFE_ARRIVAL_SHORE",
+                    userId = arguments.userId,
+                    toEmail = toAddress,
+                    exceptionType = (structKeyExists(cfcatch, "type") ? cfcatch.type : "any")
+                )>
+                <cfset result.errorCode = "SEND_FAILED">
+                <cfset result.message = "Shore-contact safe-arrival confirmation could not be sent.">
+                <cfreturn result>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
+    <cffunction name="buildSafeArrivalCaptainEmail" access="private" returntype="struct" output="false">
+        <cfargument name="recipientName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="tripName" type="string" required="false" default="">
+        <cfargument name="vesselName" type="string" required="false" default="">
+        <cfargument name="departureLocation" type="string" required="false" default="">
+        <cfargument name="destination" type="string" required="false" default="">
+        <cfargument name="completionLabel" type="string" required="true">
+        <cfargument name="completionTimezone" type="string" required="true">
+        <cfargument name="completedTripPath" type="string" required="true">
+
+        <cfset var recipient = cleanSafeArrivalTextValue(arguments.recipientName)>
+        <cfset var planName = cleanSafeArrivalTextValue(arguments.tripName)>
+        <cfset var vessel = cleanSafeArrivalTextValue(arguments.vesselName)>
+        <cfset var departure = cleanSafeArrivalTextValue(arguments.departureLocation)>
+        <cfset var destinationValue = cleanSafeArrivalTextValue(arguments.destination)>
+        <cfset var completedLabel = cleanSafeArrivalTextValue(arguments.completionLabel)>
+        <cfset var timezoneValue = cleanSafeArrivalTextValue(arguments.completionTimezone)>
+        <cfset var ctaPath = trim(arguments.completedTripPath)>
+        <cfset var ctaUrl = resolveAbsolutePublicUrl(ctaPath)>
+        <cfset var subject = "Your FloatPlanWizard trip is complete">
+        <cfset var textLines = []>
+        <cfset var textBody = "">
+        <cfset var htmlContent = "">
+        <cfset var htmlBody = "">
+        <cfset var complianceFooter = buildEmailComplianceFooter(footerType = "service")>
+
+        <cfif NOT len(recipient)>
+            <cfset recipient = "Captain">
+        </cfif>
+        <cfif NOT len(planName)>
+            <cfset planName = "Your FloatPlanWizard trip">
+        </cfif>
+
+        <cfset textLines = [
+            "Hello " & recipient & ",",
+            "",
+            "FloatPlanWizard has recorded this trip as completed safely and closed.",
+            "",
+            "Trip: " & planName
+        ]>
+        <cfif len(vessel)>
+            <cfset arrayAppend(textLines, "Vessel: " & vessel)>
+        </cfif>
+        <cfif len(departure) AND len(destinationValue)>
+            <cfset arrayAppend(textLines, "Route: " & departure & " to " & destinationValue)>
+        <cfelseif len(destinationValue)>
+            <cfset arrayAppend(textLines, "Destination: " & destinationValue)>
+        </cfif>
+        <cfset arrayAppend(textLines, "Completed: " & completedLabel)>
+        <cfset arrayAppend(textLines, "")>
+        <cfset arrayAppend(textLines, "View Completed Trip:")>
+        <cfset arrayAppend(textLines, ctaUrl)>
+        <cfset textBody = arrayToList(textLines, chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
+
+        <cfsavecontent variable="htmlContent"><cfoutput>
+<p style="margin:0 0 16px 0;">Hello #encodeForHtml(recipient)#,</p>
+<p style="margin:0 0 18px 0;"><strong>FloatPlanWizard has recorded this trip as completed safely and closed.</strong></p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 22px 0;">
+    <tr><td style="padding:5px 0; color:##6c757d; width:110px;">Trip</td><td style="padding:5px 0;"><strong>#encodeForHtml(planName)#</strong></td></tr>
+    <cfif len(vessel)><tr><td style="padding:5px 0; color:##6c757d;">Vessel</td><td style="padding:5px 0;">#encodeForHtml(vessel)#</td></tr></cfif>
+    <cfif len(departure) AND len(destinationValue)><tr><td style="padding:5px 0; color:##6c757d;">Route</td><td style="padding:5px 0;">#encodeForHtml(departure)# &rarr; #encodeForHtml(destinationValue)#</td></tr><cfelseif len(destinationValue)><tr><td style="padding:5px 0; color:##6c757d;">Destination</td><td style="padding:5px 0;">#encodeForHtml(destinationValue)#</td></tr></cfif>
+    <tr><td style="padding:5px 0; color:##6c757d;">Completed</td><td style="padding:5px 0;">#encodeForHtml(completedLabel)#</td></tr>
+</table>
+<p style="margin:0;"><a href="#encodeForHtmlAttribute(ctaUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">View Completed Trip</a></p>
+#complianceFooter.htmlBody#
+        </cfoutput></cfsavecontent>
+
+        <cfset htmlBody = renderBaseEmailLayout(title = subject, bodyHtml = htmlContent)>
+        <cfreturn {
+            subject = subject,
+            textBody = textBody,
+            htmlBody = htmlBody,
+            ctaPath = ctaPath,
+            ctaUrl = ctaUrl,
+            floatPlanId = int(arguments.floatPlanId),
+            completionTimezone = timezoneValue
+        }>
+    </cffunction>
+
+    <cffunction name="buildSafeArrivalShoreContactEmail" access="private" returntype="struct" output="false">
+        <cfargument name="recipientName" type="string" required="false" default="">
+        <cfargument name="captainName" type="string" required="false" default="">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="tripName" type="string" required="false" default="">
+        <cfargument name="vesselName" type="string" required="false" default="">
+        <cfargument name="destination" type="string" required="false" default="">
+        <cfargument name="completionLabel" type="string" required="true">
+        <cfargument name="completionTimezone" type="string" required="true">
+        <cfargument name="followPath" type="string" required="false" default="">
+
+        <cfset var recipient = cleanSafeArrivalTextValue(arguments.recipientName)>
+        <cfset var captain = cleanSafeArrivalTextValue(arguments.captainName)>
+        <cfset var planName = cleanSafeArrivalTextValue(arguments.tripName)>
+        <cfset var vessel = cleanSafeArrivalTextValue(arguments.vesselName)>
+        <cfset var destinationValue = cleanSafeArrivalTextValue(arguments.destination)>
+        <cfset var completedLabel = cleanSafeArrivalTextValue(arguments.completionLabel)>
+        <cfset var timezoneValue = cleanSafeArrivalTextValue(arguments.completionTimezone)>
+        <cfset var followPathValue = trim(arguments.followPath)>
+        <cfset var followUrl = len(followPathValue) ? resolveAbsolutePublicUrl(followPathValue) : "">
+        <cfset var subject = "">
+        <cfset var textLines = []>
+        <cfset var textBody = "">
+        <cfset var htmlContent = "">
+        <cfset var htmlBody = "">
+        <cfset var complianceFooter = buildEmailComplianceFooter(footerType = "service")>
+
+        <cfif NOT len(captain)>
+            <cfset captain = "The boater">
+        </cfif>
+        <cfif NOT len(planName)>
+            <cfset planName = "the FloatPlanWizard trip">
+        </cfif>
+        <cfset subject = captain & " has completed the trip">
+        <cfset textLines = [
+            len(recipient) ? "Hello " & recipient & "," : "Hello,",
+            "",
+            "FloatPlanWizard has recorded " & captain & "'s trip as completed safely.",
+            "",
+            "Trip: " & planName
+        ]>
+        <cfif len(vessel)>
+            <cfset arrayAppend(textLines, "Vessel: " & vessel)>
+        </cfif>
+        <cfif len(destinationValue)>
+            <cfset arrayAppend(textLines, "Destination: " & destinationValue)>
+        </cfif>
+        <cfset arrayAppend(textLines, "Completed: " & completedLabel)>
+        <cfset arrayAppend(textLines, "")>
+        <cfset arrayAppend(textLines, "Monitoring or follow-up for this trip is no longer required.")>
+        <cfif len(followUrl)>
+            <cfset arrayAppend(textLines, "")>
+            <cfset arrayAppend(textLines, "View Final Trip Status:")>
+            <cfset arrayAppend(textLines, followUrl)>
+        </cfif>
+        <cfset textBody = arrayToList(textLines, chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
+
+        <cfsavecontent variable="htmlContent"><cfoutput>
+<cfif len(recipient)><p style="margin:0 0 16px 0;">Hello #encodeForHtml(recipient)#,</p><cfelse><p style="margin:0 0 16px 0;">Hello,</p></cfif>
+<p style="margin:0 0 18px 0;"><strong>FloatPlanWizard has recorded #encodeForHtml(captain)#'s trip as completed safely.</strong></p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin:0 0 18px 0;">
+    <tr><td style="padding:5px 0; color:##6c757d; width:110px;">Trip</td><td style="padding:5px 0;"><strong>#encodeForHtml(planName)#</strong></td></tr>
+    <cfif len(vessel)><tr><td style="padding:5px 0; color:##6c757d;">Vessel</td><td style="padding:5px 0;">#encodeForHtml(vessel)#</td></tr></cfif>
+    <cfif len(destinationValue)><tr><td style="padding:5px 0; color:##6c757d;">Destination</td><td style="padding:5px 0;">#encodeForHtml(destinationValue)#</td></tr></cfif>
+    <tr><td style="padding:5px 0; color:##6c757d;">Completed</td><td style="padding:5px 0;">#encodeForHtml(completedLabel)#</td></tr>
+</table>
+<p style="margin:0 0 22px 0;">Monitoring or follow-up for this trip is no longer required.</p>
+<cfif len(followUrl)><p style="margin:0;"><a href="#encodeForHtmlAttribute(followUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">View Final Trip Status</a></p></cfif>
+#complianceFooter.htmlBody#
+        </cfoutput></cfsavecontent>
+
+        <cfset htmlBody = renderBaseEmailLayout(title = subject, bodyHtml = htmlContent)>
+        <cfreturn {
+            subject = subject,
+            textBody = textBody,
+            htmlBody = htmlBody,
+            followPath = followPathValue,
+            followUrl = followUrl,
+            hasFollowLink = len(followUrl) GT 0,
+            floatPlanId = int(arguments.floatPlanId),
+            completionTimezone = timezoneValue
+        }>
+    </cffunction>
+
     <cffunction name="buildDepartureReminderEmail" access="private" returntype="struct" output="false">
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="floatPlanName" type="string" required="false" default="">
@@ -837,6 +1159,39 @@
         <cfreturn basePath>
     </cffunction>
 
+    <cffunction name="resolveAbsolutePublicUrl" access="private" returntype="string" output="false">
+        <cfargument name="path" type="string" required="true">
+
+        <cfset var pathValue = trim(arguments.path)>
+        <cfset var config = getEmailConfig()>
+        <cfset var publicBaseUrl = reReplace(config.publicBaseUrl, "/+$", "")>
+        <cfset var basePath = resolveFpwBasePath()>
+
+        <cfif reFindNoCase("^https?://", pathValue)>
+            <cfreturn pathValue>
+        </cfif>
+        <cfif NOT len(pathValue)>
+            <cfreturn "">
+        </cfif>
+        <cfif left(pathValue, 1) NEQ "/">
+            <cfset pathValue = "/" & pathValue>
+        </cfif>
+        <cfif
+            len(basePath)
+            AND (
+                compare(pathValue, basePath) EQ 0
+                OR left(pathValue, len(basePath) + 1) EQ basePath & "/"
+            )
+        >
+            <cfset pathValue = removeChars(pathValue, 1, len(basePath))>
+            <cfif NOT len(pathValue)>
+                <cfset pathValue = "/">
+            </cfif>
+        </cfif>
+
+        <cfreturn publicBaseUrl & pathValue>
+    </cffunction>
+
     <cffunction name="normalizeDashboardUrl" access="private" returntype="string" output="false">
         <cfargument name="dashboardUrl" type="string" required="false" default="">
         <cfargument name="defaultDashboardUrl" type="string" required="true">
@@ -847,6 +1202,12 @@
         </cfif>
 
         <cfreturn arguments.defaultDashboardUrl>
+    </cffunction>
+
+    <cffunction name="cleanSafeArrivalTextValue" access="private" returntype="string" output="false">
+        <cfargument name="value" type="string" required="false" default="">
+
+        <cfreturn reReplace(trim(arguments.value), "[\r\n\t]+", " ", "all")>
     </cffunction>
 
     <cffunction name="cleanDepartureReminderTextValue" access="private" returntype="string" output="false">
@@ -884,3 +1245,6 @@
     </cffunction>
 
 </cfcomponent>
+
+
+

@@ -38,10 +38,15 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND COLUMN_NAME IN ('primaryFuelCapacity', 'auxFuelCapacity')
   AND DATA_TYPE = 'varchar'
   AND CHARACTER_MAXIMUM_LENGTH = 45
-  AND CHARACTER_SET_NAME = 'utf8mb3'
-  AND COLLATION_NAME = 'utf8mb3_general_ci'
+  AND (
+    (CHARACTER_SET_NAME = 'utf8mb3' AND COLLATION_NAME = 'utf8mb3_general_ci')
+    OR (CHARACTER_SET_NAME = 'utf8' AND COLLATION_NAME = 'utf8_general_ci')
+  )
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    (LOCATE('MariaDB', VERSION()) > 0 AND CAST(COLUMN_DEFAULT AS CHAR) = 'NULL')
+    OR (LOCATE('MariaDB', VERSION()) = 0 AND COLUMN_DEFAULT IS NULL)
+  )
   AND EXTRA = '';
 
 SET @fpw_up_20260831_002_data_sql = IF(
@@ -49,12 +54,12 @@ SET @fpw_up_20260831_002_data_sql = IF(
   AND @fpw_up_20260831_002_named_column_count = 2
   AND @fpw_up_20260831_002_source_column_count = 2,
   'SELECT
-     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) = '''' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) = '''' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) <> ''NULL'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) <> ''NULL'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND (TRIM(CAST(`primaryFuelCapacity` AS CHAR)) = '''' OR UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) = ''NULL'') THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND (TRIM(CAST(`auxFuelCapacity` AS CHAR)) = '''' OR UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) = ''NULL'') THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0) + COALESCE(SUM(CASE WHEN TRIM(CAST(`auxFuelCapacity` AS CHAR)) REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
-     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0) + COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
+     COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) <> ''NULL'' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0) + COALESCE(SUM(CASE WHEN `auxFuelCapacity` IS NOT NULL AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) <> '''' AND UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) <> ''NULL'' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) NOT REGEXP ''^-[0-9]+([.][0-9]+)?$'' THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND LOCATE(''.'', TRIM(CAST(`primaryFuelCapacity` AS CHAR))) > 0 AND LENGTH(SUBSTRING_INDEX(TRIM(CAST(`primaryFuelCapacity` AS CHAR)), ''.'', -1)) > 2 THEN 1 ELSE 0 END), 0) + COALESCE(SUM(CASE WHEN TRIM(CAST(`auxFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND LOCATE(''.'', TRIM(CAST(`auxFuelCapacity` AS CHAR))) > 0 AND LENGTH(SUBSTRING_INDEX(TRIM(CAST(`auxFuelCapacity` AS CHAR)), ''.'', -1)) > 2 THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND CAST(TRIM(CAST(`primaryFuelCapacity` AS CHAR)) AS DECIMAL(65,10)) > 99999999.99 THEN 1 ELSE 0 END), 0) + COALESCE(SUM(CASE WHEN TRIM(CAST(`auxFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' AND CAST(TRIM(CAST(`auxFuelCapacity` AS CHAR)) AS DECIMAL(65,10)) > 99999999.99 THEN 1 ELSE 0 END), 0),
      COALESCE(SUM(CASE WHEN `primaryFuelCapacity` IS NOT NULL AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) <> '''' AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) REGEXP ''^[+]?[0-9]+([.][0-9]+)?$'' THEN CAST(TRIM(CAST(`primaryFuelCapacity` AS CHAR)) AS DECIMAL(65,2)) ELSE 0 END), 0),
@@ -83,7 +88,7 @@ SET @fpw_up_20260831_002_error = CASE
   WHEN @fpw_up_20260831_002_named_column_count <> 2 THEN
     'Refusing migration: both vessel fuel-capacity source columns must exist.'
   WHEN @fpw_up_20260831_002_source_column_count <> 2 THEN
-    'Refusing migration: primaryFuelCapacity and auxFuelCapacity must match the snapshotted nullable utf8mb3 VARCHAR(45) definition with NULL defaults.'
+    'Refusing migration: primaryFuelCapacity and auxFuelCapacity must be nullable three-byte UTF-8 VARCHAR(45) columns with explicit SQL NULL defaults as reported by MySQL or MariaDB.'
   WHEN @fpw_up_20260831_002_negative_count > 0 THEN
     'Refusing migration: negative primary or auxiliary fuel-capacity values require owner review.'
   WHEN @fpw_up_20260831_002_invalid_count > 0 THEN
@@ -110,13 +115,19 @@ DEALLOCATE PREPARE fpw_up_20260831_002_guard;
 UPDATE `vessels`
 SET `primaryFuelCapacity` = NULL
 WHERE `primaryFuelCapacity` IS NOT NULL
-  AND TRIM(CAST(`primaryFuelCapacity` AS CHAR)) = '';
+  AND (
+    TRIM(CAST(`primaryFuelCapacity` AS CHAR)) = ''
+    OR UPPER(TRIM(CAST(`primaryFuelCapacity` AS CHAR))) = 'NULL'
+  );
 SET @fpw_up_20260831_002_primary_blanks_normalized = ROW_COUNT();
 
 UPDATE `vessels`
 SET `auxFuelCapacity` = NULL
 WHERE `auxFuelCapacity` IS NOT NULL
-  AND TRIM(CAST(`auxFuelCapacity` AS CHAR)) = '';
+  AND (
+    TRIM(CAST(`auxFuelCapacity` AS CHAR)) = ''
+    OR UPPER(TRIM(CAST(`auxFuelCapacity` AS CHAR))) = 'NULL'
+  );
 SET @fpw_up_20260831_002_aux_blanks_normalized = ROW_COUNT();
 
 ALTER TABLE `vessels`
@@ -133,7 +144,10 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND NUMERIC_PRECISION = 10
   AND NUMERIC_SCALE = 2
   AND IS_NULLABLE = 'YES'
-  AND COLUMN_DEFAULT IS NULL
+  AND (
+    (LOCATE('MariaDB', VERSION()) > 0 AND CAST(COLUMN_DEFAULT AS CHAR) = 'NULL')
+    OR (LOCATE('MariaDB', VERSION()) = 0 AND COLUMN_DEFAULT IS NULL)
+  )
   AND EXTRA = '';
 
 SELECT
@@ -155,7 +169,7 @@ SET @fpw_up_20260831_002_post_error = CASE
     'Migration failed verification: the target fuel-capacity column definitions are incompatible.'
   WHEN @fpw_up_20260831_002_primary_blanks_normalized <> @fpw_up_20260831_002_primary_blank
     OR @fpw_up_20260831_002_aux_blanks_normalized <> @fpw_up_20260831_002_aux_blank THEN
-    'Migration failed verification: not all blank source values were normalized to NULL.'
+    'Migration failed verification: not all empty or text-NULL source values were normalized to SQL NULL.'
   WHEN @fpw_up_20260831_002_primary_target_nonnull <> @fpw_up_20260831_002_primary_nonblank
     OR @fpw_up_20260831_002_aux_target_nonnull <> @fpw_up_20260831_002_aux_nonblank THEN
     'Migration failed verification: populated fuel-capacity counts changed.'
@@ -169,8 +183,8 @@ END;
 
 SELECT
   IF(@fpw_up_20260831_002_post_error IS NULL, 'PASS', 'FAIL') AS migration_status,
-  @fpw_up_20260831_002_primary_blanks_normalized AS primary_blanks_normalized,
-  @fpw_up_20260831_002_aux_blanks_normalized AS auxiliary_blanks_normalized,
+  @fpw_up_20260831_002_primary_blanks_normalized AS primary_empty_or_text_null_values_normalized,
+  @fpw_up_20260831_002_aux_blanks_normalized AS auxiliary_empty_or_text_null_values_normalized,
   @fpw_up_20260831_002_primary_target_nonnull AS primary_populated_values_preserved,
   @fpw_up_20260831_002_aux_target_nonnull AS auxiliary_populated_values_preserved,
   @fpw_up_20260831_002_post_error AS migration_error;
@@ -210,3 +224,13 @@ SET @fpw_up_20260831_002_post_error = NULL;
 SET @fpw_up_20260831_002_data_sql = NULL;
 SET @fpw_up_20260831_002_guard_sql = NULL;
 SET @fpw_up_20260831_002_post_guard_sql = NULL;
+
+
+
+
+
+
+
+
+
+
