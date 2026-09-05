@@ -4,6 +4,314 @@
         <cfreturn this>
     </cffunction>
 
+    <cffunction name="checkNonEssentialEmailEligibility" access="public" returntype="struct" output="false">
+        <cfargument name="email" type="string" required="true">
+        <cfargument name="userId" type="numeric" required="false" default="0">
+        <cfargument name="optOutService" type="any" required="false">
+
+        <cfset var recipient = lCase(trim(arguments.email))>
+        <cfset var preferenceService = "">
+        <cfset var optedOut = false>
+        <cfset var unsubscribeUrl = "">
+        <cfset var tokenValidation = {}>
+
+        <cfif NOT isValid("email", recipient)>
+            <cfreturn buildNonEssentialEligibilityResult(
+                eligible = false,
+                code = "INVALID_EMAIL"
+            )>
+        </cfif>
+
+        <cftry>
+            <cfif structKeyExists(arguments, "optOutService") AND isObject(arguments.optOutService)>
+                <cfset preferenceService = arguments.optOutService>
+            <cfelse>
+                <cfset preferenceService = createEmailOptOutService(getEmailConfig().publicBaseUrl)>
+            </cfif>
+
+            <cfset optedOut = preferenceService.isOptedOut(
+                email = recipient,
+                optOutType = "non_essential"
+            )>
+
+            <cfcatch type="any">
+                <cfreturn buildNonEssentialEligibilityResult(
+                    eligible = false,
+                    code = "PREFERENCE_LOOKUP_FAILED"
+                )>
+            </cfcatch>
+        </cftry>
+
+        <cfif optedOut>
+            <cfreturn buildNonEssentialEligibilityResult(
+                eligible = false,
+                code = "OPTED_OUT"
+            )>
+        </cfif>
+
+        <cftry>
+            <cfset unsubscribeUrl = preferenceService.buildOptOutUrl(
+                email = recipient,
+                userId = arguments.userId,
+                optOutType = "non_essential"
+            )>
+
+            <cfif NOT isSignedNonEssentialUnsubscribeUrl(unsubscribeUrl)>
+                <cfthrow type="email.InvalidSignedUnsubscribeUrl" message="Signed unsubscribe URL is invalid.">
+            </cfif>
+            <cfset tokenValidation = preferenceService.validateSignedOptOutToken(
+                extractSignedUnsubscribeToken(unsubscribeUrl)
+            )>
+            <cfif NOT tokenValidation.success>
+                <cfthrow type="email.InvalidSignedUnsubscribeUrl" message="Signed unsubscribe URL could not be validated.">
+            </cfif>
+
+            <cfcatch type="any">
+                <cfreturn buildNonEssentialEligibilityResult(
+                    eligible = false,
+                    code = "UNSUBSCRIBE_URL_FAILED"
+                )>
+            </cfcatch>
+        </cftry>
+
+        <cfreturn buildNonEssentialEligibilityResult(
+            eligible = true,
+            code = "ELIGIBLE",
+            unsubscribeUrl = unsubscribeUrl
+        )>
+    </cffunction>
+
+    <cffunction name="buildNonEssentialEmailComplianceFooter" access="public" returntype="struct" output="false">
+        <cfargument name="eligibility" type="struct" required="true">
+
+        <cfset var eligibilityCode = "">
+        <cfset var unsubscribeUrl = "">
+
+        <cfif structKeyExists(arguments.eligibility, "code") AND NOT isNull(arguments.eligibility.code)>
+            <cfset eligibilityCode = uCase(trim(toString(arguments.eligibility.code)))>
+        </cfif>
+        <cfif structKeyExists(arguments.eligibility, "unsubscribeUrl") AND NOT isNull(arguments.eligibility.unsubscribeUrl)>
+            <cfset unsubscribeUrl = trim(toString(arguments.eligibility.unsubscribeUrl))>
+        </cfif>
+
+        <cfif eligibilityCode NEQ "ELIGIBLE"
+            OR NOT structKeyExists(arguments.eligibility, "eligible")
+            OR NOT arguments.eligibility.eligible
+            OR NOT isSignedNonEssentialUnsubscribeUrl(unsubscribeUrl)>
+            <cfthrow type="email.NonEssentialRecipientIneligible" message="Non-essential email recipient is not eligible.">
+        </cfif>
+
+        <cfreturn buildEmailComplianceFooter(
+            footerType = "marketing",
+            context = {
+                unsubscribeUrl = unsubscribeUrl
+            }
+        )>
+    </cffunction>
+
+    <!--- Render-only. The caller remains responsible for classifier, ownership, policy, and ledger decisions. --->
+    <cffunction name="buildInactiveMemberRecoveryEmail" access="public" returntype="struct" output="false">
+        <cfargument name="stage" type="string" required="true">
+        <cfargument name="eligibility" type="struct" required="true">
+        <cfargument name="firstName" type="string" required="false" default="">
+        <cfargument name="verifiedDraftUrl" type="string" required="false" default="">
+
+        <cfset var stageValue = uCase(trim(arguments.stage))>
+        <cfset var templateConfig = getInactiveMemberRecoveryTemplateConfig(stageValue)>
+        <cfset var complianceFooter = {}>
+        <cfset var dashboardUrl = resolveAbsolutePublicUrl("/app/dashboard.cfm")>
+        <cfset var ctaUrl = dashboardUrl>
+        <cfset var verifiedDraft = {}>
+        <cfset var cleanFirstName = left(reReplace(trim(arguments.firstName), "[\r\n\t]+", " ", "all"), 80)>
+        <cfset var greetingText = len(cleanFirstName) ? "Hi " & cleanFirstName & "," : "Hi,">
+        <cfset var greetingHtml = len(cleanFirstName) ? "Hi " & encodeForHtml(cleanFirstName) & "," : "Hi,">
+        <cfset var ctaUrlHtml = "">
+        <cfset var htmlContent = "">
+        <cfset var htmlBody = "">
+        <cfset var textBody = "">
+
+        <cfif NOT templateConfig.valid>
+            <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_RECOVERY_STAGE")>
+        </cfif>
+
+        <cfif stageValue EQ "D" AND len(trim(arguments.verifiedDraftUrl))>
+            <cfset verifiedDraft = validateVerifiedInactiveMemberDraftUrl(arguments.verifiedDraftUrl)>
+            <cfif NOT verifiedDraft.valid>
+                <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_VERIFIED_DRAFT_URL")>
+            </cfif>
+            <cfset ctaUrl = verifiedDraft.url>
+        </cfif>
+
+        <cftry>
+            <cfset complianceFooter = buildNonEssentialEmailComplianceFooter(arguments.eligibility)>
+            <cfcatch type="any">
+                <cfreturn buildInactiveMemberRecoveryEmailFailure("NON_ESSENTIAL_COMPLIANCE_REQUIRED")>
+            </cfcatch>
+        </cftry>
+
+        <cfset ctaUrlHtml = encodeForHtmlAttribute(ctaUrl)>
+        <cfset textBody = arrayToList([
+            greetingText,
+            "",
+            templateConfig.body,
+            "",
+            templateConfig.ctaLabel & ":",
+            ctaUrl,
+            "",
+            "The FloatPlanWizard.com Team"
+        ], chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
+
+        <cfsavecontent variable="htmlContent"><cfoutput>
+<p style="margin:0 0 16px 0;">#greetingHtml#</p>
+<p style="margin:0 0 22px 0;">#encodeForHtml(templateConfig.body)#</p>
+<p style="margin:0 0 24px 0;"><a href="#ctaUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">#encodeForHtml(templateConfig.ctaLabel)#</a></p>
+<p style="margin:0;">The FloatPlanWizard.com Team</p>
+<div style="overflow-wrap:anywhere; word-break:break-word;">#complianceFooter.htmlBody#</div>
+        </cfoutput></cfsavecontent>
+
+        <cfset htmlBody = renderBaseEmailLayout(
+            title = templateConfig.subject,
+            bodyHtml = htmlContent
+        )>
+
+        <cfreturn {
+            success = true,
+            errorCode = "",
+            messageType = "INACTIVE_MEMBER_RECOVERY",
+            subject = templateConfig.subject,
+            htmlBody = htmlBody,
+            textBody = textBody,
+            ctaLabel = templateConfig.ctaLabel,
+            ctaUrl = ctaUrl
+        }>
+    </cffunction>
+
+    <!--- Internal orchestration transport boundary. No recipient selection or eligibility overrides. --->
+    <cffunction name="submitInactiveMemberRecoveryEmail" access="public" returntype="struct" output="false">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="message" type="struct" required="true">
+        <cfset var field = "">
+        <cfif NOT isValid("email", arguments.toEmail)
+            OR NOT structKeyExists(arguments.message, "success") OR NOT arguments.message.success
+            OR NOT structKeyExists(arguments.message, "messageType")
+            OR arguments.message.messageType NEQ "INACTIVE_MEMBER_RECOVERY">
+            <cfreturn {OUTCOME="FAILED",CODE="INVALID_RECOVERY_MESSAGE"}>
+        </cfif>
+        <cfloop list="subject,htmlBody,textBody,ctaUrl,ctaLabel" index="field">
+            <cfif NOT structKeyExists(arguments.message,field)
+                OR NOT isSimpleValue(arguments.message[field]) OR NOT len(trim(arguments.message[field]))>
+                <cfreturn {OUTCOME="FAILED",CODE="INVALID_RECOVERY_MESSAGE"}>
+            </cfif>
+        </cfloop>
+        <cftry>
+            <cfset sendMultipartEmail(
+                toEmail=arguments.toEmail,
+                subject=arguments.message.subject,
+                htmlBody=arguments.message.htmlBody,
+                textBody=arguments.message.textBody,
+                spoolEnable=false,
+                rethrowOnFailure=true
+            )>
+            <cfreturn {OUTCOME="SUBMITTED",CODE="SUBMITTED"}>
+            <cfcatch type="any">
+                <!--- A transport exception alone cannot prove SMTP did not accept the message. --->
+                <cfreturn {OUTCOME="AMBIGUOUS",CODE="TRANSPORT_OUTCOME_UNKNOWN"}>
+            </cfcatch>
+        </cftry>
+    </cffunction>
+
+    <cffunction name="getInactiveMemberRecoveryTemplateConfig" access="private" returntype="struct" output="false">
+        <cfargument name="stage" type="string" required="true">
+
+        <cfset var stageValue = uCase(trim(arguments.stage))>
+
+        <cfswitch expression="#stageValue#">
+            <cfcase value="A">
+                <cfreturn {
+                    valid = true,
+                    subject = "Add your boat to FloatPlanWizard",
+                    body = "Your FloatPlanWizard account is ready. Add your vessel details once and FPW can reuse them when you plan future trips and create Float Plans.",
+                    ctaLabel = "Continue Vessel Setup"
+                }>
+            </cfcase>
+            <cfcase value="B">
+                <cfreturn {
+                    valid = true,
+                    subject = "Ready to plan your first trip?",
+                    body = "Your vessel is saved in FloatPlanWizard. When you're ready, use Trip Planner to map a route, add stops, and estimate your trip.",
+                    ctaLabel = "Start Planning a Trip"
+                }>
+            </cfcase>
+            <cfcase value="C">
+                <cfreturn {
+                    valid = true,
+                    subject = "Pick up your trip planning",
+                    body = "You've started saving trip-planning work in FloatPlanWizard. You can come back anytime to continue the route and turn it into a trip when you're ready.",
+                    ctaLabel = "Continue Trip Planning"
+                }>
+            </cfcase>
+            <cfcase value="D">
+                <cfreturn {
+                    valid = true,
+                    subject = "Your Float Plan is waiting",
+                    body = "You've started a Float Plan in FloatPlanWizard. Come back when you're ready to finish the details and share the trip with someone ashore.",
+                    ctaLabel = "Continue Your Float Plan"
+                }>
+            </cfcase>
+        </cfswitch>
+
+        <cfreturn { valid = false, subject = "", body = "", ctaLabel = "" }>
+    </cffunction>
+
+    <cffunction name="validateVerifiedInactiveMemberDraftUrl" access="private" returntype="struct" output="false">
+        <cfargument name="verifiedDraftUrl" type="string" required="true">
+
+        <cfset var candidate = trim(arguments.verifiedDraftUrl)>
+        <cfset var publicBaseUrl = reReplace(getEmailConfig().publicBaseUrl, "/+$", "", "all")>
+        <cfset var relativeUrl = "">
+        <cfset var relativePath = "">
+        <cfset var parsedUrl = "">
+
+        <cfif NOT len(candidate)
+            OR reFind("[\r\n\t]", candidate)
+            OR find("##", candidate)
+            OR len(candidate) LTE len(publicBaseUrl)
+            OR compareNoCase(left(candidate, len(publicBaseUrl) + 1), publicBaseUrl & "/") NEQ 0>
+            <cfreturn { valid = false, url = "" }>
+        </cfif>
+
+        <!--- Parse syntax only; URI construction does not resolve or request the destination. --->
+        <cftry>
+            <cfset parsedUrl = createObject("java", "java.net.URI").init(candidate)>
+            <cfcatch type="any">
+                <cfreturn { valid = false, url = "" }>
+            </cfcatch>
+        </cftry>
+
+        <cfset relativeUrl = removeChars(candidate, 1, len(publicBaseUrl))>
+        <cfset relativePath = listFirst(relativeUrl, "?")>
+        <cfif compareNoCase(relativePath, "/app/floatplan-wizard.cfm") NEQ 0>
+            <cfreturn { valid = false, url = "" }>
+        </cfif>
+
+        <cfreturn { valid = true, url = candidate }>
+    </cffunction>
+
+    <cffunction name="buildInactiveMemberRecoveryEmailFailure" access="private" returntype="struct" output="false">
+        <cfargument name="errorCode" type="string" required="true">
+
+        <cfreturn {
+            success = false,
+            errorCode = uCase(trim(arguments.errorCode)),
+            messageType = "INACTIVE_MEMBER_RECOVERY",
+            subject = "",
+            htmlBody = "",
+            textBody = "",
+            ctaLabel = "",
+            ctaUrl = ""
+        }>
+    </cffunction>
+
     <cffunction name="sendWelcomeMemberEmail" access="public" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="toEmail" type="string" required="true">
@@ -748,7 +1056,7 @@
         <cfset var greetingHtml = len(cleanFirstName) ? "Hi " & encodeForHtml(cleanFirstName) & "," : "Hi,">
         <cfset var subject = "Welcome to FloatPlanWizard.com">
         <cfset var safetyNotice = "Float Plan Wizard helps organize and share trip information, but it is not a rescue, emergency dispatch, or distress-response service. In an emergency, always use official emergency channels such as VHF Channel 16, DSC distress, 911, EPIRB/PLB, flares, or other accepted emergency methods.">
-        <cfset var optOutUrl = buildWelcomeMemberOptOutUrl(
+        <cfset var nonEssentialOptOutUrl = buildWelcomeMemberOptOutUrl(
             userId = arguments.userId,
             toEmail = arguments.toEmail,
             publicBaseUrl = config.publicBaseUrl
@@ -756,7 +1064,7 @@
         <cfset var complianceFooter = buildEmailComplianceFooter(
             footerType = "service",
             context = {
-                optOutUrl = optOutUrl
+                nonEssentialOptOutUrl = nonEssentialOptOutUrl
             }
         )>
         <cfset var textBody = "">
@@ -898,18 +1206,7 @@
         <cfargument name="toEmail" type="string" required="true">
         <cfargument name="publicBaseUrl" type="string" required="true">
 
-        <cfset var optOutService = "">
-
-        <cftry>
-            <cfset optOutService = createObject("component", "api.v1.EmailOptOutService").init(
-                publicBaseUrl = arguments.publicBaseUrl
-            )>
-            <cfcatch type="any">
-                <cfset optOutService = createObject("component", "fpw.api.v1.EmailOptOutService").init(
-                    publicBaseUrl = arguments.publicBaseUrl
-                )>
-            </cfcatch>
-        </cftry>
+        <cfset var optOutService = createEmailOptOutService(arguments.publicBaseUrl)>
 
         <cfreturn optOutService.buildOptOutUrl(
             email = arguments.toEmail,
@@ -968,9 +1265,11 @@
         <cfset var config = getEmailConfig()>
         <cfset var footerTypeValue = lcase(trim(arguments.footerType))>
         <cfset var emailPreferencesUrl = config.emailPreferencesUrl>
-        <cfset var unsubscribeUrl = config.unsubscribeUrl>
+        <cfset var nonEssentialOptOutUrl = emailPreferencesUrl>
+        <cfset var unsubscribeUrl = "">
         <cfset var siteUrl = config.publicBaseUrl>
-        <cfset var businessMailingAddress = config.businessMailingAddress>
+        <cfset var businessMailingAddress = "">
+        <cfset var serviceBusinessMailingAddress = "[FloatPlanWizard.com Mailing Address]">
         <cfset var emailPreferencesUrlHtml = encodeForHtmlAttribute(emailPreferencesUrl)>
         <cfset var emailPreferencesUrlTextHtml = encodeForHtml(emailPreferencesUrl)>
         <cfset var unsubscribeUrlHtml = encodeForHtmlAttribute(unsubscribeUrl)>
@@ -981,21 +1280,21 @@
         <cfset var htmlBody = "">
         <cfset var textBody = "">
 
-        <cfif structKeyExists(arguments.context, "optOutUrl") AND len(trim(toString(arguments.context.optOutUrl)))>
-            <cfset emailPreferencesUrl = trim(toString(arguments.context.optOutUrl))>
-            <cfset emailPreferencesUrlHtml = encodeForHtmlAttribute(emailPreferencesUrl)>
-            <cfset emailPreferencesUrlTextHtml = encodeForHtml(emailPreferencesUrl)>
+        <cfif structKeyExists(arguments.context, "nonEssentialOptOutUrl") AND len(trim(toString(arguments.context.nonEssentialOptOutUrl)))>
+            <cfset nonEssentialOptOutUrl = trim(toString(arguments.context.nonEssentialOptOutUrl))>
+            <cfset emailPreferencesUrlHtml = encodeForHtmlAttribute(nonEssentialOptOutUrl)>
+            <cfset emailPreferencesUrlTextHtml = encodeForHtml(nonEssentialOptOutUrl)>
         </cfif>
 
         <cfif footerTypeValue EQ "service">
             <cfset textBody = arrayToList([
                 "You may opt out of non-essential emails here:",
-                emailPreferencesUrl,
+                nonEssentialOptOutUrl,
                 "",
                 "Some FloatPlanWizard.com emails are required to operate your account or complete actions you request. For example, sending a float plan requires email delivery. To stop all account-related and service-related emails, you must close your FloatPlanWizard.com account.",
                 "",
                 "FloatPlanWizard.com",
-                businessMailingAddress,
+                serviceBusinessMailingAddress,
                 siteUrl
             ], chr(10))>
 
@@ -1003,10 +1302,24 @@
 <div style="margin-top:24px; padding-top:18px; border-top:1px solid ##dee2e6; color:##6c757d; font-size:12px; line-height:1.5;">
     <p style="margin:0 0 12px 0;">You may opt out of non-essential emails here:<br><a href="#emailPreferencesUrlHtml#" style="color:##0d6efd;">#emailPreferencesUrlTextHtml#</a></p>
     <p style="margin:0 0 12px 0;">Some FloatPlanWizard.com emails are required to operate your account or complete actions you request. For example, sending a float plan requires email delivery. To stop all account-related and service-related emails, you must close your FloatPlanWizard.com account.</p>
-    <p style="margin:0;">FloatPlanWizard.com<br>#businessMailingAddressHtml#<br><a href="#siteUrlHtml#" style="color:##0d6efd;">#siteUrlTextHtml#</a></p>
+    <p style="margin:0;">FloatPlanWizard.com<br>#encodeForHtml(serviceBusinessMailingAddress)#<br><a href="#siteUrlHtml#" style="color:##0d6efd;">#siteUrlTextHtml#</a></p>
 </div>
             </cfoutput></cfsavecontent>
         <cfelseif footerTypeValue EQ "marketing">
+            <cfset businessMailingAddress = getConfiguredBusinessMailingAddress()>
+            <cfif NOT structKeyExists(arguments.context, "unsubscribeUrl")>
+                <cfthrow type="email.SignedUnsubscribeUrlRequired" message="A signed unsubscribe URL is required for non-essential email.">
+            </cfif>
+            <cfset unsubscribeUrl = trim(toString(arguments.context.unsubscribeUrl))>
+            <cfif NOT isSignedNonEssentialUnsubscribeUrl(unsubscribeUrl)>
+                <cfthrow type="email.InvalidSignedUnsubscribeUrl" message="Signed unsubscribe URL is invalid.">
+            </cfif>
+            <cfif NOT len(businessMailingAddress)>
+                <cfthrow type="email.BusinessMailingAddressRequired" message="Business mailing address configuration is required for non-essential email.">
+            </cfif>
+            <cfset unsubscribeUrlHtml = encodeForHtmlAttribute(unsubscribeUrl)>
+            <cfset unsubscribeUrlTextHtml = encodeForHtml(unsubscribeUrl)>
+            <cfset businessMailingAddressHtml = encodeForHtml(businessMailingAddress)>
             <cfset textBody = arrayToList([
                 "You are receiving this email because you signed up for FloatPlanWizard.com updates, created an account, or asked to receive information from Float Plan Wizard.",
                 "",
@@ -1125,7 +1438,6 @@
         <cfif compareNoCase(publicBaseUrl, fallbackPublicBaseUrl) EQ 0>
             <cfset dashboardUrl = fallbackDashboardUrl>
         </cfif>
-        <!--- TODO: Replace compliance footer mailing address placeholder when canonical FPW business address config exists. --->
         <cfset var config = {
             fromDisplayName = fromDisplayName,
             fromEmail = fromEmail,
@@ -1133,12 +1445,108 @@
             replyToEmail = "info@floatplanwizard.com",
             publicBaseUrl = publicBaseUrl,
             dashboardUrl = dashboardUrl,
-            emailPreferencesUrl = publicBaseUrl & "/app/account.cfm##email-preferences",
-            unsubscribeUrl = publicBaseUrl & "/unsubscribe.cfm",
-            businessMailingAddress = "[FloatPlanWizard.com Mailing Address]"
+            emailPreferencesUrl = publicBaseUrl & "/app/account.cfm##email-preferences"
         }>
 
         <cfreturn config>
+    </cffunction>
+
+    <cffunction name="getConfiguredBusinessMailingAddress" access="private" returntype="string" output="false">
+        <cfset var configPath = "">
+        <cfset var rawContent = "">
+        <cfset var parsedConfig = {}>
+        <cfset var configuredAddress = "">
+
+        <cfif isDefined("application")
+            AND structKeyExists(application, "stripeConfigPath")
+            AND len(trim(toString(application.stripeConfigPath)))>
+            <cfset configPath = trim(toString(application.stripeConfigPath))>
+        <cfelse>
+            <cfset configPath = expandPath("/_fpw_private/stripe-config.json")>
+        </cfif>
+
+        <cfif NOT fileExists(configPath)>
+            <cfreturn "">
+        </cfif>
+
+        <cftry>
+            <cfset rawContent = fileRead(configPath, "utf-8")>
+            <cfset parsedConfig = deserializeJSON(rawContent, false)>
+            <cfif isStruct(parsedConfig)
+                AND structKeyExists(parsedConfig, "FPW_BUSINESS_MAILING_ADDRESS")
+                AND NOT isNull(parsedConfig.FPW_BUSINESS_MAILING_ADDRESS)>
+                <cfset configuredAddress = reReplace(trim(toString(parsedConfig.FPW_BUSINESS_MAILING_ADDRESS)), "[\r\n\t]+", " ", "all")>
+            </cfif>
+
+            <cfcatch type="any">
+                <cfreturn "">
+            </cfcatch>
+        </cftry>
+
+        <cfreturn configuredAddress>
+    </cffunction>
+
+    <cffunction name="createEmailOptOutService" access="private" returntype="any" output="false">
+        <cfargument name="publicBaseUrl" type="string" required="true">
+
+        <cfset var optOutService = "">
+
+        <cftry>
+            <cfset optOutService = createObject("component", "api.v1.EmailOptOutService").init(
+                publicBaseUrl = arguments.publicBaseUrl
+            )>
+            <cfcatch type="any">
+                <cfset optOutService = createObject("component", "fpw.api.v1.EmailOptOutService").init(
+                    publicBaseUrl = arguments.publicBaseUrl
+                )>
+            </cfcatch>
+        </cftry>
+
+        <cfreturn optOutService>
+    </cffunction>
+
+    <cffunction name="isSignedNonEssentialUnsubscribeUrl" access="private" returntype="boolean" output="false">
+        <cfargument name="unsubscribeUrl" type="string" required="true">
+
+        <cfset var urlValue = trim(arguments.unsubscribeUrl)>
+        <cfset var tokenValue = extractSignedUnsubscribeToken(urlValue)>
+
+        <cfif NOT len(urlValue)
+            OR reFindNoCase("^https?://", urlValue) NEQ 1
+            OR findNoCase("/unsubscribe.cfm?", urlValue) EQ 0>
+            <cfreturn false>
+        </cfif>
+
+        <cfreturn listLen(tokenValue, ".") EQ 2
+            AND len(listFirst(tokenValue, ".")) GT 0
+            AND reFindNoCase("^[a-f0-9]{64}$", listLast(tokenValue, ".")) EQ 1>
+    </cffunction>
+
+    <cffunction name="extractSignedUnsubscribeToken" access="private" returntype="string" output="false">
+        <cfargument name="unsubscribeUrl" type="string" required="true">
+
+        <cfset var queryStringValue = listLast(trim(arguments.unsubscribeUrl), "?")>
+        <cfset var queryPart = "">
+
+        <cfloop list="#queryStringValue#" index="queryPart" delimiters="&">
+            <cfif compareNoCase(listFirst(queryPart, "="), "t") EQ 0 AND listLen(queryPart, "=") GTE 2>
+                <cfreturn urlDecode(listRest(queryPart, "="))>
+            </cfif>
+        </cfloop>
+
+        <cfreturn "">
+    </cffunction>
+
+    <cffunction name="buildNonEssentialEligibilityResult" access="private" returntype="struct" output="false">
+        <cfargument name="eligible" type="boolean" required="true">
+        <cfargument name="code" type="string" required="true">
+        <cfargument name="unsubscribeUrl" type="string" required="false" default="">
+
+        <cfreturn {
+            eligible = arguments.eligible,
+            code = uCase(trim(arguments.code)),
+            unsubscribeUrl = trim(arguments.unsubscribeUrl)
+        }>
     </cffunction>
 
     <cffunction name="getAppLogDirectory" access="private" returntype="string" output="false">
@@ -1301,5 +1709,3 @@
     </cffunction>
 
 </cfcomponent>
-
-

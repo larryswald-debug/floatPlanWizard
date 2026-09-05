@@ -94,24 +94,21 @@
           <cfset response = { "SUCCESS" = false, "AUTH" = true, "MESSAGE" = "Only JPG, PNG, and WebP images are allowed.", "ERROR" = "INVALID_IMAGE_TYPE" }>
           <cfset statusCode = 400>
         <cfelse>
+          <!--- Resolve the component first; never retry a failed mutation. --->
           <cftry>
-            <cfset saveResult = createObject("component", "fpw.api.v1.VesselImageService").init("fpw").saveUploadedVesselImage(
-              vesselId = vesselId,
-              userId = userId,
-              uploadPath = uploadPath,
-              originalFileName = originalName,
-              basePath = reReplace(cgi.script_name, "/api/v1/.*$", "", "one")
-            )>
+            <cfset imageService = createObject("component", "fpw.api.v1.VesselImageService").init("fpw")>
             <cfcatch>
-              <cfset saveResult = createObject("component", "api.v1.VesselImageService").init("fpw").saveUploadedVesselImage(
-                vesselId = vesselId,
-                userId = userId,
-                uploadPath = uploadPath,
-                originalFileName = originalName,
-                basePath = reReplace(cgi.script_name, "/api/v1/.*$", "", "one")
-              )>
+              <cfset imageService = createObject("component", "api.v1.VesselImageService").init("fpw")>
             </cfcatch>
           </cftry>
+          <cfset saveResult = imageService.saveUploadedVesselImage(
+            vesselId = vesselId,
+            userId = userId,
+            uploadPath = uploadPath,
+            originalFileName = originalName,
+            basePath = reReplace(cgi.script_name, "/api/v1/.*$", "", "one"),
+            memberCommand = true
+          )>
 
           <cfif saveResult.SUCCESS>
             <cfset response = {

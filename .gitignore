@@ -4,6 +4,8 @@
 *~
 .DS_Store
 .playwright-mcp/
+/.codex-snapshots/
+/api/api_assets/floatPlans/user_float_plans/
 _fpw_private/stripe-config.json
 _fpw_private/stripe-config-prod.json
 _fpw_private/stripe-config.json.snapshot-*

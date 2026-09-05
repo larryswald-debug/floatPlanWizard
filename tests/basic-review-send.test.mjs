@@ -76,3 +76,29 @@ test("Basic delivery attaches the generated PDF and waits for SMTP acceptance", 
   assert.match(emailService, /<cfmailparam type="application\/pdf" file="#arguments\.attachmentPath#">/);
   assert.match(basicMethod, /cleanBasicReviewTextValue\(arguments\.floatPlanName\)/);
 });
+
+test("Basic review success requires transactional durable evidence after email acceptance", () => {
+  const service = read("api/v1/BasicReviewSendService.cfc");
+  const events = read("includes/ProductEventService.cfc");
+  const finalize = service.slice(service.indexOf("private void function completeReceipt("), service.indexOf("private void function failReceipt("));
+  assert.match(events, /definitions\["basic_send_completed"\][\s\S]*?eventSources = \[ "basic_save_send", "basic_review_send" \]/);
+  assert.match(service, /emailAccepted = true;[\s\S]*?completeReceipt\(claim.RECEIPT_ID, response, pdfFileName\)/);
+  assert.match(finalize, /transaction \{[\s\S]*?FOR UPDATE[\s\S]*?recordEvent\([\s\S]*?UPDATE basic_review_send_receipts/);
+  assert.match(finalize, /userId = val\(qReceipt.user_id\[1\]\)/);
+  assert.match(finalize, /entityId = val\(qReceipt.float_plan_id\[1\]\)/);
+  assert.match(finalize, /metadata = \{\}/);
+  assert.match(finalize, /basic_send_completed:basic_review_receipt:/);
+  assert.doesNotMatch(finalize, /contact\.EMAIL|contact\.NAME|share_token|requestCorrelationId =/);
+  assert.match(service, /if \(emailAccepted\)[\s\S]*?BASIC_REVIEW_CONFIRMATION_PENDING[\s\S]*?failReceipt/);
+});
+
+test("Basic share regression coverage verifies supported deletion, failures, ownership and Premium parity", () => {
+  const spec = read("tests/specs/BasicReviewSendContractSpec.cfc");
+  assert.match(spec, /deleteRouteForShareTest/);
+  assert.match(spec, /loadReceipt\(result.RECEIPT_ID\)\.recordCount\)\.toBe\(0\)/);
+  assert.match(spec, /hasShared\(fixture.userId\)\)\.toBeTrue\(\)/);
+  assert.match(spec, /hasShared\(other.userId\)\)\.toBeFalse\(\)/);
+  assert.match(spec, /verifyEvidenceFailure\("after_insert"\)/);
+  assert.match(spec, /premiumReplay.DUPLICATE/);
+  assert.doesNotMatch(spec, /900000 \+ val\(qUser.userId/);
+});

@@ -14,6 +14,7 @@
     <cfargument name="uploadPath" type="string" required="true">
     <cfargument name="originalFileName" type="string" required="true">
     <cfargument name="basePath" type="string" required="false" default="">
+    <cfargument name="memberCommand" type="boolean" required="false" default="false">
     <cfscript>
       var out = {
         "SUCCESS" = false,
@@ -73,17 +74,6 @@
         return out;
       }
 
-      qExisting = queryExecute(
-        "SELECT local_image_path, thumbnail_image_path
-         FROM vessel_images
-         WHERE vessel_id = :vesselId
-         LIMIT 1",
-        {
-          vesselId = { value = val(arguments.vesselId), cfsqltype = "cf_sql_integer" }
-        },
-        { datasource = variables.datasource }
-      );
-
       vesselImageRoot = getVesselImageRootPath();
       userImageRoot = joinPath(vesselImageRoot, toString(val(arguments.userId)));
       imageRoot = getVesselImageDirectory(arguments.userId, arguments.vesselId);
@@ -110,6 +100,29 @@
       }
 
       try {
+        transaction {
+          lockOwnedVessel(arguments.vesselId, arguments.userId);
+          qExisting = queryExecute(
+            "SELECT local_image_path, thumbnail_image_path, original_filename, mime_type
+             FROM vessel_images WHERE vessel_id = :vesselId FOR UPDATE",
+            { vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" } },
+            { datasource = variables.datasource }
+          );
+          // Compare bytes only in memory; a renamed identical upload is still a no-op.
+          if (qExisting.recordCount EQ 1) {
+            var previousRelativePath = normalizeVesselImageRelativePath(qExisting.local_image_path[1]);
+            var previousPath = len(previousRelativePath) ? joinPath(getRepoRootPath(), previousRelativePath) : "";
+            if (len(previousPath) AND fileExists(previousPath)
+              AND compare(hash(fileReadBinary(previousPath), "SHA-256"), hash(fileReadBinary(sourcePath), "SHA-256")) EQ 0) {
+              safeDeleteFile(sourcePath);
+              safeDeleteFile(thumbnailPath);
+              out.SUCCESS = true;
+              out.MESSAGE = "Vessel image saved.";
+              out.IMAGE = buildImageAsset(qExisting.local_image_path[1], qExisting.thumbnail_image_path[1],
+                qExisting.original_filename[1], qExisting.mime_type[1], arguments.basePath);
+              return out;
+            }
+          }
         queryExecute(
           "INSERT INTO vessel_images (
              vessel_id, local_image_path, thumbnail_image_path, original_filename, mime_type
@@ -130,6 +143,11 @@
           },
           { datasource = variables.datasource }
         );
+          if (arguments.memberCommand) {
+            getMemberActivityEventService(variables.datasource)
+              .recordRequiredMemberActivity(arguments.userId, "vessel_updated", arguments.vesselId);
+          }
+        }
       } catch (any databaseError) {
         safeDeleteFile(sourcePath);
         safeDeleteFile(thumbnailPath);
@@ -158,44 +176,63 @@
   <cffunction name="removeVesselImage" access="public" returntype="struct" output="false">
     <cfargument name="vesselId" type="numeric" required="true">
     <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="memberCommand" type="boolean" required="false" default="false">
     <cfscript>
       var out = { "SUCCESS" = false, "MESSAGE" = "Unable to remove vessel image." };
       var qImage = queryNew("");
-
-      qImage = queryExecute(
-        "SELECT vi.local_image_path, vi.thumbnail_image_path
-         FROM vessel_images vi
-         INNER JOIN vessels v ON v.vesselID = vi.vessel_id
-         WHERE vi.vessel_id = :vesselId
-           AND CAST(v.userId AS CHAR) = :userId
-         LIMIT 1",
-        {
-          vesselId = { value = val(arguments.vesselId), cfsqltype = "cf_sql_integer" },
-          userId = { value = toString(val(arguments.userId)), cfsqltype = "cf_sql_varchar" }
-        },
-        { datasource = variables.datasource }
-      );
-
-      if (qImage.recordCount EQ 0) {
-        out.SUCCESS = true;
-        out.MESSAGE = "No vessel image was set.";
+      try {
+        transaction {
+          lockOwnedVessel(arguments.vesselId, arguments.userId);
+          qImage = queryExecute(
+            "SELECT local_image_path, thumbnail_image_path
+             FROM vessel_images WHERE vessel_id = :vesselId FOR UPDATE",
+            { vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" } },
+            { datasource = variables.datasource }
+          );
+          if (qImage.recordCount EQ 0) {
+            out.SUCCESS = true;
+            out.MESSAGE = "No vessel image was set.";
+            return out;
+          }
+          queryExecute(
+            "DELETE FROM vessel_images WHERE vessel_id = :vesselId",
+            { vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" } },
+            { datasource = variables.datasource }
+          );
+          if (arguments.memberCommand) {
+            getMemberActivityEventService(variables.datasource)
+              .recordRequiredMemberActivity(arguments.userId, "vessel_updated", arguments.vesselId);
+          }
+        }
+      } catch (any persistenceError) {
         return out;
       }
-
-      queryExecute(
-        "DELETE FROM vessel_images WHERE vessel_id = :vesselId",
-        {
-          vesselId = { value = val(arguments.vesselId), cfsqltype = "cf_sql_integer" }
-        },
-        { datasource = variables.datasource }
-      );
+      // Files are removed only after metadata and required evidence have committed.
       safeDeleteRelativeFile(qImage.local_image_path[1], "");
       safeDeleteRelativeFile(qImage.thumbnail_image_path[1], "");
       removeEmptyVesselImageDirectory(arguments.userId, arguments.vesselId);
-
       out.SUCCESS = true;
       out.MESSAGE = "Vessel image removed.";
       return out;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="lockOwnedVessel" access="private" returntype="void" output="false">
+    <cfargument name="vesselId" type="numeric" required="true">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var owned = queryExecute(
+        "SELECT vesselID FROM vessels WHERE vesselID = :vesselId
+         AND userId = :userId FOR UPDATE",
+        {
+          vesselId = { value = arguments.vesselId, cfsqltype = "cf_sql_integer" },
+          userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" }
+        },
+        { datasource = variables.datasource }
+      );
+      if (owned.recordCount NEQ 1) {
+        throw(type="FPW.MemberActivity.Ownership", message="Vessel not found or not owned by this member.");
+      }
     </cfscript>
   </cffunction>
 
@@ -413,5 +450,8 @@
     </cfscript>
   </cffunction>
 
+    <cffunction name="getMemberActivityEventService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
+    </cffunction>
 </cfcomponent>
-

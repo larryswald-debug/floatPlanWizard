@@ -133,6 +133,11 @@
         )
       </cfquery>
       <cfquery datasource="fpw">
+        DELETE FROM product_events
+        WHERE user_id IN (SELECT userId FROM users
+          WHERE email LIKE <cfqueryparam value="#fixturePattern#" cfsqltype="cf_sql_varchar">)
+      </cfquery>
+      <cfquery datasource="fpw">
         DELETE FROM users
         WHERE email LIKE <cfqueryparam value="#fixturePattern#" cfsqltype="cf_sql_varchar">
       </cfquery>

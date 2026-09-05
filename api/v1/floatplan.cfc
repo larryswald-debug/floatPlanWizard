@@ -4209,6 +4209,40 @@
         </cfscript>
     </cffunction>
 
+
+    <cffunction name="readDraftActivityProjection" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="planId" type="numeric" required="true">
+        <cfargument name="basic" type="boolean" required="false" default="false">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var binds = {uid={value=arguments.userId,cfsqltype="cf_sql_integer"},pid={value=arguments.planId,cfsqltype="cf_sql_integer"}};
+            var options = {datasource=arguments.datasource};
+            var values = [];
+            var columns = "floatPlanName,vesselId,operatorId,opHasPfd,floatPlanEmail,rescueCenterId,departing,departureTime,departureTimeUTC,departTimezone,departureTZ,`returning`,returnTime,returnTimeUTC,returnTimezone,returnTZ,food,water,notes,route_instance_id,route_day_number";
+            if (!arguments.basic) columns &= ",rescueAuthority,rescueAuthorityPhone";
+            var plan = queryExecute("SELECT UPPER(TRIM(status)) AS plan_status,JSON_ARRAY(" & columns & ") AS projection
+                FROM floatplans WHERE floatplanId=:pid AND userId=:uid FOR UPDATE",binds,options);
+            if (plan.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership",message="Float plan not found.");
+            arrayAppend(values,toString(plan.projection[1]));
+            // Contacts/passengers are logical selections; regenerated association IDs are not activity.
+            var contacts = queryExecute("SELECT DISTINCT contactId FROM floatplan_contacts WHERE floatPlanId=:pid ORDER BY contactId",binds,options);
+            for (var row in contacts) arrayAppend(values,"contact:" & toString(row.contactId));
+            var passengers = queryExecute("SELECT DISTINCT passId,hasPdf,JSON_ARRAY(passId,hasPdf) AS projection
+                FROM floatplan_passengers WHERE floatPlanId=:pid ORDER BY passId,hasPdf",binds,options);
+            for (var row in passengers) arrayAppend(values,"passenger:" & toString(row.projection));
+            var waypoints = queryExecute("SELECT JSON_ARRAY(wayPointId,reason,departType,arrival,departure) AS projection
+                FROM floatplan_waypoints WHERE floatPlanId=:pid ORDER BY recId",binds,options);
+            for (var row in waypoints) arrayAppend(values,"waypoint:" & toString(row.projection));
+            if (arguments.basic) {
+                var details = queryExecute("SELECT JSON_ARRAY(vessel_name,operator_name,captain_name,captain_email,
+                    notification_contact_name,notification_contact_email,notification_contact_phone,launch_location,destination_location,authority_id) AS projection
+                    FROM floatplan_basic_details WHERE floatplan_id=:pid",binds,options);
+                for (var row in details) arrayAppend(values,"basic:" & toString(row.projection));
+            }
+            return {draft=compareNoCase(toString(plan.plan_status[1]),"DRAFT") EQ 0,projection=serializeJSON(values)};
+        </cfscript>
+    </cffunction>
     <cffunction name="saveFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="payload" type="struct" required="true">
@@ -4431,6 +4465,14 @@
             }
 
             transaction {
+                var activityWasCreate = planId LTE 0;
+                var activityBefore = {draft=true,projection=""};
+                var activityOwner = queryExecute("SELECT userId FROM users WHERE userId=:uid FOR UPDATE",
+                    {uid={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource=ds});
+                if (activityOwner.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership",message="Member not found.");
+                if (!activityWasCreate) {
+                    activityBefore = readDraftActivityProjection(arguments.userId,planId,false,ds);
+                }
                 if (planId GT 0) {
                     if (existingStatus EQ "ACTIVE") {
                         memberGateResult = getMemberAccessGateService().requireTripOperationalAccessForUpdate(
@@ -4767,6 +4809,12 @@
                         departAt = { value = departAt, cfsqltype = "cf_sql_timestamp", null = NOT len(departAt) }
                     }, { datasource = ds });
                 }
+                var activityAfter = readDraftActivityProjection(arguments.userId,planId,false,ds);
+                if (activityBefore.draft AND activityAfter.draft
+                    AND (activityWasCreate OR compare(activityBefore.projection,activityAfter.projection) NEQ 0)) {
+                    getMemberActivityEventService(ds)
+                        .recordRequiredMemberActivity(arguments.userId,activityWasCreate ? "float_plan_created" : "float_plan_updated",planId);
+                }
             }
 
             var savedPlan = loadFloatPlan(arguments.userId, planId);
@@ -4971,6 +5019,19 @@
             }
 
             transaction {
+                var activityWasCreate = planId LTE 0;
+                var activityBefore = {draft=true,projection=""};
+                var activityOwner = queryExecute("SELECT userId FROM users WHERE userId=:uid FOR UPDATE",
+                    {uid={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource=ds});
+                if (activityOwner.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership",message="Member not found.");
+                if (!activityWasCreate) {
+                    activityBefore = readDraftActivityProjection(arguments.userId,planId,true,ds);
+                    if (!activityBefore.draft) {
+                        result.ERROR = "BASIC_PLAN_READ_ONLY";
+                        result.MESSAGE = "Only draft Basic float plans can be updated.";
+                        return result;
+                    }
+                }
                 submittedOwnershipResult = validateSubmittedPlanResourceOwnership(
                     userId = arguments.userId,
                     vesselId = 0,
@@ -5173,6 +5234,12 @@
                         arrivalAt = { value = arrivalAt, cfsqltype = "cf_sql_timestamp", null = NOT len(arrivalAt) },
                         departAt = { value = departAt, cfsqltype = "cf_sql_timestamp", null = NOT len(departAt) }
                     }, { datasource = ds });
+                }
+                var activityAfter = readDraftActivityProjection(arguments.userId,planId,true,ds);
+                if (activityBefore.draft AND activityAfter.draft
+                    AND (activityWasCreate OR compare(activityBefore.projection,activityAfter.projection) NEQ 0)) {
+                    getMemberActivityEventService(ds)
+                        .recordRequiredMemberActivity(arguments.userId,activityWasCreate ? "float_plan_created" : "float_plan_updated",planId);
                 }
             }
 
@@ -9866,8 +9933,8 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getMemberActivityEventService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
+    </cffunction>
 </cfcomponent>
-
-
-
-

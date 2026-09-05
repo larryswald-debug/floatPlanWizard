@@ -1,0 +1,13 @@
+{
+  "description": "SHA-256 of UTF-8, LF-normalized operational function bodies from the verified pre-compliance email.cfc baseline. Deliberate future operational changes require review before updating these checksums.",
+  "functions": {
+    "sendPasswordResetEmail": "92bc8cbfaac38cd3da38a0e215a46c65d6f3f57825556deea4aa3004bf538551",
+    "sendDepartureReminderEmail": "7f5ecb387ee1be4ed3b3a983046fa428f4ac2d8b1429d32c301dce9b730fdab4",
+    "sendSafeArrivalCaptainEmail": "99045d2e3434a0253c23e121e103a87b7b618c1d6a83057b0736a2ec35144f1d",
+    "sendSafeArrivalShoreContactEmail": "09b0fc88cae09b51360f22fea520ddc66d0a3f98cba7395c5924f384f7b63443",
+    "buildPasswordResetEmail": "1bdf6316cc7bea598b0c3d09a68ff90cbdb153ecc1505b2d71898092e6072b24",
+    "buildDepartureReminderEmail": "19e099e031724f277c7fb010201c52aec050d35970c6eab2c03483caef9d3879",
+    "buildSafeArrivalCaptainEmail": "6f3ec635846ee5d161e22f0bb22d3def8328f6a6332ec19afaf99ea8e6a48726",
+    "buildSafeArrivalShoreContactEmail": "33091361d0fe1fa8f3a521c545659639cb957dc2446d60e9cf577c92ff3f6847"
+  }
+}

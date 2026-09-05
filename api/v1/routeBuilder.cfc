@@ -361,7 +361,8 @@
                     legOrder = routegenSaveOverrideOrder,
                     segmentId = routegenSaveOverrideSegmentId,
                     geometryRaw = routegenSaveOverrideGeometry,
-                    overrideFieldsRaw = routegenSaveOverrideFields
+                    overrideFieldsRaw = routegenSaveOverrideFields,
+                    memberCommand = true
                 ) />
                 <cfoutput>#serializeJSON(routegenSaveOverrideRes)#</cfoutput>
                 <cfreturn>
@@ -2063,6 +2064,117 @@
         </cfscript>
     </cffunction>
 
+
+    <!--- In-memory, member-editable projections only. Never log or persist these values. --->
+    <cffunction name="memberActivityCanonical" access="private" returntype="string" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfscript>
+            var parts = [];
+            if (isStruct(arguments.value)) {
+                var keys = structKeyArray(arguments.value);
+                arraySort(keys, "textnocase");
+                for (var key in keys) {
+                    arrayAppend(parts, serializeJSON(lCase(key)) & ":" & (isNull(arguments.value[key]) ? "null" : memberActivityCanonical(arguments.value[key])));
+                }
+                return "{" & arrayToList(parts, ",") & "}";
+            }
+            if (isArray(arguments.value)) {
+                for (var i = 1; i LTE arrayLen(arguments.value); i++) {
+                    arrayAppend(parts, isNull(arguments.value[i]) ? "null" : memberActivityCanonical(arguments.value[i]));
+                }
+                return "[" & arrayToList(parts, ",") & "]";
+            }
+            return serializeJSON(arguments.value);
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="lockMemberActivityOwner" access="private" returntype="void" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            var owner = queryExecute("SELECT userId FROM users WHERE userId=:uid FOR UPDATE",
+                { uid={value=arguments.userId,cfsqltype="cf_sql_integer"} }, {datasource=application.dsn});
+            if (owner.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership", message="Member not found.");
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="memberRouteActivityProjection" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="routeKind" type="string" required="true">
+        <cfscript>
+            var binds = { uid={value=arguments.userId,cfsqltype="cf_sql_integer"}, rid={value=arguments.routeId,cfsqltype="cf_sql_integer"} };
+            var options = {datasource=application.dsn};
+            var values = [];
+            var owner = queryNew("");
+            var legs = queryNew("");
+            var overrides = queryNew("");
+            var entityId = 0;
+            lockMemberActivityOwner(arguments.userId);
+            if (arguments.routeKind EQ "user_route") {
+                owner = queryExecute("SELECT id, JSON_ARRAY(route_name,start_waypoint_id,is_active) AS projection
+                    FROM user_routes WHERE id=:rid AND user_id=:uid FOR UPDATE", binds, options);
+                if (owner.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership",message="Route not found for this member.");
+                entityId = owner.id[1];
+                arrayAppend(values, toString(owner.projection[1]));
+                legs = queryExecute("SELECT JSON_ARRAY(id,segment_id,start_waypoint_id,end_waypoint_id) AS projection
+                    FROM user_route_legs WHERE user_route_id=:rid ORDER BY order_index,id FOR UPDATE", binds, options);
+            } else if (arguments.routeKind EQ "route") {
+                owner = queryExecute("SELECT ri.id, ri.routegen_inputs_json,
+                    JSON_ARRAY(r.name,ri.template_route_code,ri.direction,ri.trip_type,ri.start_location,ri.end_location) AS projection
+                    FROM route_instances ri INNER JOIN loop_routes r ON r.id=ri.generated_route_id
+                    AND r.short_code=ri.generated_route_code
+                    WHERE ri.generated_route_id=:rid AND ri.user_id=:uid ORDER BY ri.id DESC LIMIT 1 FOR UPDATE", binds, options);
+                if (owner.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership",message="Owned route instance not found.");
+                entityId = owner.id[1];
+                arrayAppend(values, toString(owner.projection[1]));
+                var inputs = {};
+                var choices = {};
+                if (!isNull(owner.routegen_inputs_json[1]) AND len(trim(owner.routegen_inputs_json[1]))) {
+                    inputs = deserializeJSON(owner.routegen_inputs_json[1]);
+                    if (!isStruct(inputs)) throw(type="FPW.MemberActivity.Invalid",message="Saved route choices could not be verified.");
+                }
+                // Excludes IDs regenerated by rebuilds, vessel mirrors, lifecycle and derived recalculations.
+                var choiceNames = "selected_vessel_id,route_type,start_segment_id,end_segment_id,start_date,pace,speed_kn,cruising_speed,underway_hours_per_day,fuel_burn_gph_input,fuel_burn_basis,idle_burn_gph,idle_hours_total,weather_factor_pct,reserve_pct,reserve_mode,fuel_price_per_gal,comfort_profile,overnight_bias,optional_stop_flags";
+                var numericNames = "selected_vessel_id,start_segment_id,end_segment_id,speed_kn,cruising_speed,underway_hours_per_day,fuel_burn_gph_input,idle_burn_gph,idle_hours_total,weather_factor_pct,reserve_pct,fuel_price_per_gal";
+                for (var choice in listToArray(choiceNames)) {
+                    choices[choice] = structKeyExists(inputs,choice) ? inputs[choice] : "";
+                    if (listFind(numericNames,choice) AND isNumeric(choices[choice])) choices[choice] = val(choices[choice]);
+                }
+                if (isArray(choices.optional_stop_flags)) arraySort(choices.optional_stop_flags,"textnocase");
+                if (structKeyExists(inputs,"route_type") AND inputs.route_type EQ "my_route") choices.source_route_id = val(structKeyExists(inputs,"route_id") ? inputs.route_id : 0);
+                arrayAppend(values, choices);
+                binds.instanceId = {value=entityId,cfsqltype="cf_sql_integer"};
+                legs = queryExecute("SELECT JSON_ARRAY(segment_id,is_reversed,is_optional,detour_code,start_name,end_name,start_lat,start_lng,end_lat,end_lng) AS projection
+                    FROM route_instance_legs WHERE route_instance_id=:instanceId ORDER BY leg_order,id FOR UPDATE", binds, options);
+            } else {
+                throw(type="FPW.MemberActivity.Invalid",message="Unrecognized planning object.");
+            }
+            for (var row in legs) arrayAppend(values, toString(row.projection));
+            overrides = queryExecute("SELECT route_leg_order,geometry_json,override_fields_json
+                FROM route_leg_user_overrides WHERE user_id=:uid AND route_id=:rid
+                ORDER BY route_leg_order,id FOR UPDATE", binds, options);
+            for (var row in overrides) {
+                arrayAppend(values, [val(row.route_leg_order),
+                    deserializeJSON(row.geometry_json),
+                    isNull(row.override_fields_json) OR !len(trim(row.override_fields_json)) ? {} : deserializeJSON(row.override_fields_json)]);
+            }
+            return {id=entityId, projection=memberActivityCanonical(values)};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="recordChangedMemberRoute" access="private" returntype="void" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="routeKind" type="string" required="true">
+        <cfargument name="before" type="struct" required="true">
+        <cfscript>
+            var after = memberRouteActivityProjection(arguments.userId,arguments.routeId,arguments.routeKind);
+            if (compare(arguments.before.projection,after.projection) NEQ 0) {
+                getMemberActivityEventService(application.dsn)
+                    .recordRequiredMemberActivity(arguments.userId,arguments.routeKind & "_updated",after.id);
+            }
+        </cfscript>
+    </cffunction>
     <cffunction name="createUserRoute" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeName" type="string" required="true">
@@ -2091,12 +2203,14 @@
                 routeNameVal = left(routeNameVal, 255);
             }
 
+            transaction {
+            lockMemberActivityOwner(arguments.userId);
             qExisting = queryExecute(
                 "SELECT id, is_active
                  FROM user_routes
                  WHERE user_id = :uid
                    AND route_name = :routeName
-                 LIMIT 1",
+                 LIMIT 1 FOR UPDATE",
                 {
                     uid = { value=arguments.userId, cfsqltype="cf_sql_integer" },
                     routeName = { value=routeNameVal, cfsqltype="cf_sql_varchar" }
@@ -2116,6 +2230,10 @@
                     },
                     { datasource = application.dsn }
                 );
+                if (val(qExisting.is_active[1]) NEQ 1) {
+                    getMemberActivityEventService(application.dsn)
+                        .recordRequiredMemberActivity(arguments.userId,"user_route_updated",routeIdVal);
+                }
                 out.SUCCESS = true;
                 out.MESSAGE = "Route restored";
                 out.DATA = {
@@ -2139,6 +2257,8 @@
             );
 
             out.SUCCESS = true;
+            getMemberActivityEventService(application.dsn)
+                .recordRequiredMemberActivity(arguments.userId,"user_route_created",val(routegenUserRouteInsert.generatedKey));
             out.MESSAGE = "Route created";
             out.DATA = {
                 "route_id"=val(routegenUserRouteInsert.generatedKey),
@@ -2146,6 +2266,7 @@
                 "is_active"=1
             };
             return out;
+            }
         </cfscript>
     </cffunction>
 
@@ -2473,6 +2594,8 @@
                 }
             }
 
+            transaction {
+                var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
             queryExecute(
                 "UPDATE user_routes
                  SET start_waypoint_id = :startWaypointId,
@@ -2490,6 +2613,9 @@
                 },
                 { datasource = application.dsn }
             );
+
+                recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
+            }
 
             getRes = getUserRoute(arguments.userId, routeIdVal);
             if (structKeyExists(getRes, "SUCCESS") AND getRes.SUCCESS) {
@@ -2601,6 +2727,7 @@
 
             try {
                 transaction {
+                    var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
                     queryExecute(
                         "INSERT INTO user_route_legs
                             (user_route_id, order_index, segment_id, start_waypoint_id, end_waypoint_id)
@@ -2620,6 +2747,7 @@
                         { datasource = application.dsn }
                     );
                     routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                    recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
                 }
             } catch (any routeContinuityErr) {
                 if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
@@ -2903,6 +3031,7 @@
 
             try {
                 transaction {
+                    var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
                     queryExecute(
                         "INSERT INTO user_route_legs
                             (user_route_id, order_index, segment_id)
@@ -2916,6 +3045,7 @@
                         { datasource = application.dsn }
                     );
                     routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                    recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
                 }
             } catch (any routeContinuityErr) {
                 if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
@@ -2992,6 +3122,7 @@
 
             try {
                 transaction {
+                    var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
                     lockSql = "SELECT id, order_index, segment_id," &
                         (hasWaypointColumns
                             ? " start_waypoint_id, end_waypoint_id"
@@ -3108,6 +3239,7 @@
 
                     routegenReindexMyRouteLegs(arguments.userId, routeIdVal);
                     routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                    recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
                 }
             } catch (any routeContinuityErr) {
                 if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
@@ -3209,6 +3341,7 @@
 
             try {
                 transaction {
+                    var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
                     for (i = 1; i LTE arrayLen(arguments.routeLegIds); i++) {
                         legIdVal = val(arguments.routeLegIds[i]);
                         queryExecute(
@@ -3261,6 +3394,7 @@
                         }
                     }
                     routegenAssertUserRouteContinuity(arguments.userId, routeIdVal);
+                    recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
                 }
             } catch (any routeContinuityErr) {
                 if (routeContinuityErr.type EQ "FPW.RouteContinuity") {
@@ -3463,6 +3597,14 @@
             computedNm = roundTo2(routegenCalculatePolylineNm(points));
             geometryJson = serializeJSON(points);
 
+            transaction {
+                var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
+                // Re-read the target after the owner/route/leg locks, not from the preflight snapshot.
+                routeRow = resolveMyRouteById(arguments.userId, routeIdVal);
+                legRow = routegenReadMyRouteLegRow(arguments.userId, routeIdVal, routeLegIdVal);
+                if (!structCount(routeRow) OR val(routeRow.IS_ACTIVE) NEQ 1 OR !structCount(legRow)) {
+                    throw(type="FPW.MemberActivity.Ownership",message="Route leg not found for this member.");
+                }
             queryExecute(
                 "INSERT INTO route_leg_user_overrides
                     (user_id, route_id, route_leg_id, route_leg_order, segment_id, geometry_json, computed_nm, override_fields_json)
@@ -3486,6 +3628,9 @@
                 },
                 { datasource = application.dsn }
             );
+
+                recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
+            }
 
             defaultNm = roundTo2(val(legRow.DIST_NM_DEFAULT));
 
@@ -3554,6 +3699,14 @@
                 return out;
             }
 
+            transaction {
+                var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
+                // Re-read the target after the owner/route/leg locks, not from the preflight snapshot.
+                routeRow = resolveMyRouteById(arguments.userId, routeIdVal);
+                legRow = routegenReadMyRouteLegRow(arguments.userId, routeIdVal, routeLegIdVal);
+                if (!structCount(routeRow) OR val(routeRow.IS_ACTIVE) NEQ 1 OR !structCount(legRow)) {
+                    throw(type="FPW.MemberActivity.Ownership",message="Route leg not found for this member.");
+                }
             queryExecute(
                 "DELETE FROM route_leg_user_overrides
                  WHERE user_id = :uid
@@ -3566,6 +3719,9 @@
                 },
                 { datasource = application.dsn }
             );
+
+                recordChangedMemberRoute(arguments.userId, routeIdVal, "user_route", activityBefore);
+            }
 
             defaultNm = roundTo2(val(legRow.DIST_NM_DEFAULT));
             out.SUCCESS = true;
@@ -3860,6 +4016,15 @@
                 vesselIdVal = val(qPreferredVessel.vesselID[1]);
             }
 
+            var activityOwnedVessel = queryExecute("SELECT vesselID FROM vessels WHERE vesselID=:vid AND userId=:uid FOR UPDATE",
+                {vid={value=vesselIdVal,cfsqltype="cf_sql_integer"},uid={value=arguments.userId,cfsqltype="cf_sql_integer"}},
+                {datasource=application.dsn});
+            if (activityOwnedVessel.recordCount NEQ 1) {
+                out.MESSAGE = "Vessel not found for this member.";
+                out.ERROR = {"CODE"="PLAN_RESOURCE_OWNERSHIP_INVALID","MESSAGE"=out.MESSAGE};
+                return out;
+            }
+
             qRoute = queryExecute(
                 "SELECT id, name, short_code
                  FROM loop_routes
@@ -4083,6 +4248,8 @@
                             out.ROUTE_CODE = trim(toString(draftRoutePreparation.ROUTE_CODE));
                         }
                     }
+                    getMemberActivityEventService(application.dsn)
+                        .recordRequiredMemberActivity(arguments.userId,"float_plan_created",newPlanId);
                     arrayAppend(out.FLOATPLAN_IDS, newPlanId);
                     arrayAppend(out.FLOATPLANS, {
                         "FLOATPLAN_ID"=newPlanId,
@@ -12206,6 +12373,7 @@
         <cfargument name="segmentId" type="numeric" required="false" default="0">
         <cfargument name="geometryRaw" type="any" required="true">
         <cfargument name="overrideFieldsRaw" type="any" required="false" default="">
+        <cfargument name="memberCommand" type="boolean" required="false" default="false">
         <cfscript>
             var out = {
                 "SUCCESS"=false,
@@ -12287,6 +12455,13 @@
                 overrideFieldsJson = serializeJSON(overrideFields);
             }
 
+            transaction {
+                var activityBefore = {};
+                if (arguments.memberCommand) {
+                    activityBefore = memberRouteActivityProjection(arguments.userId, routeInfo.ROUTE_ID, "route");
+                    legRow = routegenReadRouteLeg(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
+                    if (!structCount(legRow)) throw(type="FPW.MemberActivity.Ownership",message="Route leg not found for this member.");
+                }
             queryExecute(
                 "INSERT INTO route_leg_user_overrides
                     (user_id, route_id, route_leg_id, route_leg_order, segment_id, geometry_json, computed_nm, override_fields_json)
@@ -12313,6 +12488,9 @@
                 { datasource = application.dsn }
             );
 
+                if (arguments.memberCommand) recordChangedMemberRoute(arguments.userId, routeInfo.ROUTE_ID, "route", activityBefore);
+            }
+
             out.SUCCESS = true;
             out.MESSAGE = "Leg override saved";
             out.DATA = {
@@ -12330,6 +12508,23 @@
         </cfscript>
     </cffunction>
 
+
+    <cffunction name="memberSegmentActivityProjection" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="segmentId" type="numeric" required="true">
+        <cfscript>
+            lockMemberActivityOwner(arguments.userId);
+            var rows = queryExecute("SELECT id,geometry_json,override_fields_json FROM user_segment_overrides
+                WHERE user_id=:uid AND segment_id=:sid FOR UPDATE",
+                {uid={value=arguments.userId,cfsqltype="cf_sql_integer"},sid={value=arguments.segmentId,cfsqltype="cf_sql_integer"}},
+                {datasource=application.dsn});
+            if (!rows.recordCount) return {id=0,projection=""};
+            return {id=val(rows.id[1]),projection=memberActivityCanonical([
+                deserializeJSON(rows.geometry_json[1]),
+                isNull(rows.override_fields_json[1]) OR !len(trim(rows.override_fields_json[1])) ? {} : deserializeJSON(rows.override_fields_json[1])
+            ])};
+        </cfscript>
+    </cffunction>
     <cffunction name="routegenSaveSegmentOverride" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="segmentId" type="numeric" required="true">
@@ -12388,6 +12583,11 @@
                 overrideFieldsJson = serializeJSON(overrideFields);
             }
 
+            transaction {
+                var activityBefore = memberSegmentActivityProjection(arguments.userId, segmentIdVal);
+                var activitySegment = queryExecute("SELECT id FROM segment_library WHERE id=:sid FOR UPDATE",
+                    {sid={value=segmentIdVal,cfsqltype="cf_sql_integer"}},{datasource=application.dsn});
+                if (activitySegment.recordCount NEQ 1) throw(type="FPW.MemberActivity.Invalid",message="Segment not found.");
             queryExecute(
                 "INSERT INTO user_segment_overrides
                     (user_id, segment_id, geometry_json, computed_nm, override_fields_json)
@@ -12407,6 +12607,13 @@
                 },
                 { datasource = application.dsn }
             );
+
+                var activityAfter = memberSegmentActivityProjection(arguments.userId, segmentIdVal);
+                if (compare(activityBefore.projection, activityAfter.projection) NEQ 0) {
+                    getMemberActivityEventService(application.dsn)
+                        .recordRequiredMemberActivity(arguments.userId,"route_segment_updated",activityAfter.id GT 0 ? activityAfter.id : activityBefore.id);
+                }
+            }
 
             defaultGeom = routegenLoadDefaultLegGeometry(segmentIdVal);
             defaultNm = roundTo2(val(defaultGeom.DIST_NM));
@@ -12455,6 +12662,8 @@
                 return out;
             }
 
+            transaction {
+                var activityBefore = memberSegmentActivityProjection(arguments.userId, segmentIdVal);
             syntheticRouteLegId = 0 - segmentIdVal;
             if (routegenHasUserSegmentOverrideTable()) {
                 queryExecute(
@@ -12482,6 +12691,13 @@
                     },
                     { datasource = application.dsn }
                 );
+            }
+
+                var activityAfter = memberSegmentActivityProjection(arguments.userId, segmentIdVal);
+                if (compare(activityBefore.projection, activityAfter.projection) NEQ 0) {
+                    getMemberActivityEventService(application.dsn)
+                        .recordRequiredMemberActivity(arguments.userId,"route_segment_updated",activityAfter.id GT 0 ? activityAfter.id : activityBefore.id);
+                }
             }
 
             defaultGeom = routegenLoadDefaultLegGeometry(segmentIdVal);
@@ -12551,6 +12767,11 @@
                 segmentIdVal = val(legRow.SEGMENT_ID);
             }
 
+            transaction {
+                var activityBefore = memberRouteActivityProjection(arguments.userId, routeInfo.ROUTE_ID, "route");
+                legRow = routegenReadRouteLeg(routeInfo.ROUTE_ID, arguments.routeLegId, arguments.userId);
+                if (!structCount(legRow)) throw(type="FPW.MemberActivity.Ownership",message="Route leg not found for this member.");
+                var segmentActivityBefore = memberSegmentActivityProjection(arguments.userId, segmentIdVal);
             if (routegenHasLegOverrideTable()) {
                 queryExecute(
                     "DELETE FROM route_leg_user_overrides
@@ -12592,6 +12813,15 @@
                         },
                         { datasource = application.dsn }
                     );
+                }
+            }
+
+                var activityAfter = memberRouteActivityProjection(arguments.userId, routeInfo.ROUTE_ID, "route");
+                var segmentActivityAfter = memberSegmentActivityProjection(arguments.userId, segmentIdVal);
+                if (compare(activityBefore.projection,activityAfter.projection) NEQ 0
+                    OR compare(segmentActivityBefore.projection,segmentActivityAfter.projection) NEQ 0) {
+                    getMemberActivityEventService(application.dsn)
+                        .recordRequiredMemberActivity(arguments.userId,"route_updated",activityAfter.id);
                 }
             }
 
@@ -13073,6 +13303,7 @@
             var rebuildRes = {};
             try {
                 transaction {
+                    lockMemberActivityOwner(arguments.userId);
                     queryExecute(
                         "INSERT INTO loop_routes
                             (code, name, short_code, description, is_active, version, is_default)
@@ -13139,6 +13370,8 @@
                         legIdByOrder = (structKeyExists(rebuildRes, "LEG_ID_BY_ORDER") AND isStruct(rebuildRes.LEG_ID_BY_ORDER) ? rebuildRes.LEG_ID_BY_ORDER : {}),
                         legs = legs
                     );
+                    getMemberActivityEventService(application.dsn)
+                        .recordRequiredMemberActivity(arguments.userId,"route_created",routeInstanceId);
                 }
             } catch (any routegenGenerateErr) {
                 if (routegenGenerateErr.type EQ "RoutegenDraftOverridePersist") {
@@ -13312,6 +13545,7 @@
                         return out;
                     }
 
+                    var activityBefore = memberRouteActivityProjection(arguments.userId, routeId, "route");
                     qInst = queryExecute(
                         "SELECT id
                          FROM route_instances
@@ -13590,6 +13824,7 @@
                         legIdByOrder = newLegIdByOrder,
                         legs = legs
                     );
+                    recordChangedMemberRoute(arguments.userId, routeId, "route", activityBefore);
                 }
             } catch (any routegenUpdateErr) {
                 if (routegenUpdateErr.type EQ "RoutegenProgressPreservation" OR routegenUpdateErr.type EQ "RoutegenDraftOverridePersist") {
@@ -13835,4 +14070,8 @@
         <cfreturn (round(arguments.n * 100) / 100) />
     </cffunction>
 
+    <cffunction name="getMemberActivityEventService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
+    </cffunction>
 </cfcomponent>

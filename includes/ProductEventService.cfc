@@ -33,6 +33,58 @@ component output="false" {
     return variables.captureTestLogs ? duplicate(variables.testLogEntries) : [];
   }
 
+  // Caller must hold the owned mutation lock and use the same datasource/transaction.
+  // Unlike best-effort analytics, activity evidence is required for the save to commit.
+  public void function recordRequiredMemberActivity(
+    required numeric userId,
+    required string eventName,
+    required numeric entityId
+  ) output="false" {
+    var activityTypes = memberActivityTypes();
+    var eventMetadata = {};
+    var result = {};
+    if (!structKeyExists(activityTypes, arguments.eventName)
+      || compare(arguments.eventName, lCase(trim(arguments.eventName))) NEQ 0
+      || arguments.userId LTE 0 || arguments.userId NEQ fix(arguments.userId)
+      || arguments.entityId LTE 0 || arguments.entityId NEQ fix(arguments.entityId)) {
+      throw(type="FPW.MemberActivity.Invalid", message="Saved activity could not be verified.");
+    }
+    if (listFind("vessel_created,shore_contact_created", arguments.eventName)) {
+      eventMetadata = { creation_source = "member" };
+    }
+    try {
+      result = recordEvent(
+        userId = arguments.userId,
+        eventName = arguments.eventName,
+        entityType = activityTypes[arguments.eventName],
+        entityId = arguments.entityId,
+        eventSource = "member_api",
+        metadata = eventMetadata,
+        idempotencyKey = "member_activity:" & lCase(createUUID())
+      );
+      if (!structKeyExists(result, "SUCCESS") || !result.SUCCESS
+        || !structKeyExists(result, "RECORDED") || !result.RECORDED) {
+        throw(type="FPW.MemberActivity.Unconfirmed", message="Saved activity could not be verified.");
+      }
+    } catch (any err) {
+      throw(type="FPW.MemberActivity.PersistenceFailed", message="Your change could not be saved. Please try again.");
+    }
+  }
+
+  private struct function memberActivityTypes() output="false" {
+    return {
+      vessel_created = "vessel", vessel_updated = "vessel",
+      shore_contact_created = "shore_contact", shore_contact_updated = "shore_contact",
+      operator_created = "operator", operator_updated = "operator",
+      passenger_created = "passenger", passenger_updated = "passenger",
+      waypoint_created = "waypoint", waypoint_updated = "waypoint",
+      user_route_created = "user_route", user_route_updated = "user_route",
+      route_created = "route_instance", route_updated = "route_instance",
+      route_segment_updated = "user_segment_override",
+      float_plan_created = "float_plan", float_plan_updated = "float_plan"
+    };
+  }
+
   public struct function recordEvent(
     required numeric userId,
     required string eventName,
@@ -303,7 +355,7 @@ component output="false" {
     };
     definitions["basic_send_completed"] = {
       entityType = "float_plan",
-      eventSources = [ "basic_save_send" ],
+      eventSources = [ "basic_save_send", "basic_review_send" ],
       metadata = {}
     };
     definitions["buy_one_trip_clicked"] = {
@@ -362,6 +414,16 @@ component output="false" {
       }
     };
 
+    var activityTypes = memberActivityTypes();
+    for (var activityName in activityTypes) {
+      if (!structKeyExists(definitions, activityName)) {
+        definitions[activityName] = {
+          entityType = activityTypes[activityName],
+          eventSources = [ "member_api" ],
+          metadata = {}
+        };
+      }
+    }
     return definitions;
   }
 

@@ -99,6 +99,27 @@
                     <cfthrow message="Email is required.">
                 </cfif>
 
+                <!--- Required activity and the owned save share one commit. Projections stay in memory. --->
+                <cfset local.activityWasCreate = contactId LTE 0>
+                <cftransaction>
+                    <cfquery name="local.activityOwner" datasource="fpw">
+                        SELECT userId FROM users
+                        WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif local.activityOwner.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
+                    </cfif>
+                    <cfquery name="local.activityBefore" datasource="fpw">
+                        SELECT JSON_ARRAY(name,phone,email) AS projection
+                        FROM contacts
+                        WHERE contactId = <cfqueryparam cfsqltype="cf_sql_integer" value="#contactId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif NOT local.activityWasCreate AND local.activityBefore.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
+                    </cfif>
                 <cfif contactId GT 0>
                     <cfquery datasource="fpw">
                         UPDATE contacts
@@ -122,26 +143,23 @@
                     <cfif structKeyExists(insertResult, "generatedKey")>
                         <cfset contactId = insertResult.generatedKey>
                     </cfif>
-                    <cfif contactId GT 0>
-                        <cftry>
-                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
-                                userId = userId,
-                                eventName = "shore_contact_created",
-                                entityType = "shore_contact",
-                                entityId = contactId,
-                                eventSource = "member_api",
-                                metadata = {
-                                    creation_source = "member"
-                                },
-                                idempotencyKey = "shore_contact_created:contact:" & contactId,
-                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
-                            )>
-                        <cfcatch type="any">
-                            <cflog file="fpw_product_events" type="error" text="contact.cfc PRODUCT_EVENT_CALL_FAILED | event=shore_contact_created">
-                        </cfcatch>
-                        </cftry>
-                    </cfif>
                 </cfif>
+                    <cfquery name="local.activityAfter" datasource="fpw">
+                        SELECT JSON_ARRAY(name,phone,email) AS projection
+                        FROM contacts
+                        WHERE contactId = <cfqueryparam cfsqltype="cf_sql_integer" value="#contactId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif local.activityAfter.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Unconfirmed" message="Your change could not be saved.">
+                    </cfif>
+                    <cfif local.activityWasCreate OR compare(local.activityBefore.projection[1], local.activityAfter.projection[1]) NEQ 0>
+                        <cfset getMemberActivityEventService("fpw").recordRequiredMemberActivity(
+                            userId, local.activityWasCreate ? "shore_contact_created" : "shore_contact_updated", contactId
+                        )>
+                    </cfif>
+                </cftransaction>
 
                 <cfset response = {
                     SUCCESS = true,
@@ -289,4 +307,8 @@
 	        </cftry>
 	    </cffunction>
 
+    <cffunction name="getMemberActivityEventService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
+    </cffunction>
 </cfcomponent>

@@ -656,6 +656,11 @@ component extends="testbox.system.BaseSpec" output="false" {
       { datasource = variables.datasource }
     );
     queryExecute(
+      "DELETE FROM product_events WHERE user_id IN (SELECT userId FROM users WHERE email LIKE :fixturePattern)",
+      params,
+      { datasource = variables.datasource }
+    );
+    queryExecute(
       "DELETE FROM users WHERE email LIKE :fixturePattern",
       params,
       { datasource = variables.datasource }

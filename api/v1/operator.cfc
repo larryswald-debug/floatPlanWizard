@@ -93,6 +93,27 @@
                 <cfset phone = structKeyExists(operator, "PHONE") ? trim(operator.PHONE) : (structKeyExists(operator, "phone") ? trim(operator.phone) : "")>
                 <cfset notes = structKeyExists(operator, "NOTES") ? trim(operator.NOTES) : (structKeyExists(operator, "notes") ? trim(operator.notes) : "")>
 
+                <!--- Required activity and the owned save share one commit. Projections stay in memory. --->
+                <cfset local.activityWasCreate = operatorId LTE 0>
+                <cftransaction>
+                    <cfquery name="local.activityOwner" datasource="fpw">
+                        SELECT userId FROM users
+                        WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif local.activityOwner.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
+                    </cfif>
+                    <cfquery name="local.activityBefore" datasource="fpw">
+                        SELECT JSON_ARRAY(name,homePhone,notes) AS projection
+                        FROM operators
+                        WHERE opId = <cfqueryparam cfsqltype="cf_sql_integer" value="#operatorId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif NOT local.activityWasCreate AND local.activityBefore.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
+                    </cfif>
                 <cfif operatorId GT 0>
                     <cfquery datasource="fpw">
                         UPDATE operators
@@ -117,6 +138,22 @@
                         <cfset operatorId = insertResult.generatedKey>
                     </cfif>
                 </cfif>
+                    <cfquery name="local.activityAfter" datasource="fpw">
+                        SELECT JSON_ARRAY(name,homePhone,notes) AS projection
+                        FROM operators
+                        WHERE opId = <cfqueryparam cfsqltype="cf_sql_integer" value="#operatorId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif local.activityAfter.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Unconfirmed" message="Your change could not be saved.">
+                    </cfif>
+                    <cfif local.activityWasCreate OR compare(local.activityBefore.projection[1], local.activityAfter.projection[1]) NEQ 0>
+                        <cfset getMemberActivityEventService("fpw").recordRequiredMemberActivity(
+                            userId, local.activityWasCreate ? "operator_created" : "operator_updated", operatorId
+                        )>
+                    </cfif>
+                </cftransaction>
 
                 <cfset response = {
                     SUCCESS = true,
@@ -262,4 +299,8 @@
 	        </cftry>
 	    </cffunction>
 
+    <cffunction name="getMemberActivityEventService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
+    </cffunction>
 </cfcomponent>

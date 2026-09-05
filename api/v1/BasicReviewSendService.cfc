@@ -3,11 +3,13 @@ component output="false" {
   variables.datasource = "fpw";
   variables.emailService = 0;
   variables.pdfService = 0;
+  variables.productEventService = 0;
 
   public any function init(
     string datasource="fpw",
     any emailService="",
-    any pdfService=""
+    any pdfService="",
+    any productEventService=""
   ) output=false {
     variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
     variables.emailService = isObject(arguments.emailService)
@@ -16,6 +18,9 @@ component output="false" {
     variables.pdfService = isObject(arguments.pdfService)
       ? arguments.pdfService
       : createPdfService();
+    variables.productEventService = isObject(arguments.productEventService)
+      ? arguments.productEventService
+      : createObject("component", "fpw.includes.ProductEventService").init(variables.datasource);
     return this;
   }
 
@@ -81,6 +86,8 @@ component output="false" {
     var emailResult = {};
     var response = {};
     var errorResponse = {};
+    var emailAccepted = false;
+    var receiptCompleted = false;
 
     if (!reFind("^[A-Za-z0-9_-]{20,191}$", cleanKey)) {
       return failure("INVALID_IDEMPOTENCY_KEY", "A valid Basic Send request token is required.");
@@ -161,6 +168,7 @@ component output="false" {
         return errorResponse;
       }
 
+      emailAccepted = true;
       response = {
         SUCCESS = true,
         MESSAGE = "Basic float plan emailed to " & contact.EMAIL & ".",
@@ -180,9 +188,24 @@ component output="false" {
         TRIP_FOLLOW_CREATED = false
       };
       completeReceipt(claim.RECEIPT_ID, response, pdfFileName);
+      receiptCompleted = true;
       logDelivery(arguments.userId, arguments.floatPlanId, contact.CONTACTID, contact.EMAIL, "SENT", "");
       return response;
     } catch (any sendError) {
+      if (receiptCompleted) {
+        // A logging failure must not undo confirmed receipt/share evidence.
+        return response;
+      }
+      if (emailAccepted) {
+        // SMTP cannot be rolled back. Keep PROCESSING non-replayable rather than
+        // mark this as a delivery failure and invite a duplicate submission.
+        try {
+          writeLog(file="fpw_basic_review_send", type="error",
+            text="BASIC_REVIEW_CONFIRMATION_PENDING | receiptId=" & val(claim.RECEIPT_ID));
+        } catch (any logError) {}
+        return failure("BASIC_REVIEW_CONFIRMATION_PENDING",
+          "The email was submitted, but its completion could not be confirmed. Do not resend; contact support.");
+      }
       errorResponse = failure("BASIC_REVIEW_SEND_FAILED", "The Basic float plan could not be sent. Please reopen Basic Send and try again.");
       failReceipt(claim.RECEIPT_ID, errorResponse, pdfFileName);
       logDelivery(arguments.userId, arguments.floatPlanId, contact.CONTACTID, contact.EMAIL, "FAILED", errorResponse.ERROR);
@@ -427,23 +450,70 @@ component output="false" {
     required struct response,
     required string pdfFileName
   ) output=false {
-    queryExecute(
-      "UPDATE basic_review_send_receipts
-       SET status = 'SENT',
-           pdf_file_name = :pdfFileName,
-           error_code = NULL,
-           response_json = :responseJson,
-           updated_at_utc = UTC_TIMESTAMP(6),
-           completed_at_utc = UTC_TIMESTAMP(6)
-       WHERE id = :receiptId
-         AND status = 'PROCESSING'",
-      {
-        receiptId = { value = arguments.receiptId, cfsqltype = "cf_sql_bigint" },
-        pdfFileName = nullableVarchar(arguments.pdfFileName),
-        responseJson = { value = serializeJSON(arguments.response), cfsqltype = "cf_sql_longvarchar" }
-      },
-      { datasource = variables.datasource }
-    );
+    var qReceipt = queryNew("");
+    var eventResult = {};
+    var eventKey = "basic_send_completed:basic_review_receipt:" & int(arguments.receiptId);
+    var qEvidence = queryNew("");
+
+    // Only called after application-reported email submission success. The
+    // receipt and durable account-owned event either commit together or neither does.
+    transaction {
+      qReceipt = queryExecute(
+        "SELECT user_id, float_plan_id FROM basic_review_send_receipts
+         WHERE id = :receiptId AND status = 'PROCESSING' FOR UPDATE",
+        { receiptId = { value=arguments.receiptId, cfsqltype="cf_sql_bigint" } },
+        { datasource=variables.datasource }
+      );
+      if (qReceipt.recordCount NEQ 1) {
+        throw(type="FPW.BasicReviewConfirmation", message="Basic review receipt is unavailable for confirmation.");
+      }
+
+      eventResult = variables.productEventService.recordEvent(
+        userId = val(qReceipt.user_id[1]),
+        eventName = "basic_send_completed",
+        entityType = "float_plan",
+        entityId = val(qReceipt.float_plan_id[1]),
+        eventSource = "basic_review_send",
+        metadata = {},
+        idempotencyKey = eventKey
+      );
+      if (!isStruct(eventResult) OR !structKeyExists(eventResult, "SUCCESS") OR eventResult.SUCCESS NEQ true) {
+        throw(type="FPW.BasicReviewConfirmation", message="Durable Basic sharing evidence could not be confirmed.");
+      }
+      qEvidence = queryExecute(
+        "SELECT id FROM product_events
+         WHERE idempotency_key = :eventKey AND user_id = :userId
+           AND event_name = 'basic_send_completed' AND entity_type = 'float_plan'
+           AND entity_id = :planId AND event_source = 'basic_review_send'",
+        {
+          eventKey = { value=eventKey, cfsqltype="cf_sql_varchar" },
+          userId = { value=qReceipt.user_id[1], cfsqltype="cf_sql_integer" },
+          planId = { value=qReceipt.float_plan_id[1], cfsqltype="cf_sql_bigint" }
+        },
+        { datasource=variables.datasource }
+      );
+      if (qEvidence.recordCount NEQ 1) {
+        throw(type="FPW.BasicReviewConfirmation", message="Durable Basic sharing evidence does not match the receipt.");
+      }
+
+      queryExecute(
+        "UPDATE basic_review_send_receipts
+         SET status = 'SENT',
+             pdf_file_name = :pdfFileName,
+             error_code = NULL,
+             response_json = :responseJson,
+             updated_at_utc = UTC_TIMESTAMP(6),
+             completed_at_utc = UTC_TIMESTAMP(6)
+         WHERE id = :receiptId
+           AND status = 'PROCESSING'",
+        {
+          receiptId = { value = arguments.receiptId, cfsqltype = "cf_sql_bigint" },
+          pdfFileName = nullableVarchar(arguments.pdfFileName),
+          responseJson = { value = serializeJSON(arguments.response), cfsqltype = "cf_sql_longvarchar" }
+        },
+        { datasource = variables.datasource }
+      );
+    }
   }
 
   private void function failReceipt(

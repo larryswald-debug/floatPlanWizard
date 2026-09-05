@@ -251,6 +251,27 @@
                 <cfset enforceMaxLength(otherEquipmentC, 255, "Other equipment 3")>
                 <cfset enforceMaxLength(otherEquipmentD, 255, "Other equipment 4")>
 
+                <!--- Required activity and the owned save share one commit. Projections stay in memory. --->
+                <cfset local.activityWasCreate = vesselId LTE 0>
+                <cftransaction>
+                    <cfquery name="local.activityOwner" datasource="fpw">
+                        SELECT userId FROM users
+                        WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif local.activityOwner.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
+                    </cfif>
+                    <cfquery name="local.activityBefore" datasource="fpw">
+                        SELECT JSON_ARRAY(vesselName,registration,typeOfVessel,make,model,lengthOfVessel,max_speed,most_efficient_speed,gallons_per_hour,gph_at_max_speed,fuel_capacity,isDefaultVessel,hullColor,hailingPort,hin,yearBuilt,draft,hullMaterial,prominentFeatures,callSignNumber,DSCMMSI,radio_1_type,radio_1_channel,radio_2_type,radio_2_channel,mobilePhone,sattelite,primaryPropulsion,primaryPropulsionType,numberPrimary,primaryFuelCapacity,auxPropulsion,auxPropulsionType,numberAux,auxFuelCapacity,navigation,otherNavigation,visualDistressSignals,audibleDistressSignals,aepirb,anchor,anchorLineLength,additionalGear,otherEquipment,otherEquipment_b,otherEquipment_c,otherEquipment_d) AS projection
+                        FROM vessels
+                        WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif NOT local.activityWasCreate AND local.activityBefore.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
+                    </cfif>
                 <cfif vesselId GT 0>
                     <cfif isDefaultVessel EQ 1>
                         <cfquery datasource="fpw">
@@ -389,26 +410,23 @@
                     <cfif structKeyExists(insertResult, "generatedKey")>
                         <cfset vesselId = insertResult.generatedKey>
                     </cfif>
-                    <cfif vesselId GT 0>
-                        <cftry>
-                            <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
-                                userId = userId,
-                                eventName = "vessel_created",
-                                entityType = "vessel",
-                                entityId = vesselId,
-                                eventSource = "member_api",
-                                metadata = {
-                                    creation_source = "member"
-                                },
-                                idempotencyKey = "vessel_created:vessel:" & vesselId,
-                                requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
-                            )>
-                        <cfcatch type="any">
-                            <cflog file="fpw_product_events" type="error" text="vessel.cfc PRODUCT_EVENT_CALL_FAILED | event=vessel_created">
-                        </cfcatch>
-                        </cftry>
-                    </cfif>
                 </cfif>
+                    <cfquery name="local.activityAfter" datasource="fpw">
+                        SELECT JSON_ARRAY(vesselName,registration,typeOfVessel,make,model,lengthOfVessel,max_speed,most_efficient_speed,gallons_per_hour,gph_at_max_speed,fuel_capacity,isDefaultVessel,hullColor,hailingPort,hin,yearBuilt,draft,hullMaterial,prominentFeatures,callSignNumber,DSCMMSI,radio_1_type,radio_1_channel,radio_2_type,radio_2_channel,mobilePhone,sattelite,primaryPropulsion,primaryPropulsionType,numberPrimary,primaryFuelCapacity,auxPropulsion,auxPropulsionType,numberAux,auxFuelCapacity,navigation,otherNavigation,visualDistressSignals,audibleDistressSignals,aepirb,anchor,anchorLineLength,additionalGear,otherEquipment,otherEquipment_b,otherEquipment_c,otherEquipment_d) AS projection
+                        FROM vessels
+                        WHERE vesselId = <cfqueryparam cfsqltype="cf_sql_integer" value="#vesselId#">
+                          AND userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                        FOR UPDATE
+                    </cfquery>
+                    <cfif local.activityAfter.recordCount NEQ 1>
+                        <cfthrow type="FPW.MemberActivity.Unconfirmed" message="Your change could not be saved.">
+                    </cfif>
+                    <cfif local.activityWasCreate OR compare(local.activityBefore.projection[1], local.activityAfter.projection[1]) NEQ 0>
+                        <cfset getMemberActivityEventService("fpw").recordRequiredMemberActivity(
+                            userId, local.activityWasCreate ? "vessel_created" : "vessel_updated", vesselId
+                        )>
+                    </cfif>
+                </cftransaction>
 
                 <cfset response = {
                     SUCCESS = true,
@@ -434,7 +452,7 @@
                     <cfthrow message="Vessel id is required.">
                 </cfif>
 
-                <cfset imageResult = getVesselImageService().removeVesselImage(vesselId, userId)>
+                <cfset imageResult = getVesselImageService().removeVesselImage(vesselId, userId, true)>
                 <cfset response = {
                     SUCCESS = imageResult.SUCCESS,
                     AUTH    = true,
@@ -701,4 +719,8 @@
 	        </cftry>
 	    </cffunction>
 
+    <cffunction name="getMemberActivityEventService" access="private" returntype="any" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
+    </cffunction>
 </cfcomponent>
