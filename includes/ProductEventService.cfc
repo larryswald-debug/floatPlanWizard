@@ -390,6 +390,23 @@ component output="false" {
       eventSources = [ "billing_api" ],
       metadata = {}
     };
+    // Explicit enrollment only: neither saved activity nor historical coverage proof.
+    definitions["recovery_coverage_started"] = {
+      entityType = "user", eventSources = [ "member_signup" ],
+      metadata = { contract_version = [ "v1" ] }
+    };
+    for (var shareOutcome in ["started","succeeded","failed"]) {
+      definitions["recovery_share_" & shareOutcome] = {
+        entityType = "float_plan",
+        eventSources = [ "basic_save_send", "basic_review_send", "premium_save_send" ],
+        metadata = {}
+      };
+    }
+    definitions["inactive_member_recovery_enrolled"] = {
+      entityType = "user",
+      eventSources = [ "recovery_enrollment" ],
+      metadata = {}
+    };
     definitions["login"] = {
       entityType = "user",
       eventSources = [ "password_auth" ],

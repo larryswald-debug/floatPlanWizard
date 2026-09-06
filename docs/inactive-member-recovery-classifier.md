@@ -4,9 +4,9 @@ Status: implemented as a read-only prerequisite. Recovery sending is not enabled
 
 ## Public contract
 
-`InactiveMemberRecoveryClassifierService.evaluateMember(userId, nowUtc, enrollmentUtc?)` evaluates one current member. It returns the current classification, stable decision code, eligibility flag, UTC stage/activity/recovery clocks, current-stage ledger state, the existing policy decision, and a PII-free evidence summary.
+`InactiveMemberRecoveryClassifierService.evaluateMember(userId, nowUtc, enrollmentUtc?, ownedClaimToken?, evaluateFailedRetry?, coverageVerification?)` evaluates one current member. It returns the current classification, stable decision code, eligibility flag, UTC stage/activity/recovery clocks, current-stage ledger state, the existing policy decision, and a PII-free evidence summary. All optional context is internal, never a public request override.
 
-The service does not send email, claim recovery, or write the ledger. It does not create product events, mutate member or product state, add a scheduler, or expose a remote endpoint. A future runner may iterate over `evaluateMember()`; this task deliberately adds no batch report or batch-send surface.
+The service does not send email, claim recovery, or write the ledger. It does not create product events, mutate member or product state, add a scheduler, or expose a remote endpoint. The protected recovery orchestrator uses it for initial and pre-send revalidation; the classifier itself remains read-only.
 
 ## Precedence and current stage
 
@@ -19,6 +19,8 @@ The exact precedence is **Shared → D → C → B → A**.
 - A: a current account with no verified higher-stage evidence.
 
 Durable evidence of a higher previously reached stage prevents downgrade after deletion. Conflicting ownership, lifecycle, history, or future clocks return a hold; the classifier does not repair or reinterpret records.
+
+Canonical route-less Basic Drafts intentionally store `vesselId=0`. The exception requires all of: no route instance or route day; `route_origin='basic_float_plan'`; `is_reusable=0`; `is_visible_in_route_library=0`; a null operator reference; and a `floatplan_basic_details` row linked to that exact owned plan. Zero alone, an origin label alone, or another plan's details are insufficient. All other lifecycle checks remain effective. Nonzero vessel references still require a matching owned vessel. See `docs/inactive-member-recovery-basic-draft-validation.md`.
 
 ## Stage-entry clocks
 
@@ -39,11 +41,16 @@ The latest activity query is the maximum `product_events.occurred_at_utc` for th
 
 `vessel_created`, `vessel_updated`, `shore_contact_created`, `shore_contact_updated`, `operator_created`, `operator_updated`, `passenger_created`, `passenger_updated`, `waypoint_created`, `waypoint_updated`, `user_route_created`, `user_route_updated`, `route_created`, `route_updated`, `route_segment_updated`, `float_plan_created`, `float_plan_updated`.
 
-A null result is reported as `NO_QUALIFYING_ACTIVITY_EVIDENCE`; it is not presented as proven inactivity. In this narrow service, a caller-supplied enrollment UTC is an explicit upstream attestation that stage, activity, sharing, and recovery coverage from enrollment was reviewed. Missing enrollment returns `ENROLLMENT_EVIDENCE_REQUIRED`. No enrollment record or timestamp is invented.
+A null result is reported as `NO_QUALIFYING_ACTIVITY_EVIDENCE`; it is not presented as proven inactivity. **Enrollment is only a timing anchor**, never historical coverage proof. Without an explicit internal clock, the classifier reads the canonical `inactive_member_recovery_enrolled` event through `InactiveMemberRecoveryEnrollmentService.getEnrollmentUtc()`. It never creates enrollment. Missing enrollment returns `ENROLLMENT_EVIDENCE_REQUIRED`; malformed or conflicting stored evidence returns `HOLD_ENROLLMENT_EVIDENCE_INVALID`.
+
+The separate `coverageVerification` struct defaults to `{}`; with no explicit internal proof, the classifier reads `InactiveMemberRecoveryCoverageService.getCoverageVerification(userId)`. That service verifies the retained versioned canonical-signup coverage contract independently of enrollment. Each of `stage_history`, `activity_coverage`, `sharing_history`, and `recovery_history` must be the actual boolean `true`. Missing, false, string, or partial proof returns `HOLD_INCOMPLETE_COVERAGE`, even after enrollment plus 168 hours. Current objects, an enrollment event, and a supplied date never establish these proofs. Older enrolled-but-unverified members remain held; no historical backfill or blanket approval exists. Existing suppression and missing-stage-clock gates remain effective. The policy evaluator and its interval calculation are unchanged.
+
+The enrollment service reuses this read-only classifier for its account gates. It permits initial enrollment only for the specific post-gate outcomes `ENROLLMENT_EVIDENCE_REQUIRED` or `HOLD_INCOMPLETE_STAGE_CLOCK`, not arbitrary HOLD results. See `docs/inactive-member-recovery-enrollment.md`.
 
 ## Suppression authorities
 
 - Share: `basic_send_completed` from `basic_save_send`/`basic_review_send`; `premium_send_completed` from `premium_save_send`; successful Basic and Premium receipts; and owned `floatplans.initialSentAt`.
+- Retained share attempts: valid `recovery_share_succeeded` evidence additionally suppresses permanently. `recovery_share_started` without a definitive matching outcome returns `HOLD_UNRESOLVED_SHARE_ATTEMPT`, even after trip/receipt deletion. Invalid outcome bindings return `HOLD_INVALID_SHARE_ATTEMPT_EVIDENCE`. A valid definitive failure does not permanently suppress recovery.
 - Recovery ledger: reads the current-stage status and latest successful recovery across all stages from `inactive_member_recovery_deliveries`. `SENT` and unresolved `CLAIMED` states suppress. `FAILED` returns `HOLD_RETRY_DECISION_REQUIRED`; the classifier does not decide or claim a retry.
 - Preferences: `EmailOptOutService.isOptedOut(email, "non_essential")`; lookup failure holds closed.
 - Administrator: the existing authoritative active entitlement check in `AdminAuthorizationService`; no email/name heuristic.

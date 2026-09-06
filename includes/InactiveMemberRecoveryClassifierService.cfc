@@ -24,14 +24,15 @@ component output="false" {
     return this;
   }
 
-  // Read-only classification. Supplying enrollmentUtc is an explicit upstream
-  // attestation that activity/share/recovery coverage was reviewed from enrollment.
+  // Read-only. Enrollment is ONLY a timing anchor. Historical coverage requires
+  // separate, explicit internal proof; neither a date nor current rows supply it.
   public struct function evaluateMember(
     required numeric userId,
     required string nowUtc,
     string enrollmentUtc="",
     string ownedClaimToken="",
-    boolean evaluateFailedRetry=false
+    boolean evaluateFailedRetry=false,
+    struct coverageVerification={}
   ) output=false {
     var result = baseResult(arguments.userId);
     var member = queryNew("");
@@ -79,6 +80,7 @@ component output="false" {
     events = loadEventEvidence(fix(arguments.userId));
     live = loadLiveEvidence(fix(arguments.userId));
     share = loadShareEvidence(fix(arguments.userId));
+    var retainedShare=new fpw.includes.InactiveMemberRecoveryCoverageService(datasource=variables.datasource).getShareEvidence(arguments.userId);
 
     currentStage = live.DRAFT_COUNT GT 0
       ? "D"
@@ -127,11 +129,13 @@ component output="false" {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
     }
 
-    if (share.HAS_SUCCESSFUL_SHARE) {
+    if (share.HAS_SUCCESSFUL_SHARE OR retainedShare.SUCCESSFUL) {
       result.CURRENT_STAGE = "";
       result.HIGHEST_VERIFIED_STAGE = "SHARED";
       return finish(result, "SHARED", "SUPPRESSED_ALREADY_SHARED", "SUPPRESSED");
     }
+    if (retainedShare.INVALID) return finish(result,currentStage,"HOLD_INVALID_SHARE_ATTEMPT_EVIDENCE","HELD");
+    if (retainedShare.UNRESOLVED) return finish(result,currentStage,"HOLD_UNRESOLVED_SHARE_ATTEMPT","HELD");
 
     if (!nowClock.VALID) {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
@@ -208,16 +212,8 @@ component output="false" {
       return finish(result, currentStage, "SUPPRESSED_UNRESOLVED_CLAIM", "SUPPRESSED");
     }
 
-    if (!len(stageEnteredUtc)) {
-      return finish(result, currentStage, "HOLD_INCOMPLETE_STAGE_CLOCK", "HELD");
-    }
-    if (!len(trim(arguments.enrollmentUtc))) {
-      return finish(result, currentStage, "ENROLLMENT_EVIDENCE_REQUIRED", "HELD");
-    }
-    if (!enrollmentClock.VALID OR enrollmentClock.SECONDS GT nowClock.SECONDS) {
-      return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
-    }
-    if (!utcClock(stageEnteredUtc).VALID OR utcClock(stageEnteredUtc).SECONDS GT nowClock.SECONDS) {
+    if (len(stageEnteredUtc)
+      AND (!utcClock(stageEnteredUtc).VALID OR utcClock(stageEnteredUtc).SECONDS GT nowClock.SECONDS)) {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
     }
     if (events.HAS_LATEST_ACTIVITY
@@ -233,6 +229,41 @@ component output="false" {
     if (len(ledger.LATEST_SENT_STAGE) AND stageRank(ledger.LATEST_SENT_STAGE) GTE currentRank) {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
     }
+
+    if (!len(trim(arguments.enrollmentUtc))) {
+      try {
+        arguments.enrollmentUtc=new fpw.includes.InactiveMemberRecoveryEnrollmentService(datasource=variables.datasource)
+          .getEnrollmentUtc(arguments.userId);
+        result.EVIDENCE_SUMMARY.ENROLLMENT_SOURCE=len(arguments.enrollmentUtc) ? "product_events" : "missing";
+      } catch (any enrollmentLookupFailed) {
+        return finish(result, currentStage, "HOLD_ENROLLMENT_EVIDENCE_INVALID", "HELD");
+      }
+    }
+    result.EVIDENCE_SUMMARY.ENROLLMENT_UTC=arguments.enrollmentUtc;
+    if (!len(stageEnteredUtc)) {
+      return finish(result, currentStage, "HOLD_INCOMPLETE_STAGE_CLOCK", "HELD");
+    }
+    if (!len(trim(arguments.enrollmentUtc))) {
+      return finish(result, currentStage, "ENROLLMENT_EVIDENCE_REQUIRED", "HELD");
+    }
+    enrollmentClock=utcClock(arguments.enrollmentUtc);
+    if (!enrollmentClock.VALID OR enrollmentClock.SECONDS GT nowClock.SECONDS) {
+      return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
+    }
+    var coverage={};
+    // Internal test/review contexts remain explicit; the production default reads durable birth evidence.
+    if (structIsEmpty(arguments.coverageVerification)) {
+      arguments.coverageVerification=new fpw.includes.InactiveMemberRecoveryCoverageService(datasource=variables.datasource)
+        .getCoverageVerification(arguments.userId);
+    }
+    var coverageComplete=true;
+    for (var proof in ["stage_history","activity_coverage","sharing_history","recovery_history"]) {
+      coverage[proof]=structKeyExists(arguments.coverageVerification,proof)
+        AND compare(serializeJSON(arguments.coverageVerification[proof]),"true") EQ 0;
+      if (!coverage[proof]) coverageComplete=false;
+    }
+    result.EVIDENCE_SUMMARY.COVERAGE_VERIFICATION=coverage;
+    if (!coverageComplete) return finish(result,currentStage,"HOLD_INCOMPLETE_COVERAGE","HELD");
 
     latestActivity = events.HAS_LATEST_ACTIVITY
       ? {
@@ -251,10 +282,10 @@ component output="false" {
       highest_verified_stage=currentStage,
       has_successful_share=false,
       verification={
-        stage_history=true,
-        activity_coverage=true,
-        sharing_history=true,
-        recovery_history=true,
+        stage_history=coverage.stage_history,
+        activity_coverage=coverage.activity_coverage,
+        sharing_history=coverage.sharing_history,
+        recovery_history=coverage.recovery_history,
         ownership=true,
         lifecycle=true
       },
@@ -368,6 +399,8 @@ component output="false" {
   }
 
   private struct function loadLiveEvidence(required numeric userId) output=false {
+    // Only canonical route-less Basic Drafts with their own details row may use
+    // vesselId=0. This is not a general waiver of vessel or operator ownership.
     var q = queryExecute(
       "SELECT
         (SELECT COUNT(*) FROM vessels v WHERE CAST(v.userId AS UNSIGNED)=:userId) AS vessel_count,
@@ -400,7 +433,14 @@ component output="false" {
             OR fp.expiredAt IS NOT NULL OR COALESCE(TRIM(fp.end_reason),'')<>''
             OR (fp.route_instance_id IS NOT NULL AND (ri.id IS NULL OR CAST(ri.user_id AS UNSIGNED)<>:userId
               OR UPPER(TRIM(ri.status))<>'PLANNED' OR ri.started_at IS NOT NULL OR ri.completed_at IS NOT NULL))
-            OR (fp.vesselId IS NOT NULL AND (v.vesselID IS NULL OR CAST(v.userId AS UNSIGNED)<>:userId))
+            OR (fp.vesselId=0 AND NOT (
+              fp.route_instance_id IS NULL AND fp.route_day_number IS NULL
+              AND COALESCE(fp.route_origin,'')='basic_float_plan'
+              AND COALESCE(fp.is_reusable,1)=0 AND COALESCE(fp.is_visible_in_route_library,1)=0
+              AND fp.operatorId IS NULL
+              AND EXISTS (SELECT 1 FROM floatplan_basic_details bd WHERE bd.floatplan_id=fp.floatplanId)
+            ))
+            OR (fp.vesselId<>0 AND (v.vesselID IS NULL OR CAST(v.userId AS UNSIGNED)<>:userId))
             OR (fp.operatorId IS NOT NULL AND (o.opId IS NULL OR CAST(o.userId AS UNSIGNED)<>:userId))
           )) AS lifecycle_conflict_count,
         (SELECT COUNT(*) FROM route_instances ri WHERE CAST(ri.user_id AS UNSIGNED)=:userId

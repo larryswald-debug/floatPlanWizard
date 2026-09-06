@@ -20,7 +20,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("returns MEMBER_NOT_FOUND without creating recovery state", function() {
         var service = classifier();
         var beforeRows = ledgerCount();
-        var result = service.evaluateMember(2147483647, variables.nowUtc, variables.enrollmentUtc);
+        var result = service.evaluateMember(2147483647, variables.nowUtc, variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("MEMBER_NOT_FOUND");
         expect(result.ELIGIBLE).toBeFalse();
         expect(ledgerCount()).toBe(beforeRows);
@@ -28,7 +28,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
       it("classifies an account-only member as A at the exact 168-hour boundary", function() {
         var member = createMember("a-exact", "2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId, variables.nowUtc, variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId, variables.nowUtc, variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("A");
         expect(result.STAGE_ENTERED_UTC).toBe("2026-08-01T00:00:00Z");
         expect(result.EVIDENCE_SUMMARY.LATEST_ACTIVITY.STATE).toBe("NO_QUALIFYING_ACTIVITY_EVIDENCE");
@@ -41,8 +41,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var result = classifier().evaluateMember(
           member.userId,
           "2026-09-07T23:59:59Z",
-          variables.enrollmentUtc
-        );
+          variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("A");
         expect(result.DECISION_CODE).toBe("DEFERRED_WAITING_FOR_INTERVAL");
         expect(result.POLICY_DECISION.seconds_until_eligible).toBe(1);
@@ -52,7 +51,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member = createMember("b", "2026-08-01 00:00:00");
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-09-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-08-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-08-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("B");
         expect(result.STAGE_ENTERED_UTC).toBe("2026-09-01T00:00:00Z");
         expect(result.DECISION_CODE).toBe("ELIGIBLE");
@@ -61,7 +60,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("holds a vessel stage without a verified B clock", function() {
         var member = createMember("b-no-clock", "2026-08-01 00:00:00");
         createVessel(member.userId);
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("B");
         expect(result.DECISION_CODE).toBe("HOLD_INCOMPLETE_STAGE_CLOCK");
       });
@@ -70,7 +69,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member = createMember("c-empty", "2026-07-01 00:00:00");
         var routeId = createNamedRoute(member.userId,false);
         insertEvent(member.userId,"user_route_created","user_route",routeId,"member_api","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-07-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-07-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("C");
         expect(result.STAGE_ENTERED_UTC).toBe("2026-08-01T00:00:00Z");
         expect(result.DECISION_CODE).toBe("ELIGIBLE");
@@ -80,7 +79,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member = createMember("c-legs", "2026-07-01 00:00:00");
         var routeId = createNamedRoute(member.userId,true);
         insertEvent(member.userId,"user_route_created","user_route",routeId,"member_api","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-07-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-07-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("C");
         expect(result.DECISION_CODE).toBe("ELIGIBLE");
       });
@@ -93,7 +92,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-06-02 00:00:00");
         insertEvent(member.userId,"user_route_created","user_route",routeId,"member_api","2026-06-03 00:00:00");
         insertEvent(member.userId,"float_plan_created","float_plan",planId,"member_api","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("D");
         expect(result.HIGHEST_VERIFIED_STAGE).toBe("D");
         expect(result.DECISION_CODE).toBe("ELIGIBLE");
@@ -105,7 +104,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var planId = createDraft(member.userId,routeInstanceId,"great_loop_generated");
         insertEvent(member.userId,"route_created","route_instance",routeInstanceId,"member_api","2026-07-01 00:00:00");
         insertEvent(member.userId,"float_plan_created","float_plan",planId,"member_api","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("D");
         expect(result.EVIDENCE_SUMMARY.LIVE.DRAFT_EXISTS).toBeTrue();
       });
@@ -113,7 +112,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("permanently suppresses durable Basic sharing evidence", function() {
         var member = createMember("shared-basic", "2026-06-01 00:00:00");
         insertEvent(member.userId,"basic_send_completed","float_plan",999999001,"basic_review_send","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("SHARED");
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ALREADY_SHARED");
       });
@@ -121,7 +120,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("permanently suppresses durable Premium sharing evidence", function() {
         var member = createMember("shared-premium", "2026-06-01 00:00:00");
         insertEvent(member.userId,"premium_send_completed","float_plan",999999002,"premium_save_send","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("SHARED");
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ALREADY_SHARED");
       });
@@ -129,7 +128,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("keeps positive sharing suppression independent of the timing clock", function() {
         var member = createMember("shared-bad-clock", "2026-06-01 00:00:00");
         insertEvent(member.userId,"premium_send_completed","float_plan",999999005,"premium_save_send","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,"not-a-clock","");
+        var result = classifier().evaluateMember(member.userId,"not-a-clock","", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("SHARED");
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ALREADY_SHARED");
       });
@@ -137,7 +136,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("keeps Basic sharing suppression after its parent record is absent", function() {
         var member = createMember("shared-deleted", "2026-06-01 00:00:00");
         insertEvent(member.userId,"basic_send_completed","float_plan",999999003,"basic_save_send","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.EVIDENCE_SUMMARY.SHARE.BASIC_EVENT).toBeTrue();
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ALREADY_SHARED");
       });
@@ -150,7 +149,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           {planId={value=planId,cfsqltype="cf_sql_integer"}},
           {datasource=variables.datasource}
         );
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("SHARED");
         expect(result.EVIDENCE_SUMMARY.SHARE.INITIAL_SEND).toBeTrue();
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ALREADY_SHARED");
@@ -161,21 +160,21 @@ component extends="testbox.system.BaseSpec" output="false" {
         var preference = new fpw.api.v1.EmailOptOutService(datasource=variables.datasource);
         var saved = preference.recordOptOut(member.email,member.userId,"non_essential","classifier_test");
         expect(saved.success).toBeTrue();
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_OPTED_OUT");
       });
 
       it("holds when preference lookup fails", function() {
         var member = createMember("preference-fail", "2026-08-01 00:00:00");
         var failing = new fpw.tests.support.RecoveryClassifierPreferenceFailureStub();
-        var result = classifier(failing).evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier(failing).evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("HOLD_PREFERENCE_LOOKUP_FAILED");
       });
 
       it("suppresses an authoritative active administrator entitlement", function() {
         var member = createMember("admin", "2026-08-01 00:00:00");
         createAdminEntitlement(member.userId);
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ADMIN");
         expect(result.EVIDENCE_SUMMARY.ADMIN_ENTITLEMENT_ACTIVE).toBeTrue();
       });
@@ -183,7 +182,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("suppresses an invalid current recipient", function() {
         var invalidAddress = variables.fixturePrefix & "invalid-" & lCase(replace(createUUID(), "-", "", "all"));
         var member = createMember("invalid", "2026-08-01 00:00:00", invalidAddress);
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_INVALID_EMAIL");
       });
 
@@ -191,7 +190,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var duplicate = variables.fixturePrefix & "duplicate@example.test";
         var first = createMember("duplicate-a", "2026-08-01 00:00:00", duplicate);
         createMember("duplicate-b", "2026-08-01 00:00:00", uCase(duplicate));
-        var result = classifier().evaluateMember(first.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(first.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("HOLD_DUPLICATE_EMAIL_IDENTITY");
       });
 
@@ -199,7 +198,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member = createMember("active-plan", "2026-06-01 00:00:00");
         var planId = createDraft(member.userId,0,"premium_saved_route","ACTIVE");
         insertEvent(member.userId,"float_plan_created","float_plan",planId,"member_api","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ACTIVE_TRIP");
       });
 
@@ -208,7 +207,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var planId = createDraft(member.userId);
         insertEvent(member.userId,"float_plan_created","float_plan",planId,"member_api","2026-08-01 00:00:00");
         createMonitoring(member.userId,planId);
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_ACTIVE_TRIP");
         expect(result.EVIDENCE_SUMMARY.LIVE.ACTIVE_MONITORING_EXISTS).toBeTrue();
       });
@@ -216,7 +215,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("suppresses a stage already sent and reads the ledger without exposing a claim token", function() {
         var member = createMember("ledger-sent", "2026-08-01 00:00:00");
         insertLedger(member.userId,"A","SENT","2026-09-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_STAGE_ALREADY_SENT");
         expect(result.LEDGER_STATE.STATUS).toBe("SENT");
         expect(structKeyExists(result.LEDGER_STATE,"CLAIM_TOKEN")).toBeFalse();
@@ -225,13 +224,13 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("suppresses an unresolved claim and holds a definite failure for explicit retry", function() {
         var claimedMember = createMember("ledger-claimed", "2026-08-01 00:00:00");
         insertLedger(claimedMember.userId,"A","CLAIMED","2026-09-01 00:00:00");
-        var claimed = classifier().evaluateMember(claimedMember.userId,variables.nowUtc,variables.enrollmentUtc);
+        var claimed = classifier().evaluateMember(claimedMember.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(claimed.DECISION_CODE).toBe("SUPPRESSED_UNRESOLVED_CLAIM");
 
         cleanupFixtures();
         var failedMember = createMember("ledger-failed", "2026-08-01 00:00:00");
         insertLedger(failedMember.userId,"A","FAILED","2026-09-01 00:00:00");
-        var failed = classifier().evaluateMember(failedMember.userId,variables.nowUtc,variables.enrollmentUtc);
+        var failed = classifier().evaluateMember(failedMember.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(failed.DECISION_CODE).toBe("HOLD_RETRY_DECISION_REQUIRED");
       });
 
@@ -240,7 +239,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-07-01 00:00:00");
         insertEvent(member.userId,"vessel_updated","vessel",vesselId,"member_api","2026-09-07 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_RECENT_ACTIVITY");
         expect(result.POLICY_DECISION.reason).toBe("WAITING_FOR_INTERVAL");
       });
@@ -250,7 +249,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-07-01 00:00:00");
         insertLedger(member.userId,"A","SENT","2026-09-07 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("SUPPRESSED_CROSS_STAGE_SPACING");
         expect(result.LATEST_RECOVERY_SENT_UTC).toBe("2026-09-07T00:00:00Z");
       });
@@ -260,14 +259,14 @@ component extends="testbox.system.BaseSpec" output="false" {
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-09-01 00:00:00");
         insertLedger(member.userId,"A","SENT","2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("B");
         expect(result.DECISION_CODE).toBe("ELIGIBLE");
       });
 
       it("requires explicit enrollment and never invents it from deployment time", function() {
         var member = createMember("no-enrollment", "2026-08-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"");
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,"", "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("ENROLLMENT_EVIDENCE_REQUIRED");
         expect(result.POLICY_DECISION).toBeEmpty();
       });
@@ -275,7 +274,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("holds historical regression instead of downgrading after deletion", function() {
         var member = createMember("history-regression", "2026-06-01 00:00:00");
         insertEvent(member.userId,"float_plan_created","float_plan",999999004,"member_api","2026-07-01 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("A");
         expect(result.HIGHEST_VERIFIED_STAGE).toBe("D");
         expect(result.DECISION_CODE).toBe("HOLD_CONTRADICTORY_EVIDENCE");
@@ -286,7 +285,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-07-01 00:00:00");
         insertEvent(member.userId,"vessel_updated","vessel",vesselId,"member_api","2026-10-01 00:00:00");
-        var future = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var future = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(future.DECISION_CODE).toBe("HOLD_CONTRADICTORY_EVIDENCE");
 
         cleanupFixtures();
@@ -294,7 +293,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var routeInstanceId = createRouteInstance(draftMember.userId,"COMPLETED");
         var planId = createDraft(draftMember.userId,routeInstanceId,"great_loop_generated");
         insertEvent(draftMember.userId,"float_plan_created","float_plan",planId,"member_api","2026-07-01 00:00:00");
-        var contradictory = classifier().evaluateMember(draftMember.userId,variables.nowUtc,variables.enrollmentUtc);
+        var contradictory = classifier().evaluateMember(draftMember.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(contradictory.DECISION_CODE).toBe("HOLD_CONTRADICTORY_EVIDENCE");
       });
 
@@ -303,7 +302,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var other = createMember("other", "2026-06-01 00:00:00");
         var vesselId = createVessel(other.userId);
         insertEvent(owner.userId,"vessel_created","vessel",vesselId,"member_api","2026-07-01 00:00:00");
-        var result = classifier().evaluateMember(owner.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(owner.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         var serialized = serializeJSON(result);
         expect(result.DECISION_CODE).toBe("HOLD_CONTRADICTORY_EVIDENCE");
         expect(findNoCase(owner.email,serialized)).toBe(0);
@@ -317,7 +316,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var other = createMember("activity-other", "2026-06-01 00:00:00");
         var vesselId = createVessel(other.userId);
         insertEvent(member.userId,"vessel_updated","vessel",vesselId,"member_api","2026-09-07 00:00:00");
-        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("HOLD_CONTRADICTORY_EVIDENCE");
       });
 
@@ -325,12 +324,17 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member = createMember("read-only", "2026-08-01 00:00:00");
         var beforeEvents = eventCount(member.userId);
         var beforeLedger = ledgerCount(member.userId);
-        classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
-        classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc);
+        classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
+        classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(eventCount(member.userId)).toBe(beforeEvents);
         expect(ledgerCount(member.userId)).toBe(beforeLedger);
       });
     });
+  }
+
+  // Reviewed synthetic fixture histories only; enrollment itself proves none of these.
+  private struct function reviewedCoverage() {
+    return {stage_history=true,activity_coverage=true,sharing_history=true,recovery_history=true};
   }
 
   private any function classifier(any optOutService="") {

@@ -23,7 +23,8 @@ component output="false" {
       : new fpw.includes.InactiveMemberRecoveryLedgerService(datasource=variables.datasource);
     variables.emailService=isObject(arguments.emailService) ? arguments.emailService : new fpw.api.v1.email();
     variables.transport=isObject(arguments.transport) ? arguments.transport : variables.emailService;
-    variables.contextProvider=arguments.contextProvider;
+    variables.contextProvider=isObject(arguments.contextProvider) ? arguments.contextProvider
+      : new fpw.includes.InactiveMemberRecoveryCoverageService(datasource=variables.datasource);
     variables.candidateSource=arguments.candidateSource;
     variables.clock=arguments.clock;
     return this;
@@ -113,7 +114,7 @@ component output="false" {
 
           var fresh=variables.classifier.evaluateMember(
             userId=arguments.userId, nowUtc=nowUtc(), enrollmentUtc=enrollmentUtc(arguments.userId),
-            ownedClaimToken=claim.CLAIM_TOKEN
+            ownedClaimToken=claim.CLAIM_TOKEN, coverageVerification=coverageVerification(arguments.userId)
           );
           if (fresh.CURRENT_STAGE NEQ stage OR !fresh.ELIGIBLE) {
             cancellation=classificationResult(fresh);
@@ -195,13 +196,16 @@ component output="false" {
   }
 
   private struct function evaluateCandidate(required numeric userId) output=false {
-    var evaluated=variables.classifier.evaluateMember(arguments.userId,nowUtc(),enrollmentUtc(arguments.userId));
+    var evaluated=variables.classifier.evaluateMember(
+      userId=arguments.userId,nowUtc=nowUtc(),enrollmentUtc=enrollmentUtc(arguments.userId),
+      coverageVerification=coverageVerification(arguments.userId)
+    );
     if (evaluated.DECISION_CODE EQ "HOLD_RETRY_DECISION_REQUIRED") {
       var state=variables.ledger.getStageState(arguments.userId,evaluated.CURRENT_STAGE);
       if (state.SUCCESS AND structKeyExists(state,"CAN_RETRY") AND state.CAN_RETRY) {
         return variables.classifier.evaluateMember(
           userId=arguments.userId,nowUtc=nowUtc(),enrollmentUtc=enrollmentUtc(arguments.userId),
-          evaluateFailedRetry=true
+          evaluateFailedRetry=true,coverageVerification=coverageVerification(arguments.userId)
         );
       }
     }
@@ -211,6 +215,16 @@ component output="false" {
   private string function enrollmentUtc(required numeric userId) output=false {
     // No inferred enrollment, signup substitution, blanket date, or backfill.
     return isObject(variables.contextProvider) ? variables.contextProvider.getEnrollmentUtc(arguments.userId) : "";
+  }
+
+  private struct function coverageVerification(required numeric userId) output=false {
+    // Enrollment service intentionally provides NO coverage attestation. Only a
+    // separately reviewed internal provider may supply these proofs in the future.
+    if (isObject(variables.contextProvider) AND structKeyExists(variables.contextProvider,"getCoverageVerification")) {
+      var proof=variables.contextProvider.getCoverageVerification(arguments.userId);
+      if (isStruct(proof)) return proof;
+    }
+    return {};
   }
 
   private string function nowUtc() output=false {

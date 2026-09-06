@@ -88,6 +88,9 @@ component output="false" {
     var errorResponse = {};
     var emailAccepted = false;
     var receiptCompleted = false;
+    var shareEvidence=new fpw.includes.InactiveMemberRecoveryCoverageService(datasource=variables.datasource);
+    var shareToken="";
+    var submissionStarted=false;
 
     if (!reFind("^[A-Za-z0-9_-]{20,191}$", cleanKey)) {
       return failure("INVALID_IDEMPOTENCY_KEY", "A valid Basic Send request token is required.");
@@ -146,6 +149,9 @@ component output="false" {
         return errorResponse;
       }
 
+      // The retained marker commits before any mail transport is invoked.
+      shareToken=shareEvidence.beginShare(arguments.userId,arguments.floatPlanId,"basic_review_send");
+      submissionStarted=true;
       emailResult = variables.emailService.sendBasicReviewFloatPlanEmail(
         userId = arguments.userId,
         toEmail = contact.EMAIL,
@@ -155,6 +161,8 @@ component output="false" {
         pdfPath = pdfPath
       );
       if (!structKeyExists(emailResult, "success") OR emailResult.success NEQ true) {
+        if (structKeyExists(emailResult,"errorCode")
+          AND listFind("INVALID_USER,INVALID_RECIPIENT,INVALID_PDF_ATTACHMENT",emailResult.errorCode)) submissionStarted=false;
         errorResponse = failure(
           structKeyExists(emailResult, "errorCode") AND len(trim(toString(emailResult.errorCode)))
             ? trim(toString(emailResult.errorCode))
@@ -210,6 +218,13 @@ component output="false" {
       failReceipt(claim.RECEIPT_ID, errorResponse, pdfFileName);
       logDelivery(arguments.userId, arguments.floatPlanId, contact.CONTACTID, contact.EMAIL, "FAILED", errorResponse.ERROR);
       return errorResponse;
+    } finally {
+      if (len(shareToken) AND (emailAccepted OR !submissionStarted)) {
+        try { shareEvidence.finishShare(arguments.userId,shareToken,emailAccepted ? "succeeded" : "failed"); }
+        catch (any outcomeNotConfirmed) {
+          writeLog(file="fpw_product_events",type="error",text="SHARE_OUTCOME_NOT_CONFIRMED");
+        }
+      }
     }
   }
 

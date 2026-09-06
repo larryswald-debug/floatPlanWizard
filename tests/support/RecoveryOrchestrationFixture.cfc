@@ -42,6 +42,11 @@ component output="false" {
   public string function getEnrollmentUtc(required numeric userId) {
     return !variables.missingEnrollment AND structKeyExists(variables.records,toString(arguments.userId)) ? shiftedUtc(variables.enrollment) : "";
   }
+  // Explicit proof for this fixture's fully controlled history, never a live account.
+  public struct function getCoverageVerification(required numeric userId) {
+    return structKeyExists(variables.records,toString(arguments.userId))
+      ? {stage_history=true,activity_coverage=true,sharing_history=true,recovery_history=true} : {};
+  }
   public string function nowUtc() { return shiftedUtc(variables.clockValue); }
   private string function shiftedUtc(required string value) {
     var row=queryExecute("SELECT DATE_FORMAT(DATE_ADD(CAST(:at AS DATETIME),INTERVAL :days DAY),'%Y-%m-%dT%H:%i:%sZ') AS value",

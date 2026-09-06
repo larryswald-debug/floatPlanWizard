@@ -54,7 +54,7 @@ test("stable decision codes and privacy-safe result contract are present", () =>
   assert.doesNotMatch(baseResult, /\b(?:EMAIL|VESSEL_NAME|ROUTE_NAME|CONTACT_NAME|COORDINATES|FOLLOW_TOKEN|TRIP_DETAILS)\s*=/i);
 });
 
-test("classifier is wired only through the approved recovery orchestration service", () => {
+test("classifier is wired only through approved orchestration and enrollment assessment", () => {
   const excluded = new Set([".git", ".codex-snapshots", "node_modules", "tests", "docs", "vendor"]);
   const matches = [];
   function scan(directory) {
@@ -70,7 +70,7 @@ test("classifier is wired only through the approved recovery orchestration servi
     }
   }
   scan(root);
-  assert.deepEqual(matches, ["api/v1/InactiveMemberRecoveryService.cfc"]);
+  assert.deepEqual(matches, ["api/v1/InactiveMemberRecoveryService.cfc", "includes/InactiveMemberRecoveryEnrollmentService.cfc"]);
 });
 
 test("runtime runner is local-only and requires explicit confirmation", () => {
@@ -87,7 +87,8 @@ test("contract documents conservative evidence and the no-send boundary", () => 
   assert.match(doc, /Shared → D → C → B → A/);
   assert.match(doc, /saved named route with zero legs counts as C/);
   assert.match(doc, /NO_QUALIFYING_ACTIVITY_EVIDENCE/);
-  assert.match(doc, /caller-supplied enrollment UTC is an explicit upstream attestation/);
+  assert.match(doc, /Enrollment is only a timing anchor/);
+  assert.match(doc, /HOLD_INCOMPLETE_COVERAGE/);
   assert.match(doc, /does not send email, claim recovery, or write the ledger/);
   for (const eventName of activityEvents) assert.match(doc, new RegExp(`\\b${eventName}\\b`));
 });

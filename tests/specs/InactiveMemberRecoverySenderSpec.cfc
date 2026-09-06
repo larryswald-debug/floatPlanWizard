@@ -193,7 +193,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         var ledger=new fpw.includes.InactiveMemberRecoveryLedgerService();
         var claim=ledger.claimStage(member.userId,"A");
         var classifier=new fpw.includes.InactiveMemberRecoveryClassifierService();
-        var args={userId=member.userId,nowUtc=variables.fixture.nowUtc(),enrollmentUtc=variables.fixture.getEnrollmentUtc(member.userId)};
+        var args={userId=member.userId,nowUtc=variables.fixture.nowUtc(),enrollmentUtc=variables.fixture.getEnrollmentUtc(member.userId),
+          coverageVerification=variables.fixture.getCoverageVerification(member.userId)};
         expect(classifier.evaluateMember(argumentCollection=args).DECISION_CODE).toBe("SUPPRESSED_UNRESOLVED_CLAIM");
         args.ownedClaimToken=repeatString("f",64);
         expect(classifier.evaluateMember(argumentCollection=args).ELIGIBLE).toBeFalse();

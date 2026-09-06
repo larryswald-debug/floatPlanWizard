@@ -260,8 +260,18 @@ test("member and admin JavaScript and APIs cover every approved field without ad
 test("primary and auxiliary capacities migrate to independent nullable decimals without redefining total fuel", () => {
   assert.match(migrationUp, /MODIFY COLUMN `primaryFuelCapacity` DECIMAL\(10,2\) NULL DEFAULT NULL/i);
   assert.match(migrationUp, /MODIFY COLUMN `auxFuelCapacity` DECIMAL\(10,2\) NULL DEFAULT NULL/i);
-  assert.match(migrationDown, /MODIFY COLUMN `primaryFuelCapacity` VARCHAR\(45\)[\s\S]{0,100}?NULL DEFAULT NULL/i);
-  assert.match(migrationDown, /MODIFY COLUMN `auxFuelCapacity` VARCHAR\(45\)[\s\S]{0,100}?NULL DEFAULT NULL/i);
+  // The rollback preserves engine-specific charset/collation through dynamic SQL.
+  const restoreSql = migrationDown.match(/SET @fpw_down_20260831_002_restore_sql = CONCAT\(([\s\S]*?)\);/i)?.[1];
+  assert.ok(restoreSql, "rollback must build its explicit column restoration SQL");
+  assert.match(migrationDown, /SET @fpw_down_20260831_002_restore_default_sql = 'DEFAULT NULL';/i);
+  for (const column of ["primaryFuelCapacity", "auxFuelCapacity"]) {
+    assert.match(restoreSql, new RegExp(
+      "MODIFY COLUMN `" + column + "` VARCHAR\\(45\\) CHARACTER SET ',\\s*" +
+      "@fpw_down_20260831_002_restore_charset,\\s*' COLLATE ',\\s*" +
+      "@fpw_down_20260831_002_restore_collation,\\s*' NULL ',\\s*" +
+      "@fpw_down_20260831_002_restore_default_sql", "i"
+    ));
+  }
   assert.match(migrationPreflight, /NOT REGEXP\s+''\^\[\+\]\?\[0-9\]\+\(\[\.\]\[0-9\]\+\)\?\$''/i);
   assert.match(migrationVerify, /DATA_TYPE = 'decimal'/i);
   assert.match(migrationVerify, /NUMERIC_PRECISION = 10/i);

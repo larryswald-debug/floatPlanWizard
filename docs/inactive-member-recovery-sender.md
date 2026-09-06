@@ -1,16 +1,16 @@
 # Protected recovery runner and sender orchestration
 
-Verified locally on 2026-09-05, ColdFusion 2025, datasource `fpw`.
+Original sender-only verification: 2026-09-05, ColdFusion 2025, datasource `fpw`.
 
-## Verdict and remaining authority boundary
+## Current authority and production boundary
 
-Development orchestration is implemented and validated with disposable canonical data and non-delivering recovery transport. **Production/live-run readiness remains blocked.** No production schedule or live-send flag was enabled.
+Development orchestration and independent coverage verification are implemented. The original sender-only run used disposable canonical data and non-delivering recovery transport; later A/B/C/D validation used local MailHog. The [final validation report](inactive-member-recovery-final-validation.md) is the current authority for the complete regression/share-path results, review status, and remaining limitations. **No production rollout is authorized by these local results.** No production schedule or live-send flag was enabled.
 
-The existing classifier requires an explicit reviewed enrollment UTC attestation. There is no approved durable enrollment authority/provider in the existing application. The service accepts an internal `contextProvider.getEnrollmentUtc(userId)` dependency; the public runner deliberately supplies none. Consequently, the public runner cannot authorize live recovery sends merely by configuring a token and enabling the live flag. Missing enrollment remains `ENROLLMENT_EVIDENCE_REQUIRED`. Tests supply explicit run-owned reviewed evidence and a controlled UTC clock; the HTTP runner has no fixture, clock, recipient, stage, or eligibility override.
+Updated 2026-09-06: the default internal context provider is now `InactiveMemberRecoveryCoverageService`. It independently reads durable enrollment through the existing enrollment service and verifies versioned canonical-signup coverage. Initial/retry/pre-send evaluations re-read both. Scans and sending never enroll members; enrollment proves timing only. New canonical signup coverage is atomic and versioned; older enrolled-but-unverified members remain on `HOLD_INCOMPLETE_COVERAGE`. Retained unresolved share attempts HOLD independently of deleted trip/receipt rows. The HTTP runner still has no fixture, coverage, clock, recipient, stage, or eligibility override. The [Basic-Draft validation report](inactive-member-recovery-basic-draft-validation.md) records the prior A/B/C/D local MailHog proof and the regression exceptions present at that checkpoint; the final report above supersedes those status statements.
 
-**Best Fix before live rollout:** approve and connect a trustworthy enrollment/coverage authority, then verify a real eligible cohort through the protected runner. Do not substitute signup dates or a blanket launch timestamp.
+**Before any live rollout:** obtain separate production authorization and explicit cohort enrollment; do not substitute signup dates or a blanket launch timestamp. The implemented coverage authority does not approve older history or enable sending.
 
-**Safest Fix until that authority exists:** leave live mode disabled and use authenticated aggregate dry runs only. This is the current configuration posture. No enrollment schema, backfill, or automatic enrollment was added in this task. A complete protected-runner live-send PASS is not claimed.
+**Current safety posture:** live mode remains disabled and no schedule was changed. No backfill or automatic enrollment was added. Local MailHog fixture delivery is not production authorization or proof of a deployed scheduler. The verification and snapshot history below describes the original 2026-09-05 sender-only task; subsequent enrollment and readiness handoffs are separate.
 
 ## Discovery and exact integration changes
 
@@ -56,9 +56,9 @@ Safe results contain `ok`, `mode`, `scanned`, `eligible`, `claimed`, `submitted`
 
 Dry run only scans/classifies/evaluates and advances the ephemeral traversal cursor. It does not claim, render email, submit, write product evidence or alter delivery history.
 
-## Verification results
+## Original 2026-09-05 verification results — historical
 
-MCPCFC ran the ColdFusion suites. MCP Playwright ran actual overlapping HTTP service invocations plus the existing fresh-signup activity regression.
+These results, counts, and limitations describe the original sender-only run, not the current release review. MCPCFC ran the ColdFusion suites. MCP Playwright ran actual overlapping HTTP service invocations plus the existing fresh-signup activity regression.
 
 | ColdFusion suite | Passing |
 | --- | ---: |
@@ -81,7 +81,7 @@ MCPCFC ran the ColdFusion suites. MCP Playwright ran actual overlapping HTTP ser
 | Completed shore-contact access | 17 |
 | Route continuity | 4 |
 | Scheduled actual-departure route Draft | 3 |
-| **Total, latest full runs across 19 suites** | **242** |
+| **Original run total across 19 suites** | **242** |
 
 Additional evidence:
 
@@ -100,15 +100,15 @@ Additional evidence:
 - Existing activity Playwright regression: **101 assertions**, covering fresh canonical signup, all profile families, ownership/no-op/concurrency/failure rollback, photos, named/generated routes, geometry, Draft selected contacts, Basic Drafts, login/view exclusion, UTC/privacy, and retained events after source deletion. Its full 11-spec CF suite passed.
 - `git diff --check` passed. No real recovery emails were sent; no inbox-delivery claim is made.
 
-### Separate pre-existing regression limitation
+### Original pre-existing regression limitation — historical
 
 An additional Public Follow privacy runner stopped before executing any spec: `tests/specs/PublicFollowPrivacyContractSpec.cfc:13` references missing `fpw.api.v1.PasswordHashService`. That spec and the missing component were not changed by this task; `git diff` for the spec is empty. No unrelated repair was made. Completed-contact and completed-trip suites passed separately; those are not a substitute claim that the blocked Public Follow suite passed.
 
-## Files and snapshot coverage
+## Original sender-only files and snapshot coverage — historical
 
 Repository root: `/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw`.
 
-Existing files modified in this task (all copied before modification):
+Existing files modified in the original sender-only task (all copied before modification):
 
 - `api/v1/email.cfc` — add internal submission wrapper; all existing functions unchanged.
 - `includes/InactiveMemberRecoveryClassifierService.cfc` — optional own-claim and explicit-retry read-only evaluation context.
@@ -141,7 +141,7 @@ Pre-edit SHA-256:
 | ledger | `e0ec77338ce4002669c4ac8f020c34f3e9b527cea70976a25b9ff9351bdeb750` |
 | classifier static test | `2de03c93ae8bef7ee7d565031d4906bbb3de5dfad8dbd1bd73dd839d2cea1400` |
 
-## Cleanup and unchanged scope
+## Original sender-only cleanup and unchanged scope — historical
 
 Every new sender fixture tracks its own generated IDs. Cleanup removed only those accounts, dependent planning/monitoring/preference rows, events and delivery rows. Concurrent fixtures reported zero remaining users/events/ledger rows. Database checks found zero `codex-recovery-orch-` users/events. The activity regression removed its two fresh accounts and dependent files/rows; follow-up checks found zero users/events for those exact IDs. Its two captured welcome emails were removed individually from local MailHog and recipient searches returned zero. They were disposable signup mail, not recovery sends. Temporary browser contexts/tabs and this run's two generated browser log/snapshot files were removed; existing browser tabs were preserved.
 
@@ -151,14 +151,14 @@ No schema/migration execution, enrollment/backfill, policy timing/stage definiti
 
 ## Production enablement checklist — not executed
 
-1. Approve and implement the reviewed enrollment/coverage source and its internal runner integration; do not infer historical inactivity.
-2. Verify the approved recovery-ledger migration is deployed and valid in production. No migration was run here.
-3. Configure the approved `FPW_BUSINESS_MAILING_ADDRESS` in production's existing private configuration.
+1. Obtain separate production rollout authorization and verify the approved implementation is deployed. The independent coverage authority is implemented; verify its production behavior rather than approving older history. Do not infer historical inactivity from durable enrollment.
+2. Verify the approved recovery-ledger migration and required evidence tables are deployed and valid in production. No migration was run in the original sender-only task.
+3. Verify the approved `FPW_BUSINESS_MAILING_ADDRESS` in production's existing private configuration.
 4. Configure a dedicated private runner token; retain live flag false for rollout checks.
 5. Verify production unsubscribe signatures, distinct preferences URL, clean text/HTML footer, recipient suppression and multipart transport.
-6. Run the first authorized production dry run and review aggregate holds/suppressions and cohort coverage. A held account is not evidence of a sending defect.
+6. Explicitly approve and enroll only the eligible production cohort, preserve the full 168-hour enrollment grace, then run the authorized post-grace production dry run and review aggregate holds/suppressions and cohort coverage. Signup coverage does not enroll a member; older unverified history remains HOLD. A held account is not evidence of a sending defect.
 7. Obtain explicit approval for live sending and scheduler creation. Only then set the strict live flag and register the production task.
 8. Recommended cadence: **once daily**, default batch 25, hard max 100. At 25 scanned accounts per daily run, large cohorts take multiple days to traverse; review dry-run volume before choosing an approved bounded batch. This schedule does not change the 168-hour threshold.
 9. Monitor aggregate failures/ambiguities. Never replay ambiguous delivery claims automatically or manually manufacture legacy eligibility.
 
-No production scheduled task was created or enabled. The missing enrollment authority is an explicit handoff blocker, not a silent fallback.
+No production scheduled task was created or enabled. Independent coverage verification is implemented, but deployment/configuration verification, eligible-cohort enrollment, grace-period dry-run review, and explicit live/scheduler authorization remain separate production boundaries. No historical backfill or blanket approval is authorized.

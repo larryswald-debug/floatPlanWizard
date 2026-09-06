@@ -307,6 +307,20 @@
                             detail="#creditGrant.ERROR#">
                     </cfif>
                 </cfif>
+            <cfset signUpEventMetadata = {
+                signup_method = "password",
+                account_tier = "basic",
+                onboarding_model = premiumSendCreditModelEnabled ? "premium_send_credit" : "legacy_trial",
+                complimentary_premium_send_credit = premiumSendCreditModelEnabled
+            }>
+            <cfif NOT structIsEmpty(signupAttribution)>
+                <cfset structAppend(signUpEventMetadata, signupAttribution, true)>
+            </cfif>
+
+            <cfset new fpw.includes.InactiveMemberRecoveryCoverageService(datasource="fpw").recordSignupInCurrentTransaction(
+                userId = newUserId,
+                signupMetadata = signUpEventMetadata
+            )>
             </cftransaction>
 
             <cfset session.user = {
@@ -325,31 +339,6 @@
                 LASTLOGIN = nowStamp
             }>
 
-            <cfset signUpEventMetadata = {
-                signup_method = "password",
-                account_tier = "basic",
-                onboarding_model = premiumSendCreditModelEnabled ? "premium_send_credit" : "legacy_trial",
-                complimentary_premium_send_credit = premiumSendCreditModelEnabled
-            }>
-            <cfif NOT structIsEmpty(signupAttribution)>
-                <cfset structAppend(signUpEventMetadata, signupAttribution, true)>
-            </cfif>
-
-            <cftry>
-                <cfset createObject("component", "fpw.includes.ProductEventService").init("fpw").recordEvent(
-                    userId = newUserId,
-                    eventName = "sign_up",
-                    entityType = "user",
-                    entityId = newUserId,
-                    eventSource = "member_signup",
-                    metadata = signUpEventMetadata,
-                    idempotencyKey = "sign_up:user:" & newUserId,
-                    requestCorrelationId = structKeyExists(request, "fpwRequestId") ? toString(request.fpwRequestId) : ""
-                )>
-                <cfcatch type="any">
-                    <cflog file="fpw_product_events" type="error" text="join.cfc PRODUCT_EVENT_CALL_FAILED | event=sign_up">
-                </cfcatch>
-            </cftry>
 
             <cfif premiumSendCreditModelEnabled>
                 <cftry>

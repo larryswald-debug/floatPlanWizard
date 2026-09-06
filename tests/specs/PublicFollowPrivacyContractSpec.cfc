@@ -10,7 +10,6 @@ component extends="testbox.system.BaseSpec" output="false" {
     makePublic(variables.voyage, "readStream", "readStreamForTest");
     makePublic(variables.voyage, "canReadStream", "canReadStreamForTest");
     makePublic(variables.voyage, "ownerCreatePost", "ownerCreatePostForTest");
-    variables.passwordService = createObject("component", "fpw.api.v1.PasswordHashService").init();
     variables.fixture = createFixture();
   }
 
@@ -139,7 +138,7 @@ component extends="testbox.system.BaseSpec" output="false" {
        VALUES ('Codex', 'QA6-005 A', :email, :password, UTC_TIMESTAMP(), UTC_TIMESTAMP())",
       {
         email = { value = marker & "-a@example.test", cfsqltype = "cf_sql_varchar" },
-        password = { value = variables.passwordService.hashPassword(marker & "-a"), cfsqltype = "cf_sql_varchar" }
+        password = { value = uCase(hash(marker & "-a", "SHA-256", "UTF-8")), cfsqltype = "cf_sql_varchar" }
       },
       { datasource = variables.datasource }
     );
@@ -148,7 +147,7 @@ component extends="testbox.system.BaseSpec" output="false" {
        VALUES ('Codex', 'QA6-005 B', :email, :password, UTC_TIMESTAMP(), UTC_TIMESTAMP())",
       {
         email = { value = marker & "-b@example.test", cfsqltype = "cf_sql_varchar" },
-        password = { value = variables.passwordService.hashPassword(marker & "-b"), cfsqltype = "cf_sql_varchar" }
+        password = { value = uCase(hash(marker & "-b", "SHA-256", "UTF-8")), cfsqltype = "cf_sql_varchar" }
       },
       { datasource = variables.datasource }
     );

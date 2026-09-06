@@ -6,7 +6,7 @@ component output="false" {
     variables.real=new fpw.includes.InactiveMemberRecoveryClassifierService();
     return this;
   }
-  public struct function evaluateMember(required numeric userId,required string nowUtc,string enrollmentUtc="",string ownedClaimToken="",boolean evaluateFailedRetry=false) {
+  public struct function evaluateMember(required numeric userId,required string nowUtc,string enrollmentUtc="",string ownedClaimToken="",boolean evaluateFailedRetry=false,struct coverageVerification={}) {
     var result=variables.real.evaluateMember(argumentCollection=arguments);
     if (!variables.raced AND !len(arguments.ownedClaimToken) AND result.ELIGIBLE AND len(variables.action)) {
       variables.raced=true;

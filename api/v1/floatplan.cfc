@@ -8456,6 +8456,44 @@
     <cffunction name="sendBasicFloatPlanToContacts" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfreturn executeTrackedMemberShare(arguments.userId,arguments.floatPlanId,"basic_save_send")>
+    </cffunction>
+
+    <cffunction name="executeTrackedMemberShare" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="source" type="string" required="true">
+        <cfscript>
+            var evidence=new fpw.includes.InactiveMemberRecoveryCoverageService(datasource="fpw");
+            var context={submissionStarted=false,acceptedCount=0};
+            var token="";
+            var owned=queryExecute("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:id AND userId=:userId",
+                {id={value=arguments.floatPlanId,cfsqltype="cf_sql_integer"},userId={value=arguments.userId,cfsqltype="cf_sql_varchar"}},
+                {datasource="fpw"});
+            if (owned.recordCount EQ 1) token=evidence.beginShare(arguments.userId,arguments.floatPlanId,arguments.source);
+            // This wrapper is OUTSIDE Premium's existing transaction. A rollback after
+            // mail submission cannot erase the pre-submission marker or its outcome.
+            try {
+                return arguments.source EQ "basic_save_send"
+                    ? performBasicFloatPlanSend(arguments.userId,arguments.floatPlanId,context)
+                    : performPremiumFloatPlanSend(arguments.userId,arguments.floatPlanId,context);
+            } finally {
+                if (len(token) AND (context.acceptedCount GT 0 OR !context.submissionStarted)) {
+                    try {
+                        evidence.finishShare(arguments.userId,token,context.acceptedCount GT 0 ? "succeeded" : "failed");
+                    } catch (any outcomeNotConfirmed) {
+                        // Retained STARTED evidence remains unresolved; do not retry delivery.
+                        writeLog(file="fpw_product_events",type="error",text="SHARE_OUTCOME_NOT_CONFIRMED");
+                    }
+                }
+            }
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="performBasicFloatPlanSend" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="shareContext" type="struct" required="true">
         <cfscript>
             var result = {
                 SUCCESS = false,
@@ -8667,6 +8705,7 @@
         </cfscript>
 
         <cfloop list="#emailList#" index="emailAddr">
+            <cfset arguments.shareContext.submissionStarted = true>
             <cfmail
                 from="noreply@floatplanwizard.com"
                 to="#emailAddr#"
@@ -8675,6 +8714,7 @@
                 <cfmailparam type="application/pdf" file="#pdfPath#">
                 #message#
             </cfmail>
+            <cfset arguments.shareContext.acceptedCount++>
         </cfloop>
 
         <cfscript>
@@ -8724,6 +8764,13 @@
     <cffunction name="sendFloatPlanToContacts" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfreturn executeTrackedMemberShare(arguments.userId,arguments.floatPlanId,"premium_save_send")>
+    </cffunction>
+
+    <cffunction name="performPremiumFloatPlanSend" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="shareContext" type="struct" required="true">
         <cftry>
         <cftransaction>
         <cfscript>
@@ -9158,6 +9205,7 @@
         </cfscript>
 
         <cfloop list="#emailList#" index="emailAddr">
+            <cfset arguments.shareContext.submissionStarted = true>
             <cfmail
                 from="noreply@floatplanwizard.com"
                 to="#emailAddr#"
@@ -9166,6 +9214,7 @@
                 <cfmailparam type="application/pdf" file="#pdfPath#">
                 #message#
             </cfmail>
+            <cfset arguments.shareContext.acceptedCount++>
         </cfloop>
 
         <cftry>
