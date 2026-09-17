@@ -1,0 +1,13 @@
+{
+  "environment": "production",
+  "enabled": false,
+  "baseUrl": "https://floatplanwizard.com",
+  "schedulerTimezone": "",
+  "verifiedEngineVersion": "",
+  "pausedUpdateVerified": false,
+  "tasks": [
+    { "id": "monitor", "name": "FPW_PROD_MONITOR", "mode": "server", "group": "FPW_PROD", "application": "", "endpointId": "monitor", "allowCreate": true, "parameters": {} },
+    { "id": "departure-reminders", "name": "FPW_PROD_DEPARTURE_REMINDERS", "mode": "server", "group": "FPW_PROD", "application": "", "endpointId": "departure-reminders", "allowCreate": true, "parameters": {} },
+    { "id": "single-trip-expiration", "name": "FPW_PROD_SINGLE_TRIP_EXPIRATION", "mode": "server", "group": "FPW_PROD", "application": "", "endpointId": "single-trip-expiration", "allowCreate": true, "parameters": {} }
+  ]
+}

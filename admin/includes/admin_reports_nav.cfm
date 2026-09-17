@@ -44,6 +44,7 @@ adminReportPages = [
     { "file" = "email-test.cfm", "label" = "Email Delivery Test" },
     { "file" = "raw-weather.cfm", "label" = "Raw Weather" },
     { "file" = "monitoring-dashboard.cfm", "label" = "Monitoring Dashboard" },
+    { "file" = "scheduled-tasks.cfm", "label" = "Scheduled Tasks" },
     { "file" = "promo-codes.cfm", "label" = "Promo Codes" },
     { "file" = "member-entitlements.cfm", "label" = "Member Entitlements" },
     { "file" = "user-manager.cfm", "label" = "User Manager" },
