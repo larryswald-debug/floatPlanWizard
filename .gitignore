@@ -9,7 +9,6 @@
 _fpw_private/stripe-config.json
 _fpw_private/stripe-config-prod.json
 _fpw_private/stripe-config.json.snapshot-*
-_fpw_private/scheduler-config.json
 _fpw_private/scheduler-config.json.snapshot-*
 assets/uploads/vessels/
 logs/*.log
