@@ -1,0 +1,20 @@
+{
+  "environment": "dev",
+  "enabled": true,
+  "baseUrl": "http://localhost:8500/fpw",
+  "schedulerTimezone": "GMT",
+  "verifiedEngineVersion": "2025,0,06,331564",
+  "pausedUpdateVerified": true,
+  "tasks": [
+    {
+      "id": "scheduler-check",
+      "name": "FPW_DEV_SCHEDULER_CHECK",
+      "mode": "server",
+      "group": "FPW_DEV_TEST",
+      "application": "",
+      "endpointId": "development-test",
+      "allowCreate": true,
+      "parameters": {}
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+# Admin scheduled tasks
+
+The manager administers FPW schedules through ColdFusion's native scheduler. The scheduler remains the source of truth. On each request, the manager builds an exact ownership allowlist from verified native task bindings and optional configured identities; it does not keep a second schedule store. This work does not change runner authentication, notification delivery, monitoring evaluation, recovery enrollment, or entitlement processing.
+
+## Discovery
+
+The current `Application.cfc`, runner endpoints, setup scripts, configuration examples, administration services, and scheduling documentation were inspected before implementation. No repository code automatically creates or updates ColdFusion schedules. There is therefore no current application-startup or setup-script writer that would overwrite an administrator's schedule edit. Hostek-side tooling or another deployed code version could still do so; that cannot be established from the local repository.
+
+`admin/test.cfm` contains a legacy `cfscheduler` call naming `TestTask`. This is not a verified FPW scheduler identity and is not an ownership grant. No existing production task name, group, or server/application scope was established from repository evidence. Existing identities require verified complete runner bindings or reviewed exact configuration entries; never infer ownership from an `FPW` prefix or from a submitted task name.
+
+The application name is `FPW`. Startup loads `application.env` and `application.monitorToken` from the existing private configuration through `StripeConfigService`. Configuration examples use `production` with `https://floatplanwizard.com`, and `dev` with `http://localhost:8500/fpw`. Approved scheduler origins must be server-controlled, not inferred from a request's Host header.
+
+The owner identifies production Hostek as **ColdFusion 2023**. Its exact update version, action permissions, returned fields, and effective scheduler timezone still require protected production verification. The local runtime reports `2025,0,06,331564` (ColdFusion 2025 Update 6); its request timezone is GMT. Local 2025 results do not prove 2023 compatibility. `Application.cfc` does not set a scheduler timezone.
+
+### Existing runners
+
+Paths below are production root-relative paths. Local development adds the `/fpw` application base path. Tokens are intentionally omitted.
+
+| Runner | Existing authentication | Repository cadence and safeguards |
+| --- | --- | --- |
+| `/app/scheduled/run-monitor.cfm` | URL token compared with `application.monitorToken` | No cadence recorded. Calls the canonical monitoring evaluator. |
+| `/api/v1/monitor.cfc?method=runMonitoringEvaluator` | Same monitor token | Existing alternate entry point for the same evaluator. A legacy schedule may use it. |
+| `/app/scheduled/run-departure-reminders.cfm` | Same monitor token | `database/README.md` specifies every 15 minutes, default batch 100, maximum 500. Requires its existing delivery-ledger migration and matching application release. |
+| `/app/scheduled/run-single-trip-expiration.cfm` | Same monitor token | `database/README.md` specifies every 15 minutes, default batch 100, maximum 500. Existing database UTC expiration rules remain authoritative. |
+| `/app/scheduled/run-inactive-member-recovery.cfm` | Separate private recovery token; header or URL token | GET only, dry run by default, batch 25 with maximum 100. Existing documentation recommends daily cadence only after the separate recovery prerequisites and authorization. |
+
+`monitor.cfc?method=runOverdueAlerts` is retired; it must not become an approved new runner target.
+
+The monitor token comes from `FPW_MONITOR_TOKEN`. Recovery reads `FPW_INACTIVE_RECOVERY_RUNNER_TOKEN` and the strict JSON boolean `FPW_INACTIVE_RECOVERY_LIVE_ENABLED` from the existing private configuration. Native scheduled URL requests must preserve the existing token mechanism. The browser never supplies, edits, or receives the secret. The manager must not turn a recovery dry run into a live run or treat scheduler access as recovery-live authorization. See [recovery sender prerequisites](inactive-member-recovery-sender.md) and [final recovery validation](inactive-member-recovery-final-validation.md).
+
+### Audit and execution evidence
+
+`api/v1/AdminAuditService.cfc` writes to the existing `fpw_admin_audit_log` table. Schedule actions record the administrator, action, exact task identity, scope/group/application, environment, request ID, database UTC timestamp, and a stable sanitized outcome. They do not store raw form data, runner URLs, or credentials. No schema change is required. The audit entity ID limit is 100 characters.
+
+Existing runner logs are `fpw-monitor`, `fpw-departure-reminders`, `fpw-single-trip-expiration`, and `fpw-inactive-recovery`. Delivery and lifecycle ledgers record individual outcomes. They do not currently correlate an administrator's Run Now request with a completed scheduler execution. A successful native `run` response means **Run requested**. It does not prove completion, successful delivery, or successful processing of every record.
+
+## Configuration and ownership
+
+Mutations are disabled by default. Leave the manager in this read-only mode for the first Hostek verification.
+
+Click **New Scheduled Task** to enter a task name, group and scope, select an approved FPW script, and set its schedule. A new task does not need a prewritten JSON registry entry. Names use the matching environment prefix, such as `FPW_PROD_` or `FPW_DEV_`; existing tasks retain their names. The prefix is an organizational convention, never proof of ownership.
+
+Before listing or mutating tasks, the server builds an explicit request-local allowlist of exact native identities. Automatic task discovery requires the full configured origin, approved script path, and approved non-authentication query parameters to match. A known folder runner's token may be absent or different from the current configuration; it does not determine folder approval. The identity includes the exact task name, group, and server or FPW application scope. The browser receives an opaque identity ID and clean endpoint display; it never receives runner tokens. Every mutation re-lists the scheduler and resolves that ID against the fresh allowlist. An arbitrary task name, matching prefix, partial URL, or token alone cannot authorize an action. Existing URLs, including any runner tokens, are preserved on edits.
+
+The optional `tasks` configuration array supplies reviewed exact identities and endpoint bindings, including legacy tasks whose current settings need inspection. Configured identities take precedence over automatic discovery; a path or parameter mismatch remains visible with an explanation instead of being rediscovered with a different binding. Folder tasks remain discoverable when their stored token differs from current configuration. The legacy CFC outside the approved folder retains its existing token verification.
+
+Creation validates the submitted name, group and available scope, resolves the selected script from the server-controlled catalog, and checks native identities for exact or case-conflicting collisions before calling `update`. An existing task cannot be adopted or overwritten by submitting its name. Direct creation also honors configured identity reservations, including `allowCreate`, exact capitalization, endpoint binding, and configured runner parameters. After creation, subsequent requests rediscover the task from its verified native binding. No runtime configuration-file write, ownership database, or schema migration is required.
+
+The scheduler supplies frequency, dates, times, timeout, and status. Missing identity fields, ambiguous matches, unexpected endpoint bindings, or settings that cannot be safely round-tripped disable the affected operations with an explanation. Unrelated tasks are never rendered.
+
+The manager reads the server-owned `scheduler-config.json` beside the existing file identified by `application.stripeConfigPath`. In this repository that is normally `_fpw_private/scheduler-config.json`. It is excluded from Git. The shipped [_fpw_private/scheduler-config.example.json](../_fpw_private/scheduler-config.example.json) is a starting point, not proof that any named production schedule already exists. Keep any separately maintained production example unchanged. The loader reads configuration per page request; editing this file does not require an application reload. Do not edit the private Stripe configuration or move its file for this feature.
+
+| Key | Meaning |
+| --- | --- |
+| `environment` | `production` or `dev`. A nonempty application environment must match. The legacy local runtime may lack `application.env`; this is not permission to mislabel production as development. |
+| `enabled` | JSON boolean, default `false`. Mutations also require a verified timezone and exact engine-version match. |
+| `baseUrl` | Production: `https://floatplanwizard.com` or its `www` variant, without a trailing slash. Development: `http://localhost:8500/fpw` or `http://127.0.0.1:8500/fpw`. No arbitrary origins or base paths. Development additionally requires the local Developer runtime on port 8500. |
+| `schedulerTimezone` | Host-verified scheduler timezone name, preferably its IANA identifier. Blank keeps mutations disabled. It is evidence recorded by the operator, not an instruction to change ColdFusion's timezone. |
+| `verifiedEngineVersion` | Exact runtime version string shown by the manager, including update/build. Blank or mismatch disables mutations; reassess capabilities after a ColdFusion update. |
+| `pausedUpdateVerified` | JSON boolean, default `false`. Set `true` only after an isolated native test proves `update` preserves paused state on that environment. It permits editing paused tasks; native Resume does not require this flag. |
+| `tasks` | Optional reviewed exact identities and endpoint bindings; use `[]` when none are needed. This stores no live frequency, start date/time, timeout, or paused state. |
+
+When an optional configured task entry is needed, it has `id`, `name`, `mode`, `group`, `application`, `endpointId`, `allowCreate`, and `parameters`. Configured IDs use lowercase letters, digits, and hyphens, with a maximum of 50 characters. Names are limited to 60 characters and groups to 40, using letters, digits, spaces, underscore, period, or hyphen. Scope is `server` with `application: ""`, or `application` with `application: "FPW"`. Preserve exact name/group capitalization. Duplicate or case-conflicting configured identities are rejected.
+
+Use `allowCreate: false` for a reviewed existing identity. The original `allowCreate: true` registered-slot path remains supported for callers that already use it, but the normal **New Scheduled Task** form accepts a new name and approved script directly. Avoid creating a second active schedule for a runner that already has one.
+
+Every directly contained, regular `.cfm` script in `app/scheduled` is automatically approved when the manager loads or processes an action. No catalog code edit or per-script JSON approval is required. Subfolders, non-CFM files, hidden files, `Application.cfm`, and symbolic links reported by native directory metadata are excluded. The folder is fixed in server code; request values cannot choose a directory or arbitrary URL. A missing or denied folder listing disables changes with a sanitized diagnostic. Removing a script removes its approval on the next request, including for a previously opened form.
+
+To add a script in development:
+
+1. Put the `.cfm` file directly in `/Users/larrywald/Docker/cf-mysql-dev/wwwroot/fpw/app/scheduled`.
+2. Refresh **Admin → Scheduled Tasks**, then click **New Scheduled Task**.
+3. Select the file under **Script to run**, enter the task name and schedule, and submit. Adding the file alone does not create or run a schedule.
+
+The existing IDs `monitor`, `departure-reminders`, and `single-trip-expiration` remain tied to their exact filenames and use the existing monitor-token authentication. Their optional `limit` parameter remains bounded to 1–500. `monitor-legacy` remains available only for an existing task, with its fixed `runMonitoringEvaluator` method. New filenames receive stable `script-...` IDs and a readable filename label.
+
+`run-inactive-member-recovery.cfm` is now included automatically as `inactive-member-recovery`. It retains its separate token from `InactiveMemberRecoveryService.getRunnerSettings()`. New schedules created through the form explicitly use `dryRun=true`; the form never turns on live recovery. Existing approved recovery schedules preserve optional `batchSize` (1–100) and `dryRun` values. The runner's existing live-enabled flag, eligibility checks, and delivery safeguards remain unchanged. Do not use recovery, even in dry run, for the harmless scheduler verification.
+
+Folder membership is the only script approval requirement. Every approved script is selectable, and missing runner credentials do not block schedule creation. No `WEB-INF` directory or new authentication configuration is required. For known runners, the manager reuses a configured token if one is already present; otherwise it creates the approved URL without a token. New recovery schedules still include `dryRun=true`. Future scripts receive their bare approved URL without receiving another runner's secret. These rules do not change the scripts themselves: a script with its own authentication check can still reject execution without its required token. The development-only `development-test` endpoint remains available for harmless testing and accepts no parameters. A new local setup can use this configuration, keeping it read-only until local capabilities are verified:
+
+```json
+{
+  "environment": "dev",
+  "enabled": false,
+  "baseUrl": "http://localhost:8500/fpw",
+  "schedulerTimezone": "",
+  "verifiedEngineVersion": "",
+  "pausedUpdateVerified": false,
+  "tasks": []
+}
+```
+
+## Supported operations and safeguards
+
+The manager provides list, create/edit with native `update`, pause, resume, Run Now, and delete. Existing FPW administrator authorization protects the page and service operations. Every mutation requires POST and the existing administrative CSRF token. Run Now and Delete require typing the exact task name in a confirmation form. Run Now explains that real notifications may be sent. A successful POST redirects to a fresh listing.
+
+Task name, scope, group, and existing script binding are immutable during edit. Keep unexposed attributes intact. If the installed version omits a field needed to preserve a schedule, or the schedule uses an unsupported interval, authentication attribute, event handler, publishing option, or another unrepresentable feature, explain the limitation instead of silently simplifying it. Do not use `pauseall`, `resumeall`, or another bulk operation.
+
+Display only FPW identities in the verified request-local allowlist and approved endpoint labels. Never render raw scheduler queries, token-bearing URLs, credentials, unrelated applications' task names, or raw exception messages. Unsupported or denied native actions should return stable sanitized outcomes. No CF Administrator credentials, filesystem scheduler-file editing, or Hostek restriction bypass is part of this manager.
+
+The form follows the ColdFusion Administrator layout for Task Name, Group, Scope, Script / URL, Duration, and Frequency. Frequency choices are **Every** with Hours/Minutes/Seconds, **One-Time**, and **Recurring** with Daily/Weekly/Monthly. Start Date and Start Time are required. End Date is optional; End Time is optional for interval schedules. The server validates the combined whole-second interval and end date/time, and preserves unexposed attributes on safe edits. Cron expressions and finite repeat counts are not editable. Dates must be valid `YYYY-MM-DD` values between 2000 and 2099. Times use 24-hour `HH:mm` or `HH:mm:ss`. New schedules and one-time edits must have a combined start date/time later than the current scheduler clock, including seconds. A later time today is allowed; an equal or earlier time is rejected. The comparison uses the verified scheduler timezone rather than the browser or application timezone. New schedules become active with that future start; creation does not automatically pause them. Numeric intervals are bounded to 60–31,536,000 seconds and timeout inputs to 1–3,600 whole seconds.
+
+On ColdFusion 2023, numeric schedules remain read-only for editing and numeric creation is unavailable if native listing omits `isDaily`, because the daily-window setting cannot be safely preserved. Do not change a 15-minute runner to a daily schedule to work around this restriction. The exact local build `2025,0,06,331564` has a separately inspected adapter without an `isDaily` setter, so numeric intervals are supported on that local profile. Its behavior is not assumed for Hostek 2023 or another build.
+
+Edits preserve the returned end date/time unless explicitly changed through the form, along with output path/file, ports, publishing and URL-resolution flags, overwrite setting, exception/misfire policy, priority, retry count, and `isDaily` when returned. The existing approved URL remains unchanged. New tasks use an explicit approved port (443 in production, 8500 locally). A production task whose listing cannot prove port 443 cannot be edited or run, so an ambiguous legacy port is never turned into a different explicit transport override during editing. Standard scheduler-generated daily/weekly/monthly cron expressions are recognized only when they exactly match the simple schedule fields. Custom cron, event handlers, exclusions, hidden credentials, finite repeats other than the canonical one-time repeat of zero, chaining, clustering, unknown fields, and missing required preservation fields make the schedule read-only for editing. Once ownership is proved and mutations are enabled, Pause, Resume, and confirmed Delete remain available even when the schedule cannot be edited. Run Now is separately unavailable when hidden credentials, proxy settings, event handlers, chaining, or unverified execution transport prevent a safe run request. An unverified paused-update capability disables Edit for paused tasks while allowing otherwise-supported Resume, Run Now, or Delete.
+
+A revision check rejects changes if schedule attributes changed after the page was loaded. Native list access and an audit write must succeed before a mutation is attempted. If the native action is denied or fails, the response explains that state must be refreshed; an error does not prove no change occurred. If the scheduler accepts an action but subsequent audit/state verification fails, the response explicitly reports acceptance with incomplete verification. Never automatically retry Run Now after an uncertain response.
+
+## ColdFusion compatibility
+
+Folder approval uses the nonrecursive query form of native [DirectoryList](https://guides.adobe.com/content/coldfusion-docs/en/docs/cfml-reference/directorylist.html), without the ColdFusion 2025 filter callback extensions. Hostek must permit reading this application folder; no CF Administrator access or Java filesystem workaround is used.
+
+Adobe documents the native actions, application/server scope, groups, interval formats, list-result fields, and scheduler security restrictions in its [cfschedule reference](https://helpx.adobe.com/coldfusion/cfml-reference/coldfusion-tags/tags-r-s/cfschedule.html). A sandbox can deny the tag, and successful listing does not establish permission for every mutation. Returned fields vary by version; legacy underscored field aliases were removed in older updates.
+
+Production compatibility targets the owner's ColdFusion 2023 installation; the development container runs 2025. Adobe's [deprecated-features table](https://guides.adobe.com/coldfusion/en/docs/introduction-to-coldfusion/deprecated-features.html) and current tag reference mark `cfschedule`'s `requestTimeOut` attribute removed in ColdFusion 2025; the same reference also retains an older 2018 removal note. Do not assume a listed `timeout` or `requesttimeout` field makes the update attribute available or effective. Normalize only verified equivalent list-field aliases and verify the actual 2023 update behavior before enabling timeout editing. Display unavailable timeout control honestly; do not modify runner `cfsetting` declarations as a workaround.
+
+Show the effective scheduler timezone and its source. A browser zone, application/member timezone, server offset at one moment, or local Docker UTC clock is not proof of the Hostek scheduler's zone. Preserve a verified existing task zone. Do not silently convert the task's wall-clock start date/time through the browser zone.
+
+## Deployment and initial Hostek verification
+
+No Hostek access was available during discovery. No production schedules were listed, changed, run, or deleted, and no deployment was performed. Production ColdFusion 2023 remains unverified.
+
+1. Review the final file list and configuration instructions below. Deploy only after the normal release decision. Keep scheduler mutations disabled. This feature needs no schema migration and no CF Administrator access.
+2. Verify the production environment, trusted origin/base path, private runner-token availability, and existing audit table using approved operational access. Keep secrets out of screenshots, tickets, request examples, and logs.
+3. Configure the verified production origin with `enabled: false`, blank verification fields, and `tasks: []`. Native tasks are shown only when the complete approved runner binding verifies. If a known legacy task is absent, use operator records or Hostek support to establish its exact identity before adding an optional configured entry; never infer ownership from a prefix.
+4. Sign in as an FPW administrator and open **Admin → Scheduled Tasks**. Perform the initial protected **read-only list**. Confirm the detected ColdFusion version, permitted scheduler and folder list actions, identity matching, endpoint recognition, returned fields, timezone evidence, and read-only explanations. Record only sanitized findings. An empty FPW list is not proof that the host has no schedules; unverified bindings are intentionally excluded.
+5. If listing is denied or required identity fields are absent, keep mutations disabled and ask Hostek to confirm the supported action/field behavior. Do not bypass restrictions or request Administrator credentials.
+6. Compare the displayed FPW schedules with the existing operator schedule record. Confirm no separate Hostek tool or deployed script will overwrite edits. Before any later enabling decision, resolve timeout/timezone ambiguity and attributes that cannot be safely preserved.
+7. Enable only the supported manager operations after review. Creation, schedule changes, Run Now, and cleanup of existing production tasks are separate deliberate operations; they are not part of initial verification. Preserve existing monitoring and notification schedules until the intended change is known.
+
+Deploy these runtime files together:
+
+- `admin/scheduled-tasks.cfm`
+- `admin/includes/admin_reports_nav.cfm`
+- `api/v1/AdminScheduledTaskConfig.cfc`
+- `api/v1/AdminScheduledTaskGateway.cfc`
+- `api/v1/AdminScheduledTaskService.cfc`
+
+Keep `_fpw_private/scheduler-config.example.json`, this document, and the `.gitignore` change in the reviewed source change. Create the real private `scheduler-config.json` on the host with `enabled: false`, blank verification fields, and `tasks: []` or optional reviewed exact identities. No application reload is needed for scheduler-registry changes. Do not deploy temporary diagnostic files or local verification fixtures: `tests/scheduled-task-target.cfm`, `tests/admin-scheduled-tasks-runner.cfm`, `tests/specs/AdminScheduledTaskServiceSpec.cfc`, and `tests/support/ScheduledTaskGatewayFake.cfc` are development-only.
+
+After the first protected read-only production check, retain `enabled: false` until the supported operation/field profile and scheduler timezone are established. Record the exact observed version and host-confirmed timezone, then enable mutations only for the approved operating scope. Keep `pausedUpdateVerified: false` until native pause/update preservation is separately proven with an isolated harmless task. Configuration values never create or change a schedule by themselves; creation and other actions require an explicit administrative form submission.
+
+## Easy local development test
+
+The current development configuration is already enabled for the previously verified local CF2025 build. Leave that user-owned private configuration unchanged. If the page reports a different version or read-only mode, resolve the environment verification first; do not copy development verification values to Hostek.
+
+1. Sign in as an FPW administrator and open `http://localhost:8500/fpw/admin/scheduled-tasks.cfm`. Check the displayed environment, ColdFusion version and scheduler timezone.
+2. Click **New Scheduled Task**. In **Task Name**, enter an unused name such as `FPW_DEV_FORM_CHECK`. In **Group**, enter `FPW_DEV_TEST`. Select **Server** scope.
+3. In **Script to run**, select **Development scheduler check (harmless)**. Confirm the displayed path ends in `/tests/scheduled-task-target.cfm`. Do not select a notification runner for this test.
+4. Set **Start Date** to tomorrow in the displayed scheduler timezone. Leave **End Date** blank. Select **Recurring**, choose **Daily**, set **Start Time** to `12:00:00`, leave **End Time** blank, and set timeout to `60` seconds. Click **Create Schedule**.
+5. Find your task in **Existing FPW tasks**. Click **Edit**, change timeout to `90`, and save. Confirm the list reflects the change. The task name, group, scope and script remain immutable.
+6. Click **Pause** and confirm Paused is **Yes**. If Edit remains available, change timeout to `120`, save, and confirm the task stays paused. Click **Resume** and confirm Paused is **No**.
+7. Click **Run Now**, type the exact task name, and click **Request Run Now**. Expect **Run requested**; this is acceptance of the native run request, not proof of successful job completion. The selected development endpoint sends no notifications.
+8. Click **Delete** for the task you just created, type its exact name, and click **Delete Schedule**. Confirm it disappears. Delete only your own test task; leave existing tasks and private configuration unchanged.
+
+To test the interval controls separately, create another harmless task with a future start date, select **Every**, and enter `0` Hours, `15` Minutes, `0` Seconds. Optionally set an End Date on or after its Start Date and an End Time later than Start Time. Confirm the displayed frequency is every 900 seconds, edit it, and delete only that test task afterward. Numeric interval controls remain unavailable when the runtime cannot safely report its daily-window setting.
+
+## Verification record
+
+Automatic folder approval passed **43 service tests** and **33 native workflow checks** on the local ColdFusion 2025 runtime. A temporary harmless CFM file was discovered without catalog/configuration edits, scheduled, paused/resumed, run with a unique execution marker, deleted, and removed from the selector. Tests cover removed files and stale selections, non-CFM/subfolder/traversal rejection, preserved endpoint aliases, generic URLs without secrets, and configured identity reservations. The real notification/recovery scripts were not executed. The existing user schedule remained unchanged. Sanitized evidence is in `.codex-snapshots/scheduled-folder-approval/verification/`.
+
+In that earlier baseline, the four known runner options were disabled when monitor/recovery tokens were unavailable. That behavior has been replaced by folder-only approval: absent credentials no longer disable options or block creation. Anonymous access returned 401 and invalid CSRF returned 403. Temporary test accounts, entitlement/audit/product-event rows, tasks, scripts, sessions, and credentials were cleaned up. The local case-insensitive filesystem prevents safely creating a case-variant duplicate of a real runner; exact filename matching was code-reviewed, with uppercase generic filenames and endpoint-ID handling tested. Hostek CF2023 folder permissions and directory/link metadata still require the initial protected read-only verification.
+
+The final folder-only approval check passed **45 service tests** on local ColdFusion 2025 Update 6. With both credential files absent, the authenticated creation form returned all four existing scripts as enabled options. Fake-scheduler checks created each known runner without credentials and preserved existing URLs with absent or differing tokens during edits. The actual existing schedule listing stayed unchanged. Unauthenticated, non-admin, and invalid/missing-CSRF requests were rejected. Test accounts, their entitlement/audit/product-event rows, temporary scripts, and sessions were removed. Application and Stripe configuration loaders were restored; no `WEB-INF` setup is required or retained by this change. No notification runner was executed and no existing schedule was changed. Sanitized evidence is in `.codex-snapshots/scheduler-folder-only/verification/`.
+
+The revised direct-creation form and native discovery passed **35 service tests**, **56 native workflow checks**, and **18 HTTP authorization/CSRF rejection checks** on local ColdFusion 2025 Update 6. Tests cover configured-name reservations, case-conflicting identities in either listing order, fresh ownership verification, script rejection, immutable editing, attribute preservation, unsupported settings, and denied operations. Native checks exercised create/list/edit/pause/resume/confirmed-run/delete using only the harmless development endpoint, including hours/minutes/seconds conversion and setting/clearing optional end dates and times. Browser inspection confirmed the Task Name and Script fields, existing task controls, and no document overflow at a 390-pixel viewport. The existing user task and private configuration were left unchanged. The isolated native task was deleted; both temporary test accounts were logged out and removed along with their test entitlements, audit rows, product events, and temporary credentials. Cleanup checks found zero fixture rows. Evidence is under `.codex-snapshots/scheduled-tasks-form/verification/`.
+
+The following older results are the **prior registered-slot baseline** and are recorded separately.
+
+The final local service suite passed 21 tests with the in-memory scheduler (zero failures/errors). Separately, 17 HTTP authorization/CSRF checks and an isolated native scheduler lifecycle check passed on ColdFusion 2025 Update 6. The service suite covers exact ownership filtering, endpoint rejection, field preservation, unsupported/missing fields, denied operations, invalid schedules, stale revisions, confirmation, and scope-specific actions. These results do not establish Hostek compatibility.
+
+The real manager workflow passed create/list/edit/pause/resume/confirmed-run/delete against the harmless local target, with 45 successful verification checks recorded separately from resolved intermediate attempts. Daily, weekly, monthly, once, and numeric-interval edits were read back from the native scheduler. Edits preserved paused state, end date/time, output and URL-resolution flags, port/proxy port, overwrite, priority, retry count, and the exact target URL. Valid-CSRF requests with an unrelated identity, substituted endpoint, arbitrary URL field, stale revision, incorrect confirmation, invalid dates/times, fractional timeout, or interval below 60 seconds were rejected without changing the task. Native scheduler and HTTP logs confirmed a request to the harmless target, not job-completion evidence. Audit records contained only sanitized task/action/outcome metadata. Both isolated native tasks were deleted and verified absent. The native one-time repeat-zero representation discovered during integration was fixed and covered by a passing regression; two test-harness parsing issues were also corrected. No unresolved integration failures remained for that prior baseline.
+
+To rerun the fake service suite, make an authenticated local administrator POST to `/fpw/tests/admin-scheduled-tasks-runner.cfm` with that session's existing `adminCsrfToken` field (or `X-CSRF-Token` header). It uses the fixed in-memory scheduler bundle and writes only audit records for the testing administrator; it never invokes native schedules or runner jobs. For native verification, follow the local development steps above and choose the harmless script in the manager form. Keep the future start date and delete only the task created for that test.
+
+Required local checks use only isolated development tasks and a harmless endpoint: create, list, edit, pause, resume, run, delete; anonymous/non-admin rejection; missing or invalid CSRF rejection; rejection of unrelated identities and unapproved endpoints; preservation of unexposed attributes; and stable handling of unsupported/denied actions. Delete only tasks created for this work. Do not invoke notification runners, alter production schedules, or imply that a native run request proves job completion.
+
+No production schedules or notification jobs were run during this work. No deployment, commit, or push was performed. During that prior baseline, temporary diagnostic endpoints, both isolated fixture accounts, their test entitlement/events/audit rows, temporary credentials, and the temporary scheduler configuration were removed; zero baseline fixture rows remained. The current user-owned development configuration was subsequently supplied separately and is not part of that cleanup. The prior baseline final authenticated check without scheduler configuration returned HTTP 200 with both native-list scopes available, no registered tasks, a read-only banner, and no mutation forms. Sanitized local verification evidence is retained under the ignored `.codex-snapshots/scheduled-tasks/verification/` directory. Existing authentication, job logic, runner tokens, delivery safeguards, schema, and routing are unchanged.
+
+The start-time validation fix passed **49 service tests** on local ColdFusion 2025 Update 6. Regression checks cover the September 12 GMT screenshot, later-today starts, equal/past seconds, minute-only input, timezone date boundaries, fractional offsets, every supported creation frequency, and one-time edits. Native verification accepted a later-today harmless task, preserved its submitted start date/time, accepted a later-today one-time edit, and rejected a past-time edit without changing the saved start. The test task was deleted before its start; its test account and entitlement/audit/product-event rows were removed. The preexisting schedule listing was unchanged. No runner was executed. Sanitized evidence is under `.codex-snapshots/scheduler-start-time-fix/verification/`.
+
+Hostek's exact ColdFusion 2023 update, scope/group visibility, action permissions, timezone, timeout behavior, and returned-field completeness remain unverified until the protected production read-only check and any separately authorized harmless capability checks are completed.
