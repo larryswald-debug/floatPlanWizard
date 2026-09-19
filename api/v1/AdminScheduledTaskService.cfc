@@ -444,10 +444,14 @@ component output="false" {
         var info = getTimeZoneInfo();
         var view = {available=state.scopes.server OR state.scopes.application, message="", environment=variables.config.environment,
             engine=variables.engine, timezone="Unverified scheduler timezone. ColdFusion request timezone: " & value(info, "timezone", "Unavailable") & " (current offset " & dateTimeFormat(now(), "Z") & ").",
+            timezoneId=variables.config.schedulerTimezone, schedulerClock="",
             readOnly=!mutationsEnabled(), diagnostics=state.diagnostics, tasks=[], createOptions=[], endpoints=[], scopes=[], canCreate=false,
             createDefaults={namePrefix=variables.config.environment EQ "production" ? "FPW_PROD_" : "FPW_DEV_", mode="server",
                 group=variables.config.environment EQ "production" ? "FPW_PROD" : "FPW_DEV"}};
-        if (len(variables.config.schedulerTimezone)) view.timezone = "Scheduler timezone (verified in environment configuration): " & variables.config.schedulerTimezone & ". ColdFusion request clock: " & dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss Z") & ".";
+        if (len(variables.config.schedulerTimezone)) {
+            view.timezone = "Scheduler timezone (verified in environment configuration): " & variables.config.schedulerTimezone & ". ColdFusion request clock: " & dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss Z") & ".";
+            view.schedulerClock = dateTimeFormat(now(), "yyyy-mm-dd h:nn:ss tt", variables.config.schedulerTimezone);
+        }
         for (var mode in ["server", "application"]) {
             if (state.scopes[mode]) arrayAppend(view.scopes, {id=mode,label=mode EQ "server" ? "Server" : "FPW application",secondsSupported=state.seconds[mode]});
         }

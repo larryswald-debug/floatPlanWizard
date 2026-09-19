@@ -114,7 +114,7 @@ Adobe documents the native actions, application/server scope, groups, interval f
 
 Production compatibility targets the owner's ColdFusion 2023 installation; the development container runs 2025. Adobe's [deprecated-features table](https://guides.adobe.com/coldfusion/en/docs/introduction-to-coldfusion/deprecated-features.html) and current tag reference mark `cfschedule`'s `requestTimeOut` attribute removed in ColdFusion 2025; the same reference also retains an older 2018 removal note. Do not assume a listed `timeout` or `requesttimeout` field makes the update attribute available or effective. Normalize only verified equivalent list-field aliases and verify the actual 2023 update behavior before enabling timeout editing. Display unavailable timeout control honestly; do not modify runner `cfsetting` declarations as a workaround.
 
-Show the effective scheduler timezone and its source. A browser zone, application/member timezone, server offset at one moment, or local Docker UTC clock is not proof of the Hostek scheduler's zone. Preserve a verified existing task zone. Do not silently convert the task's wall-clock start date/time through the browser zone.
+Show the effective scheduler timezone and its source. The Start Time field names the configured zone, such as **Start Time (GMT)**, and displays the scheduler date and time in AM/PM directly below it. This clock is a snapshot from when the page loaded. A browser zone, application/member timezone, server offset at one moment, or local Docker UTC clock is not proof of the Hostek scheduler's zone. Preserve a verified existing task zone. Do not silently convert the task's wall-clock start date/time through the browser zone.
 
 ## Deployment and initial Hostek verification
 

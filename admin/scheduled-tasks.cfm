@@ -26,6 +26,7 @@ schedulerService = "";
 schedulerView = {
     "available" = false, "message" = "The scheduler could not be inspected. No scheduler details are exposed.",
     "environment" = "Unavailable", "engine" = "Unavailable", "timezone" = "Unavailable",
+    "timezoneId" = "", "schedulerClock" = "",
     "readOnly" = true, "diagnostics" = [], "tasks" = [], "createOptions" = [],
     "canCreate" = false, "createDefaults" = {}, "scopes" = [], "endpoints" = []
 };
@@ -315,7 +316,11 @@ if (showEdit OR showCreate) {
               </div>
             </div>
             <div class="row g-3 mt-1">
-              <div class="col-sm-6"><label for="schedule-time" class="form-label">Start Time</label><input id="schedule-time" name="startTime" type="time" class="form-control" step="1" required value="#encodeForHTMLAttribute(editorFields.startTime)#"></div>
+              <div class="col-sm-6">
+                <label for="schedule-time" class="form-label">Start Time (#encodeForHTML(schedulerView.timezoneId)#)</label>
+                <input id="schedule-time" name="startTime" type="time" class="form-control" step="1" required aria-describedby="schedule-time-help" value="#encodeForHTMLAttribute(editorFields.startTime)#">
+                <div id="schedule-time-help" class="form-text">Current #encodeForHTML(schedulerView.timezoneId)# time: <strong>#encodeForHTML(schedulerView.schedulerClock)#</strong> (when this page loaded).</div>
+              </div>
               <div class="col-sm-6"><label for="schedule-end-time" class="form-label">End Time (optional, interval schedules only)</label><input id="schedule-end-time" name="endTime" type="time" class="form-control" step="1" value="#encodeForHTMLAttribute(editorFields.endTime)#"></div>
             </div>
             <p class="form-text mt-3 mb-1">Use the effective scheduler timezone shown above. New and one-time schedules must start after the current scheduler date and time. A later time today is allowed.</p>
