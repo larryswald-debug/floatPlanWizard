@@ -990,6 +990,8 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
         Plan your route, create your float plan, and keep trusted contacts informed from departure through safe return.
       </p>
 
+      <p>Planning boat ownership? Try the free <a href="<cfoutput>#fpwHowBasePath#</cfoutput>/boat-loan-calculator/">Boat Loan and Ownership Cost Calculator</a>.</p>
+
       <div class="fpw-how-actions">
         <a class="fpw-btn fpw-btn--primary" href="<cfoutput>#fpwHowBasePath#/app/join.cfm</cfoutput>">
           <span>Start Free</span>

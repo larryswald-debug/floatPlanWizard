@@ -47,7 +47,7 @@ test("one shared Resources menu replaces top-level Tools for public and member n
   assert.ok(greatLoopIndex > -1);
   assert.ok(resourcesIndex > greatLoopIndex);
   assert.ok(pricingIndex > resourcesIndex);
-  assert.equal(count(topNav, /fpw-dropdown--resources/g), 1);
+  assert.equal(count(topNav, /class="fpw-dropdown fpw-dropdown--resources"/g), 1);
   assert.doesNotMatch(topNav, /fpw-dropdown--tools|fpwToolsMenu|<span class="fpw-nav-label-desktop">Tools<\/span>|<span class="fpw-nav-label-mobile">Trip Tools<\/span>/);
   assert.doesNotMatch(topNav, /<cfif topNavIsLoggedIn>\s+<div class="fpw-dropdown fpw-dropdown--resources"/);
 });
@@ -125,6 +125,9 @@ test("Boating Resources include Common Boating Emergencies in the icon-row treat
 
 test("Resources uses one route map and accessible item-level selected states", () => {
   assert.match(topNav, /topNavResourceRouteMap = \[/);
+  assert.match(topNav, /"pattern" = "\/boat-loan-calculator", "active" = "resources-boat-loan-calculator"/);
+  assert.match(topNav, /if \(!len\(topNavActive\) OR topNavActive EQ "resources"\)/);
+  assert.match(topNav, /topNavBoatLoanActive> is-active/);
   assert.match(topNav, /"pattern" = "\/solo-boating-safety-guide", "active" = "resources-solo-boating-guide"/);
   assert.match(topNav, /"pattern" = "\/common-boating-emergencies", "active" = "resources-common-boating-emergencies"/);
   assert.match(topNav, /"pattern" = "\/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide"/);
@@ -145,6 +148,21 @@ test("Resources uses one route map and accessible item-level selected states", (
   assert.equal(count(topNav, /id="fpwResourceFeaturedTitle"/g), 1);
   assert.equal(count(topNav, /id="fpwPlanningToolsTitle"/g), 1);
   assert.equal(count(topNav, /id="fpwBoatingResourcesTitle"/g), 1);
+});
+
+test("Planning Tools adds one accessible calculator row between fuel and weather", () => {
+  const planning = topNav.slice(topNav.indexOf('<h2 id="fpwPlanningToolsTitle">'), topNav.indexOf('<h2 id="fpwBoatingResourcesTitle">'));
+  const fuel = planning.indexOf('<strong>Fuel Calculator</strong>');
+  const ownership = planning.indexOf('<strong>Boat Loan &amp; Ownership Calculator</strong>');
+  const weather = planning.indexOf('<strong>Marine Weather</strong>');
+  assert.ok(fuel > -1 && ownership > fuel && weather > ownership);
+  assert.equal(count(topNav, /href="#topNavBasePath#\/boat-loan-calculator\/"/g), 1);
+  assert.match(planning, /Estimate loan payments and the ongoing cost of owning a boat\./);
+  assert.match(planning, /renderFpwNavIcon\("calculator", "fpw-tool-icon"\)/);
+  assert.match(planning, /topNavBoatLoanActive> aria-current="page"/);
+  assert.match(topNav, /case "calculator":[\s\S]*?fpw-icon-calculator[\s\S]*?iconViewBox = "0 0 64 64"/);
+  assert.match(topNavCss, /@media screen and \(min-width: 1051px\)[\s\S]*?\.fpw-dropdown--resources \.fpw-resources-grid[\s\S]*?max-height: var\(--fpw-resources-content-height, none\);[\s\S]*?overflow-y: auto;/);
+  assert.match(topNav, /new window\.ResizeObserver\(scheduleResourcesMeasurement\)\.observe\(shell\)/);
 });
 
 test("guide analytics remain one-event, non-sensitive, and navigation-independent", () => {

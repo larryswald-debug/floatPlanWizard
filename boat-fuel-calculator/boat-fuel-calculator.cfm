@@ -2290,6 +2290,7 @@ fpwCtaConfig = {
       </section>
 
       <aside class="fpw-fuel-safety-resources" aria-label="Related boating safety resources">
+        <p>Budgeting for a boat? Estimate payments, annual expenses and repair savings with the <a href="<cfoutput>#topNavBasePath#</cfoutput>/boat-loan-calculator/">Boat Loan and Ownership Cost Calculator</a>.</p>
         <p><strong>Boating alone?</strong> Review the <a href="../solo-boating-safety-guide/">Solo Boating Safety Guide</a> before departure.</p>
         <p>Make sure your <a href="../shore-contact-overdue-boater/">shore contact knows what to do if you become overdue</a>.</p>
         <p>Before departure, review <a href="../why-use-a-float-plan/">what a float plan should include</a>.</p>

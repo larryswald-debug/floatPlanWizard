@@ -1,0 +1,119 @@
+/* Feature-local styles for the public boat ownership calculator. */
+.boat-cost { --bc-bg:#061726; --bc-panel:#0b2236; --bc-line:#456277; --bc-text:#f3f8ff; --bc-muted:#b8c7d6; --bc-accent:#23d7cf; color:var(--bc-text); font:1rem/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; min-width:0; }
+.boat-cost *, .boat-cost *::before, .boat-cost *::after { box-sizing:border-box; }
+.boat-cost h2, .boat-cost h3, .boat-cost h4 { color:var(--bc-text); line-height:1.25; margin:0 0 1rem; }
+.boat-cost h2 { font-size:1.55rem; } .boat-cost h3 { font-size:1.18rem; } .boat-cost h4 { font-size:1rem; }
+.boat-cost p { margin:.65rem 0; } .boat-cost a { color:#8ee8ff; text-underline-offset:3px; overflow-wrap:anywhere; }
+.boat-cost button, .boat-cost input, .boat-cost select { font:inherit; }
+.boat-cost button, .boat-cost select, .boat-cost input { min-height:44px; border:1px solid var(--bc-line); border-radius:7px; }
+.boat-cost button { color:var(--bc-text); background:#15364c; padding:.6rem .85rem; cursor:pointer; line-height:1.25; }
+.boat-cost button:hover { border-color:var(--bc-accent); } .boat-cost button:disabled { opacity:.55; cursor:not-allowed; }
+.boat-cost :where(a,button,input,select,summary):focus-visible { outline:3px solid #ffcf66; outline-offset:3px; }
+.boat-cost input, .boat-cost select { width:100%; min-width:0; background:#061726; color:var(--bc-text); padding:.5rem .6rem; }
+.boat-cost select option { background:#061726; } .boat-cost input[aria-invalid=true] { border:2px solid #ffb5ab; }
+.boat-cost .bc-primary { color:#032326; background:var(--bc-accent); border-color:var(--bc-accent); font-weight:750; }
+.boat-cost .bc-primary:hover { background:#8deee9; } .boat-cost .bc-danger { border-color:#edaaa4; }
+.boat-cost .bc-toolbar { display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; margin:0 0 1rem; }
+.boat-cost .bc-toolbar select { width:auto; max-width:100%; } .boat-cost .bc-toolbar label { font-weight:650; }
+.boat-cost .bc-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:1.2rem; align-items:start; }
+/* The wrapper spans the grid row; only its intrinsic-height panel sticks. */
+@media screen {
+  .boat-cost #bc-results { align-self:stretch; min-width:0; }
+  .boat-cost #bc-results > .bc-panel {
+    position:sticky;
+    top:var(--bc-results-sticky-top, 16px);
+  }
+}
+@media screen and (max-width:950px) {
+  .boat-cost #bc-results { align-self:start; }
+  .boat-cost #bc-results > .bc-panel { position:static; }
+}
+@media print {
+  .boat-cost #bc-results > .bc-panel { position:static; top:auto; }
+}
+.boat-cost .bc-panel { min-width:0; padding:clamp(1rem,2vw,1.5rem); border:1px solid var(--bc-line); border-radius:14px; background:var(--bc-panel); margin-bottom:1rem; }
+.boat-cost .bc-form { min-width:0; } .boat-cost fieldset { min-width:0; margin:0 0 1.3rem; padding:1rem 0 0; border:0; border-top:1px solid var(--bc-line); }
+.boat-cost legend { width:auto; padding:0 .45rem 0 0; font-size:1.1rem; font-weight:750; color:var(--bc-text); }
+.boat-cost .bc-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; }
+.boat-cost .bc-field { min-width:0; margin-bottom:.85rem; } .boat-cost .bc-field > label { display:block; font-weight:650; margin-bottom:.35rem; }
+.boat-cost .bc-field small, .boat-cost .bc-help { display:block; color:var(--bc-muted); font-size:.86rem; line-height:1.5; margin:.4rem 0; }
+.boat-cost .bc-cost { border-bottom:1px solid #314b61; padding:.7rem 0; margin-bottom:.7rem; }
+.boat-cost .bc-cost:last-child { border-bottom:0; } .boat-cost .bc-cost-title { font-weight:700; margin-bottom:.4rem; }
+.boat-cost .bc-cost-controls { display:grid; grid-template-columns:minmax(0,1fr) minmax(130px,.9fr); gap:.55rem; }
+.boat-cost .bc-cost-controls .bc-field { margin-bottom:0; } .boat-cost .bc-cost-controls label { font-size:.86rem; font-weight:500; }
+.boat-cost .bc-note { color:var(--bc-muted); font-size:.9rem; } .boat-cost .bc-status { display:inline-block; border:1px solid var(--bc-line); padding:.2rem .5rem; border-radius:5px; font-size:.82rem; margin:.25rem .4rem .25rem 0; }
+.boat-cost .bc-warning { padding:.75rem; border-left:4px solid #ffcf66; background:#2f3029; color:#fff0c9; margin:.7rem 0; }
+.boat-cost .bc-errors { border:2px solid #ffb5ab; background:#38282e; padding:1rem; margin-bottom:1rem; }
+.boat-cost .bc-errors a { color:#ffd6d1; } .boat-cost .bc-errors ul { padding-left:1.2rem; margin:.4rem 0; }
+.boat-cost .bc-hero-value, .boat-cost .bc-price-value { color:#71eee4; font-size:clamp(2rem,4vw,2.9rem); font-weight:800; letter-spacing:-.035em; line-height:1.15; overflow-wrap:anywhere; }
+.boat-cost .bc-result-label { color:var(--bc-text); font-weight:700; margin-bottom:.45rem; }
+.boat-cost .bc-table-wrap { overflow-x:auto; max-width:100%; margin:1rem 0; }
+.boat-cost table { border-collapse:collapse; width:100%; font-size:.87rem; color:var(--bc-text); }
+.boat-cost caption { color:var(--bc-text); text-align:left; caption-side:top; font-weight:750; padding:0 0 .65rem; }
+.boat-cost th, .boat-cost td { border-bottom:1px solid var(--bc-line); padding:.65rem .45rem; text-align:left; vertical-align:top; }
+.boat-cost thead th { color:#d0e7f0; font-weight:750; } .boat-cost td.bc-number, .boat-cost th.bc-number { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.boat-cost .bc-summary { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.45rem .7rem; margin:1rem 0; }
+.boat-cost .bc-summary dt { font-weight:500; } .boat-cost .bc-summary dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.boat-cost details { margin:.85rem 0; } .boat-cost summary { cursor:pointer; min-height:44px; padding:.6rem 0; font-weight:650; }
+.boat-cost .bc-assumptions li, .boat-cost .bc-guidance li { margin:.35rem 0; } .boat-cost .bc-guidance { font-size:.9rem; padding-left:1.15rem; }
+.boat-cost .bc-comparison table { min-width:600px; } .boat-cost .bc-comparison td { min-width:155px; }
+.boat-cost .bc-print-only { display:none; } .boat-cost [hidden] { display:none !important; }
+.boat-cost .bc-live { min-height:1.5em; color:#cee8f0; margin:.5rem 0; }
+.boat-cost .bc-scenario-name { max-width:20rem; }
+@media (max-width:950px) { .boat-cost .bc-grid { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:480px) { .boat-cost .bc-fields,.boat-cost .bc-cost-controls { grid-template-columns:minmax(0,1fr); } .boat-cost .bc-panel { padding:1rem .75rem; } .boat-cost .bc-toolbar { align-items:stretch; } .boat-cost .bc-toolbar > button { flex:1 1 auto; } .boat-cost .bc-summary { grid-template-columns:minmax(0,1fr); } .boat-cost .bc-summary dd { text-align:left; font-weight:750; margin-bottom:.4rem; } }
+@media print {
+  @page { size:auto; margin:12mm; }
+  body.boat-cost-printing { color:#111 !important; background:#fff !important; }
+  body.boat-cost-printing #bc-results { position:static; width:100%; margin:0; padding:0; }
+  body.boat-cost-printing .boat-cost { --bc-text:#111; --bc-muted:#333; --bc-line:#bbb; color:#111; font:10pt/1.35 Arial,sans-serif; }
+  body.boat-cost-printing #bc-results .bc-panel { border:0; border-radius:0; background:#fff; padding:0; margin:0 0 8mm; }
+  body.boat-cost-printing #bc-results h2,body.boat-cost-printing #bc-results h3,body.boat-cost-printing #bc-results p,body.boat-cost-printing #bc-results th,body.boat-cost-printing #bc-results td,body.boat-cost-printing #bc-results caption { color:#111; }
+  body.boat-cost-printing #bc-results .bc-no-print,body.boat-cost-printing #bc-results .bc-no-print *,body.boat-cost-printing #bc-results button { display:none !important; }
+  body.boat-cost-printing #bc-results .bc-print-only { display:block; } body.boat-cost-printing #bc-results .bc-hero-value { font-size:23pt; color:#111; }
+  body.boat-cost-printing #bc-results .bc-table-wrap { overflow:visible; } body.boat-cost-printing #bc-results table { font-size:9pt; } body.boat-cost-printing #bc-results th,body.boat-cost-printing #bc-results td { padding:2.5mm 1mm; }
+  body.boat-cost-printing #bc-results tr { break-inside:avoid; } body.boat-cost-printing #bc-results .bc-warning { color:#111; background:#fff; border-color:#777; }
+  body.boat-cost-printing #bc-results .bc-assumptions { font-size:9pt; } body.boat-cost-printing #bc-results .bc-status { border:0; padding:0; }
+}
+/* This page reuses the existing public navigation and width container. */
+body.boat-cost-page { margin:0; min-width:0; background:#061726; color:#f3f8ff; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.boat-cost-page main { padding-bottom:3rem; min-width:0; }
+.boat-cost-page .bc-hero { max-width:850px; margin:2.5rem 0 2rem; }
+.boat-cost-page .bc-hero h1 { color:#f3f8ff; font-size:clamp(2rem,4vw,3.2rem); line-height:1.1; margin:.5rem 0 1rem; }
+.boat-cost-page .bc-hero h2 { color:#d8edf4; font-size:1.4rem; line-height:1.4; }
+.boat-cost-page .bc-hero p { color:#c7d7e4; line-height:1.65; }
+.boat-cost-page .bc-eyebrow { color:#68e7df !important; font-size:.82rem; font-weight:750; letter-spacing:.1em; }
+.boat-cost-page .bc-education { display:grid; gap:1.2rem; margin-top:2rem; line-height:1.7; }
+.boat-cost-page .bc-education section { border:1px solid #456277; background:#0b2236; padding:clamp(1rem,3vw,2rem); border-radius:14px; min-width:0; }
+.boat-cost-page .bc-education h2,.boat-cost-page .bc-education h3 { color:#f3f8ff; line-height:1.35; }
+.boat-cost-page .bc-education p { color:#c7d7e4; }
+.boat-cost-page .bc-education a { color:#8ee8ff; overflow-wrap:anywhere; }
+.boat-cost-page .bc-education :where(a,button,summary):focus-visible { outline:3px solid #ffcf66; outline-offset:3px; }
+.boat-cost-page .bc-education summary { min-height:44px; padding:.75rem 0; font-weight:700; cursor:pointer; }
+.boat-cost-page .bc-education button { min-height:44px; background:#23d7cf; color:#032326; padding:.65rem 1rem; border:0; border-radius:7px; font:inherit; font-weight:750; cursor:pointer; }
+.boat-cost-page .bc-education .bc-example-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
+.boat-cost-page .bc-education article { min-width:0; padding:1rem; border:1px solid #456277; border-radius:10px; }
+.boat-cost-page .bc-education table { width:100%; border-collapse:collapse; font-size:.9rem; }
+.boat-cost-page .bc-education td,.boat-cost-page .bc-education th { padding:.4rem; text-align:left; border-bottom:1px solid #456277; overflow-wrap:anywhere; }
+.boat-cost-page .bc-notice { color:#ffdd8a; padding:1rem; border:1px solid #ffdd8a; }
+@media (max-width:800px) { .boat-cost-page .bc-education .bc-example-grid { grid-template-columns:minmax(0,1fr); } }
+@media print {
+  body.boat-cost-printing > :not(main),body.boat-cost-printing main > :not(#boat-cost-app),body.boat-cost-printing #boat-cost-app > :not(.bc-grid),body.boat-cost-printing .bc-grid > :not(#bc-results) { display:none !important; }
+  body.boat-cost-printing main,body.boat-cost-printing #boat-cost-app,body.boat-cost-printing .bc-grid { display:block; width:100%; max-width:none; padding:0; margin:0; }
+  body.boat-cost-printing #bc-results .bc-assumptions ul { padding-left:5mm; }
+}
+.boat-cost-page .bc-education .bc-example-actions { display:flex; flex-wrap:wrap; gap:.75rem; }
+.boat-cost-page .bc-education .bc-table-scroll { max-width:100%; overflow-x:auto; }
+.boat-cost-page .bc-education .bc-table-scroll table { min-width:640px; }
+.boat-cost-page .bc-education caption { color:#e1f2fa; caption-side:top; text-align:left; font-weight:700; margin:.8rem 0; }
+@media print { body.boat-cost-printing #bc-results h1 { color:#111; font-size:17pt; } }
+
+/* Keep keyboard focus and linked validation targets clear of the public header. */
+.boat-cost :where(input,select,button,a,summary,[tabindex]), .boat-cost-page [id] { scroll-margin-top:10rem; }
+
+/* Promotional anchors reuse the calculator's card, primary color and button sizing. */
+.boat-cost .bc-trip-cta { margin:1rem 0; padding:1rem; }
+.boat-cost .bc-trip-cta h3 { margin-bottom:.65rem; }
+.boat-cost-page a.bc-cta-button { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; max-width:100%; min-height:44px; padding:.6rem .85rem; border:1px solid #23d7cf; border-radius:7px; color:#032326; background:#23d7cf; font-weight:750; line-height:1.25; text-decoration:none; }
+.boat-cost-page a.bc-cta-button:hover { background:#8deee9; }
+.boat-cost-page .bc-cta-note { font-size:.86rem; }

@@ -16,3 +16,6 @@ tmp/stripe-*.json
 tmp/stripe-*.log
 publishing/common-boating-emergencies/review/
 testbox/
+
+# Local browser screenshots, traces, print samples and test output.
+/output/playwright/

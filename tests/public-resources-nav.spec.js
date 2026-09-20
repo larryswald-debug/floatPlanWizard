@@ -1,7 +1,12 @@
 const { test, expect } = require("@playwright/test");
 
-const baseUrl = "http://localhost:8500/fpw";
+const baseUrl = process.env.FPW_BASE_URL || "http://127.0.0.1:8500/fpw";
 const guideUrl = `${baseUrl}/shore-contact-overdue-boater.cfm`;
+
+test.beforeEach(async ({ page }) => {
+  await page.route(/https:\/\/(?:[^/]+\.)?(?:plausible\.io|google-analytics\.com|googletagmanager\.com|clarity\.ms)\//, route =>
+    route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
+});
 
 function collectPageErrors(page) {
   const errors = [];
@@ -100,6 +105,7 @@ test("public Resources navigation fits and behaves at every required width", asy
       "Read the Guide →",
       "Read the Guide →",
       "Fuel Calculator Estimate fuel usage, range, and costs. →",
+      "Boat Loan & Ownership Calculator Estimate loan payments and the ongoing cost of owning a boat. →",
       "Marine Weather Current conditions and extended forecasts. →",
       "Why Use a Float Plan →",
       "Common Boating Emergencies →",
@@ -211,8 +217,82 @@ test("dropdown exclusivity, outside click, Escape, and keyboard focus remain int
   await expect(featuredLinks.nth(1)).not.toBeFocused();
 });
 
+test("calculator navigation stays reachable on shared pages at desktop, mobile and zoom-equivalent sizes", async ({ page, browserName }, testInfo) => {
+  // macOS WebKit's default keyboard preference includes links with Option+Tab.
+  const linkTab = browserName === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab";
+  const pages = ["/index.cfm", "/boat-loan-calculator/", "/shore-contact-overdue-boater.cfm"];
+  const sizes = [
+    { width: 1280, height: 720 },
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+    { width: 640, height: 360 }
+  ];
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  for (const route of pages) {
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await page.goto(baseUrl + route, { waitUntil: "domcontentloaded" });
+      const mobile = size.width <= 1050;
+      if (mobile) await page.locator("[data-fpw-mobile-toggle]").click();
+      const toggle = page.locator(".fpw-dropdown--resources [data-fpw-dropdown-toggle]");
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect.poll(() => page.locator("#fpwResourcesMenu").evaluate(menu => getComputedStyle(menu).opacity)).toBe("1");
+      const planning = page.locator('[aria-labelledby="fpwPlanningToolsTitle"]');
+      await expect(planning.locator("a strong")).toHaveText([
+        "Fuel Calculator", "Boat Loan & Ownership Calculator", "Marine Weather"
+      ]);
+      const calculator = planning.locator('a[href="/fpw/boat-loan-calculator/"]');
+      await expect(calculator).toHaveCount(1);
+      await expect(calculator.locator("em")).toHaveText("Estimate loan payments and the ongoing cost of owning a boat.");
+      await expect(calculator.locator("svg")).toHaveAttribute("aria-hidden", "true");
+      await expect(calculator.locator("svg")).toHaveAttribute("focusable", "false");
+      await expect(calculator).toBeVisible();
+      await calculator.focus();
+      await expect(calculator, `${route} at ${size.width}x${size.height}`).toBeFocused();
+      await expect.poll(() => calculator.evaluate(anchor => {
+        const rect = anchor.getBoundingClientRect();
+        const icon = anchor.querySelector("svg").getBoundingClientRect();
+        const copy = anchor.querySelector("span").getBoundingClientRect();
+        const arrow = anchor.querySelector("b").getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= innerHeight + 1 && icon.right <= copy.left && copy.right <= arrow.left;
+      })).toBe(true);
+      if (route === "/boat-loan-calculator/") {
+        await page.screenshot({ path: testInfo.outputPath(`calculator-menu-${size.width}x${size.height}.png`) });
+      }
+      const lastLink = page.locator('#fpwResourcesMenu a[href="/fpw/faq/"]');
+      for (let step = 0; step < 5; step++) await page.keyboard.press(linkTab);
+      await expect(lastLink).toBeFocused();
+      await expect.poll(() => lastLink.evaluate(anchor => {
+        const rect = anchor.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= innerHeight + 1;
+      })).toBe(true);
+      if (!mobile) {
+        await expect.poll(() => page.locator("#fpwResourcesMenu").evaluate(menu => menu.getBoundingClientRect().bottom <= innerHeight - 15)).toBe(true);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+      if (route === "/boat-loan-calculator/" && !mobile) {
+        await page.screenshot({ path: testInfo.outputPath(`calculator-menu-${size.width}x${size.height}-bottom.png`) });
+      }
+      await page.keyboard.press("Escape");
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    }
+  }
+  // A real navigation retains the friendly URL and opens a public calculator.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(baseUrl + "/index.cfm", { waitUntil: "domcontentloaded" });
+  await page.locator(".fpw-dropdown--resources [data-fpw-dropdown-toggle]").click();
+  await page.locator('#fpwResourcesMenu a[href="/fpw/boat-loan-calculator/"]').click();
+  await expect(page).toHaveURL(baseUrl + "/boat-loan-calculator/");
+  await expect(page.locator("#boat-cost-title")).toHaveText("Boat Loan and Ownership Cost Calculator");
+  await expect(page.locator("#bc-results")).toContainText("Your boating budget");
+  expect(errors).toEqual([]);
+});
+
 test("guide, educational, FAQ, and tool routes activate Resources and the current child", async ({ page }) => {
   const cases = [
+    { path: "/boat-loan-calculator/", child: 'a.fpw-tool-row[href="/fpw/boat-loan-calculator/"]' },
     { path: "/shore-contact-overdue-boater.cfm", child: 'a.fpw-resource-feature-link[href="/fpw/shore-contact-overdue-boater/"]' },
     { path: "/solo-boating-safety-guide.cfm", child: 'a.fpw-resource-feature-link[href="/fpw/solo-boating-safety-guide/"]' },
     { path: "/common-boating-emergencies.cfm", child: 'a.fpw-resource-link[href="/fpw/common-boating-emergencies/"]' },

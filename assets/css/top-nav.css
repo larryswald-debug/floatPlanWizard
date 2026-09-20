@@ -701,6 +701,14 @@
   align-items: stretch;
 }
 
+@media screen and (min-width: 1051px) {
+  .fpw-dropdown--resources .fpw-resources-grid {
+    max-height: var(--fpw-resources-content-height, none);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 .fpw-resource-feature {
   min-width: 0;
   align-self: start;

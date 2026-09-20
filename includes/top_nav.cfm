@@ -22,6 +22,7 @@ topNavShoreContactGuideActive = false;
 topNavWhyFloatPlanActive = false;
 topNavFaqActive = false;
 topNavFuelActive = false;
+topNavBoatLoanActive = false;
 topNavWeatherActive = false;
 topNavCreditModelEnabled = (
   structKeyExists(application, "premiumSendCreditModelEnabled")
@@ -66,6 +67,7 @@ topNavRequestPath = lCase(replace(trim(topNavRequestPath), "\", "/", "all"));
 topNavRequestPath = reReplace(topNavRequestPath, "[?##].*$", "");
 
 topNavResourceRouteMap = [
+  { "pattern" = "/boat-loan-calculator", "active" = "resources-boat-loan-calculator" },
   { "pattern" = "/solo-boating-safety-guide", "active" = "resources-solo-boating-guide" },
   { "pattern" = "/common-boating-emergencies", "active" = "resources-common-boating-emergencies" },
   { "pattern" = "/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide" },
@@ -73,7 +75,7 @@ topNavResourceRouteMap = [
   { "pattern" = "/faq/", "active" = "resources-faq" }
 ];
 
-if (!len(topNavActive)) {
+if (!len(topNavActive) OR topNavActive EQ "resources") {
   for (topNavResourceRouteIndex = 1; topNavResourceRouteIndex LTE arrayLen(topNavResourceRouteMap); topNavResourceRouteIndex++) {
     if (findNoCase(topNavResourceRouteMap[topNavResourceRouteIndex].pattern, topNavRequestPath)) {
       topNavActive = topNavResourceRouteMap[topNavResourceRouteIndex].active;
@@ -83,7 +85,7 @@ if (!len(topNavActive)) {
 }
 
 topNavResourcesActive = listFindNoCase(
-  "resources,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
+  "resources,resources-boat-loan-calculator,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
   topNavActive
 ) GT 0;
 topNavSoloBoatingGuideActive = topNavActive EQ "resources-solo-boating-guide";
@@ -93,6 +95,7 @@ topNavBoatingSafetyActive = topNavSoloBoatingGuideActive OR topNavCommonBoatingE
 topNavWhyFloatPlanActive = topNavActive EQ "resources-why-float-plan";
 topNavFaqActive = topNavActive EQ "resources-faq";
 topNavFuelActive = topNavActive EQ "fuel";
+topNavBoatLoanActive = topNavActive EQ "resources-boat-loan-calculator";
 topNavWeatherActive = topNavActive EQ "weather";
 
 topNavHowHref = topNavBasePath & "/how-it-works/";
@@ -241,6 +244,11 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
       iconClass = iconClass & " fpw-icon-fuel";
       iconViewBox = "0 0 64 64";
       iconPaths = '<path d="M16 10h24v44H16z"></path><path d="M22 16h12v12H22z"></path><path d="M40 20h5l7 7v20a5 5 0 0 1-10 0v-9h-2"></path><path d="M45 20v10h7"></path><path d="M12 54h32"></path>';
+      break;
+    case "calculator":
+      iconClass = iconClass & " fpw-icon-calculator";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<rect x="14" y="6" width="36" height="52" rx="4"></rect><rect x="21" y="13" width="22" height="12" rx="1"></rect><path d="M22 34h2M31 34h2M40 34h2M22 42h2M31 42h2M40 42h2M22 50h2M31 50h2M40 50h2"></path>';
       break;
     case "weather":
       iconClass = iconClass & " fpw-icon-weather";
@@ -482,6 +490,11 @@ topNavShowAppSubnav = topNavIsLoggedIn
                             <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
                             <b aria-hidden="true">&rarr;</b>
                           </a>
+                          <a class="fpw-tool-row<cfif topNavBoatLoanActive> is-active</cfif>" href="#topNavBasePath#/boat-loan-calculator/" role="menuitem"<cfif topNavBoatLoanActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("calculator", "fpw-tool-icon")#
+                            <span><strong>Boat Loan &amp; Ownership Calculator</strong><em>Estimate loan payments and the ongoing cost of owning a boat.</em></span>
+                            <b aria-hidden="true">&rarr;</b>
+                          </a>
                           <a class="fpw-tool-row<cfif topNavWeatherActive> is-active</cfif>" href="#topNavBasePath#/app/weather.cfm" role="menuitem"<cfif topNavWeatherActive> aria-current="page"</cfif>>
                             #renderFpwNavIcon("weather", "fpw-tool-icon")#
                             <span><strong>Marine Weather</strong><em>Current conditions and extended forecasts.</em></span>
@@ -623,6 +636,33 @@ topNavShowAppSubnav = topNavIsLoggedIn
       var trackedNavLinks = shell.querySelectorAll("[data-fpw-nav-track]");
       var mobileQuery = window.matchMedia("(max-width: 1050px)");
       var previousBodyOverflow = "";
+      var resourcesMenu = shell.querySelector(".fpw-resources-menu");
+      var resourcesFrame = 0;
+
+      function measureResourcesMenu() {
+        resourcesFrame = 0;
+        if (!resourcesMenu || mobileQuery.matches) return;
+        var menuParent = resourcesMenu.offsetParent;
+        if (!menuParent) return;
+        var menuStyle = window.getComputedStyle(resourcesMenu);
+        // offsetTop excludes the opening animation and includes the actual header/announcement layout.
+        var menuTop = menuParent.getBoundingClientRect().top + resourcesMenu.offsetTop;
+        var menuEdges = parseFloat(menuStyle.paddingTop) + parseFloat(menuStyle.paddingBottom)
+          + parseFloat(menuStyle.borderTopWidth) + parseFloat(menuStyle.borderBottomWidth);
+        var height = Math.max(0, Math.floor(document.documentElement.clientHeight - menuTop - menuEdges - 16)) + "px";
+        if (resourcesMenu.style.getPropertyValue("--fpw-resources-content-height") !== height) {
+          resourcesMenu.style.setProperty("--fpw-resources-content-height", height);
+        }
+      }
+
+      function scheduleResourcesMeasurement() {
+        if (!resourcesFrame) resourcesFrame = window.requestAnimationFrame(measureResourcesMenu);
+      }
+
+      if (resourcesMenu && typeof window.ResizeObserver === "function") {
+        new window.ResizeObserver(scheduleResourcesMeasurement).observe(shell);
+      }
+      scheduleResourcesMeasurement();
 
       function isMobileNav() {
         return mobileQuery.matches;
@@ -650,6 +690,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
           return;
         }
         dropdown.classList.toggle("is-open", isOpen);
+        if (isOpen && dropdown.classList.contains("fpw-dropdown--resources")) scheduleResourcesMeasurement();
         toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
         if (isOpen && source === "click") {
           dropdown.setAttribute("data-fpw-click-open", "true");
@@ -854,6 +895,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
       });
 
       window.addEventListener("resize", function () {
+        scheduleResourcesMeasurement();
         if (!isMobileNav()) {
           setMenuOpen(false);
         }
