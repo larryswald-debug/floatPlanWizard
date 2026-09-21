@@ -8464,7 +8464,9 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfargument name="source" type="string" required="true">
         <cfscript>
-            var evidence=new fpw.includes.InactiveMemberRecoveryCoverageService(datasource="fpw");
+            // Reuse the existing mount resolver; this dependency lives in includes, not api.v1.
+            var evidencePath=replace(resolveApiV1ComponentPath("InactiveMemberRecoveryCoverageService"),"api.v1.","includes.","one");
+            var evidence=createObject("component",evidencePath).init(datasource="fpw");
             var context={submissionStarted=false,acceptedCount=0};
             var token="";
             var owned=queryExecute("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:id AND userId=:userId",

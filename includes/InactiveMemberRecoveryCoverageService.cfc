@@ -5,7 +5,7 @@ component output="false" {
   public any function init(string datasource="fpw", any eventService="") output=false {
     variables.datasource=arguments.datasource;
     variables.events=isObject(arguments.eventService) ? arguments.eventService
-      : new fpw.includes.ProductEventService(datasource=variables.datasource);
+      : new ProductEventService(datasource=variables.datasource);
     return this;
   }
 
