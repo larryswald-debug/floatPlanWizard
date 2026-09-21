@@ -8,6 +8,8 @@
     clean = !window.location.hash && !window.location.search;
   } catch (err) { /* Keep tracking and sharing disabled if URL cleanup fails. */ }
   window.FPWBoatCostBootstrap = { fragment: fragment, clean: clean };
+  // Reserve initial screen space only when JavaScript is available.
+  window.document.documentElement.classList.add('bc-js');
   window.FPWAnalytics = window.FPWAnalytics || {};
   // The shared helper respects an existing track function. No shared file changes.
   window.FPWAnalytics.track = function (name, fields) {

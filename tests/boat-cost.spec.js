@@ -84,3 +84,25 @@ test('missing acquisition assumptions stale an existing result and native print 
  await page.goto(url);await example(page);await page.locator('#bc-purchase-tax-input').fill('');await expect(page.locator('#bc-results')).toContainText('Needs recalculation');await page.waitForTimeout(400);await expect(page.getByRole('button',{name:'Share active scenario',exact:true})).toBeDisabled();
  await page.evaluate(()=>window.dispatchEvent(new Event('beforeprint')));await expect(page.locator('#bc-results')).not.toContainText('$1,418.64');await expect(page.locator('#bc-results')).toContainText('Estimate needs calculation');await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));await expect(page.locator('#bc-results')).toContainText('Needs recalculation');
 });
+
+test('resale badges distinguish deliberate exclusion, missing assumptions, and reviewed projections',async({page})=>{
+ const s=E.example('B');
+ await importScenario(page,s);
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 5 resale:'})).toHaveText('Year 5 resale: not included');
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 10 resale:'})).toHaveText('Year 10 resale: not included');
+ s.resale.five.selling.input={value:'',status:'unknown'};
+ s.resale.ten.value={value:'',status:'unknown'};
+ await importScenario(page,s);
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 5 resale:'})).toHaveText('Year 5 resale: not included');
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 10 resale:'})).toHaveText('Year 10 resale: incomplete');
+ s.resale.five.value=f(30000);
+ s.resale.ten.value=f(20000);
+ s.resale.ten.selling.input=f(0);
+ await importScenario(page,s);
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 5 resale:'})).toHaveText('Year 5 resale: incomplete');
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 10 resale:'})).toHaveText('Year 10 resale: reviewed');
+ s.resale.five.selling.input={value:'',status:'excluded'};
+ await importScenario(page,s);
+ await expect(page.locator('#bc-results .bc-status').filter({hasText:'Year 5 resale:'})).toHaveText('Year 5 resale: incomplete');
+ await expect(page.locator('#bc-results .bc-hero-value')).toHaveText('$1,418.64');
+});

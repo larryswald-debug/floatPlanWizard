@@ -16,6 +16,12 @@
 .boat-cost .bc-toolbar { display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; margin:0 0 1rem; }
 .boat-cost .bc-toolbar select { width:auto; max-width:100%; } .boat-cost .bc-toolbar label { font-weight:650; }
 .boat-cost .bc-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:1.2rem; align-items:start; }
+/* The empty mount reserves one viewport until rendering, never the full form height.
+   No JavaScript and print retain normal flow; :empty releases space automatically. */
+@media screen {
+  .bc-js .boat-cost-page #boat-cost-app:empty { min-height:100vh; }
+  .bc-js .boat-cost-page #boat-cost-app:empty::before { content:'Loading calculator…'; display:block; padding:1.5rem; border:1px solid var(--bc-line); border-radius:14px; background:var(--bc-panel); color:var(--bc-muted); }
+}
 /* The wrapper spans the grid row; only its intrinsic-height panel sticks. */
 @media screen {
   .boat-cost #bc-results { align-self:stretch; min-width:0; }

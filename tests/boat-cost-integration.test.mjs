@@ -22,8 +22,9 @@ test('public page scrubs before shared analytics, has no replay and serves canon
 test('bootstrap retains the fragment only in memory, removes all URL state and fails closed',()=>{
   function run(fail){
     const location={hash:'#bc=financial-sentinel',search:'?amount=private-sentinel',pathname:'/boat-loan-calculator/'};
-    const window={location,history:{replaceState(a,b,p){assert.equal(p,location.pathname);if(fail)throw Error();location.hash='';location.search='';}}};
-    vm.runInNewContext(read('assets/js/boat-cost-bootstrap.js'),{window});return window;
+    const classes=[];
+    const window={location,document:{documentElement:{classList:{add(name){classes.push(name);}}}},history:{replaceState(a,b,p){assert.equal(p,location.pathname);if(fail)throw Error();location.hash='';location.search='';}}};
+    vm.runInNewContext(read('assets/js/boat-cost-bootstrap.js'),{window});assert.deepEqual(classes,['bc-js']);return window;
   }
   const good=run(false);assert.equal(good.FPWBoatCostBootstrap.fragment,'#bc=financial-sentinel');assert.equal(good.FPWBoatCostBootstrap.clean,true);assert.equal(good.location.search,'');
   const bad=run(true);assert.equal(bad.FPWBoatCostBootstrap.clean,false);

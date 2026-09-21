@@ -13,6 +13,8 @@ async function calculatorContent(response) {
   expect(body).toContain(heading);
   expect(body).toContain('id="boat-cost-app"');
   expect(body).toContain('/assets/js/boat-cost-engine.js');
+  expect(body).toContain('Complete version 1.0 illustrative input packs and engine-generated results');
+  expect(body).toContain('data-example-output="B.monthlyBudget">$1,418.64</td>');
   expect(body).not.toMatch(/Directory Listing For|<title>Index of /i);
   return body;
 }
@@ -47,6 +49,43 @@ test('friendly HTTP route returns the public calculator, never a directory listi
 test('no-slash and original CFM requests normalize once and preserve encoded repeated queries', async ({ request }) => {
   await assertCanonicalRedirect(request, `${baseUrl}/boat-loan-calculator?${query}`, `${cleanUrl}?${query}`);
   await assertCanonicalRedirect(request, `${cleanUrl}index.cfm?${query}`, `${cleanUrl}?${query}`);
+});
+
+test('generated examples are available only through the calculator include', async ({ request }) => {
+  for (const suffix of ['examples.cfm', `examples.cfm?${query}`, 'examples.cfm/', 'examples.cfm/seo-remediation-not-found', `examples.cfm/nested/path?${query}`]) {
+    const response = await request.get(`${cleanUrl}${suffix}`, { maxRedirects: 0 });
+    expect(response.status(), suffix).toBe(404);
+    expect(response.headers().location, suffix).toBeUndefined();
+    const body = await response.text();
+    expect(body, suffix).not.toContain('data-example-output=');
+    expect(body, suffix).not.toContain('data-boat-cost-example=');
+  }
+  await calculatorContent(await request.get(cleanUrl, { maxRedirects: 0 }));
+});
+
+test('calculator path-info and unknown routes return real 404 responses', async ({ request }) => {
+  const calculatorPath = new URL(cleanUrl).pathname;
+  const suffixes = [
+    'index.cfm/',
+    'index.cfm/seo-remediation-not-found',
+    `index.cfm/nested/path?${query}`,
+    `index.cfm${calculatorPath}index.cfm`,
+    `index.cfm${calculatorPath}`,
+    `%69ndex.cfm${calculatorPath}index.cfm`,
+    `%69ndex.cfm${calculatorPath}`,
+    `index.cfm;routecheck${calculatorPath}index.cfm`,
+    'INDEX.CFM/seo-remediation-not-found',
+    'seo-remediation-not-found/',
+    'seo-remediation-not-found.cfm'
+  ];
+  for (const suffix of suffixes) {
+    const response = await request.get(`${cleanUrl}${suffix}`, { maxRedirects: 0 });
+    expect(response.status(), suffix).toBe(404);
+    expect(response.headers().location, suffix).toBeUndefined();
+    const body = await response.text();
+    expect(body, suffix).not.toContain('id="boat-cost-app"');
+    expect(body, suffix).not.toContain('data-example-output=');
+  }
 });
 
 test('canonical redirects keep either loopback hostname and its nondefault port', async ({ request }) => {

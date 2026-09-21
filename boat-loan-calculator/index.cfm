@@ -6,6 +6,18 @@
 // Explicit base keeps the shared public navigation correct for this nested route.
 request.fpwBase = reReplaceNoCase(cgi.script_name, "/boat-loan-calculator(/.*)?$", "");
 request.fpwBase = reReplace(request.fpwBase, "/$", "");
+// Tomcat supplies an empty suffix; IIS may supply the full rewritten script path.
+// Check the request URI first so a suffix cannot mimic an accepted full path.
+if ((structKeyExists(cgi, "request_uri")
+    AND reFindNoCase("/index\.cfm(;[^/]*)?/", urlDecode(listFirst(cgi.request_uri, "?"))))
+    OR (len(cgi.path_info)
+    AND compareNoCase(cgi.path_info, request.fpwBase & "/boat-loan-calculator/index.cfm") NEQ 0
+    AND compareNoCase(cgi.path_info, request.fpwBase & "/boat-loan-calculator/") NEQ 0)) {
+  cfheader(statuscode=404);
+  cfcontent(type="text/plain; charset=utf-8", reset=true);
+  writeOutput("Not Found");
+  abort;
+}
 request.fpwTopNavActive = "resources";
 // Page-local exception: no automatic URL/form collection or session replay.
 // The existing helper remains available; other pages retain their existing tags.
@@ -44,15 +56,15 @@ for (fpwCostUserKey in ["userId", "id", "USERID", "ID"]) {
   <meta name="twitter:image" content="https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png">
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","@id":"https://floatplanwizard.com/boat-loan-calculator/#webpage","url":"https://floatplanwizard.com/boat-loan-calculator/","name":"Boat Loan and Ownership Cost Calculator","description":"A free planning calculator for boat financing, recurring ownership costs and repair savings.","inLanguage":"en-US"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"FloatPlanWizard","item":"https://floatplanwizard.com/"},{"@type":"ListItem","position":2,"name":"Boat Loan and Ownership Cost Calculator","item":"https://floatplanwizard.com/boat-loan-calculator/"}]}]}</script>
   <!-- Synchronous, first executable script: capture state and scrub URL before any tracking. -->
-  <cfoutput><script src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-bootstrap.js?v=1"></script></cfoutput>
+  <cfoutput><script src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-bootstrap.js?v=2"></script></cfoutput>
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfoutput>
   <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/layout.css?v=20260620-page-width">
   <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2">
-  <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/boat-cost.css?v=1">
+  <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/boat-cost.css?v=2">
   <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-engine.js?v=1"></script>
   <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-state.js?v=1"></script>
-  <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-ui.js?v=1"></script>
+  <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-ui.js?v=2"></script>
   <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-analytics.js?v=1"></script>
   </cfoutput>
 </head>
@@ -77,7 +89,7 @@ for (fpwCostUserKey in ["userId", "id", "USERID", "ID"]) {
       <h2 id="bc-estimating-costs">How to estimate your operating costs</h2>
       <p>Use insurer and marina quotes, service records and your own usage estimates. Storage can include a year-round slip and seasonal land storage; review overlapping contracts. A marina's billable length can differ from the boat's physical length. Seasonal boating does not automatically reduce insurance, loan payments or annual storage contracts.</p>
       <p>Enter annual fuel dollars, or annual boat running hours multiplied by total GPH for all propulsion engines and price per US gallon. Two engines using 8 GPH each means 16 total GPH. Generator use is separate. Unburned trip reserve fuel is not an annual consumption expense.</p>
-      <cfoutput><p class="bc-no-print">Need to check the fuel cost for a specific trip? <a href="#encodeForHTMLAttribute(request.fpwBase)#/boat-fuel-calculator/boat-fuel-calculator.cfm" data-boat-cost-placement="fuel_help">Use the Boat Fuel Calculator</a>.</p></cfoutput>
+      <cfoutput><p class="bc-no-print">Need to check the fuel cost for a specific trip? <a href="#encodeForHTMLAttribute(request.fpwBase)#/boat-fuel-calculator/" data-boat-cost-placement="fuel_help">Use the Boat Fuel Calculator</a>.</p></cfoutput>
       <cfoutput><p>Use measured consumption or appropriate performance data. Read <a href="#request.fpwBase#/boat-fuel-calculator/##find-actual-gph-title">how to find your boat's actual GPH</a>, then <a href="#request.fpwBase#/boat-fuel-calculator/" data-boat-cost-cta="fuel">check trip fuel costs</a>. FPW does not look up a model's GPH from its name, length or horsepower.</p></cfoutput>
       <p>Keep routine engine services separate from seasonal work and immediate repairs. Electric or mixed-propulsion owners can enter annual energy spending in other operating costs and explicitly exclude liquid fuel.</p>
     </section>
@@ -120,7 +132,7 @@ for (fpwCostUserKey in ["userId", "id", "USERID", "ID"]) {
       <h2 id="bc-methodology">Methodology and exclusions</h2>
       <p>Loan principal equals boat price minus down payment plus financed purchase tax and fees. Cash for purchase equals down payment plus cash-paid purchase tax and fees. Preparation is counted once. Monthly boating budget equals the loan payment plus one twelfth of annual operating expenses and annual repair savings.</p>
       <p>First-year spending adds purchase cash, preparation, the first 12 scheduled loan payments and annual operations. The first-year funding target adds initial and annual repair savings. A horizon's optional resale-adjusted cost equals cash spent plus remaining loan balance plus selling costs minus assumed resale. Do not add depreciation or the whole purchase price again.</p>
-      <p>Entered monetary values and percentage-derived charges use cents with half-up rounding; amortization retains full precision until display. Independently rounded displayed rows may differ from their rounded total by one cent. Long-term projections exclude inflation, future cost growth, investment returns, refinancing and unplanned repairs not entered here. Adjustable-rate, balloon and interest-only loans, extra payments, trade-ins, negative equity and foreign currencies are not modeled.</p>
+      <p>Entered monetary values and percentage-derived charges use cents with half-up rounding; amortization retains full precision until display. Independently rounded displayed rows can produce small differences from their rounded total. A display rounding adjustment reconciles the monthly rows to the headline when needed. Long-term projections exclude inflation, future cost growth, investment returns, refinancing and unplanned repairs not entered here. Adjustable-rate, balloon and interest-only loans, extra payments, trade-ins, negative equity and foreign currencies are not modeled.</p>
       <p>Planning estimate, not a loan, insurance, tax, or repair quote. Results depend on the assumptions shown. Actual costs and lender terms may differ. Repair savings are money set aside, not a prediction of repair bills. Confirm costs with lenders, insurers, marinas, tax authorities, and qualified marine professionals before buying.</p>
       <p>Category guidance: <a href="https://www.discoverboating.com/buying/costs-of-boat-ownership">Discover Boating ownership costs</a>. Borrowing terminology: <a href="https://www.consumerfinance.gov/ask-cfpb/what-is-the-difference-between-a-loan-interest-rate-and-the-apr-en-733/">CFPB interest rate and APR</a>. Model and illustrative assumptions version 1.0, September 19, 2026.</p>
     </section>

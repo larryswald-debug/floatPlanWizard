@@ -283,7 +283,11 @@
     panel.appendChild(para(r.readiness.monthly ? 'Estimated monthly boating budget' : 'Known monthly costs so far','bc-result-label')); panel.appendChild(node('div',fmt(r.readiness.monthly ? r.monthly.budget : r.monthly.knownCosts),{class:'bc-hero-value'}));
     panel.appendChild(para('Monthly figures spread annual and seasonal costs across 12 months; actual bill timing varies.','bc-note'));
     if (r.illustrativePaths.length) panel.appendChild(node('span','Includes illustrative assumptions',{class:'bc-status'}));
-    [['loan','Loan'],['operations','Operating budget'],['purchaseCash','Purchase cash'],['preparation','Preparation'],['reserves','Repair savings'],['firstYear','First year'],['resaleFive','Year 5 resale'],['resaleTen','Year 10 resale']].forEach(function(pair) { panel.appendChild(node('span',pair[1]+': '+(r.readiness[pair[0]] ? 'reviewed' : 'incomplete'),{class:'bc-status'})); });
+    [['loan','Loan'],['operations','Operating budget'],['purchaseCash','Purchase cash'],['preparation','Preparation'],['reserves','Repair savings'],['firstYear','First year'],['resaleFive','Year 5 resale'],['resaleTen','Year 10 resale']].forEach(function(pair) {
+      var resale = pair[0] === 'resaleFive' ? s.resale.five : pair[0] === 'resaleTen' ? s.resale.ten : null;
+      var status = r.readiness[pair[0]] ? 'reviewed' : resale && resale.value.status === 'excluded' ? 'not included' : 'incomplete';
+      panel.appendChild(node('span',pair[1]+': '+status,{class:'bc-status'}));
+    });
     renderTripCta(panel);
     var rows = r.operations.breakdown.map(function(b) { return [b.label,b.monthly == null && b.knownAnnual > 0 ? fmt(b.knownAnnual/12)+' known' : fmt(b.monthly),b.annual == null && b.knownAnnual > 0 ? fmt(b.knownAnnual)+' known' : fmt(b.annual),(b.basis || '')+' · '+b.status+(b.annual == null ? ' (incomplete)' : '')]; });
     rows.unshift(['Loan payment',fmt(r.loan.payment),r.firstYear && r.firstYear.loanPayments != null ? fmt(r.firstYear.loanPayments) : 'Incomplete',r.readiness.loan ? 'Scheduled first-year payments' : 'Incomplete']);
