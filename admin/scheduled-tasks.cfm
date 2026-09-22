@@ -31,15 +31,45 @@ schedulerView = {
     "canCreate" = false, "createDefaults" = {}, "scopes" = [], "endpoints" = []
 };
 flashResult = {};
+schedulerStage = "INITIALIZE";
 try {
     schedulerService = new fpw.api.v1.AdminScheduledTaskService().init();
     if (requestMethod EQ "POST") {
+        schedulerStage = "MUTATE";
         flashResult = schedulerService.mutate(form);
     } else {
+        schedulerStage = "LIST";
         schedulerView = schedulerService.getView();
     }
 } catch (any schedulerPageError) {
-    // Scheduler exceptions can contain authentication and unrelated task details.
+    // Temporary diagnostic: never log messages, details, URLs, request data or raw traces.
+    try {
+        schedulerDiagnostic = {
+            "stage" = schedulerStage,
+            "exceptionType" = left(reReplace(toString(schedulerPageError.type), "[^A-Za-z0-9_.-]", "_", "all"), 100),
+            "requestId" = left(reReplace(scheduledTaskParameter(request, "fpwRequestId"), "[^A-Za-z0-9-]", "", "all"), 64),
+            "frames" = []
+        };
+        if (structKeyExists(schedulerPageError, "tagContext") AND isArray(schedulerPageError.tagContext)) {
+            for (schedulerFrameIndex = 1; schedulerFrameIndex LTE min(arrayLen(schedulerPageError.tagContext), 5); schedulerFrameIndex++) {
+                schedulerFrame = schedulerPageError.tagContext[schedulerFrameIndex];
+                if (!isStruct(schedulerFrame)) continue;
+                schedulerSourceFile = listLast(replace(scheduledTaskParameter(schedulerFrame, "template"), "\", "/", "all"), "/");
+                arrayAppend(schedulerDiagnostic.frames, {
+                    "file" = left(reReplace(schedulerSourceFile, "[^A-Za-z0-9_.-]", "_", "all"), 120),
+                    "line" = val(scheduledTaskParameter(schedulerFrame, "line"))
+                });
+            }
+        }
+        schedulerDiagnosticLine = "FPW_SCHEDULER_DIAGNOSTIC ts=" & dateTimeFormat(now(), "yyyy-mm-dd HH:nn:ss") & " " & serializeJSON(schedulerDiagnostic);
+        try {
+            fileAppend(getDirectoryFromPath(getCurrentTemplatePath()) & "../logs/fpw-errors.log", schedulerDiagnosticLine & chr(10), "utf-8");
+        } catch (any schedulerFileLogError) {
+            writeLog(file="fpw-errors", type="error", text=schedulerDiagnosticLine);
+        }
+    } catch (any schedulerDiagnosticError) {
+        // Logging must not replace the original page fallback or POST result.
+    }
     if (requestMethod EQ "POST") {
         flashResult = { "success" = false, "message" = "The scheduler request could not be completed. Refresh the listing before trying again." };
     }

@@ -102,6 +102,7 @@ component output="false" {
         var identities = {};
         var entry = {};
         var key = "";
+        if (appEnv EQ "prod") appEnv = "production";
         if (!structKeyExists(variables.config, "tasks") OR !isArray(variables.config.tasks)) fail("The scheduler identity registry is invalid.");
         if (!len(env) AND !arrayLen(variables.config.tasks) AND !flag(variables.config, "enabled")) env = "unconfigured";
         if (!listFindNoCase("dev,production,unconfigured", env) OR (len(appEnv) AND env NEQ "unconfigured" AND env NEQ appEnv)) fail("Scheduler configuration must match the application environment.");
