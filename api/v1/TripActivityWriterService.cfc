@@ -593,7 +593,7 @@
                     routeLegOrder = { value = arguments.routeCtx.routeLegOrder, cfsqltype = "cf_sql_integer", null = (arguments.routeCtx.routeLegOrder LTE 0) },
                     eventType = { value = arguments.eventType, cfsqltype = "cf_sql_varchar" },
                     eventStatus = { value = arguments.eventStatus, cfsqltype = "cf_sql_varchar", null = NOT len(arguments.eventStatus) },
-                    occurredAtUtc = { value = arguments.occurredAtUtc, cfsqltype = "cf_sql_timestamp" },
+                    occurredAtUtc = utcTimestampParameter(arguments.occurredAtUtc),
                     source = { value = arguments.source, cfsqltype = "cf_sql_varchar" },
                     actorUserId = { value = arguments.actorUserId, cfsqltype = "cf_sql_integer", null = (arguments.actorUserId LTE 0) },
                     sourceMonitoringId = { value = arguments.sourceMonitoringId, cfsqltype = "cf_sql_bigint", null = (arguments.sourceMonitoringId LTE 0) },
@@ -698,9 +698,9 @@
                 routeLegOrder = { value = arguments.routeCtx.routeLegOrder, cfsqltype = "cf_sql_integer", null = (arguments.routeCtx.routeLegOrder LTE 0) },
                 localTimezone = { value = arguments.planCtx.localTimezone, cfsqltype = "cf_sql_varchar" },
                 segmentType = { value = arguments.segmentType, cfsqltype = "cf_sql_varchar" },
-                startedAtUtc = { value = arguments.startedAtUtc, cfsqltype = "cf_sql_timestamp" },
-                expectedResumeAtUtc = { value = arguments.expectedResumeAtUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(arguments.expectedResumeAtUtc) },
-                actualResumeAtUtc = { value = arguments.actualResumeAtUtc, cfsqltype = "cf_sql_timestamp", null = NOT isDate(arguments.actualResumeAtUtc) },
+                startedAtUtc = utcTimestampParameter(arguments.startedAtUtc),
+                expectedResumeAtUtc = utcTimestampParameter(arguments.expectedResumeAtUtc, true),
+                actualResumeAtUtc = utcTimestampParameter(arguments.actualResumeAtUtc, true),
                 sourceStartEventId = { value = arguments.sourceStartEventId, cfsqltype = "cf_sql_bigint", null = (arguments.sourceStartEventId LTE 0) }
             }, { datasource = variables.datasource });
         </cfscript>
@@ -718,7 +718,7 @@
                 WHERE id = :segmentId
                   AND ended_at_utc IS NULL
             ", {
-                endedAtUtc = { value = arguments.endedAtUtc, cfsqltype = "cf_sql_timestamp" },
+                endedAtUtc = utcTimestampParameter(arguments.endedAtUtc),
                 sourceEndEventId = { value = arguments.sourceEndEventId, cfsqltype = "cf_sql_bigint", null = (arguments.sourceEndEventId LTE 0) },
                 segmentId = { value = arguments.segmentId, cfsqltype = "cf_sql_bigint" }
             }, { datasource = variables.datasource });
@@ -820,6 +820,28 @@
             }
             strVal = lCase(trim(arguments.value & ""));
             return listFindNoCase("true,yes,on,1", strVal) GT 0;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="utcTimestampParameter" access="private" returntype="struct" output="false">
+        <cfargument name="value" type="any" required="true">
+        <cfargument name="nullable" type="boolean" required="false" default="false">
+        <cfscript>
+            var parameter = {
+                value = arguments.value,
+                cfsqltype = "cf_sql_timestamp",
+                null = (arguments.nullable AND !isDate(arguments.value))
+            };
+            // Explicit UTC wall-clock strings must reach DATETIME columns without CF/JDBC timezone conversion.
+            // Existing date objects and optional null values retain their previous timestamp binding.
+            if (
+                isSimpleValue(arguments.value)
+                AND isDate(arguments.value)
+                AND reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$", toString(arguments.value))
+            ) {
+                parameter.cfsqltype = "cf_sql_varchar";
+            }
+            return parameter;
         </cfscript>
     </cffunction>
 

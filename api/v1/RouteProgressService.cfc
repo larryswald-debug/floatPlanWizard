@@ -191,16 +191,18 @@
                         arguments.floatPlanId
                     );
                     if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+                        out.ACTION_AT_UTC = getActionTimestampUtc(arguments.datasource);
                         queryExecute("
                             INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, completed_at)
-                            VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', NOW())
+                            VALUES (:userId, :routeInstanceId, :legOrder, 'COMPLETED', :actionAtUtc)
                             ON DUPLICATE KEY UPDATE
                                 status = 'COMPLETED',
-                                completed_at = NOW()
+                                completed_at = VALUES(completed_at)
                         ", {
                             userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
                             routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
-                            legOrder = { value = activeLegOrder, cfsqltype = "cf_sql_integer" }
+                            legOrder = { value = activeLegOrder, cfsqltype = "cf_sql_integer" },
+                            actionAtUtc = { value = out.ACTION_AT_UTC, cfsqltype = "cf_sql_varchar" }
                         }, { datasource = arguments.datasource });
                     }
                 }
@@ -789,9 +791,10 @@
                     arguments.floatPlanId
                 );
                 if (structKeyExists(lockedTripAccessGate, "allowed") AND lockedTripAccessGate.allowed) {
+                    out.ACTION_AT_UTC = getActionTimestampUtc(arguments.datasource);
                     queryExecute("
                         INSERT INTO route_instance_leg_progress (user_id, route_instance_id, leg_order, status, leg_started_at)
-                        VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', NOW())
+                        VALUES (:userId, :routeInstanceId, :legOrder, 'STARTED', :actionAtUtc)
                         ON DUPLICATE KEY UPDATE
                             status = 'STARTED',
                             leg_started_at = VALUES(leg_started_at),
@@ -799,7 +802,8 @@
                     ", {
                         userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
                         routeInstanceId = { value = routeInstanceId, cfsqltype = "cf_sql_integer" },
-                        legOrder = { value = pendingLegOrder, cfsqltype = "cf_sql_integer" }
+                        legOrder = { value = pendingLegOrder, cfsqltype = "cf_sql_integer" },
+                        actionAtUtc = { value = out.ACTION_AT_UTC, cfsqltype = "cf_sql_varchar" }
                     }, { datasource = arguments.datasource });
                 }
             }
@@ -812,6 +816,22 @@
             out.LEG_ORDER = pendingLegOrder;
             out.MESSAGE = "Next pending leg started.";
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getActionTimestampUtc" access="private" returntype="string" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfscript>
+            // Preserve the UTC wall-clock value used by the DATETIME fields and activity writer.
+            var qClock = queryExecute(
+                "SELECT DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%d %H:%i:%s') AS action_at_utc",
+                {},
+                { datasource = arguments.datasource }
+            );
+            if (qClock.recordCount NEQ 1 OR isNull(qClock.action_at_utc[1]) OR !isDate(qClock.action_at_utc[1])) {
+                throw(type = "FPWRouteProgress.UtcClockUnavailable", message = "The route action UTC timestamp could not be established.");
+            }
+            return toString(qClock.action_at_utc[1]);
         </cfscript>
     </cffunction>
 
