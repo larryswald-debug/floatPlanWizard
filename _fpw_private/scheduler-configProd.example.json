@@ -7,33 +7,46 @@
   "pausedUpdateVerified": false,
   "tasks": [
     {
-      "id": "monitor",
-      "name": "FPW_PROD_MONITOR",
+      "id": "single-trip-expiration",
+      "name": "checkFor21dayTrips",
       "mode": "server",
-      "group": "FPW_PROD",
+      "group": "DEFAULT",
+      "application": "",
+      "endpointId": "single-trip-expiration",
+      "allowCreate": false,
+      "parameters": {}
+    },
+    {
+      "id": "monitor",
+      "name": "Run FPW Monitor",
+      "mode": "server",
+      "group": "default",
       "application": "",
       "endpointId": "monitor",
-      "allowCreate": true,
+      "allowCreate": false,
       "parameters": {}
+    },
+    {
+      "id": "inactive-member-recovery",
+      "name": "Run Recover User",
+      "mode": "server",
+      "group": "default",
+      "application": "",
+      "endpointId": "inactive-member-recovery",
+      "allowCreate": false,
+      "parameters": {
+        "dryRun": "true",
+        "batchSize": "25"
+      }
     },
     {
       "id": "departure-reminders",
-      "name": "FPW_PROD_DEPARTURE_REMINDERS",
+      "name": "Schedule Reminders",
       "mode": "server",
-      "group": "FPW_PROD",
+      "group": "default",
       "application": "",
       "endpointId": "departure-reminders",
-      "allowCreate": true,
-      "parameters": {}
-    },
-    {
-      "id": "single-trip-expiration",
-      "name": "FPW_PROD_SINGLE_TRIP_EXPIRATION",
-      "mode": "server",
-      "group": "FPW_PROD",
-      "application": "",
-      "endpointId": "single-trip-expiration",
-      "allowCreate": true,
+      "allowCreate": false,
       "parameters": {}
     }
   ]

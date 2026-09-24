@@ -1,2 +1,16 @@
+<cfsetting  showdebugoutput="true">
 
-<cfscheduler action="run" task="TestTask" operation="run" />
+
+<cftry>
+<cfschedule
+ action="list"
+ result="scheduledList"
+ />
+
+<cfdump var="#scheduledList#" />`
+<cfcatch>
+    <cfdump var="#cfcatch#" >
+    
+
+</cfcatch>
+</cftry>

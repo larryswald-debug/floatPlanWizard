@@ -112,7 +112,6 @@ component output="false" {
         variables.config.environment = env;
         variables.config.baseUrl = value(variables.config, "baseUrl");
         variables.config.schedulerTimezone = value(variables.config, "schedulerTimezone");
-        variables.config.verifiedEngineVersion = value(variables.config, "verifiedEngineVersion");
         if (env NEQ "unconfigured") {
             if (env EQ "production" AND !reFind("^https://(www\.)?floatplanwizard\.com$", variables.config.baseUrl)) fail("The production scheduler origin is not approved.");
             if (env EQ "dev" AND !reFind("^http://(localhost|127\.0\.0\.1):8500/fpw$", variables.config.baseUrl)) fail("The development scheduler origin is not approved.");
@@ -138,8 +137,7 @@ component output="false" {
     }
 
     private boolean function mutationsEnabled() output="false" {
-        return variables.catalogAvailable AND flag(variables.config, "enabled") AND len(variables.config.schedulerTimezone)
-            AND variables.config.verifiedEngineVersion EQ variables.engine;
+        return variables.catalogAvailable AND flag(variables.config, "enabled") AND len(variables.config.schedulerTimezone);
     }
 
     private string function targetUrl(required struct entry) output="false" {
@@ -246,7 +244,7 @@ component output="false" {
     }
 
     private struct function readState() output="false" {
-        var state = {scopes={}, rows={}, identities={}, conflicts={}, seconds={}, diagnostics=[]};
+        var state = {scopes={}, rows={}, identities={}, seconds={}, diagnostics=[]};
         var q = queryNew("");
         var row = {};
         var key = "";
@@ -270,9 +268,9 @@ component output="false" {
                     continue;
                 }
                 state.scopes[mode] = true;
-                state.seconds[mode] = listFindNoCase(replace(q.columnList, "_", "", "all"), "isdaily") GT 0 OR variables.engine EQ "2025,0,06,331564";
+                state.seconds[mode] = true;
                 arrayAppend(state.diagnostics, mode & ": native list is available.");
-                arrayAppend(state.diagnostics, mode & ": " & (state.seconds[mode] ? "numeric intervals have a supported preservation profile." : "numeric intervals are read-only because the daily-window field is unavailable."));
+                arrayAppend(state.diagnostics, mode & ": numeric intervals are available.");
                 for (var index = 1; index LTE q.recordCount; index++) {
                     if (compareNoCase(toString(q.mode[index]), mode) NEQ 0) continue;
                     // Retain only identity keys for collision checks, including unrelated tasks.
@@ -283,9 +281,10 @@ component output="false" {
                     for (var entry in variables.registry) {
                         if (identityKey(entry) NEQ key) continue;
                         configuredIdentity = true;
-                        if (compare(toString(q.task[index]), entry.name) NEQ 0 OR compare(toString(q.group[index]), entry.group) NEQ 0) {
-                            state.conflicts[entry.id] = true;
-                        } else matched = entry;
+                        // identityKey matched without case. Keep the native spelling for display and actions.
+                        matched = entry;
+                        matched.name = toString(q.task[index]);
+                        matched.group = toString(q.group[index]);
                         break;
                     }
                     row = {};
@@ -316,7 +315,6 @@ component output="false" {
     private struct function findRow(required struct state, required struct entry) output="false" {
         var found = {};
         if (structKeyExists(arguments.state.identities, identityKey(arguments.entry)) AND arguments.state.identities[identityKey(arguments.entry)] GT 1) fail("The scheduler returned an ambiguous task identity. No action can be taken until its exact identity is verified.");
-        if (structKeyExists(arguments.state.conflicts, arguments.entry.id)) fail("A registered identity conflicts with the scheduler. Verify exact name and group capitalization before continuing.");
         for (var row in arguments.state.rows[arguments.entry.mode]) {
             if (row.registryId EQ arguments.entry.id) {
                 if (!structIsEmpty(found)) fail("The scheduler returned an ambiguous task identity.");
@@ -383,7 +381,7 @@ component output="false" {
             endDate="", endTime="", repeat=value(arguments.row, "repeat"), intervalHours="0", intervalMinutes="0", intervalSeconds="0",
             startDate="", startTime="", timeout=value(arguments.row, "requesttimeout", value(arguments.row, "timeout", "Unavailable")),
             paused=pausedStatus(arguments.row), editable=false, actionable=false, reason="", revision=revision(arguments.row),
-            scheduleType="", seconds="", secondsSupported=structKeyExists(arguments.row, "isdaily") OR variables.engine EQ "2025,0,06,331564"};
+            scheduleType="", seconds="", secondsSupported=true};
         if (isDate(value(arguments.row, "startdate"))) item.startDate = dateFormat(arguments.row.startdate, "yyyy-mm-dd");
         if (isDate(value(arguments.row, "starttime"))) item.startTime = timeFormat(arguments.row.starttime, "HH:nn:ss");
         if (isDate(value(arguments.row, "enddate"))) item.endDate = dateFormat(arguments.row.enddate, "yyyy-mm-dd");
@@ -410,7 +408,7 @@ component output="false" {
             item.editable = false;
             item.reason = "Editing while paused is unavailable until UPDATE pause preservation is verified for this environment. Native Resume remains available.";
         }
-        if (!mutationsEnabled() AND !len(item.reason)) item.reason = "Read-only until environment permissions, engine version and scheduler timezone are verified in configuration.";
+        if (!mutationsEnabled() AND !len(item.reason)) item.reason = "Read-only until scheduler changes are enabled and the scheduler timezone is configured.";
         return item;
     }
 
@@ -428,9 +426,6 @@ component output="false" {
         for (var key in arguments.row) {
             if (!listFindNoCase(known, key)) return "The scheduler returned an unrecognized attribute; this schedule is read-only until its preservation is verified.";
         }
-        // Local 2025 U6 ScheduleTag has no isDaily setter/field: the old attribute is ignored.
-        // CF2023 is NOT assumed equivalent. Without that flag, its numeric tasks stay read-only.
-        if (reFind("^[0-9]+$", value(arguments.row, "interval")) AND !structKeyExists(arguments.row, "isdaily") AND variables.engine NEQ "2025,0,06,331564") return "The scheduler does not return the daily-window setting for numeric intervals. This schedule is read-only to avoid changing its timing.";
         // Exact list profile tested with native UPDATE. Missing fields never acquire guessed defaults.
         for (var key in listToArray("startdate,starttime,interval,requesttimeout,enddate,endtime,file,path,port,proxyport,proxyserver,proxyuser,publish,resolveurl,overwrite,onexception,onmisfire,eventhandler,crontime,repeat,priority,exclude,clustered,retrycount,username,chainedtask,status")) {
             if (!structKeyExists(arguments.row, key)) return "Required scheduler attributes were not returned; editing could discard settings.";
@@ -624,7 +619,6 @@ component output="false" {
                 if (!state.scopes[entry.mode]) fail("Native listing is unavailable for this task scope.");
                 var row = findRow(state, entry);
                 var attrs = {task=entry.name, group=entry.group, mode=entry.mode, action=action};
-                if (listFindNoCase("create,edit", action) AND selectedFrequency(arguments.input) EQ "seconds" AND !state.seconds[entry.mode]) fail("Numeric intervals cannot be safely managed on this listing profile because the daily-window setting is unavailable.");
                 if (action EQ "create") {
                     if (!len(entry.group)) fail("Creation requires an explicit group; use default for the scheduler default group.");
                     if (!flag(entry, "allowCreate") OR !structIsEmpty(row) OR structKeyExists(state.identities,identityKey(entry))) fail("This task cannot be created, or its name already exists in that scope and group. Refresh the list.");

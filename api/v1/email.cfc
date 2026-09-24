@@ -846,6 +846,7 @@
     <tr><td style="padding:5px 0; color:##6c757d;">Completed</td><td style="padding:5px 0;">#encodeForHtml(completedLabel)#</td></tr>
 </table>
 <p style="margin:0;"><a href="#encodeForHtmlAttribute(ctaUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">View Completed Trip</a></p>
+<p style="margin:16px 0 0; font-size:14px; line-height:1.5;">If the button doesn't work, copy and paste this link into your browser:<br><a href="#encodeForHtmlAttribute(ctaUrl)#" style="word-break:break-all; overflow-wrap:anywhere;">#encodeForHtml(ctaUrl)#</a></p>
 #complianceFooter.htmlBody#
         </cfoutput></cfsavecontent>
 

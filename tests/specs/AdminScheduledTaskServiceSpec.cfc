@@ -6,7 +6,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     private struct function fixture(array rows, struct configChanges={}, boolean denyList=false, boolean denyExecute=false) output="false" {
         var config = {
             environment="dev", enabled=true, baseUrl="http://localhost:8500/fpw", schedulerTimezone="GMT",
-            verifiedEngineVersion=toString(server.coldfusion.productVersion), pausedUpdateVerified=true,
+            pausedUpdateVerified=true,
             tasks=[{id="manager-spec", name="FPW_DEV_MANAGER_SPEC", mode="server", group="FPW_DEV_TEST",
                 application="", endpointId="development-test", allowCreate=true, parameters={}}]
         };
@@ -94,9 +94,142 @@ component extends="testbox.system.BaseSpec" output="false" {
                     var input = inputFor(fixture(rows=[]), "create");
                     var result = f.service.mutate(input);
                     expect(result.success).toBeFalse();
-                    expect(findNoCase("conflict", result.message) GT 0).toBeTrue();
+                    expect(findNoCase("name already exists", result.message) GT 0).toBeTrue();
                     expect(arrayLen(f.gateway.getExecuted())).toBe(0);
                 }
+            });
+
+            it("lists configured identities despite name or group case differences in either scope", function() {
+                for (var mode in ["server", "application"]) {
+                    for (var fields in ["task", "group", "task,group"]) {
+                        var row = baseRow();
+                        row.mode = mode;
+                        var configured = {id="manager-spec", name=row.task, mode=mode, group=row.group,
+                            application=mode EQ "application" ? "FPW" : "", endpointId="development-test",
+                            allowCreate=true, parameters={}};
+                        if (mode EQ "application") row.application = "FPW";
+                        for (var field in listToArray(fields)) row[field] = lCase(row[field]);
+                        var f = fixture(rows=[row], configChanges={tasks=[configured]});
+                        var view = f.service.getView();
+                        expect(view.available).toBeTrue();
+                        expect(view.environment).toBe("dev");
+                        expect(view.readOnly).toBeFalse();
+                        expect(arrayLen(view.tasks)).toBe(1);
+                        expect(view.tasks[1].id).toBe("manager-spec");
+                        expect(compare(view.tasks[1].name, row.task)).toBe(0);
+                        expect(compare(view.tasks[1].group, row.group)).toBe(0);
+                        expect(view.tasks[1].actionable).toBeTrue();
+                        expect(view.tasks[1].editable).toBeTrue();
+                        expect(compare(f.service.getView().tasks[1].name, row.task)).toBe(0);
+                        expect(compare(f.config.tasks[1].name, configured.name)).toBe(0);
+                    }
+                }
+            });
+
+            it("uses the native case for every existing-task action in both scopes", function() {
+                for (var mode in ["server", "application"]) {
+                    for (var action in ["edit", "pause", "resume", "run", "delete"]) {
+                        var row = baseRow();
+                        row.task = lCase(row.task);
+                        row.group = lCase(row.group);
+                        row.mode = mode;
+                        if (mode EQ "application") row.application = "FPW";
+                        var f = fixture(rows=[row], configChanges={tasks=[{
+                            id="manager-spec", name=uCase(row.task), group=uCase(row.group), mode=mode,
+                            application=mode EQ "application" ? "FPW" : "", endpointId="development-test",
+                            allowCreate=false, parameters={}
+                        }]});
+                        var input = inputFor(f, action);
+                        if (listFind("run,delete", action)) input.confirmation = row.task;
+                        expect(f.service.mutate(input).success).toBeTrue();
+                        var calls = f.gateway.getExecuted();
+                        expect(arrayLen(calls)).toBe(1);
+                        expect(compare(calls[1].task, row.task)).toBe(0);
+                        expect(compare(calls[1].group, row.group)).toBe(0);
+                        expect(calls[1].mode).toBe(mode);
+                        expect(calls[1].action).toBe(action EQ "edit" ? "update" : action);
+                        if (action EQ "edit") expect(calls[1].url).toBe(row.url);
+                    }
+                }
+            });
+
+            it("requires confirmation to match the displayed native task name exactly", function() {
+                for (var action in ["run", "delete"]) {
+                    var row = baseRow();
+                    row.task = lCase(row.task);
+                    var f = fixture(rows=[row]);
+                    var input = inputFor(f, action);
+                    input.confirmation = uCase(row.task);
+                    expectRejected(f, input);
+                }
+            });
+
+            it("does not relax URL ownership when a configured identity differs only in case", function() {
+                for (var target in ["https://unrelated.invalid/", "http://localhost:8500/fpw/unapproved.cfm",
+                    baseRow().url & "?force=true"]) {
+                    var row = baseRow();
+                    row.task = lCase(row.task);
+                    row.group = lCase(row.group);
+                    row.url = target;
+                    var f = fixture(rows=[row]);
+                    var view = f.service.getView();
+                    expect(view.available).toBeTrue();
+                    expect(arrayLen(view.tasks)).toBe(1);
+                    expect(view.tasks[1].actionable).toBeFalse();
+                    expect(view.tasks[1].canRun).toBeFalse();
+                    for (var action in ["edit", "pause", "resume", "run", "delete"]) {
+                        var input = inputFor(f, action);
+                        if (listFind("run,delete", action)) input.confirmation = row.task;
+                        expectRejected(f, input);
+                    }
+                }
+            });
+
+            it("rejects duplicate configured native identities regardless of case or row order", function() {
+                for (var field in ["exact", "task", "group"]) {
+                    var owned = baseRow();
+                    var conflict = duplicate(owned);
+                    if (field NEQ "exact") conflict[field] = lCase(conflict[field]);
+                    conflict.url = "https://unrelated.invalid/?token=SIMULATED_SECRET";
+                    for (var rows in [[owned, conflict], [conflict, owned]]) {
+                        var f = fixture(rows=[owned]);
+                        var input = inputFor(f, "pause");
+                        f.gateway.replaceRows(rows);
+                        var rejected = false;
+                        try { f.service.getView(); }
+                        catch (FPWScheduler.Validation expected) { rejected = true; }
+                        expect(rejected).toBeTrue();
+                        expectRejected(f, input);
+                    }
+                }
+            });
+
+            it("rejects a stale form when native task capitalization changes after listing", function() {
+                var row = baseRow();
+                var f = fixture(rows=[row]);
+                var input = inputFor(f, "pause");
+                row.task = lCase(row.task);
+                row.group = lCase(row.group);
+                f.gateway.replaceRows([row]);
+                expectRejected(f, input);
+                expect(compare(f.service.getView().tasks[1].name, row.task)).toBe(0);
+                expect(f.service.mutate(inputFor(f, "pause")).success).toBeTrue();
+                expect(compare(f.gateway.getExecuted()[1].task, row.task)).toBe(0);
+            });
+
+            it("retains configured spelling for a reserved slot after the native task disappears", function() {
+                var configuredRow = baseRow();
+                var row = duplicate(configuredRow);
+                row.task = lCase(row.task);
+                row.group = lCase(row.group);
+                var f = fixture(rows=[row]);
+                expect(compare(f.service.getView().tasks[1].name, row.task)).toBe(0);
+                f.gateway.replaceRows([]);
+                var view = f.service.getView();
+                expect(arrayLen(view.tasks)).toBe(0);
+                expect(arrayLen(view.createOptions)).toBe(1);
+                expect(compare(view.createOptions[1].name, configuredRow.task)).toBe(0);
+                expect(compare(view.createOptions[1].group, configuredRow.group)).toBe(0);
             });
 
             it("keeps one registered task after explicit repeated initialization", function() {
@@ -223,19 +356,60 @@ component extends="testbox.system.BaseSpec" output="false" {
                 expectRejected(f, inputFor(f));
             });
 
-            it("preserves numeric daily-window data and honors the verified local engine profile", function() {
+            it("edits numeric schedules without isDaily and preserves returned timing fields", function() {
                 var row = baseRow();
                 row.interval = "3600";
-                var f = fixture(rows=[row]);
-                // Native proof for this exact 2025 build establishes that isDaily is ignored.
-                expect(f.service.getView().tasks[1].editable).toBe(toString(server.coldfusion.productVersion) EQ "2025,0,06,331564");
-                row.isdaily = "YES";
-                f = fixture(rows=[row]);
+                var f = fixture(rows=[row], configChanges={verifiedEngineVersion=""});
+                var view = f.service.getView();
+                expect(view.readOnly).toBeFalse();
+                expect(view.tasks[1].secondsSupported).toBeTrue();
+                expect(view.tasks[1].editable).toBeTrue();
                 var input = inputFor(f);
                 input.scheduleType = "seconds";
                 input.seconds = "7200";
                 expect(f.service.mutate(input).success).toBeTrue();
-                expect(f.gateway.getExecuted()[1].isdaily).toBe("YES");
+                var attrs = f.gateway.getExecuted()[1];
+                expect(val(attrs.interval)).toBe(7200);
+                expect(structKeyExists(attrs, "isdaily")).toBeFalse();
+                expect(dateFormat(attrs.enddate, "yyyy-mm-dd")).toBe(dateFormat(row.enddate, "yyyy-mm-dd"));
+                expect(timeFormat(attrs.endtime, "HH:nn:ss")).toBe(timeFormat(row.endtime, "HH:nn:ss"));
+                expect(toString(attrs.port)).toBe(toString(row.port));
+                expect(attrs.url).toBe(row.url);
+            });
+
+            it("preserves an explicitly returned daily-window setting during an interval edit", function() {
+                for (var daily in ["YES", "NO"]) {
+                    var row = baseRow();
+                    row.interval = "3600";
+                    row.isdaily = daily;
+                    var f = fixture(rows=[row]);
+                    var input = inputFor(f);
+                    input.scheduleType = "seconds";
+                    input.seconds = "7200";
+                    expect(f.service.mutate(input).success).toBeTrue();
+                    expect(f.gateway.getExecuted()[1].isdaily).toBe(daily);
+                }
+            });
+
+            it("creates numeric schedules from a listing without isDaily or a verified engine version", function() {
+                for (var mode in ["server", "application"]) {
+                    var f = fixture(rows=[], configChanges={tasks=[], verifiedEngineVersion="unverified"});
+                    var view = f.service.getView();
+                    expect(view.canCreate).toBeTrue();
+                    for (var scope in view.scopes) expect(scope.secondsSupported).toBeTrue();
+                    var input = newTaskInput();
+                    input.mode = mode;
+                    input.frequencyMode = "seconds";
+                    input.intervalHours = "0";
+                    input.intervalMinutes = "5";
+                    input.intervalSeconds = "0";
+                    expect(f.service.mutate(input).success).toBeTrue();
+                    var attrs = f.gateway.getExecuted()[1];
+                    expect(val(attrs.interval)).toBe(300);
+                    expect(attrs.mode).toBe(mode);
+                    expect(structKeyExists(attrs, "isdaily")).toBeFalse();
+                    expect(f.service.getView().tasks[1].secondsSupported).toBeTrue();
+                }
             });
 
             it("redacts denied list errors and blocks mutation without identity proof", function() {
@@ -391,10 +565,22 @@ component extends="testbox.system.BaseSpec" output="false" {
                 }
             });
 
-            it("disables changes until the configured engine version is verified", function() {
-                var f = fixture(configChanges={verifiedEngineVersion="unverified"});
-                expect(f.service.getView().readOnly).toBeTrue();
-                expectRejected(f, inputFor(f, "pause"));
+            it("allows changes with a missing blank or mismatched verified engine version", function() {
+                for (var overrides in [{}, {verifiedEngineVersion=""}, {verifiedEngineVersion="unverified"}]) {
+                    var f = fixture(configChanges=overrides);
+                    var view = f.service.getView();
+                    expect(view.readOnly).toBeFalse();
+                    expect(view.engine).toBe(toString(server.coldfusion.productVersion));
+                    expect(f.service.mutate(inputFor(f, "pause")).success).toBeTrue();
+                }
+            });
+
+            it("keeps the enabled and scheduler timezone requirements", function() {
+                for (var overrides in [{enabled=false}, {schedulerTimezone=""}]) {
+                    var f = fixture(configChanges=overrides);
+                    expect(f.service.getView().readOnly).toBeTrue();
+                    expectRejected(f, inputFor(f, "pause"));
+                }
             });
 
             it("rejects unsupported actions and identity-attribute injection", function() {
