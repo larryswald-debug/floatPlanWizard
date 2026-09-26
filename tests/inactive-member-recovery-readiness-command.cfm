@@ -38,7 +38,14 @@ enrollment=new fpw.includes.InactiveMemberRecoveryEnrollmentService();
 try {
   if (action EQ "enroll") {
     result=enrollment.ensureEnrolled(uid);
-    if (result.SUCCESS AND len(result.ENROLLMENT_UTC)) fixture.anchor=result.ENROLLMENT_UTC;
+    if (result.SUCCESS AND len(result.ENROLLMENT_UTC)) {
+      // Automatic signup enrollment may precede later saved stage/activity evidence.
+      // Observe the existing policy's latest anchor; never backdate enrollment or change policy.
+      observedNow=toString(queryExecute("SELECT DATE_FORMAT(UTC_TIMESTAMP(),'%Y-%m-%dT%H:%i:%sZ') AS utc",{},{datasource="fpw"}).utc[1]);
+      observed=new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(uid,observedNow);
+      if (!structKeyExists(observed.POLICY_DECISION,"anchor_utc") OR !len(observed.POLICY_DECISION.anchor_utc)) throw(message="INTERVAL_ANCHOR_REQUIRED");
+      fixture.anchor=observed.POLICY_DECISION.anchor_utc;
+    }
     writeOutput(serializeJSON(result));
   } else if (action EQ "state") {
     clock=toString(queryExecute("SELECT DATE_FORMAT(UTC_TIMESTAMP(),'%Y-%m-%dT%H:%i:%sZ') AS utc",{},{datasource="fpw"}).utc[1]);

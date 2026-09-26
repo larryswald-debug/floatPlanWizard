@@ -323,6 +323,9 @@
             )>
             </cftransaction>
 
+            <!-- Enrollment is a noncritical post-commit hook; required signup persistence is complete. -->
+            <cfset enrollNewMemberForRecovery(userId = newUserId)>
+
             <cfset session.user = {
                 id = newUserId,
                 userId = newUserId,
@@ -404,6 +407,44 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
+    </cffunction>
+
+    <cffunction name="enrollNewMemberForRecovery" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="enrollmentService" type="any" required="false" default="">
+        <cfscript>
+            var outcome = { SUCCESS = false, CODE = "ENROLLMENT_FAILED" };
+            try {
+                var service = isObject(arguments.enrollmentService) ? arguments.enrollmentService
+                    : new fpw.includes.InactiveMemberRecoveryEnrollmentService(datasource = "fpw");
+                // The identity is the inserted server-side id; no request dates, coverage, or metadata.
+                var result = service.ensureEnrolled(userId = arguments.userId);
+                if (isStruct(result) AND structKeyExists(result, "SUCCESS") AND isBoolean(result.SUCCESS)
+                    AND result.SUCCESS AND structKeyExists(result, "CODE") AND isSimpleValue(result.CODE)
+                    AND listFind("ENROLLED,ALREADY_ENROLLED,NOT_ELIGIBLE_FOR_ENROLLMENT,MEMBER_NOT_FOUND", toString(result.CODE))) {
+                    outcome = { SUCCESS = true, CODE = toString(result.CODE) };
+                }
+            } catch (any enrollmentHookFailure) {
+                // Enrollment failures cannot roll back or report failure for a committed signup.
+            }
+            try {
+                writeRecoveryEnrollmentAudit(userId = arguments.userId, code = outcome.CODE);
+            } catch (any auditFailure) {
+                // Logging is also noncritical and never changes the signup response.
+            }
+            return outcome;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="writeRecoveryEnrollmentAudit" access="private" returntype="void" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="code" type="string" required="true">
+        <cfscript>
+            var logPath=getDirectoryFromPath(getCurrentTemplatePath()) & "../../logs/fpw_recovery_enrollment.log";
+            var atUtc=dateTimeFormat(dateConvert("local2utc",now()),"yyyy-mm-dd'T'HH:nn:ss'Z'");
+            fileAppend(logPath,atUtc & " join.cfc RECOVERY_ENROLLMENT | userId=" & arguments.userId
+                & " | code=" & arguments.code & chr(10),"utf-8");
+        </cfscript>
     </cffunction>
 
     <cffunction name="normalizeSignupAttribution" access="private" returntype="struct" output="false">

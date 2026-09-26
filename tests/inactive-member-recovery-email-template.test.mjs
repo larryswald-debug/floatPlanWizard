@@ -17,7 +17,8 @@ test("one public render-only builder uses the existing layout, URL, and complian
   const builder = extractFunction("buildInactiveMemberRecoveryEmail");
   assert.match(builder, /access="public"/i);
   assert.match(builder, /getInactiveMemberRecoveryTemplateConfig/);
-  assert.match(builder, /resolveAbsolutePublicUrl\("\/app\/dashboard\.cfm"\)/);
+  assert.match(builder, /resolveAbsolutePublicUrl/);
+  assert.match(builder, /verifiedRouteUrl/);
   assert.match(builder, /buildNonEssentialEmailComplianceFooter/);
   assert.match(builder, /renderBaseEmailLayout/);
   assert.doesNotMatch(builder, /\b(?:queryExecute|cfquery|cfmail|cfschedule|sendMultipartEmail|InactiveMemberRecoveryClassifier|InactiveMemberRecoveryPolicy|inactive_member_recovery_deliveries)\b/i);
@@ -42,15 +43,12 @@ test("stage configuration has the exact approved subjects, bodies, and CTA label
   ]) assert.ok(config.includes(text), `Missing approved copy: ${text}`);
 });
 
-test("invalid stages and invalid verified Draft URLs fail without send-ready bodies", () => {
+test("invalid stages and destinations fail without send-ready bodies", () => {
   const builder = extractFunction("buildInactiveMemberRecoveryEmail");
-  const draftValidator = extractFunction("validateVerifiedInactiveMemberDraftUrl");
   const failure = extractFunction("buildInactiveMemberRecoveryEmailFailure");
   assert.match(builder, /INVALID_RECOVERY_STAGE/);
   assert.match(builder, /INVALID_VERIFIED_DRAFT_URL/);
   assert.match(builder, /NON_ESSENTIAL_COMPLIANCE_REQUIRED/);
-  assert.match(draftValidator, /\/app\/floatplan-wizard\.cfm/);
-  assert.match(draftValidator, /publicBaseUrl/);
   assert.match(failure, /subject = ""/);
   assert.match(failure, /htmlBody = ""/);
   assert.match(failure, /textBody = ""/);

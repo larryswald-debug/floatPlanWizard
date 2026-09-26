@@ -23,7 +23,7 @@ component output="false" {
     if (!getCoverageVerification(arguments.userId).stage_history) fail();
   }
 
-  // A separate read-only enrollment clock; signup does not enroll the member.
+  // A separate read-only enrollment clock; recording coverage never enrolls a member.
   public string function getEnrollmentUtc(required numeric userId) output=false {
     return new fpw.includes.InactiveMemberRecoveryEnrollmentService(datasource=variables.datasource).getEnrollmentUtc(arguments.userId);
   }

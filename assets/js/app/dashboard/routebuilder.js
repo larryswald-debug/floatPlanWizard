@@ -6697,7 +6697,7 @@
   }
 
   function openModal(mode, routeCode, launchOptions) {
-    if (!modal) return;
+    if (!modal) return Promise.resolve(false);
     var options = launchOptions || {};
     var editorMode = mode === "editor";
     var freshStart = !!options.freshStart && !editorMode;
@@ -6714,7 +6714,7 @@
     }
     modal.show();
 
-    ensureUserId()
+    return ensureUserId()
       .then(function () {
         if (!isActiveModalInit(initSeq)) return null;
         return loadTemplates();
@@ -6744,8 +6744,9 @@
               }
               return fetchOptions();
             })
-            .catch(function () {
+            .catch(function (err) {
               if (!isActiveModalInit(initSeq)) return null;
+              if (options.recovery) throw err;
               if (state.templates.length) {
                 setActiveTemplate(String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim(), {
                   restoreDraft: false,
@@ -6779,6 +6780,7 @@
         if (editorMode && state.activeRouteCode) {
           return previewRoute(true);
         }
+        if (toInt(options.savedRouteId, 0) > 0) return null;
         return previewRoute(false);
       })
       .then(function () {
@@ -6789,16 +6791,47 @@
           }
           return loadMyRoutes({ silentError: true, noAutoLoad: true });
         }
+        var savedRouteId = toInt(options.savedRouteId, 0);
+        if (savedRouteId > 0) {
+          return loadMyRoutes({ routeId: savedRouteId, silentError: true }).then(function (payload) {
+            if (!isActiveModalInit(initSeq)) return null;
+            if (!payload || toInt(state.myRoutes.activeRouteId, 0) !== savedRouteId) {
+              throw new Error("This saved route is no longer available.");
+            }
+            applyRouteContext("my_route", savedRouteId);
+            setRouteCodeBadge("MY_ROUTE_" + String(savedRouteId));
+            if (dom.routeNameEl) {
+              dom.routeNameEl.value = state.myRoutes.activeRouteName;
+              syncMyRouteNameFromRouteName();
+            }
+            if (!state.myRoutes.legs.length) {
+              setStatus("Saved route loaded. Add your next stop to continue.");
+              return payload;
+            }
+            return previewSelectedMyRoute(true).then(function (preview) {
+              if (!preview) throw new Error("Unable to load this saved route.");
+              return preview;
+            });
+          });
+        }
         return loadMyRoutes({ silentError: true, noAutoLoad: freshStart });
       })
+      .then(function () {
+        return true;
+      })
       .catch(function (err) {
-        if (!isActiveModalInit(initSeq)) return;
+        if (!isActiveModalInit(initSeq)) return false;
         if (err && err.code === "UNAUTHORIZED") {
           redirectToLogin();
-          return;
+          return false;
+        }
+        if (options.recovery) {
+          closeModal();
+          return false;
         }
         showError((err && err.message) ? err.message : "Unable to initialize route generator.");
         setStatus("Initialization failed.");
+        return false;
       });
   }
 
@@ -8118,9 +8151,22 @@
     return loadExistingRoute(state.activeRouteCode);
   }
 
-  function openEditorForRoute(routeCode) {
-    if (!routeCode) return;
-    openModal("editor", routeCode, { freshStart: false });
+  function openEditorForRoute(routeCode, launchOptions) {
+    if (!routeCode) return Promise.resolve(false);
+    return openModal("editor", routeCode, {
+      freshStart: false,
+      recovery: !!(launchOptions && launchOptions.recovery)
+    });
+  }
+
+  function openSavedRoute(routeId) {
+    var savedRouteId = toInt(routeId, 0);
+    if (savedRouteId <= 0) return Promise.resolve(false);
+    return openModal("generator", "", {
+      freshStart: true,
+      savedRouteId: savedRouteId,
+      recovery: true
+    });
   }
 
   function isTestHookReady() {
@@ -8232,7 +8278,8 @@
   window.FPW.DashboardModules.routeBuilder = {
     init: init,
     reloadTimeline: reloadTimeline,
-    openEditorForRoute: openEditorForRoute
+    openEditorForRoute: openEditorForRoute,
+    openSavedRoute: openSavedRoute
   };
 
   window.FPW.RouteWeatherAssist = {

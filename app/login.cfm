@@ -1,3 +1,14 @@
+<cfinclude template="../includes/fpw_base_path.cfm">
+<cfscript>
+fpwLoginRecoveryPath = "";
+if (structKeyExists(url, "recoveryAction")) {
+  fpwLoginRecoveryPrefix = replace(reReplace(request.fpwBase, "^/", ""), "/", ".", "all");
+  fpwLoginRecoveryPaths = createObject("component",
+    (len(fpwLoginRecoveryPrefix) ? fpwLoginRecoveryPrefix & "." : "")
+      & "includes.InactiveMemberRecoveryActionPathService");
+  fpwLoginRecoveryPath = fpwLoginRecoveryPaths.buildPath(request.fpwBase, url);
+}
+</cfscript>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -96,7 +107,7 @@
                 </div>
             </div>
 
-            <form id="loginForm" class="fpw-auth-form fpw-login-form" novalidate>
+            <form id="loginForm" class="fpw-auth-form fpw-login-form" data-recovery-return="<cfoutput>#encodeForHTMLAttribute(fpwLoginRecoveryPath)#</cfoutput>" novalidate>
                 <div class="fpw-form-row">
                     <label for="email">Email address</label>
                     <div class="fpw-input-wrap">
@@ -168,7 +179,7 @@
 </section>
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/core.js"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/core.js?v=20260924-recovery-actions"></script>
 
 </body>
 </html>

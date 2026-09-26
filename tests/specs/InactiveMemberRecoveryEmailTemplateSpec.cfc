@@ -26,7 +26,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(message.subject).toBe("Add your boat to FloatPlanWizard");
         expect(memberText(message)).toInclude("Your FloatPlanWizard account is ready. Add your vessel details once and FPW can reuse them when you plan future trips and create Float Plans.");
         expect(message.ctaLabel).toBe("Continue Vessel Setup");
-        expect(message.ctaUrl).toBe(variables.dashboardUrl);
+        expect(message.ctaUrl).toBe(variables.dashboardUrl & "?recoveryAction=vessel");
         expect(memberText(message)).notToInclude("haven't done anything");
         expect(memberText(message)).notToInclude("account is incomplete");
       });
@@ -40,7 +40,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(message.subject).toBe("Ready to plan your first trip?");
         expect(memberText(message)).toInclude("Your vessel is saved in FloatPlanWizard. When you're ready, use Trip Planner to map a route, add stops, and estimate your trip.");
         expect(message.ctaLabel).toBe("Start Planning a Trip");
-        expect(message.ctaUrl).toBe(variables.dashboardUrl);
+        expect(message.ctaUrl).toBe(variables.dashboardUrl & "?recoveryAction=planner");
         expect(memberText(message)).notToInclude("route is saved");
       });
 
@@ -53,12 +53,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(message.subject).toBe("Pick up your trip planning");
         expect(memberText(message)).toInclude("You've started saving trip-planning work in FloatPlanWizard. You can come back anytime to continue the route and turn it into a trip when you're ready.");
         expect(message.ctaLabel).toBe("Continue Trip Planning");
-        expect(message.ctaUrl).toBe(variables.dashboardUrl);
+        expect(message.ctaUrl).toBe(variables.dashboardUrl & "?recoveryAction=routes");
         expect(memberText(message)).notToInclude("route is finished");
         expect(memberText(message)).notToInclude("Float Plan is ready");
       });
 
-      it("renders the exact Stage D Draft message with Dashboard fallback", function() {
+      it("renders the exact Stage D Draft message with plans fallback", function() {
         var context = createEligibleContext("d-fallback");
         var message = context.service.buildInactiveMemberRecoveryEmail(
           stage="D", eligibility=context.eligibility
@@ -67,7 +67,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(message.subject).toBe("Your Float Plan is waiting");
         expect(memberText(message)).toInclude("You've started a Float Plan in FloatPlanWizard. Come back when you're ready to finish the details and share the trip with someone ashore.");
         expect(message.ctaLabel).toBe("Continue Your Float Plan");
-        expect(message.ctaUrl).toBe(variables.dashboardUrl);
+        expect(message.ctaUrl).toBe(variables.dashboardUrl & "?recoveryAction=plans");
         expect(memberText(message)).notToInclude("ready to send");
         expect(memberText(message)).notToInclude("has been shared");
         expect(memberText(message)).notToInclude("Monitoring is active");
@@ -75,7 +75,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
       it("uses only an explicitly supplied same-origin verified Draft URL", function() {
         var context = createEligibleContext("d-verified");
-        var draftUrl = "http://localhost:8500/fpw/app/floatplan-wizard.cfm?floatPlanId=123";
+        var draftUrl = "http://localhost:8500/fpw/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123";
         var message = context.service.buildInactiveMemberRecoveryEmail(
           stage="D",
           eligibility=context.eligibility,
@@ -88,6 +88,41 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(message.htmlBody).toInclude(encodeForHtmlAttribute(draftUrl));
       });
 
+      it("resolves canonical relative owned route and Draft destinations in both message bodies", function() {
+        var context = createEligibleContext("relative-actions");
+        var cases = [
+          {stage="C",path="/app/dashboard.cfm?recoveryAction=route&routeId=321"},
+          {stage="C",path="/app/dashboard.cfm?recoveryAction=route&routeInstanceId=654"},
+          {stage="D",path="/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123"}
+        ];
+        for (var item in cases) {
+          var args = {stage=item.stage,eligibility=context.eligibility};
+          args[item.stage EQ "C" ? "verifiedRouteUrl" : "verifiedDraftUrl"] = item.path;
+          var message = context.service.buildInactiveMemberRecoveryEmail(argumentCollection=args);
+          var expected = "http://localhost:8500/fpw" & item.path;
+          expect(message.success).toBeTrue();
+          expect(message.ctaUrl).toBe(expected);
+          expect(message.textBody).toInclude(expected);
+          expect(message.htmlBody).toInclude(encodeForHtmlAttribute(expected));
+        }
+      });
+
+      it("rejects supplied action URLs that do not belong to the selected stage", function() {
+        var context = createEligibleContext("wrong-action");
+        var route = context.service.buildInactiveMemberRecoveryEmail(
+          stage="C",eligibility=context.eligibility,
+          verifiedRouteUrl="/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123"
+        );
+        var draft = context.service.buildInactiveMemberRecoveryEmail(
+          stage="D",eligibility=context.eligibility,
+          verifiedDraftUrl="/app/dashboard.cfm?recoveryAction=route&routeId=123"
+        );
+        expect(route.success).toBeFalse();
+        expect(route.subject & route.htmlBody & route.textBody & route.ctaUrl).toBe("");
+        expect(draft.success).toBeFalse();
+        expect(draft.subject & draft.htmlBody & draft.textBody & draft.ctaUrl).toBe("");
+      });
+
       it("rejects an unknown stage and an invalid verified Draft URL without send-ready content", function() {
         var context = createEligibleContext("invalid-input");
         var invalidStage = context.service.buildInactiveMemberRecoveryEmail(
@@ -96,7 +131,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var invalidDraft = context.service.buildInactiveMemberRecoveryEmail(
           stage="D",
           eligibility=context.eligibility,
-          verifiedDraftUrl="https://example.test/app/floatplan-wizard.cfm?floatPlanId=123"
+          verifiedDraftUrl="https://example.test/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123"
         );
 
         expect(invalidStage.success).toBeFalse();
@@ -125,20 +160,23 @@ component extends="testbox.system.BaseSpec" output="false" {
 
       it("rejects malformed Draft destinations as well as wrong origins and paths", function() {
         var context = createEligibleContext("draft-url-security");
-        var draftPath = "http://localhost:8500/fpw/app/floatplan-wizard.cfm";
+        var draftPath = variables.dashboardUrl;
         var invalidUrls = [
-          draftPath & "?floatPlanId=123&value=%ZZ",
-          draftPath & "?floatPlanId=12 3",
-          draftPath & "?floatPlanId=123&value=<invalid>",
-          draftPath & "?floatPlanId=123" & chr(10) & "x",
-          draftPath & "?floatPlanId=123##fragment",
-          "https://example.test/fpw/app/floatplan-wizard.cfm?floatPlanId=123",
-          "http://localhost:8501/fpw/app/floatplan-wizard.cfm?floatPlanId=123",
-          "http://localhost:8500@evil.example/fpw/app/floatplan-wizard.cfm?floatPlanId=123",
+          draftPath & "?recoveryAction=draft&floatPlanId=123&value=%ZZ",
+          draftPath & "?recoveryAction=draft&floatPlanId=12 3",
+          draftPath & "?recoveryAction=draft&floatPlanId=123&value=<invalid>",
+          draftPath & "?recoveryAction=draft&floatPlanId=123" & chr(10) & "x",
+          draftPath & "?recoveryAction=draft&floatPlanId=123##fragment",
+          "https://example.test/fpw/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123",
+          "http://localhost:8501/fpw/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123",
+          "http://localhost:8500@evil.example/fpw/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123",
           "http://localhost:8500/fpw/app/account.cfm",
           "http://localhost:8500/fpw/app/floatplan-wizard.cfm/../account.cfm",
-          "//localhost:8500/fpw/app/floatplan-wizard.cfm?floatPlanId=123",
-          "javascript:alert(1)"
+          "//localhost:8500/fpw/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123",
+          "javascript:alert(1)",
+          "/app/dashboard.cfm?recoveryAction=draft&floatPlanId=0",
+          "/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123&next=https://example.test",
+          "/app/dashboard.cfm?recoveryAction=draft&floatPlanId=123&floatPlanId=456"
         ];
         for (var destination in invalidUrls) {
           var message = context.service.buildInactiveMemberRecoveryEmail(

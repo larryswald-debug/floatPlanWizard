@@ -1,5 +1,13 @@
 <cfprocessingdirective pageencoding="utf-8">
 <cfinclude template="../includes/require_auth.cfm">
+<cfscript>
+fpwRecoveryIntent = {};
+fpwRecoveryLoginUrl = structKeyExists(request, "fpwRecoveryLoginUrl") ? request.fpwRecoveryLoginUrl : "";
+if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)) {
+    fpwRecoveryDestinationService = new fpw.includes.InactiveMemberRecoveryDestinationService(datasource="fpw");
+    fpwRecoveryIntent = fpwRecoveryDestinationService.resolveRequest(fpwRequireAuthUserId, url);
+}
+</cfscript>
 <!DOCTYPE html>
 <!-- Updated to host the float plan wizard inside a Bootstrap modal. -->
 <html lang="en">
@@ -15,7 +23,7 @@
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260817-semantic-route-actions">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
-<body class="dashboard-body" data-fpw-page="dashboard">
+<body class="dashboard-body" data-fpw-page="dashboard" data-recovery-intent="<cfoutput>#encodeForHtmlAttribute(serializeJSON(fpwRecoveryIntent))#</cfoutput>" data-recovery-login-url="<cfoutput>#encodeForHtmlAttribute(fpwRecoveryLoginUrl)#</cfoutput>">
 
 <cfset request.fpwTopNavActive = "dashboard">
 <cfinclude template="../includes/top_nav.cfm">
@@ -1557,13 +1565,13 @@
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260815-reserve-mode"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-phase3-cutover"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260816-identical-waypoint-validation"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260924-recovery-actions"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260818-passengers-optional"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260818-navigation-auth-gating"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260924-recovery-actions"></script>
 
 </body>
 </html>

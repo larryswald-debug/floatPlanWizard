@@ -1,4 +1,5 @@
 -- Read-only production preflight except session variables and the refusal guard.
+-- Select the target fpw database first; its name may use different letter casing.
 SET @fpw_preflight_20260904_001_error = NULL;
 SET @fpw_preflight_20260904_001_existing_table = 0;
 SET @fpw_preflight_20260904_001_parent_table = 0;
@@ -6,19 +7,19 @@ SET @fpw_preflight_20260904_001_parent_column = 0;
 
 SELECT COUNT(*) INTO @fpw_preflight_20260904_001_existing_table
 FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = 'FPW'
+WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
   AND TABLE_NAME = 'inactive_member_recovery_deliveries';
 
 SELECT COUNT(*) INTO @fpw_preflight_20260904_001_parent_table
 FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = 'FPW'
+WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
   AND TABLE_NAME = 'users'
   AND TABLE_TYPE = 'BASE TABLE'
   AND ENGINE = 'InnoDB';
 
 SELECT COUNT(*) INTO @fpw_preflight_20260904_001_parent_column
 FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = 'FPW'
+WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
   AND TABLE_NAME = 'users'
   AND COLUMN_NAME = 'userId'
   AND DATA_TYPE = 'int'
@@ -27,8 +28,8 @@ WHERE TABLE_SCHEMA = 'FPW'
 
 SET @fpw_preflight_20260904_001_error = CASE
   WHEN DATABASE() IS NULL THEN 'Refusing preflight: no database is selected.'
-  WHEN CAST(DATABASE() AS BINARY) <> CAST('FPW' AS BINARY) THEN
-    CONCAT('Refusing preflight: selected database is ', DATABASE(), ', not FPW.')
+  WHEN CAST(LOWER(DATABASE()) AS BINARY) <> CAST('fpw' AS BINARY) THEN
+    CONCAT('Refusing preflight: selected database is ', DATABASE(), ', not fpw (case-insensitive).')
   WHEN @fpw_preflight_20260904_001_existing_table <> 0 THEN
     'Refusing preflight: inactive_member_recovery_deliveries already exists.'
   WHEN @fpw_preflight_20260904_001_parent_table <> 1 THEN

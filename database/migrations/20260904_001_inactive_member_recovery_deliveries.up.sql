@@ -1,11 +1,18 @@
-USE `FPW`;
+-- Select the target fpw database first; its name may use different letter casing.
+-- Run with a client that stops on the first SQL error (never use --force).
 
 SET @fpw_up_20260904_001_error = NULL;
 
-SELECT IF(COUNT(*) = 0, NULL, 'Refusing migration: inactive_member_recovery_deliveries already exists.')
+SELECT CASE
+  WHEN DATABASE() IS NULL THEN 'Refusing migration: no database is selected.'
+  WHEN CAST(LOWER(DATABASE()) AS BINARY) <> CAST('fpw' AS BINARY) THEN
+    CONCAT('Refusing migration: selected database is ', DATABASE(), ', not fpw (case-insensitive).')
+  WHEN COUNT(*) <> 0 THEN 'Refusing migration: inactive_member_recovery_deliveries already exists.'
+  ELSE NULL
+END
 INTO @fpw_up_20260904_001_error
 FROM information_schema.TABLES
-WHERE TABLE_SCHEMA = 'FPW'
+WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
   AND TABLE_NAME = 'inactive_member_recovery_deliveries';
 
 SET @fpw_up_20260904_001_guard_sql = IF(

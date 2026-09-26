@@ -1,11 +1,15 @@
-USE `FPW`;
+-- Select the target fpw database first; its name may use different letter casing.
+-- Run with a client that stops on the first SQL error (never use --force).
 
 SET @fpw_down_20260904_001_error = CASE
+  WHEN DATABASE() IS NULL THEN 'Refusing rollback: no database is selected.'
+  WHEN CAST(LOWER(DATABASE()) AS BINARY) <> CAST('fpw' AS BINARY) THEN
+    CONCAT('Refusing rollback: selected database is ', DATABASE(), ', not fpw (case-insensitive).')
   WHEN COALESCE(@fpw_confirm_rollback_inactive_recovery, '') <> 'ROLLBACK_INACTIVE_MEMBER_RECOVERY_DELIVERIES' THEN
     'Refusing rollback: set @fpw_confirm_rollback_inactive_recovery to the required confirmation token.'
   WHEN (
     SELECT COUNT(*) FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = 'FPW'
+    WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
       AND TABLE_NAME = 'inactive_member_recovery_deliveries'
       AND TABLE_TYPE = 'BASE TABLE'
   ) <> 1 THEN

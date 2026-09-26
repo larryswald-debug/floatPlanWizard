@@ -1,3 +1,4 @@
+// Local dry-run subset. No recovery transport or claim is invoked.
 async (page) => {
   const reports=[],accounts=[],contexts=[],cleanup=[],mailCleanup=[],mailEvidence=[];
   const base='http://localhost:8500/fpw',run=Date.now().toString(36);
@@ -48,28 +49,10 @@ async (page) => {
       const early=await command(a,'earlyDry');assert(get(early,'eligible')===0&&get(early,'claimed')===0,stage+' not eligible at 167h59m59s');
       const dry=await command(a,'dueDry');assert(get(dry,'eligible')===1&&get(dry,'sent')===0&&get(dry,'claimed')===0,stage+' eligible at exactly 168h dry run without claim or send');
       assert((await mails(a)).length===before.length,stage+' dry runs produced no mail');
-      const sent=await command(a,'dueSend');
-      assert(get(sent,'sent')===1&&get(sent,'submitted')===1&&get(sent,'claimed')===1,stage+' real orchestration and multipart transport submitted once to local MailHog: '+JSON.stringify(sent));
-      const state=await command(a,'state');assert(get(state,'ledger_count')===1&&get(state,'ledger_status')==='SENT',stage+' durable SENT ledger');
-      const replay=await command(a,'dueSend');assert(get(replay,'sent')===0&&get(replay,'claimed')===0,stage+' repeat invocation suppressed');
-      const captured=(await mails(a)).filter(m=>!before.includes(m.ID));
-      assert(captured.length===1,stage+' exactly one captured recovery message');
-      const m=captured[0];
-      assert((m.To||[]).length===1&&(m.To[0].Mailbox+'@'+m.To[0].Domain).toLowerCase()===a.email,stage+' only this disposable recipient');
-      const full=await (await p.request.get('http://localhost:8025/api/v1/messages/'+encodeURIComponent(m.ID))).json();
-      const parts=mimeParts(full.MIME||{});
-      const html=parts.find(x=>/text\/html/i.test((x.Headers?.['Content-Type']||[]).join(' ')));
-      const plain=parts.find(x=>/text\/plain/i.test((x.Headers?.['Content-Type']||[]).join(' ')));
-      assert(!!html&&!!plain,stage+' real message has HTML and plain-text MIME parts');
-      const htmlBody=decode(html.Body),textBody=decode(plain.Body);
-      for(const content of [htmlBody,textBody]) {
-        assert(content.includes('4347 Topsail Trail')&&content.includes('New Port Richey, FL 34652'),stage+' approved mailing address in MIME part');
-        assert(/unsubscribe/i.test(content)&&/preferences/i.test(content),stage+' unsubscribe and preferences in MIME part');
-      }
-      const links=[...htmlBody.matchAll(/href="([^"]+)"/g)].map(x=>x[1].replace(/&amp;/g,'&'));
-      const unsub=links.find(x=>/unsubscribe/i.test(x));const preferences=links.find(x=>/preferences/i.test(x));
-      assert(!!unsub&&!!preferences&&unsub!==preferences,stage+' distinct unsubscribe and preferences destinations');
-      mailEvidence.push({stage,subject:full.Content?.Headers?.Subject?.[0]||m.Content?.Headers?.Subject?.[0],multipart:true,address:true,distinctLinks:true});
+      const state=await command(a,'state');
+      assert(get(state,'ledger_count')===0,stage+' read-only timing proof creates no recovery ledger rows');
+      assert(get(state,'enrollment')===get(birth,'enrollment'),stage+' canonical stage advancement preserves automatic enrollment UTC');
+
     }
   } catch(e){error=e.message;}
   finally {

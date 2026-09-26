@@ -32,18 +32,18 @@ async (page) => {
   }
   try {
     const a=await signup('owner'), b=await signup('other');
-    assert(get(await command(a,'state'),'enrollments')===0,'signup and dashboard do not enroll');
-    assert(get(await command(a,'preview'),'enrollable')===1,'authenticated preview reports enrollable');
+    assert(get(await command(a,'state'),'enrollments')===1,'successful signup enrolls once before dashboard');
+    assert(get(await command(a,'preview'),'already_enrolled')===1,'authenticated preview reports automatic enrollment');
     const beforeDry=await command(a,'dryRun');
-    assert(get(get(beforeDry,'reasons'),'ENROLLMENT_EVIDENCE_REQUIRED')===1,'authenticated sender dry run holds unenrolled member');
-    assert(get(await command(a,'state'),'enrollments')===0,'preview is read-only');
+    assert(get(get(beforeDry,'reasons'),'DEFERRED_WAITING_FOR_INTERVAL')===1,'authenticated sender dry run waits from automatic enrollment');
+    assert(get(await command(a,'state'),'enrollments')===1,'preview preserves the single automatic enrollment');
     assert((await raw(a,'preview',a.auth,a.p.request,'wrong')).status()===403,'wrong token denied');
     assert((await raw(b,'enroll',a.auth)).status()===403,'cross-member fixture denied');
     const second=await page.context().browser().newContext({storageState:await a.context.storageState()});
     contexts.push(second);
     const results=await Promise.all([command(a,'enrollConcurrent'),command(a,'enrollConcurrent',a.auth,second.request)]);
     assert(results.every(r=>get(r,'SUCCESS')===true),'both overlapping enrollment calls succeed');
-    assert(results.map(r=>get(r,'CODE')).sort().join(',')==='ALREADY_ENROLLED,ENROLLED','one insertion and one existing enrollment');
+    assert(results.every(r=>get(r,'CODE')==='ALREADY_ENROLLED'),'overlapping calls retain automatic enrollment');
     const at=get(results[0],'ENROLLMENT_UTC');
     assert(at===get(results[1],'ENROLLMENT_UTC'),'concurrent calls return identical UTC');
     const state=await command(a,'state');
@@ -62,7 +62,7 @@ async (page) => {
     assert(get(after,'enrollment_utc')===at,'real stage advancement does not reset enrollment');
     assert(get(after,'decision')==='SUPPRESSED_RECENT_ACTIVITY','stage advancement resets inactivity while retaining signup coverage');
     assert(get(await command(a,'enroll'),'ENROLLMENT_UTC')===at,'repeated explicit enrollment retains initial time');
-    assert(get(await command(b,'state'),'enrollments')===0,'other account remains unenrolled');
+    assert(get(await command(b,'state'),'enrollments')===1,'other account retains only its own automatic enrollment');
   } catch(e) {error=e.message;}
   finally {
     for(const a of accounts) {

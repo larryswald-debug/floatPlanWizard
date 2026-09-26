@@ -18,9 +18,12 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(variables.fixture.counts().events).toBe(before.events);
         var messages=variables.fixture.messages();
         var expected=["Add your boat to FloatPlanWizard","Ready to plan your first trip?","Pick up your trip planning","Your Float Plan is waiting"];
+        var destinations=["vessel","planner","route&routeId=" & members[3].routeId,"draft&floatPlanId=" & members[4].planId];
         for (var i=1;i LTE 4;i++) {
           expect(messages[i].subject).toBe(expected[i]);
-          expect(messages[i].ctaUrl).toBe("http://localhost:8500/fpw/app/dashboard.cfm");
+          expect(messages[i].ctaUrl).toBe("http://localhost:8500/fpw/app/dashboard.cfm?recoveryAction=" & destinations[i]);
+          expect(messages[i].textBody).toInclude(messages[i].ctaUrl);
+          expect(messages[i].htmlBody).toInclude(encodeForHtmlAttribute(messages[i].ctaUrl));
           expect(messages[i].textBody).toInclude("4347 Topsail Trail, New Port Richey, FL 34652");
           expect(messages[i].textBody).toInclude("/unsubscribe.cfm?t=");
           expect(messages[i].textBody).toInclude("/app/account.cfm##email-preferences");

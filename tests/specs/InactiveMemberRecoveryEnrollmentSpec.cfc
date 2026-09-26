@@ -196,9 +196,139 @@ component extends="testbox.system.BaseSpec" output="false" {
           } else {
             queryExecute("UPDATE product_events SET " & updates[mutation] & " WHERE user_id=:id AND event_name='inactive_member_recovery_enrolled'",params(member.userId),{datasource="fpw"});
           }
-          expect(enrollment.ensureEnrolled(member.userId).CODE).toBe("ENROLLMENT_FAILED");
+          var failed=enrollment.ensureEnrolled(member.userId);
+          expect(failed.CODE).toBe("ENROLLMENT_FAILED");
+          expect(failed.REASON).toBe("ENROLLMENT_EVIDENCE_INVALID");
+          expect(isValid("uuid",failed.ERROR_REFERENCE)).toBeTrue();
           expect(new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(member.userId,fixture.dbUtc()).DECISION_CODE).toBe("HOLD_ENROLLMENT_EVIDENCE_INVALID");
         }
+      });
+
+
+      it("records bounded database diagnostics without SQL values paths or private detail",function() {
+        var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService());
+        makePublic(service,"buildFailureDiagnostic");
+        var ref=lCase(createUUID());
+        var error={type="database",sqlState="42s02",nativeErrorCode=1146,
+          message="Error Executing Database Query.",
+          detail="Table 'private_database.inactive_member_recovery_deliveries' doesn't exist. secret@example.test PRIVATE_TOKEN",
+          sql="SELECT PRIVATE_TOKEN FROM users WHERE email='secret@example.test'",tagContext=[]};
+        for (var i=1;i LTE 7;i++) arrayAppend(error.tagContext,{template="/private/path/InactiveMemberRecoveryClassifierService.cfc",line=499});
+        var diagnostic=service.buildFailureDiagnostic(123,"assessEnrollment","EVALUATE_MEMBER",error,ref);
+        expect(diagnostic.reason).toBe("ENROLLMENT_DATABASE_ERROR");
+        expect(diagnostic.reference).toBe(ref);expect(diagnostic.userId).toBe(123);
+        expect(diagnostic.step).toBe("EVALUATE_MEMBER");expect(diagnostic.sqlState).toBe("42S02");
+        expect(diagnostic.nativeErrorCode).toBe("1146");
+        expect(diagnostic.databaseObject).toBe("inactive_member_recovery_deliveries");
+        expect(arrayLen(diagnostic.frames)).toBe(5);
+        expect(diagnostic.frames[1].file).toBe("InactiveMemberRecoveryClassifierService.cfc");
+        expect(diagnostic.frames[1].line).toBe(499);
+        var json=serializeJSON(diagnostic);
+        for (var secret in ["PRIVATE_TOKEN","secret@example.test","private_database","/private/path","SELECT","doesn't exist"]) {
+          expect(findNoCase(secret,json)).toBe(0);
+        }
+        error.detail="Unknown column 'fp.missing_field' in 'field list'";
+        expect(service.buildFailureDiagnostic(123,"assessEnrollment","EVALUATE_MEMBER",error,ref).databaseObject).toBe("fp.missing_field");
+      });
+
+      it("diagnostic extraction tolerates malformed fields and rejects log injection",function() {
+        var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService());
+        makePublic(service,"buildFailureDiagnostic");
+        for (var error in [[], "PRIVATE_TOKEN",
+          {type=[],sqlState={},nativeErrorCode=[],message={},detail=[],tagContext="invalid"},
+          {type="database" & chr(10) & "PRIVATE_TOKEN",sqlState="42S02" & chr(10) & "PRIVATE_TOKEN",
+            nativeErrorCode="1146 PRIVATE_TOKEN",tagContext=[{},[],{template=[],line={}},
+              {template="/private/path/PRIVATE_TOKEN.cfc" & chr(10),line=42},
+              {template="/private/path/Enrollment.cfc",line="42 PRIVATE_TOKEN"}]}]) {
+          var diagnostic=service.buildFailureDiagnostic(123,"assessEnrollment","READ_ENROLLMENT",error,lCase(createUUID()));
+          expect(diagnostic.reason).toBe("ENROLLMENT_ASSESSMENT_ERROR");
+          expect(diagnostic.exceptionType).toBe("UNKNOWN");
+          expect(diagnostic.sqlState).toBe("");expect(diagnostic.nativeErrorCode).toBe("");
+          expect(arrayLen(diagnostic.frames)).toBe(0);
+          expect(find("PRIVATE_TOKEN",serializeJSON(diagnostic))).toBe(0);
+        }
+      });
+
+      it("failure outcomes expose only safe reasons and a matching diagnostic reference",function() {
+        var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService());
+        makePublic(service,"failureOutcome");makePublic(service,"writeEnrollmentDiagnostic");
+        service.$("writeEnrollmentDiagnostic");
+        var result=service.failureOutcome(123,"assessEnrollment","CREATE_CLASSIFIER",
+          {type="expression",message="PRIVATE_TOKEN secret@example.test"});
+        expect(result.CODE).toBe("ENROLLMENT_FAILED");expect(result.SUCCESS).toBeFalse();
+        expect(result.REASON).toBe("ENROLLMENT_COMPONENT_ERROR");
+        expect(isValid("uuid",result.ERROR_REFERENCE)).toBeTrue();
+        expect(structCount(result)).toBe(5);
+        expect(find("PRIVATE_TOKEN",serializeJSON(result))).toBe(0);
+        expect(service.$count("writeEnrollmentDiagnostic")).toBe(1);
+        var calls=service.$callLog().writeEnrollmentDiagnostic;
+        expect(calls[1][1].reference).toBe(result.ERROR_REFERENCE);
+        expect(calls[1][1].step).toBe("CREATE_CLASSIFIER");
+      });
+
+      it("appends a timestamped diagnostic reference to the application log without overwriting earlier records",function() {
+        var logPath=expandPath("/fpw/logs/fpw_recovery_enrollment.log");
+        var before=fileExists(logPath) ? fileRead(logPath,"utf-8") : "";
+        var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService());
+        makePublic(service,"failureOutcome");
+        var result=service.failureOutcome(0,"assessEnrollment","READ_ENROLLMENT",
+          {type="FPW.Recovery.InvalidEnrollment",message="PRIVATE_LOG_TEST_VALUE"});
+        expect(result.REASON).toBe("ENROLLMENT_EVIDENCE_INVALID");
+        expect(isValid("uuid",result.ERROR_REFERENCE)).toBeTrue();
+        expect(fileExists(logPath)).toBeTrue();
+        var after=fileRead(logPath,"utf-8");
+        if (len(before)) expect(left(after,len(before))).toBe(before);
+        var appended=mid(after,len(before)+1,len(after)-len(before));
+        expect(find(result.ERROR_REFERENCE,appended)).toBeGT(0);
+        expect(reFind("[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z RECOVERY_ENROLLMENT_FAILURE",appended)).toBeGT(0);
+        expect(find("PRIVATE_LOG_TEST_VALUE",appended)).toBe(0);
+      });
+
+      it("a logging failure cannot replace an assessment or write failure",function() {
+        var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService());
+        makePublic(service,"failureOutcome");makePublic(service,"writeEnrollmentDiagnostic");
+        service.$(method="writeEnrollmentDiagnostic",throwException=true,throwType="tests.LogUnavailable",throwMessage="PRIVATE_TOKEN");
+        for (var operation in ["assessEnrollment","ensureEnrolled"]) {
+          var result=service.failureOutcome(123,operation,"RECORD_EVENT",{type="tests.EventFailed",message="PRIVATE_TOKEN"});
+          expect(result.SUCCESS).toBeFalse();expect(result.CODE).toBe("ENROLLMENT_FAILED");
+          expect(result.REASON).toBe(operation EQ "assessEnrollment" ? "ENROLLMENT_ASSESSMENT_ERROR" : "ENROLLMENT_WRITE_ERROR");
+          expect(isValid("uuid",result.ERROR_REFERENCE)).toBeTrue();
+          expect(find("PRIVATE_TOKEN",serializeJSON(result))).toBe(0);
+        }
+      });
+
+      it("invalid evidence and database exceptions report the failing assessment step",function() {
+        for (var type in ["FPW.Recovery.InvalidEnrollment","database"]) {
+          // A real missing datasource produces CF's database exception; custom throw cannot impersonate that built-in type.
+          var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService(
+            datasource=type EQ "database" ? "FPW_RECOVERY_DIAGNOSTIC_MISSING_DSN" : "fpw"));
+          makePublic(service,"writeEnrollmentDiagnostic");
+          service.$("writeEnrollmentDiagnostic");
+          if (type NEQ "database") service.$(method="getEnrollmentUtc",throwException=true,throwType=type,throwMessage="PRIVATE_TOKEN");
+          var result=service.assessEnrollment(123);
+          expect(result.SUCCESS).toBeFalse();
+          expect(result.REASON).toBe(type EQ "database" ? "ENROLLMENT_DATABASE_ERROR" : "ENROLLMENT_EVIDENCE_INVALID");
+          expect(isValid("uuid",result.ERROR_REFERENCE)).toBeTrue();
+          expect(service.$count("writeEnrollmentDiagnostic")).toBe(1);
+          var calls=service.$callLog().writeEnrollmentDiagnostic;
+          expect(calls[1][1].step).toBe("READ_ENROLLMENT");
+          expect(calls[1][1].reference).toBe(result.ERROR_REFERENCE);
+        }
+      });
+
+      it("writer rollback retains the assessment diagnostic without replacing or logging it twice",function() {
+        var member=fixture.createMember();
+        var service=prepareMock(new fpw.includes.InactiveMemberRecoveryEnrollmentService());
+        makePublic(service,"writeEnrollmentDiagnostic");
+        service.$("writeEnrollmentDiagnostic");
+        var ref=lCase(createUUID());
+        service.$("assessEnrollment",{SUCCESS=false,CODE="ENROLLMENT_FAILED",ENROLLMENT_UTC="",
+          REASON="ENROLLMENT_DATABASE_ERROR",ERROR_REFERENCE=ref});
+        var result=service.ensureEnrolled(member.userId);
+        expect(result.SUCCESS).toBeFalse();expect(result.REASON).toBe("ENROLLMENT_DATABASE_ERROR");
+        expect(result.ERROR_REFERENCE).toBe(ref);
+        expect(service.$count("writeEnrollmentDiagnostic")).toBe(0);
+        expect(fixture.enrollmentCount(member.userId)).toBe(0);
       });
 
       it("preview and sender dry runs never enroll claim or send",function() {

@@ -5,4 +5,4 @@
   crossorigin="anonymous"></script>
 
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js?v=20260731-basic-review-send"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20260924-recovery-actions"></script>

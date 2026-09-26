@@ -1,6 +1,8 @@
 # Trustworthy recovery enrollment evidence
 
-Implementation date: 2026-09-06. Local FPW only. **Enrollment is not historical coverage verification. Live sending remains disabled.**
+Historical implementation date: 2026-09-06. The evidence-service contract and original results below describe that checkpoint. **Enrollment is not historical coverage verification.**
+
+Update, 2026-09-24: production signup and reviewed administrative cohort callers are documented in [Production recovery enrollment](inactive-member-recovery-production-enrollment.md). That report supersedes the earlier explicit-pass-only signup model below. No production cohort was enrolled and no live recovery sending or schedule was enabled by this work.
 
 ## Discovery and selected contract
 

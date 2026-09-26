@@ -1,3 +1,8 @@
+-- Verify only the selected fpw database, preserving its exact letter casing.
+SELECT
+  DATABASE() AS selected_database,
+  IF(CAST(LOWER(DATABASE()) AS BINARY) = CAST('fpw' AS BINARY), 'PASS', 'FAIL') AS database_contract;
+
 SELECT
   CASE
     WHEN COUNT(*) = 12
@@ -13,13 +18,15 @@ SELECT
     THEN 'PASS' ELSE 'FAIL'
   END AS column_contract
 FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = 'FPW'
+WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
+  AND CAST(LOWER(DATABASE()) AS BINARY) = CAST('fpw' AS BINARY)
   AND TABLE_NAME = 'inactive_member_recovery_deliveries';
 
 SELECT
   IF(COUNT(*) = 1, 'PASS', 'FAIL') AS unique_contract
 FROM information_schema.STATISTICS
-WHERE TABLE_SCHEMA = 'FPW'
+WHERE CAST(TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
+  AND CAST(LOWER(DATABASE()) AS BINARY) = CAST('fpw' AS BINARY)
   AND TABLE_NAME = 'inactive_member_recovery_deliveries'
   AND INDEX_NAME = 'uq_inactive_recovery_member_stage'
   AND NON_UNIQUE = 0
@@ -27,7 +34,7 @@ WHERE TABLE_SCHEMA = 'FPW'
   AND COLUMN_NAME = 'user_id'
   AND EXISTS (
     SELECT 1 FROM information_schema.STATISTICS s2
-    WHERE s2.TABLE_SCHEMA = 'FPW'
+    WHERE CAST(s2.TABLE_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
       AND s2.TABLE_NAME = 'inactive_member_recovery_deliveries'
       AND s2.INDEX_NAME = 'uq_inactive_recovery_member_stage'
       AND s2.NON_UNIQUE = 0
@@ -38,14 +45,16 @@ WHERE TABLE_SCHEMA = 'FPW'
 SELECT
   IF(COUNT(*) = 1 AND MAX(DELETE_RULE) = 'CASCADE', 'PASS', 'FAIL') AS account_delete_contract
 FROM information_schema.REFERENTIAL_CONSTRAINTS
-WHERE CONSTRAINT_SCHEMA = 'FPW'
+WHERE CAST(CONSTRAINT_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
+  AND CAST(LOWER(DATABASE()) AS BINARY) = CAST('fpw' AS BINARY)
   AND TABLE_NAME = 'inactive_member_recovery_deliveries'
   AND CONSTRAINT_NAME = 'fk_inactive_recovery_user';
 
 SELECT
   IF(COUNT(*) = 4, 'PASS', 'FAIL') AS check_contract
 FROM information_schema.TABLE_CONSTRAINTS
-WHERE CONSTRAINT_SCHEMA = 'FPW'
+WHERE CAST(CONSTRAINT_SCHEMA AS BINARY) = CAST(DATABASE() AS BINARY)
+  AND CAST(LOWER(DATABASE()) AS BINARY) = CAST('fpw' AS BINARY)
   AND TABLE_NAME = 'inactive_member_recovery_deliveries'
   AND CONSTRAINT_TYPE = 'CHECK'
   AND CONSTRAINT_NAME IN (

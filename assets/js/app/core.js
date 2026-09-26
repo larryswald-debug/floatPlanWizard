@@ -21,6 +21,23 @@
     alertEl.textContent = "";
   }
 
+  function getRecoveryReturnPath(form) {
+    var candidate = form.getAttribute("data-recovery-return") || "";
+    if (!candidate || typeof window.URL !== "function") return "";
+    try {
+      var target = new window.URL(candidate, window.location.origin);
+      var idMatch = target.search.match(/&(?:routeId|routeInstanceId|floatPlanId)=([0-9]+)$/);
+      if (target.origin !== window.location.origin ||
+          target.pathname !== BASE_PATH + "/app/dashboard.cfm" ||
+          candidate !== target.pathname + target.search ||
+          !/^\?recoveryAction=(?:(?:vessel|planner|routes|plans)|route&(?:routeId|routeInstanceId)=[1-9][0-9]{0,9}|draft&floatPlanId=[1-9][0-9]{0,9})$/.test(target.search) ||
+          (idMatch && Number(idMatch[1]) > 2147483647)) return "";
+      return candidate;
+    } catch (err) {
+      return "";
+    }
+  }
+
   function initLoginForm() {
     var form = document.getElementById("loginForm");
     if (!form || !window.Api || typeof window.Api.login !== "function") {
@@ -50,9 +67,8 @@
         .then(function () {
           showLoginAlert("Login successful. Redirecting...", "success");
 
-          // Will 404 until we create dashboard.cfm – that’s okay for now
           setTimeout(function () {
-            window.location.href = BASE_PATH + "/app/dashboard.cfm";
+            window.location.href = getRecoveryReturnPath(form) || BASE_PATH + "/app/dashboard.cfm";
           }, 800);
         })
         .catch(function (err) {

@@ -11,6 +11,9 @@
   var BASE_PATH = window.FPW_BASE || "";
   var FALLBACK_LOGIN_URL = BASE_PATH + "/index.cfm";
   var dashboardPageIsLeaving = false;
+  var recoveryIntent = readRecoveryIntent();
+  var recoveryActionHandled = false;
+  var recoveryTimelineReady = null;
 
   window.addEventListener("beforeunload", function () {
     dashboardPageIsLeaving = true;
@@ -446,6 +449,92 @@
     if (!btn || typeof btn.click !== "function") return false;
     btn.click();
     return true;
+  }
+
+  function readRecoveryIntent() {
+    var raw = document.body ? document.body.getAttribute("data-recovery-intent") : "";
+    var intent = {};
+    try {
+      intent = raw ? JSON.parse(raw) : {};
+    } catch (err) {
+      return {};
+    }
+    var action = String(intent.action || intent.ACTION || "").toLowerCase();
+    if (["vessel", "planner", "routes", "plans", "route", "draft"].indexOf(action) === -1) return {};
+    return {
+      action: action,
+      routeId: parseInt(intent.routeId || intent.ROUTEID || 0, 10) || 0,
+      routeCode: String(intent.routeCode || intent.ROUTECODE || ""),
+      floatPlanId: parseInt(intent.floatPlanId || intent.FLOATPLANID || 0, 10) || 0,
+      basicDraft: intent.basicDraft === true || intent.BASICDRAFT === true
+    };
+  }
+
+  function showRecoveryWorkspace(message, selector) {
+    return Promise.resolve(recoveryTimelineReady).then(function () {
+      var panelSelector = selector || "#expeditionTimelinePanel";
+      var panel = document.querySelector(panelSelector);
+      if (panel && panel.classList.contains("is-collapsed")) {
+        var toggle = document.getElementById("toggleRoutesPanelBtn");
+        if (toggle) toggle.click();
+      }
+      if (utils.showDashboardAlert) utils.showDashboardAlert(message, "info");
+      if (panel && typeof panel.focus === "function") {
+        if (!panel.hasAttribute("tabindex")) panel.setAttribute("tabindex", "-1");
+        panel.focus({ preventScroll: true });
+      }
+      scrollToPanel(panelSelector);
+      return false;
+    });
+  }
+
+  function dispatchRecoveryAction() {
+    if (recoveryActionHandled || !recoveryIntent.action) return;
+    recoveryActionHandled = true;
+    var intent = recoveryIntent;
+    var module = null;
+    var opened = null;
+    if (intent.action === "vessel") {
+      var vesselButton = document.getElementById("addVesselBtn");
+      if (vesselButton && !vesselButton.disabled && triggerExistingButton("addVesselBtn")) return;
+      showRecoveryWorkspace("Continue vessel setup in your Vessels panel.", "#vesselsPanel");
+      return;
+    }
+    if (intent.action === "planner") {
+      var plannerButton = document.getElementById("openRouteBuilderBtn");
+      if (plannerButton && !plannerButton.disabled && triggerExistingButton("openRouteBuilderBtn")) return;
+      showRecoveryWorkspace("Continue planning from your Routes workspace.");
+      return;
+    }
+    if (intent.action === "route") {
+      module = modules.routeBuilder;
+      if (module && intent.routeId > 0 && typeof module.openSavedRoute === "function") {
+        opened = module.openSavedRoute(intent.routeId);
+      } else if (module && intent.routeCode && typeof module.openEditorForRoute === "function") {
+        opened = module.openEditorForRoute(intent.routeCode, { recovery: true });
+      } else {
+        showRecoveryWorkspace("Choose a saved route below to continue planning.");
+        return;
+      }
+      Promise.resolve(opened).then(function (result) {
+        if (result === false) showRecoveryWorkspace("Choose a saved route below to continue planning.");
+      }).catch(function () {
+        showRecoveryWorkspace("Choose a saved route below to continue planning.");
+      });
+      return;
+    }
+    if (intent.action === "draft" && intent.floatPlanId > 0) {
+      if (intent.basicDraft && modules.basicFloatPlan && typeof modules.basicFloatPlan.open === "function") {
+        modules.basicFloatPlan.open(intent.floatPlanId);
+        return;
+      }
+      if (!intent.basicDraft && modules.floatplans && typeof modules.floatplans.openWizardForPlan === "function") {
+        if (modules.floatplans.openWizardForPlan(intent.floatPlanId, 1)) return;
+      }
+    }
+    showRecoveryWorkspace(intent.action === "routes"
+      ? "Choose a saved route below to continue planning."
+      : "Choose a current float plan below to continue.");
   }
 
   function onQuickAction(action) {
@@ -6306,6 +6395,7 @@
     document.addEventListener("fpw:floatplans-updated", function () {
       refreshDerivedSignalsFromState();
     });
+    document.addEventListener("fpw:dashboard:user-ready", dispatchRecoveryAction);
 
     (Api.getCurrentMemberAccess ? Api.getCurrentMemberAccess() : Api.getCurrentUser())
       .then(function (data) {
@@ -6328,7 +6418,7 @@
         state.memberAccess = memberAccess;
         if (modules.onboarding && typeof modules.onboarding.hydrate === "function") {
           modules.onboarding.hydrate(data.ONBOARDING || data.onboarding, {
-            allowAutoOpen: true
+            allowAutoOpen: !recoveryIntent.action
           });
         }
         if (utils.resolveHomePortLatLng) {
@@ -6341,7 +6431,7 @@
         initWeatherPanel(homePortZip, state.homePortLatLng || null);
 
         if (modules.expeditionTimeline && typeof modules.expeditionTimeline.load === "function") {
-          modules.expeditionTimeline.load();
+          recoveryTimelineReady = modules.expeditionTimeline.load();
         }
 
         var readyEvent = null;

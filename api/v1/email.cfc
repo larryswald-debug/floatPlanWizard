@@ -115,12 +115,13 @@
         <cfargument name="eligibility" type="struct" required="true">
         <cfargument name="firstName" type="string" required="false" default="">
         <cfargument name="verifiedDraftUrl" type="string" required="false" default="">
+        <cfargument name="verifiedRouteUrl" type="string" required="false" default="">
 
         <cfset var stageValue = uCase(trim(arguments.stage))>
         <cfset var templateConfig = getInactiveMemberRecoveryTemplateConfig(stageValue)>
         <cfset var complianceFooter = {}>
-        <cfset var dashboardUrl = resolveAbsolutePublicUrl("/app/dashboard.cfm")>
-        <cfset var ctaUrl = dashboardUrl>
+        <cfset var recoveryAction = stageValue EQ "A" ? "vessel" : (stageValue EQ "B" ? "planner" : (stageValue EQ "C" ? "routes" : "plans"))>
+        <cfset var ctaUrl = resolveAbsolutePublicUrl("/app/dashboard.cfm?recoveryAction=" & recoveryAction)>
         <cfset var verifiedDraft = {}>
         <cfset var cleanFirstName = left(reReplace(trim(arguments.firstName), "[\r\n\t]+", " ", "all"), 80)>
         <cfset var greetingText = len(cleanFirstName) ? "Hi " & cleanFirstName & "," : "Hi,">
@@ -132,6 +133,14 @@
 
         <cfif NOT templateConfig.valid>
             <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_RECOVERY_STAGE")>
+        </cfif>
+
+        <cfif stageValue EQ "C" AND len(trim(arguments.verifiedRouteUrl))>
+            <cfset verifiedDraft = validateVerifiedInactiveMemberRecoveryUrl(arguments.verifiedRouteUrl, "route")>
+            <cfif NOT verifiedDraft.valid>
+                <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_VERIFIED_ROUTE_URL")>
+            </cfif>
+            <cfset ctaUrl = verifiedDraft.url>
         </cfif>
 
         <cfif stageValue EQ "D" AND len(trim(arguments.verifiedDraftUrl))>
@@ -265,36 +274,27 @@
 
     <cffunction name="validateVerifiedInactiveMemberDraftUrl" access="private" returntype="struct" output="false">
         <cfargument name="verifiedDraftUrl" type="string" required="true">
+        <cfreturn validateVerifiedInactiveMemberRecoveryUrl(arguments.verifiedDraftUrl, "draft")>
+    </cffunction>
 
-        <cfset var candidate = trim(arguments.verifiedDraftUrl)>
+    <cffunction name="validateVerifiedInactiveMemberRecoveryUrl" access="private" returntype="struct" output="false">
+        <cfargument name="candidateUrl" type="string" required="true">
+        <cfargument name="action" type="string" required="true">
+        <cfset var candidate = arguments.candidateUrl>
         <cfset var publicBaseUrl = reReplace(getEmailConfig().publicBaseUrl, "/+$", "", "all")>
-        <cfset var relativeUrl = "">
-        <cfset var relativePath = "">
-        <cfset var parsedUrl = "">
-
-        <cfif NOT len(candidate)
-            OR reFind("[\r\n\t]", candidate)
-            OR find("##", candidate)
-            OR len(candidate) LTE len(publicBaseUrl)
-            OR compareNoCase(left(candidate, len(publicBaseUrl) + 1), publicBaseUrl & "/") NEQ 0>
-            <cfreturn { valid = false, url = "" }>
+        <cfset var relativeUrl = candidate>
+        <cfset var safePath = "">
+        <cfif left(candidate, 1) NEQ "/">
+            <cfif compareNoCase(left(candidate, len(publicBaseUrl) + 1), publicBaseUrl & "/") NEQ 0>
+                <cfreturn {valid=false,url=""}>
+            </cfif>
+            <cfset relativeUrl = removeChars(candidate, 1, len(publicBaseUrl))>
         </cfif>
-
-        <!--- Parse syntax only; URI construction does not resolve or request the destination. --->
-        <cftry>
-            <cfset parsedUrl = createObject("java", "java.net.URI").init(candidate)>
-            <cfcatch type="any">
-                <cfreturn { valid = false, url = "" }>
-            </cfcatch>
-        </cftry>
-
-        <cfset relativeUrl = removeChars(candidate, 1, len(publicBaseUrl))>
-        <cfset relativePath = listFirst(relativeUrl, "?")>
-        <cfif compareNoCase(relativePath, "/app/floatplan-wizard.cfm") NEQ 0>
-            <cfreturn { valid = false, url = "" }>
+        <cfset safePath = new fpw.includes.InactiveMemberRecoveryActionPathService().validatePath(relativeUrl)>
+        <cfif NOT len(safePath) OR find("/app/dashboard.cfm?recoveryAction=" & arguments.action & "&", safePath) NEQ 1>
+            <cfreturn {valid=false,url=""}>
         </cfif>
-
-        <cfreturn { valid = true, url = candidate }>
+        <cfreturn {valid=true,url=resolveAbsolutePublicUrl(safePath)}>
     </cffunction>
 
     <cffunction name="buildInactiveMemberRecoveryEmailFailure" access="private" returntype="struct" output="false">

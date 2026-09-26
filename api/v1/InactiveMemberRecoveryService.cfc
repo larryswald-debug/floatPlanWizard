@@ -139,10 +139,14 @@ component output="false" {
             cancellation=result("held",compliance.code,stage,true,false,true);
             throw(type="FPW.Recovery.CancelBeforeSend",message="COMPLIANCE_CANCELED");
           }
-          // Classifier supplies no authorized Draft identity: use its approved Dashboard fallback.
+          // Resolve current owned planning work only after the unchanged pre-send checks.
+          var destinationPath=new fpw.includes.InactiveMemberRecoveryDestinationService(datasource=variables.datasource)
+            .resolveStage(arguments.userId,stage);
           prepared=variables.emailService.buildInactiveMemberRecoveryEmail(
             stage=stage,eligibility=compliance,
-            firstName=(isNull(recipient.fName[1]) ? "" : toString(recipient.fName[1]))
+            firstName=(isNull(recipient.fName[1]) ? "" : toString(recipient.fName[1])),
+            verifiedRouteUrl=(stage EQ "C" AND find("?recoveryAction=route&",destinationPath) ? destinationPath : ""),
+            verifiedDraftUrl=(stage EQ "D" AND find("?recoveryAction=draft&",destinationPath) ? destinationPath : "")
           );
           if (!prepared.success) {
             cancellation=result("held",prepared.errorCode,stage,true,false,true);
