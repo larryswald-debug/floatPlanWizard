@@ -147,6 +147,10 @@ fpwCtaConfig = {
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color"></cfoutput>
   <style>
+    /* Match the Boat Fuel Calculator content width and responsive gutters. */
+    #main-content > .fpw-overdue-shell {
+      width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+    }
     /* Keep TOC targets below the shared sticky header at all article breakpoints. */
     #main-content .fpw-overdue-content > section { scroll-margin-top: 165px; }
     .fpw-loop-planning-figure { margin: 20px 0; }
