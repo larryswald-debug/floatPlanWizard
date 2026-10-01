@@ -60,7 +60,7 @@ for (fpwCostUserKey in ["userId", "id", "USERID", "ID"]) {
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfoutput>
   <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/layout.css?v=20260620-page-width">
-  <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2">
+  <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/top-nav.css?v=20260930-great-loop-trip-planning-nav">
   <link rel="stylesheet" href="#encodeForHTMLAttribute(request.fpwBase)#/assets/css/boat-cost.css?v=2">
   <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-engine.js?v=1"></script>
   <script defer src="#encodeForHTMLAttribute(request.fpwBase)#/assets/js/boat-cost-state.js?v=1"></script>

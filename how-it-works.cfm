@@ -975,7 +975,7 @@ fpwHowFaqJsonLdText = replace(serializeJSON(fpwHowFaqSchema), "</", "<\/", "all"
   </style>
 <link rel="canonical" href="https://floatplanwizard.com/how-it-works/" />
 <cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-<cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2"></cfoutput>
+<cfoutput><link rel="stylesheet" href="#fpwHowBasePath#/assets/css/top-nav.css?v=20260930-great-loop-trip-planning-nav"></cfoutput>
 <script type="application/ld+json"><cfoutput>#fpwHowFaqJsonLdText#</cfoutput></script>
 </head>
 <body id="top" class="fpw-how-body">

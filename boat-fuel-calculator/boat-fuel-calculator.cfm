@@ -1689,7 +1689,7 @@ fpwCtaConfig = {
     }
   </style>
 <link rel="stylesheet" href="../assets/css/layout.css?v=20260620-page-width">
-<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260824-boating-safety-nav-v2">
+<link rel="stylesheet" href="../assets/css/top-nav.css?v=20260930-great-loop-trip-planning-nav">
 <link rel="stylesheet" href="../assets/css/fpw-action-cta.css?v=20260804-pilot">
 <cfinclude template="../includes/analytics_ga4.cfm">
 <cfinclude template="../includes/trustedsite.cfm">

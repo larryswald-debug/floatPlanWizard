@@ -364,6 +364,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   </div>
                 </div>
                 <div class="fpw-library-grid">
+                  <a class="fpw-library-card" href="#topNavBasePath#/great-loop/trip-planning/" role="menuitem">
+                    #renderFpwNavIcon("route-cta", "fpw-card-icon")#
+                    <strong>Great Loop Trip Planning</strong>
+                    <span>Plan mileage, daily legs, locks, bridges, fuel, and timing.</span>
+                    <em aria-hidden="true">&rarr;</em>
+                  </a>
                   <a class="fpw-library-card" href="#topNavBasePath#/great-loop/locks/" role="menuitem">
                     #renderFpwNavIcon("lock", "fpw-card-icon")#
                     <strong>Lock Library</strong>

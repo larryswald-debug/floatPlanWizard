@@ -24,9 +24,11 @@ const topNavStylesheetHosts = [
   "app/great-loop-port.cfm",
   "app/great-loop-ports.cfm",
   "boat-fuel-calculator/boat-fuel-calculator.cfm",
+  "boat-loan-calculator/index.cfm",
   "faq/index.cfm",
   "great-loop-bridge.cfm",
   "great-loop/bridges.cfm",
+  "great-loop/trip-planning/index.cfm",
   "how-it-works.cfm",
   "includes/header_styles.cfm",
   "index.cfm",
@@ -208,8 +210,9 @@ test("shared CSS provides the spacious layout, public fit, focus states, and clo
   assert.match(topNav, /var mobileQuery = window\.matchMedia\("\(max-width: 1050px\)"\);/);
 });
 
-test("every active top-nav stylesheet host uses the Boating Safety cache version", () => {
-  assert.equal(count(topNavStylesheetHosts, /top-nav\.css\?v=20260824-boating-safety-nav-v2/g), 18);
+test("every active top-nav stylesheet host uses the Great Loop Trip Planning cache version", () => {
+  assert.equal(count(topNavStylesheetHosts, /top-nav\.css\?v=20260930-great-loop-trip-planning-nav/g), 20);
+  assert.doesNotMatch(topNavStylesheetHosts, /top-nav\.css\?v=20260824-boating-safety-nav-v2/);
   assert.doesNotMatch(topNavStylesheetHosts, /top-nav\.css\?v=20260806-resources-mega-v3/);
 });
 

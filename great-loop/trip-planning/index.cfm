@@ -143,7 +143,7 @@ fpwCtaConfig = {
   <script type="application/ld+json"><cfoutput>#fpwLoopPlanningJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwLoopPlanningBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/top-nav.css?v=20260824-boating-safety-nav-v2"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/top-nav.css?v=20260930-great-loop-trip-planning-nav"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color"></cfoutput>
   <style>
@@ -242,7 +242,7 @@ fpwCtaConfig = {
               <li>Review and adjust the result before using <strong>Save Route</strong>. Saving a route and sending a Float Plan are separate actions.</li>
             </ol>
             <figure class="fpw-loop-planning-figure">
-              <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/create-waypoint-route.webp" aria-label="View larger screenshot: Route Generator controls for Create Route, Set Start, Add Leg and Load"><img src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/create-waypoint-route.webp" width="426" height="855" loading="lazy" decoding="async" alt="Route Generator controls for Create Route, Set Start, Add Leg and Load"></a>
+              <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/create-waypoint-route-two-legs.png" aria-label="View larger screenshot: My Routes and Waypoint Builder showing the Great Loop route with Chicago to Joliet and Joliet to Ottawa legs"><img src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/create-waypoint-route-two-legs.png" width="426" height="905" loading="lazy" decoding="async" alt="My Routes and Waypoint Builder showing the Great Loop route with Chicago to Joliet and Joliet to Ottawa legs"></a>
               <figcaption>Create or select a My Route, set its start, and add each next waypoint before choosing Load. This local practice route demonstrates the controls; it is not a Great Loop itinerary. Select the image for a larger view.</figcaption>
             </figure>
             <p>A waypoint leg may begin with a straight-line distance and no saved navigable geometry. A line between two coordinates does not establish a usable channel. Use the leg review and geometry steps below before treating that distance as a cruising estimate.</p>
@@ -252,7 +252,7 @@ fpwCtaConfig = {
             <h2 id="review-legs-title">Review the route one leg at a time</h2>
             <p>Under <strong>Cruise Timeline</strong>, review each leg's start and destination, <strong>Locks</strong> count, effective <strong>NM</strong> and <strong>Edit Route</strong> control. The summary above provides <strong>Total Distance</strong>, <strong>Total Travel Hours</strong>, <strong>Estimated Fuel</strong> and <strong>Adjusted Speed</strong>. These are estimates based on the route and inputs currently loaded.</p>
             <figure class="fpw-loop-planning-figure">
-              <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/review-leg-distance.webp" aria-label="View larger screenshot: Cruise Timeline practice leg with nautical miles and Edit Route button"><img src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/review-leg-distance.webp" width="384" height="140" loading="lazy" decoding="async" alt="Cruise Timeline practice leg with nautical miles and Edit Route button"></a>
+              <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/review-leg-details.png" aria-label="View larger screenshot: Cruise Timeline Chicago to Joliet leg with expanded lock navigation and daily timeline details"><img src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/review-leg-details.png" width="1696" height="1252" loading="lazy" decoding="async" alt="Cruise Timeline Chicago to Joliet leg with expanded lock navigation and daily timeline details"></a>
               <figcaption>Read the leg endpoints and NM, then choose Edit Route when the path needs review. The practice values demonstrate the interface, not a recommended distance or cruising schedule. Select the image for a larger view.</figcaption>
             </figure>
             <ul>
@@ -276,8 +276,8 @@ fpwCtaConfig = {
               <li>Close the map panel and inspect the leg's updated NM and <strong>Override</strong> indication. Choose <strong>Load</strong> for the selected My Route to review its current total, timeline and fuel estimate again before saving the route.</li>
             </ol>
             <figure class="fpw-loop-planning-figure">
-              <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/edit-leg-geometry.webp" aria-label="View larger screenshot: Leg Geometry panel with Computed NM, drawing controls and Save Overrides"><img src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/edit-leg-geometry.webp" width="424" height="745" loading="lazy" decoding="async" alt="Leg Geometry panel with Computed NM, drawing controls and Save Overrides"></a>
-              <figcaption>Use the drawing controls to describe the reviewed path, check Computed NM, and save the override. This practice screen shows a default straight-line estimate before correction; its map and values are not navigation instructions. Select the image for a larger view.</figcaption>
+              <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/edit-leg-geometry-desktop.png" aria-label="View larger screenshot: Full-screen Leg Geometry panel for Chicago to Joliet with a saved user override, Computed NM and drawing controls"><img src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/boating-guides/great-loop-trip-planning/edit-leg-geometry-desktop.png" width="2214" height="1652" loading="lazy" decoding="async" alt="Full-screen Leg Geometry panel for Chicago to Joliet with a saved user override, Computed NM and drawing controls"></a>
+              <figcaption>Use the drawing controls to describe the reviewed path, check Computed NM, and save the override. This example shows a saved user override for Chicago to Joliet; its map and values are not navigation instructions. Select the image for a larger view.</figcaption>
             </figure>
             <p><strong>What is saved:</strong> FPW stores the drawn geometry and its calculated mileage as your override. The My Route's base distance remains separate. The visible leg shows the effective distance; it does not display the original and overridden mileages side by side. Note the original value before editing if you want to compare them.</p>
             <p><strong>What changes:</strong> the effective leg distance and route total change. When the route is reloaded or its estimates are rebuilt, the adjusted distance feeds the timing and Route Generator fuel calculations. A longer expected path can therefore change the planning hours, fuel requirement and daily allocation.</p>
@@ -414,3 +414,6 @@ fpwCtaConfig = {
 <script src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/js/fpw-action-cta.js?v=20260804-pilot"></script>
 </body>
 </html>
+
+
+
