@@ -1,5 +1,6 @@
 <cfprocessingdirective pageencoding="utf-8">
 <cfinclude template="../includes/require_auth.cfm">
+<cfset request.fpwAuthAccountHandoff = request.fpwAuthHandoff>
 <cfset accountCreditModelEnabled = (
   structKeyExists(application, "premiumSendCreditModelEnabled")
   AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
@@ -52,7 +53,7 @@
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/account.css?v=20260526-cache-bump">
 </head>
 
-<body class="dashboard-body account-body" data-premium-send-credit-model="<cfoutput>#accountCreditModelEnabled ? 'true' : 'false'#</cfoutput>">
+<body class="dashboard-body account-body" data-auth-handoff="<cfoutput>#encodeForHTMLAttribute(serializeJSON(request.fpwAuthAccountHandoff))#</cfoutput>" data-premium-send-credit-model="<cfoutput>#accountCreditModelEnabled ? 'true' : 'false'#</cfoutput>">
 
 <cfset request.fpwTopNavActive = "account">
 <cfinclude template="../includes/top_nav.cfm">
@@ -277,7 +278,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20260729-one-trip-return-context"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20261001-member-profile"></script>
 
 </body>
 </html>

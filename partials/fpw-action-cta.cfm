@@ -51,6 +51,13 @@ fpwActionCtaDestinationKey = structKeyExists(fpwActionCtaConfig, "destinationKey
   ? trim(toString(fpwActionCtaConfig.destinationKey))
   : "";
 
+fpwActionCtaAuthIntent = structKeyExists(fpwActionCtaConfig, "authIntent")
+  ? lCase(trim(toString(fpwActionCtaConfig.authIntent)))
+  : "";
+if (!listFind("planner,account,dashboard", fpwActionCtaAuthIntent)) {
+  fpwActionCtaAuthIntent = "";
+}
+
 fpwActionCtaContentValid = (
   len(fpwActionCtaHeadline)
   AND len(fpwActionCtaSupportingText)
@@ -104,6 +111,13 @@ if (!len(fpwActionCtaSupportingText)) {
         class="fpw-cta fpw-cta-primary"
         href="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaDestinationUrl)#</cfoutput>"
         aria-label="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaAriaLabel)#</cfoutput>"
+        <cfif len(fpwActionCtaAuthIntent)>
+          data-fpw-auth-intent="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaAuthIntent)#</cfoutput>"
+          data-fpw-auth-source-page="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaSourcePage)#</cfoutput>"
+          data-fpw-auth-section="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaSection)#</cfoutput>"
+          data-fpw-auth-cta-type="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaType)#</cfoutput>"
+          data-fpw-auth-label="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaButtonLabel)#</cfoutput>"
+        </cfif>
         <cfif fpwActionCtaTrackingValid>
           data-fpw-action-cta
           data-fpw-track="<cfoutput>#encodeForHTMLAttribute(fpwActionCtaAnalyticsEvent)#</cfoutput>"

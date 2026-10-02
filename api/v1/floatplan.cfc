@@ -955,6 +955,7 @@
                 PLAN_WAYPOINTS  = [],
                 ROUTE_DEFAULTS  = {},
                 MEMBER_ACCESS   = getMemberAccessGateService().getCurrentAccess(arguments.userId),
+                MEMBER_PROFILE  = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId),
                 PREMIUM_SEND_RECEIPT = {
                     SUCCESS = true,
                     success = true,
@@ -4369,6 +4370,11 @@
                 return result;
             }
 
+            var memberProfile = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId);
+            if (!memberProfile.hasName) {
+                return {SUCCESS=false, ERROR="PROFILE_NAME_REQUIRED", MESSAGE="Enter your name in the first Float Plan step before saving or sending."};
+            }
+
             currentGroup = resolveCurrentRouteFloatPlanGroup(arguments.userId, routeInstanceId);
             if (
                 structKeyExists(currentGroup, "ERROR")
@@ -4916,6 +4922,11 @@
                     result.MESSAGE = "Only draft Basic float plans can be updated.";
                     return result;
                 }
+            }
+
+            var memberProfile = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId);
+            if (!memberProfile.hasName) {
+                return {SUCCESS=false, ERROR="PROFILE_NAME_REQUIRED", MESSAGE="Enter your name in the first Float Plan step before saving or sending."};
             }
 
             singletonState = getBasicOperationalSingletonState(arguments.userId, ds);
@@ -8472,7 +8483,12 @@
             var owned=queryExecute("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:id AND userId=:userId",
                 {id={value=arguments.floatPlanId,cfsqltype="cf_sql_integer"},userId={value=arguments.userId,cfsqltype="cf_sql_varchar"}},
                 {datasource="fpw"});
-            if (owned.recordCount EQ 1) token=evidence.beginShare(arguments.userId,arguments.floatPlanId,arguments.source);
+            if (owned.recordCount EQ 1) {
+                var ownerName = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId);
+                // A missing name must not start sharing evidence. The inner
+                // Premium path still resolves an existing receipt before its guard.
+                if (ownerName.hasName) token=evidence.beginShare(arguments.userId,arguments.floatPlanId,arguments.source);
+            }
             // This wrapper is OUTSIDE Premium's existing transaction. A rollback after
             // mail submission cannot erase the pre-submission marker or its outcome.
             try {
@@ -8537,6 +8553,11 @@
                 result.ERROR = "INVALID_STATUS";
                 result.MESSAGE = "Only draft Basic float plans can be sent.";
                 return result;
+            }
+
+            var memberProfile = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId);
+            if (!memberProfile.hasName) {
+                return {SUCCESS=false, ERROR="PROFILE_NAME_REQUIRED", MESSAGE="Enter your name in the first Float Plan step before saving or sending."};
             }
 
             singletonState = getBasicOperationalSingletonState(arguments.userId, ds);
@@ -8676,6 +8697,7 @@
 
             var message = "<p>Hello,</p>" &
                 "<p>You are receiving the attached Float Plan (" & safePlanName & ") because you were selected as a contact for this trip.</p>" &
+                "<p>Sent by " & encodeForHtml(memberProfile.displayName) & ".</p>" &
                 "<p><strong>This float plan is precautionary trip information.</strong> Nothing in this email indicates that FPW has verified an emergency.</p>" &
                 "<p>If the boater is overdue, first try to contact them using the information provided and follow the response plan you agreed upon.</p>" &
                 "<p>If you believe there may be an emergency, contact the appropriate emergency authority directly and provide the float-plan details. FPW does not independently verify emergencies or dispatch assistance.</p>" &
@@ -8855,6 +8877,11 @@
             }
             if (!completedReceipt.SUCCESS) {
                 return completedReceipt;
+            }
+
+            var memberProfile = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId);
+            if (!memberProfile.hasName) {
+                return {SUCCESS=false, ERROR="PROFILE_NAME_REQUIRED", MESSAGE="Enter your name in the first Float Plan step before saving or sending."};
             }
 
             getPremiumTripAccessService().processDueExpirationsForUser(
@@ -9046,6 +9073,7 @@
 
             var message = "<p>Hello,</p>" &
                 "<p>You are receiving the attached Float Plan (" & safePlanName & ") because you were selected as a contact for this trip.</p>" &
+                "<p>Sent by " & encodeForHtml(memberProfile.displayName) & ".</p>" &
                 "<p><strong>This float plan is precautionary trip information.</strong> Nothing in this email indicates that FPW has verified an emergency.</p>" &
                 "<p>If the boater is overdue, first try to contact them using the information provided and follow the response plan you agreed upon.</p>" &
                 "<p>If you believe there may be an emergency, contact the appropriate emergency authority directly and provide the float-plan details. FPW does not independently verify emergencies or dispatch assistance.</p>" &

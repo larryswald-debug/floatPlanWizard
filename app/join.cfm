@@ -1,4 +1,15 @@
 <cfsetting enablecfoutputonly="false" showdebugoutput="false">
+<cfinclude template="../includes/fpw_base_path.cfm">
+<cfscript>
+fpwJoinAuthToken = "";
+if (structKeyExists(url, "authIntent") AND isSimpleValue(url.authIntent)) {
+    fpwJoinAuthPrefix = replace(reReplace(request.fpwBase, "^/", ""), "/", ".", "all");
+    fpwJoinAuthContinuations = createObject("component",
+        (len(fpwJoinAuthPrefix) ? fpwJoinAuthPrefix & "." : "") & "includes.AuthContinuationService");
+    fpwJoinAuthEntry = fpwJoinAuthContinuations.getIntent(toString(url.authIntent));
+    if (!structIsEmpty(fpwJoinAuthEntry)) fpwJoinAuthToken = fpwJoinAuthEntry.token;
+}
+</cfscript>
 <cfset joinCreditModelEnabled = (
     structKeyExists(application, "premiumSendCreditModelEnabled")
     AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
@@ -131,7 +142,7 @@
                 </div>
             </div>
 
-            <form id="joinForm" class="fpw-signup-form" novalidate>
+            <form id="joinForm" data-auth-intent="<cfoutput>#encodeForHTMLAttribute(fpwJoinAuthToken)#</cfoutput>" class="fpw-signup-form" data-clarity-mask="True" novalidate>
                 <div style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
                     <label for="website">Website</label>
                     <input
@@ -145,7 +156,7 @@
 
                 <div class="fpw-form-grid fpw-form-grid-2">
                     <div class="fpw-form-row">
-                        <label for="firstName">First Name</label>
+                        <label for="firstName">First Name <span>(optional)</span></label>
                         <div class="fpw-input-wrap">
                             <span class="fpw-input-icon" aria-hidden="true">👤</span>
                             <input
@@ -154,13 +165,13 @@
                                 name="firstName"
                                 autocomplete="given-name"
                                 placeholder="First name"
-                                required
+                                maxlength="45"
                             >
                         </div>
                     </div>
 
                     <div class="fpw-form-row">
-                        <label for="lastName">Last Name</label>
+                        <label for="lastName">Last Name <span>(optional)</span></label>
                         <div class="fpw-input-wrap">
                             <span class="fpw-input-icon" aria-hidden="true">👤</span>
                             <input
@@ -169,7 +180,7 @@
                                 name="lastName"
                                 autocomplete="family-name"
                                 placeholder="Last name"
-                                required
+                                maxlength="45"
                             >
                         </div>
                     </div>
@@ -260,7 +271,7 @@
 
                 <p class="fpw-login-link">
                     Already have an account?
-                    <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Log in</a>
+                    <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/login.cfm' & (len(fpwJoinAuthToken) ? '?authIntent=' & fpwJoinAuthToken : ''))#</cfoutput>">Log in</a>
                 </p>
                 <p class="fpw-login-link">
                     Questions before joining?
@@ -305,7 +316,7 @@
 
 <cfinclude template="../includes/footer_scripts.cfm">
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=20260825-planning-first-copy"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/join.js?v=20261001-unified-auth"></script>
 
 </body>
 </html>

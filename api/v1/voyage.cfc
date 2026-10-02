@@ -8160,9 +8160,8 @@
                 out.display_name = fullName;
             } else if (len(firstName) OR len(lastName)) {
                 out.display_name = trim(firstName & " " & lastName);
-            } else if (len(emailVal)) {
-                out.display_name = emailVal;
             }
+            // An unnamed member remains Captain on the public Follow page.
 
             out.email = emailVal;
             if (arguments.currentUserId GT 0) {

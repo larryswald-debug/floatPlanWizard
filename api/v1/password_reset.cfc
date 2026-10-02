@@ -2,6 +2,12 @@
 
     <cffunction name="sendResponse" access="private" returntype="void" output="true">
         <cfargument name="payload" type="struct" required="true">
+        <cfif structKeyExists(request,"fpwResetRateTickets")>
+            <cfloop array="#request.fpwResetRateTickets#" index="local.rateTicket">
+                <cfset createObject("component",componentPath("api.v1.AuthRateLimitService")).init("fpw").finish(local.rateTicket, request.fpwResetRateOutcome ?: "error")>
+            </cfloop>
+            <cfset request.fpwResetRateTickets=[]>
+        </cfif>
         <cfoutput>#serializeJSON(arguments.payload)#</cfoutput>
         <cfabort>
     </cffunction>
@@ -28,6 +34,8 @@
         <cfset var newPassword = "">
         <cfset var qReset = "">
         <cfset var newHash = "">
+        <cfset request.fpwResetRateTickets=[]>
+        <cfset request.fpwResetRateOutcome="error">
 
         <cftry>
             <cfset httpData = getHttpRequestData()>
@@ -38,6 +46,26 @@
             </cfif>
 
             <cfset action = lcase(trim(body.action ?: ""))>
+
+            <cfset var guard = createObject("component",componentPath("api.v1.AuthRequestGuardService"))>
+            <cfset var permission = guard.validateMutation(body)>
+            <cfif NOT permission.ALLOWED>
+                <cfheader statuscode="#permission.STATUSCODE#">
+                <cfset sendResponse({SUCCESS=false,ERROR=permission.CODE,MESSAGE=permission.MESSAGE})>
+            </cfif>
+            <cfset var limiter = createObject("component",componentPath("api.v1.AuthRateLimitService")).init("fpw")>
+            <cfif listFind("validate,confirm",action)><cfset request.fpwResetRateOutcome="failure"></cfif>
+            <cfif listFind("request,validate,confirm",action)>
+                <cfset var admission = limiter.admit(action EQ "request" ? "reset_request" : "reset_confirm",
+                    action EQ "request" ? lcase(trim(toString(body.email ?: ""))) : "", guard.getClientIp())>
+                <cfif NOT admission.ALLOWED>
+                    <cfheader statuscode="#admission.STATUSCODE#">
+                    <cfif structKeyExists(admission,"RETRYAFTER")><cfheader name="Retry-After" value="#admission.RETRYAFTER#"></cfif>
+                    <cfset sendResponse({SUCCESS=false,ERROR=admission.CODE,MESSAGE=admission.MESSAGE})>
+                </cfif>
+                <cfset arrayAppend(request.fpwResetRateTickets,admission.TICKET)>
+            </cfif>
+
 
             <cfif NOT len(action)>
                 <cfset sendResponse({
@@ -71,6 +99,10 @@
                     <cfset token = generatePasswordResetToken()>
                     <cfset tokenHash = hashPasswordResetToken(token)>
                     <cfset resetUrl = buildPasswordResetUrl(token)>
+                    <cfset var continuationEntry=createObject("component",componentPath("includes.AuthContinuationService")).getIntent(toString(body.intentToken ?: ""))>
+                    <cfif NOT structIsEmpty(continuationEntry)>
+                        <cfset resetUrl &= "&continuationToken=" & continuationEntry.token>
+                    </cfif>
 
                     <cfquery datasource="fpw">
                         UPDATE users
@@ -120,6 +152,7 @@
                     })>
                 </cfif>
 
+                <cfset request.fpwResetRateOutcome="success">
                 <cfset sendResponse({
                     SUCCESS = true,
                     MESSAGE = "Reset link is valid."
@@ -158,9 +191,16 @@
                     })>
                 </cfif>
 
-                <cfset newHash = ucase(hash(newPassword, "SHA-256", "UTF-8"))>
+                <cfset var accountAdmission = limiter.admit("reset_confirm",lcase(trim(qReset.email[1])),guard.getClientIp(),false)>
+                <cfif NOT accountAdmission.ALLOWED>
+                    <cfheader statuscode="#accountAdmission.STATUSCODE#">
+                    <cfif structKeyExists(accountAdmission,"RETRYAFTER")><cfheader name="Retry-After" value="#accountAdmission.RETRYAFTER#"></cfif>
+                    <cfset sendResponse({SUCCESS=false,ERROR=accountAdmission.CODE,MESSAGE=accountAdmission.MESSAGE})>
+                </cfif>
+                <cfset arrayAppend(request.fpwResetRateTickets,accountAdmission.TICKET)>
+                <cfset newHash = createObject("component",componentPath("api.v1.PasswordHashService")).hashPassword(newPassword)>
 
-                <cfquery datasource="fpw">
+                <cfquery datasource="fpw" result="local.resetUpdateResult">
                     UPDATE users
                     SET
                         password = <cfqueryparam cfsqltype="cf_sql_varchar" value="#newHash#">,
@@ -172,7 +212,13 @@
                         resetId = NULL,
                         lastUpdate = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
                     WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#qReset.userId#">
+                      AND resetTokenHash = <cfqueryparam cfsqltype="cf_sql_char" value="#hashPasswordResetToken(tokenStr)#">
+                      AND resetExpiresAt >= <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
                 </cfquery>
+                <cfif local.resetUpdateResult.recordCount NEQ 1>
+                    <cfset sendResponse({SUCCESS=false,ERROR="INVALID_OR_EXPIRED_LINK",MESSAGE="This reset link is invalid or has expired. Please request a new password reset."})>
+                </cfif>
+                <cfset request.fpwResetRateOutcome="success">
 
                 <cfset sendResponse({
                     SUCCESS = true,
@@ -188,10 +234,11 @@
             </cfif>
 
             <cfcatch type="any">
+                <cfset request.fpwResetRateOutcome="error">
                 <cflog
                     file="fpw_password_reset"
                     type="error"
-                    text="password_reset.cfc SERVER_ERROR | action=#cleanLogValue(action)# | type=#cleanLogValue(structKeyExists(cfcatch, 'type') ? cfcatch.type : 'any')# | message=#cleanLogValue(cfcatch.message)# | time=#now()#">
+                    text="password_reset.cfc SERVER_ERROR">
                 <cfset sendResponse({
                     SUCCESS = false,
                     ERROR = "SERVER_ERROR",
@@ -210,7 +257,7 @@
         <cfset var qToken = "">
 
         <cfquery name="qToken" datasource="fpw">
-            SELECT userId
+            SELECT userId, email
             FROM users
             WHERE resetTokenHash = <cfqueryparam cfsqltype="cf_sql_char" value="#tokenHash#">
               AND resetExpiresAt IS NOT NULL
@@ -338,4 +385,10 @@
         <cfreturn left(reReplace(trim(arguments.value), "[\r\n\t]+", " ", "all"), 300)>
     </cffunction>
 
+<cfscript>
+  private string function componentPath(required string relativePath) {
+    var prefix=reReplaceNoCase(getMetadata(this).name,"(^|[.])api[.]v1[.][^.]+$","");
+    return (len(prefix) ? prefix & "." : "") & arguments.relativePath;
+  }
+</cfscript>
 </cfcomponent>

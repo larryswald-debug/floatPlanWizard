@@ -57,8 +57,45 @@
   })();
   var API_ROOT = API_BASE.replace(/\/v1$/, "");
 
+  var authCsrfToken = "";
+  var authBootstrapPending = null;
+
+  function authBootstrap(intent) {
+    intent = intent || {};
+    var query = "/auth.cfc?method=bootstrap";
+    ["destinationKey", "intentToken"].forEach(function (key) {
+      if (intent[key]) query += "&" + key + "=" + encodeURIComponent(intent[key]);
+    });
+    ["context", "source"].forEach(function (key) {
+      if (intent[key]) query += "&" + key + "=" + encodeURIComponent(JSON.stringify(intent[key]));
+    });
+    return request(query, {method: "GET"}).then(function (data) {
+      authCsrfToken = data.CSRF_TOKEN || "";
+      return data;
+    });
+  }
+
+  function ensureAuthCsrf() {
+    if (authCsrfToken) return Promise.resolve(authCsrfToken);
+    if (!authBootstrapPending) {
+      authBootstrapPending = authBootstrap().then(function (data) { return data.CSRF_TOKEN; })
+        .finally(function () { authBootstrapPending = null; });
+    }
+    return authBootstrapPending;
+  }
+
   function request(path, options) {
     options = options || {};
+    if ((options.method || "GET").toUpperCase() === "POST" &&
+        /^\/(?:auth|join|profile|password_reset)\.cfc(?:\?|$)/i.test(path) &&
+        !(options.headers && options.headers["X-CSRF-Token"])) {
+      return ensureAuthCsrf().then(function (token) {
+        var guarded = Object.assign({}, options, {
+          headers: Object.assign({}, options.headers || {}, {"X-CSRF-Token": token})
+        });
+        return request(path, guarded);
+      });
+    }
 
     var headers = options.headers || {};
     headers["Content-Type"] = "application/json";
@@ -89,6 +126,8 @@
             data = { SUCCESS: false, MESSAGE: "Non-JSON response from API", RAW: txt };
           }
 
+          if (data.CSRF_TOKEN) authCsrfToken = data.CSRF_TOKEN;
+          if (data.ERROR === "CSRF_INVALID") authCsrfToken = "";
           if (!res.ok || data.SUCCESS === false) {
             data.status = res.status;
             throw data;
@@ -133,10 +172,37 @@
   }
 
   window.Api = {
-    login: function (email, password) {
+    authBootstrap: authBootstrap,
+    getAuthCsrfToken: ensureAuthCsrf,
+    authContinue: function (payload) {
+      return postWithPayloadAction("/auth.cfc?method=handle", Object.assign({}, payload), "continue");
+    },
+    continueAuthIntent: function (token) {
+      return postWithPayloadAction("/auth.cfc?method=handle", {intentToken: token}, "intent-continue");
+    },
+    acknowledgeAuthIntent: function (token) {
+      return postWithPayloadAction("/auth.cfc?method=handle", {intentToken: token}, "intent-ack");
+    },
+    dismissAuthIntent: function (token) {
+      return postWithPayloadAction("/auth.cfc?method=handle", {intentToken: token}, "intent-dismiss");
+    },
+    acknowledgeAuthOverview: function () {
+      return postWithPayloadAction("/auth.cfc?method=handle", {}, "overview-ack");
+    },
+    getProfileName: function () {
+      return request("/profile.cfc?method=handle&action=name", {method: "GET"});
+    },
+    updateProfileName: function (payload) {
+      return postWithPayloadAction("/profile.cfc?method=handle", Object.assign({}, payload), "update-name")
+        .then(function (data) {
+          document.dispatchEvent(new CustomEvent("fpw:profile:updated", {detail: {PROFILE: data.PROFILE, USER: data.USER}}));
+          return data;
+        });
+    },
+    login: function (email, password, intentToken) {
       return request("/auth.cfc?method=handle", {
         method: "POST",
-        body: { action: "login", email: email, password: password }
+        body: { action: "login", email: email, password: password, intentToken: intentToken || "" }
       });
     },
 

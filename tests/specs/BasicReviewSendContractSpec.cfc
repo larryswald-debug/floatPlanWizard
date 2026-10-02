@@ -152,6 +152,49 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(hasShared(fixture.userId)).toBeTrue();
       });
 
+      it("blocks a nameless new send before receipt or mail and accepts a first-only sender", function() {
+        var fixture = createFixture("member-name", [{name="Contact",email="member-name@example.test"}]);
+        var emailStub = new fpw.tests.support.BasicReviewSendEmailStub(true);
+        var pdfStub = new fpw.tests.support.BasicReviewSendPdfStub(variables.testPdfPath, true);
+        var service = new fpw.api.v1.BasicReviewSendService(variables.datasource, emailStub, pdfStub);
+        queryExecute("UPDATE users SET fName=NULL,lName=NULL WHERE userId=:id",
+          {id={value=fixture.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
+        var blocked = service.send(fixture.userId, fixture.floatPlanId, fixture.contactIds[1], "basic_review_member_name_1234567890");
+        expect(blocked.ERROR).toBe("PROFILE_NAME_REQUIRED");
+        expect(arrayLen(emailStub.getCalls())).toBe(0);
+        var receipts = queryExecute("SELECT COUNT(*) AS n FROM basic_review_send_receipts WHERE user_id=:id",
+          {id={value=fixture.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
+        expect(val(receipts.n[1])).toBe(0);
+        expect(loadShareEvents(fixture.userId).recordCount).toBe(0);
+        queryExecute("UPDATE users SET fName='River',lName=NULL WHERE userId=:id",
+          {id={value=fixture.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
+        var identity = new fpw.api.v1.profile().readMemberName(fixture.userId);
+        expect(identity.hasName).toBeTrue();
+        expect(identity.displayName).toBe("River");
+        var sent = service.send(fixture.userId, fixture.floatPlanId, fixture.contactIds[1], "basic_review_member_name_1234567890");
+        expect(sent.SUCCESS).toBeTrue();
+        expect(emailStub.getCalls()[1].senderName).toBe("River");
+      });
+
+      it("replays a completed receipt after profile clearing but blocks a new nameless request", function() {
+        var fixture = createFixture("name-replay", [{name="Contact",email="name-replay@example.test"}]);
+        var emailStub = new fpw.tests.support.BasicReviewSendEmailStub(true);
+        var pdfStub = new fpw.tests.support.BasicReviewSendPdfStub(variables.testPdfPath, true);
+        var service = new fpw.api.v1.BasicReviewSendService(variables.datasource, emailStub, pdfStub);
+        var key = "basic_review_name_replay_1234567890";
+        var sent = service.send(fixture.userId, fixture.floatPlanId, fixture.contactIds[1], key);
+        expect(sent.SUCCESS).toBeTrue();
+        queryExecute("UPDATE users SET fName=NULL,lName='   ' WHERE userId=:id",
+          {id={value=fixture.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
+        var replay = service.send(fixture.userId, fixture.floatPlanId, fixture.contactIds[1], key);
+        var blocked = service.send(fixture.userId, fixture.floatPlanId, fixture.contactIds[1], key & "_new");
+        expect(replay.SUCCESS).toBeTrue();
+        expect(replay.IDEMPOTENT_REPLAY).toBeTrue();
+        expect(blocked.ERROR).toBe("PROFILE_NAME_REQUIRED");
+        expect(arrayLen(emailStub.getCalls())).toBe(1);
+        expect(loadShareEvents(fixture.userId).recordCount).toBe(1);
+      });
+
       it("records PDF failure without sending email or changing trip state", function() {
         var fixture = createFixture("pdf-failure", [
           { name = "PDF Contact", email = "pdf@example.test" }

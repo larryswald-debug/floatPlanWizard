@@ -1,6 +1,14 @@
 <cfinclude template="../includes/fpw_base_path.cfm">
 <cfscript>
 fpwLoginRecoveryPath = "";
+fpwLoginAuthToken = "";
+fpwLoginAuthPrefix = replace(reReplace(request.fpwBase, "^/", ""), "/", ".", "all");
+fpwLoginAuthContinuations = createObject("component",
+  (len(fpwLoginAuthPrefix) ? fpwLoginAuthPrefix & "." : "") & "includes.AuthContinuationService");
+if (structKeyExists(url,"authIntent") AND isSimpleValue(url.authIntent)) {
+  fpwLoginAuthEntry = fpwLoginAuthContinuations.getIntent(toString(url.authIntent));
+  if (!structIsEmpty(fpwLoginAuthEntry)) fpwLoginAuthToken=fpwLoginAuthEntry.token;
+}
 if (structKeyExists(url, "recoveryAction")) {
   fpwLoginRecoveryPrefix = replace(reReplace(request.fpwBase, "^/", ""), "/", ".", "all");
   fpwLoginRecoveryPaths = createObject("component",
@@ -20,7 +28,7 @@ if (structKeyExists(url, "recoveryAction")) {
     <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
 
     <cfif structKeyExists(session, "authenticated") AND NOT isLoggedIn()>
-        <cfset structClear(session)>
+        <cfset structDelete(session, "authenticated")>
     </cfif>
 
 </head>
@@ -107,7 +115,7 @@ if (structKeyExists(url, "recoveryAction")) {
                 </div>
             </div>
 
-            <form id="loginForm" class="fpw-auth-form fpw-login-form" data-recovery-return="<cfoutput>#encodeForHTMLAttribute(fpwLoginRecoveryPath)#</cfoutput>" novalidate>
+            <form id="loginForm" data-clarity-mask="True" data-auth-intent="<cfoutput>#encodeForHTMLAttribute(fpwLoginAuthToken)#</cfoutput>" class="fpw-auth-form fpw-login-form" data-recovery-return="<cfoutput>#encodeForHTMLAttribute(fpwLoginRecoveryPath)#</cfoutput>" novalidate>
                 <div class="fpw-form-row">
                     <label for="email">Email address</label>
                     <div class="fpw-input-wrap">
@@ -150,9 +158,9 @@ if (structKeyExists(url, "recoveryAction")) {
                 </button>
 
                 <div class="fpw-auth-link-row">
-                    <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/forgot-password.cfm">Forgot your password?</a>
+                    <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/forgot-password.cfm' & (len(fpwLoginAuthToken) ? '?authIntent=' & fpwLoginAuthToken : ''))#</cfoutput>">Forgot your password?</a>
                     <span aria-hidden="true">|</span>
-                    <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create free account</a>
+                    <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/join.cfm' & (len(fpwLoginAuthToken) ? '?authIntent=' & fpwLoginAuthToken : ''))#</cfoutput>">Create free account</a>
                     <span aria-hidden="true">|</span>
                     <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/contact.cfm">Contact Us</a>
                 </div>
@@ -179,7 +187,7 @@ if (structKeyExists(url, "recoveryAction")) {
 </section>
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/core.js?v=20260924-recovery-actions"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/core.js?v=20261001-unified-auth"></script>
 
 </body>
 </html>

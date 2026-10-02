@@ -40,6 +40,8 @@
   var refreshPendingAfterVisibilitySave = false;
   var acknowledgedInSession = false;
   var autoOpenHandled = false;
+  var overviewPending = document.body && document.body.getAttribute("data-auth-overview") === "true";
+  var overviewAcknowledgment = null;
   var lastFocusEl = null;
   var afterHideAction = null;
 
@@ -186,6 +188,8 @@
     var savedWaypointCount = Math.max(0, parseInt(checklist.savedWaypointCount, 10) || 0);
     var requiredWaypointCount = Math.max(1, parseInt(checklist.requiredWaypointCount, 10) || 2);
 
+    var progress = document.getElementById("dashboardGettingStartedProgress");
+    if (progress) progress.textContent = ["vessel","contact","operator","waypoints"].filter(function (key) { return checklist[key] === true; }).length + " of 4 essentials complete";
     STEP_KEYS.forEach(function (key) {
       var item = stepsEl ? stepsEl.querySelector('[data-onboarding-step="' + key + '"]') : null;
       var stepStatus = item ? item.querySelector("[data-onboarding-step-status]") : null;
@@ -233,7 +237,7 @@
   }
 
   function renderGettingStartedVisibility(state) {
-    var isHidden = state.gettingStartedHidden === true;
+    var isHidden = !overviewPending && state.gettingStartedHidden === true;
     if (panelEl) {
       panelEl.hidden = isHidden;
       panelEl.setAttribute("aria-busy", "false");
@@ -251,6 +255,20 @@
     renderWelcomeMessage(state);
     renderGettingStartedVisibility(state);
     setPanelStatus("", false);
+    document.dispatchEvent(new CustomEvent("fpw:onboarding:updated", {detail: state}));
+  }
+
+  function acknowledgeOverview() {
+    if (!overviewPending) return Promise.resolve();
+    if (!overviewAcknowledgment) {
+      overviewAcknowledgment = window.Api.acknowledgeDashboardOnboarding().then(function () {
+        return window.Api.acknowledgeAuthOverview();
+      }).then(function () {
+        overviewPending = false;
+        document.body.setAttribute("data-auth-overview","false");
+      }).finally(function () { overviewAcknowledgment = null; });
+    }
+    return overviewAcknowledgment;
   }
 
   function restoreFocus() {
@@ -299,7 +317,7 @@
     }
     renderState(state);
     if (
-      hydrateOptions.allowAutoOpen === true
+      !overviewPending && hydrateOptions.allowAutoOpen === true
       && state.autoOpenWelcome === true
       && !autoOpenHandled
     ) {
@@ -619,7 +637,8 @@
           setPanelStatus("The next setup action is unavailable for this account.", true);
           return;
         }
-        executeContinueTarget(currentState.continueTarget);
+        acknowledgeOverview().then(function () { executeContinueTarget(currentState.continueTarget); })
+          .catch(function (err) { setPanelStatus(getErrorMessage(err,"Unable to continue setup."),true); });
       });
     }
     if (welcomeOpenBtn) {
@@ -630,7 +649,9 @@
       });
     }
     visibilityToggleEl.addEventListener("change", function () {
-      saveGettingStartedVisibility(visibilityToggleEl.checked !== true);
+      var hidden = visibilityToggleEl.checked !== true;
+      acknowledgeOverview().then(function () { saveGettingStartedVisibility(hidden); })
+        .catch(function (err) { setPanelStatus(getErrorMessage(err,"Unable to save your preference."),true); });
     });
     if (addBoatBtn) addBoatBtn.addEventListener("click", function () { acknowledgeAndProceed("boat"); });
     if (exploreBtn) exploreBtn.addEventListener("click", function () { acknowledgeAndProceed("explore"); });
@@ -657,6 +678,14 @@
       acknowledgeAndProceed("close");
     }, true);
 
+    if (stepsEl) stepsEl.addEventListener("click",function (event) {
+      var button = event.target.closest("[data-onboarding-open]");
+      if (!button || !stepsEl.contains(button)) return;
+      acknowledgeOverview().then(function () {
+        if (!clickExistingButton(button.getAttribute("data-onboarding-open"))) setPanelStatus("This setup action is unavailable.",true);
+      }).catch(function (err) { setPanelStatus(getErrorMessage(err,"Unable to continue setup."),true); });
+    });
+    window.addEventListener("pageshow",function (event) { if (event.persisted) scheduleRefresh(); });
     bindWorkflowRefreshes();
   }
 
@@ -665,6 +694,7 @@
     hydrate: hydrate,
     refresh: refresh,
     openWelcome: openWelcome,
+    acknowledgeOverview: acknowledgeOverview,
     validateRouteCreationReadiness: validateRouteCreationReadiness
   };
 })(window, document);

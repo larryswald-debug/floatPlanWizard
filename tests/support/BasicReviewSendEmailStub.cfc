@@ -14,6 +14,7 @@ component output="false" {
     required string contactName,
     required string floatPlanName,
     required string captainName,
+    required string senderName,
     required string pdfPath
   ) output=false {
     arrayAppend(variables.calls, duplicate(arguments));

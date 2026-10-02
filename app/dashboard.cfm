@@ -7,6 +7,10 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
     fpwRecoveryDestinationService = new fpw.includes.InactiveMemberRecoveryDestinationService(datasource="fpw");
     fpwRecoveryIntent = fpwRecoveryDestinationService.resolveRequest(fpwRequireAuthUserId, url);
 }
+if (!structIsEmpty(request.fpwAuthHandoff)) fpwRecoveryIntent=request.fpwAuthHandoff.recovery;
+request.fpwAuthWaitForContinue=!structIsEmpty(request.fpwAuthHandoff) AND (request.fpwAuthHandoff.waitForContinue ?: false);
+if (request.fpwAuthOverview OR request.fpwAuthWaitForContinue) fpwRecoveryIntent={};
+request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAuthUserId);
 </cfscript>
 <!DOCTYPE html>
 <!-- Updated to host the float plan wizard inside a Bootstrap modal. -->
@@ -23,8 +27,9 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20260817-semantic-route-actions">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
-<body class="dashboard-body" data-fpw-page="dashboard" data-recovery-intent="<cfoutput>#encodeForHtmlAttribute(serializeJSON(fpwRecoveryIntent))#</cfoutput>" data-recovery-login-url="<cfoutput>#encodeForHtmlAttribute(fpwRecoveryLoginUrl)#</cfoutput>">
+<body class="dashboard-body" data-fpw-page="dashboard" data-auth-wait-for-continue="<cfoutput>#request.fpwAuthWaitForContinue ? 'true' : 'false'#</cfoutput>" data-auth-overview="<cfoutput>#request.fpwAuthOverview ? 'true' : 'false'#</cfoutput>" data-auth-handoff="<cfoutput>#encodeForHTMLAttribute(serializeJSON(request.fpwAuthHandoff))#</cfoutput>" data-auth-created="<cfoutput>#len(request.fpwAuthCreatedEmail) ? 'true' : 'false'#</cfoutput>" data-recovery-intent="<cfoutput>#encodeForHtmlAttribute(serializeJSON(fpwRecoveryIntent))#</cfoutput>" data-recovery-login-url="<cfoutput>#encodeForHtmlAttribute(fpwRecoveryLoginUrl)#</cfoutput>">
 
+<cfif len(request.fpwAuthCreatedEmail)><span id="authCreatedEmail" hidden data-clarity-mask="True"><cfoutput>#encodeForHTML(request.fpwAuthCreatedEmail)#</cfoutput></span></cfif>
 <cfset request.fpwTopNavActive = "dashboard">
 <cfinclude template="../includes/top_nav.cfm">
 
@@ -64,7 +69,7 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
     </aside>
 
     <main class="fpw-dashboard-main dashboard-main">
-        <div id="dashboardAlert" class="alert d-none" role="alert"></div>
+        <div id="dashboardAlert" data-clarity-mask="True" class="alert d-none" role="alert"></div>
 
         <section class="dashboard-card panel-floatlike mission-summary-panel fpw-planning-context-panel" id="missionSummaryPanel" aria-label="Dashboard planning context">
             <article class="fpw-planning-context-block fpw-planning-context-block--home">
@@ -112,6 +117,14 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
             </article>
         </section>
 
+        <section class="dashboard-card panel-floatlike" id="authContinuationPanel" aria-labelledby="authContinuationTitle" hidden>
+            <div class="card-body">
+                <h2 id="authContinuationTitle">Your next step</h2>
+                <p id="authContinuationStatus" role="status" aria-live="polite"></p>
+                <button type="button" class="btn-primary" id="authContinuationBtn" disabled>Continue to Trip Planner</button>
+                <button type="button" class="btn-secondary" id="authContinuationDismissBtn">Dismiss</button>
+            </div>
+        </section>
         <section class="dashboard-card panel-floatlike fpw-onboarding-checklist" id="dashboardGettingStartedPanel" aria-labelledby="dashboardGettingStartedTitle" aria-busy="true" hidden>
             <div class="card-header">
                 <div class="card-title">
@@ -123,15 +136,18 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
                 </div>
             </div>
             <div class="card-body">
+                <p id="dashboardGettingStartedProgress" role="status" aria-live="polite">Checking your four setup essentials…</p>
                 <ol class="fpw-onboarding-steps" id="dashboardGettingStartedSteps">
                     <li class="fpw-onboarding-step" data-onboarding-step="vessel">
                         <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
                         <span class="fpw-onboarding-step-label">Add your vessel</span>
+                        <button type="button" class="btn-secondary" data-onboarding-open="addVesselBtn">Add your vessel</button>
                         <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
                     </li>
                     <li class="fpw-onboarding-step" data-onboarding-step="contact">
                         <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
                         <span class="fpw-onboarding-step-label">Add a shore contact</span>
+                        <button type="button" class="btn-secondary" data-onboarding-open="addContactBtn">Add a shore contact</button>
                         <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
                     </li>
                     <li class="fpw-onboarding-step" data-onboarding-step="passengers">
@@ -142,11 +158,13 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
                     <li class="fpw-onboarding-step" data-onboarding-step="operator">
                         <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
                         <span class="fpw-onboarding-step-label">Add an operator</span>
+                        <button type="button" class="btn-secondary" data-onboarding-open="addOperatorBtn">Add an operator</button>
                         <span class="fpw-onboarding-step-status" data-onboarding-step-status>Not complete</span>
                     </li>
                     <li class="fpw-onboarding-step" data-onboarding-step="waypoints">
                         <span class="fpw-onboarding-step-marker" aria-hidden="true"></span>
                         <span class="fpw-onboarding-step-label">Add waypoints</span>
+                        <button type="button" class="btn-secondary" data-onboarding-open="addWaypointBtn">Add waypoints</button>
                         <span class="fpw-onboarding-step-status" data-onboarding-step-status>0 of 2 added</span>
                     </li>
                 </ol>
@@ -854,6 +872,23 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
                                 </button>
                             </div>
 
+                            <fieldset v-if="memberNameRequired" class="mb-4" aria-describedby="wizardMemberNameHelp">
+                                <legend class="h6">Your name / Sender name</legend>
+                                <p id="wizardMemberNameHelp" class="small text-muted">Enter your first or last name so your contacts know who sent this float plan. It will be saved to your profile.</p>
+                                <div class="row">
+                                    <div class="col-sm-6 mb-2">
+                                        <label class="form-label" for="wizardMemberFirstName">First name</label>
+                                        <input id="wizardMemberFirstName" ref="memberFirstName" class="form-control" type="text" v-model="memberFirstName" maxlength="45" autocomplete="given-name" :disabled="isSaving" :aria-invalid="memberNameError ? 'true' : 'false'" @input="memberNameError = ''">
+                                    </div>
+                                    <div class="col-sm-6 mb-2">
+                                        <label class="form-label" for="wizardMemberLastName">Last name</label>
+                                        <input id="wizardMemberLastName" class="form-control" type="text" v-model="memberLastName" maxlength="45" autocomplete="family-name" :disabled="isSaving" :aria-invalid="memberNameError ? 'true' : 'false'" @input="memberNameError = ''">
+                                    </div>
+                                </div>
+                                <p v-if="memberNameError" class="text-danger small" role="alert">{{ memberNameError }}</p>
+                            </fieldset>
+                            <p v-else class="small mb-3"><strong>Sender:</strong> {{ memberDisplayName }}</p>
+
                             <div class="mb-3">
                                 <label class="form-label">Float Plan Name *</label>
                                 <input
@@ -1247,6 +1282,7 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
                             <h2 class="h5 mb-3">Step 6 – Review</h2>
 
                             <h3 class="h6">Review</h3>
+                            <p v-if="memberDisplayName" class="small mb-3"><strong>Sender:</strong> {{ memberDisplayName }}</p>
                             <div class="mb-3">
                                 <div v-if="pdfPreviewError" class="alert alert-warning small">
                                     {{ pdfPreviewError }}
@@ -1387,6 +1423,25 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
 
                 <form id="basicFloatPlanForm" class="fpw-basic-floatplan-form" novalidate>
                     <input type="hidden" id="basicFloatPlanId" value="0">
+
+                    <section id="basicMemberNameSection" class="fpw-basic-form-section d-none" aria-labelledby="basicMemberNameTitle">
+                        <div class="fpw-basic-form-heading">
+                            <h3 id="basicMemberNameTitle">Your name / Sender name</h3>
+                            <p id="basicMemberNameHelp">Enter your first or last name so your contacts know who sent this float plan. It will be saved to your profile.</p>
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="basicMemberFirstName">First name</label>
+                                <input id="basicMemberFirstName" class="form-control" type="text" maxlength="45" autocomplete="given-name" aria-describedby="basicMemberNameHelp">
+                            </div>
+                            <div class="col-sm-6 mb-3">
+                                <label class="form-label" for="basicMemberLastName">Last name</label>
+                                <input id="basicMemberLastName" class="form-control" type="text" maxlength="45" autocomplete="family-name" aria-describedby="basicMemberNameHelp">
+                            </div>
+                        </div>
+                        <p id="basicMemberNameError" class="text-danger small d-none" role="alert"></p>
+                    </section>
+                    <p id="basicMemberSenderName" class="small d-none"></p>
 
                     <section class="fpw-basic-form-section" aria-labelledby="basicFloatPlanBasicsTitle">
                         <div class="fpw-basic-form-heading">
@@ -1553,7 +1608,7 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260802-scheduled-actual-departure"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20261001-member-profile"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/utils.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/state.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/alerts.js?v=20260526-cache-bump"></script>
@@ -1564,14 +1619,14 @@ if (structKeyExists(request, "fpwRecoveryPath") AND len(request.fpwRecoveryPath)
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260815-reserve-mode"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20260721-phase3-cutover"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20261001-member-profile"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260924-recovery-actions"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20260818-passengers-optional"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20261001-auth-overview"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20260924-recovery-actions"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261001-auth-continuation"></script>
 
 </body>
 </html>

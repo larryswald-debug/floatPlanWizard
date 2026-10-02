@@ -1,8 +1,4 @@
 const { test, expect } = require("@playwright/test");
-const { readFileSync } = require("node:fs");
-const path = require("node:path");
-
-const repositoryRoot = path.resolve(__dirname, "..");
 const storageKey = "fpw_signup_attribution";
 const joinUrl = "http://localhost:8500/fpw/app/join.cfm";
 const landingPages = [
@@ -66,6 +62,18 @@ async function stubSignup(page, responses) {
 }
 
 async function openJoin(page, storedValue) {
+  await page.route("**/api/v1/auth.cfc?method=bootstrap*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        SUCCESS: true,
+        AUTH: false,
+        CSRF_TOKEN: "mock-csrf-token",
+        DISCLOSURE: { REVISION: "mock-disclosure-revision" }
+      })
+    });
+  });
   if (storedValue !== undefined) {
     await page.addInitScript(({ key, value }) => {
       window.sessionStorage.setItem(key, JSON.stringify(value));
@@ -398,8 +406,12 @@ test("duplicate email handling preserves the server message and entered email", 
   await expect(page.locator("#joinButton .fpw-submit-label")).toHaveText("Start Planning My Trip");
 });
 
-test("confirmed signup honors the server-provided post-signup redirect", async ({ page }) => {
-  const redirectUrl = `${joinUrl}?signup-redirect-test=1`;
+test("confirmed signup honors an allowed server-owned continuation", async ({ page }) => {
+  const redirectUrl = "/fpw/app/dashboard.cfm?authIntent=" + "a".repeat(64);
+  const absoluteRedirectUrl = "http://localhost:8500" + redirectUrl;
+  await page.route(absoluteRedirectUrl, (route) => route.fulfill({
+    status: 200, contentType: "text/html", body: "<title>Dashboard continuation</title><p>Dashboard continuation</p>"
+  }));
   const requests = await stubSignup(page, [{
     body: {
       SUCCESS: true,
@@ -413,18 +425,18 @@ test("confirmed signup honors the server-provided post-signup redirect", async (
   await fillValidJoinForm(page);
 
   await Promise.all([
-    page.waitForURL(redirectUrl),
+    page.waitForURL(absoluteRedirectUrl),
     page.locator("#joinButton").click()
   ]);
 
   expect(requests).toHaveLength(1);
-  expect(page.url()).toBe(redirectUrl);
+  expect(page.url()).toBe(absoluteRedirectUrl);
 });
 
 test("non-auth success does not emit sign_up or clear attribution", async ({ page }) => {
   const attribution = landingPages[0].attribution;
   const requests = await stubSignup(page, [{
-    body: { SUCCESS: true, AUTH: false, MESSAGE: "User created successfully." }
+    body: { SUCCESS: true, AUTH: false, MESSAGE: "User created successfully.", REDIRECT_URL: "/fpw/app/dashboard.cfm" }
   }]);
   await openJoin(page, attribution);
   await fillValidJoinForm(page);
@@ -435,6 +447,7 @@ test("non-auth success does not emit sign_up or clear attribution", async ({ pag
   const events = await page.evaluate(() => window.__seoSignupEvents);
   expect(events.filter((event) => event.eventName === "signup_start")).toHaveLength(1);
   expect(events.filter((event) => event.eventName === "sign_up")).toHaveLength(0);
+  expect(page.url()).toBe(joinUrl);
   expect(JSON.parse(await page.evaluate((key) => window.sessionStorage.getItem(key), storageKey))).toEqual(attribution);
 });
 
@@ -462,18 +475,55 @@ test("invalid stored attribution is ignored by analytics and the API", async ({ 
   }
 });
 
-test("server source accepts only the approved tuples on sign_up metadata", () => {
-  const joinSource = readFileSync(path.join(repositoryRoot, "api/v1/join.cfc"), "utf8");
-  const eventServiceSource = readFileSync(path.join(repositoryRoot, "includes/ProductEventService.cfc"), "utf8");
+test("guide planning attribution reaches Join without changing the legacy CTA event", async ({ page }) => {
+  const attribution = {
+    landing_key: "great_loop_trip_planning", source_content_type: "seo_guide", cta_type: "plan_trip"
+  };
+  await page.goto("http://localhost:8500/fpw/great-loop/trip-planning/");
+  await captureAnalytics(page);
+  await page.evaluate(() => {
+    window.AppAuth.requireAuth = () => Promise.resolve({ status: "authentication_required" });
+  });
+  await page.locator("#great-loop-trip-planning-cta [data-fpw-action-cta]").click();
+  expect(JSON.parse(await page.evaluate((key) => window.sessionStorage.getItem(key), storageKey))).toEqual(attribution);
+  expect((await page.evaluate(() => window.__seoSignupEvents)).map((event) => event.eventName))
+    .toEqual(["great_loop_trip_planning_cta_click"]);
+  const requests = await stubSignup(page, [{ body: { SUCCESS: true, AUTH: true, USERID: 1007 } }]);
+  await openJoin(page);
+  await fillValidJoinForm(page);
+  await page.locator("#joinButton").click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]).toMatchObject(attribution);
+  const events = await page.evaluate(() => window.__seoSignupEvents);
+  expect(events.find((event) => event.eventName === "sign_up").params).toMatchObject(attribution);
+});
 
-  expect(joinSource).toContain('(landingKey EQ "boat_fuel_calculator" AND sourceContentType EQ "seo_tool")');
-  expect(joinSource).toContain('(landingKey EQ "great_loop_locks" AND sourceContentType EQ "seo_hub")');
-  expect(joinSource).toContain('ctaType NEQ "plan_route"');
-  expect(joinSource).toContain("metadata = signUpEventMetadata");
-  expect(joinSource).toContain('eventName = "sign_up"');
-  expect(joinSource).toContain('idempotencyKey = "sign_up:user:" & newUserId');
-  expect(eventServiceSource).toContain('definitions["sign_up"] = {');
-  expect(eventServiceSource).toContain('landing_key = [ "boat_fuel_calculator", "great_loop_locks" ]');
-  expect(eventServiceSource).toContain('source_content_type = [ "seo_tool", "seo_hub" ]');
-  expect(eventServiceSource).toContain('cta_type = [ "plan_route" ]');
+test("Join accepts blank optional names and submits current CSRF and disclosure values", async ({ page }) => {
+  const requests = await stubSignup(page, [{ body: { SUCCESS: true, AUTH: true, USERID: 1008 } }]);
+  await openJoin(page);
+  await page.locator("#email").fill("optional-name@example.com");
+  await page.locator("#password").fill("OptionalNamePass123!");
+  await page.locator("#confirmPassword").fill("OptionalNamePass123!");
+  await page.locator("#termsAccepted").check();
+  await expect(page.locator("#firstName")).not.toHaveAttribute("required");
+  await expect(page.locator("#lastName")).not.toHaveAttribute("required");
+  await expect(page.locator("#joinForm")).toHaveAttribute("data-clarity-mask", "True");
+  await page.locator("#joinButton").click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]).toMatchObject({
+    firstName: "", lastName: "", termsAccepted: true,
+    csrfToken: "mock-csrf-token", disclosureRevision: "mock-disclosure-revision"
+  });
+});
+
+test("Join rejects a redirect outside the approved continuation destinations", async ({ page }) => {
+  const requests = await stubSignup(page, [{
+    body: { SUCCESS: true, AUTH: true, USERID: 1009, REDIRECT_URL: "https://example.com/untrusted" }
+  }]);
+  await openJoin(page);
+  await fillValidJoinForm(page);
+  await page.locator("#joinButton").click();
+  await expect.poll(() => requests.length).toBe(1);
+  await expect(page.locator("#joinAlert")).toHaveClass(/alert-danger/);
+  expect(page.url()).toBe(joinUrl);
 });

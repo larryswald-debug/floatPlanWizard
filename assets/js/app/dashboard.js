@@ -12,6 +12,9 @@
   var FALLBACK_LOGIN_URL = BASE_PATH + "/index.cfm";
   var dashboardPageIsLeaving = false;
   var recoveryIntent = readRecoveryIntent();
+  var authHandoff = window.AppAuth && window.AppAuth.readHandoff ? window.AppAuth.readHandoff() : {};
+  var authOverview = document.body && document.body.getAttribute("data-auth-overview") === "true";
+  var authWaitForContinue = document.body && document.body.getAttribute("data-auth-wait-for-continue") === "true";
   var recoveryActionHandled = false;
   var recoveryTimelineReady = null;
 
@@ -484,7 +487,97 @@
         panel.focus({ preventScroll: true });
       }
       scrollToPanel(panelSelector);
+      if (authHandoff.token && ["routes","plans"].indexOf(recoveryIntent.action) !== -1) completeAuthHandoff();
       return false;
+    });
+  }
+
+
+  function completeAuthHandoff() {
+    if (!authHandoff.token || !window.AppAuth) return;
+    window.AppAuth.completeContinuation().then(function (completed) {
+      if (completed) {
+        authHandoff = {};
+        var panel = document.getElementById("authContinuationPanel");
+        if (panel) panel.hidden = true;
+      }
+    });
+  }
+
+  function initAuthHandoff() {
+    var panel = document.getElementById("authContinuationPanel");
+    var button = document.getElementById("authContinuationBtn");
+    var dismiss = document.getElementById("authContinuationDismissBtn");
+    var status = document.getElementById("authContinuationStatus");
+    if (panel && authHandoff.token && authHandoff.destinationKey !== "dashboard") {
+      panel.hidden = false;
+      var labels = {planner:"Trip Planner",account:"Account",vessel:"Vessel Setup",routes:"Routes",plans:"Float Plans",route:"Your Route",draft:"Your Float Plan"};
+      button.textContent = "Continue to " + (labels[authHandoff.destinationKey] || "Dashboard");
+      button.disabled = authHandoff.destinationKey === "planner";
+      status.textContent = authHandoff.destinationKey === "planner"
+        ? "Your planning goal is saved. Complete the four setup essentials, then continue."
+        : "Your original destination is ready when you are.";
+      button.addEventListener("click",function () {
+        button.disabled = true;
+        var acknowledgment = modules.onboarding && modules.onboarding.acknowledgeOverview
+          ? modules.onboarding.acknowledgeOverview() : Promise.resolve();
+        acknowledgment.then(function () {
+          return window.Api.continueAuthIntent(authHandoff.token);
+        }).then(function (result) {
+          if (!result || result.ACKNOWLEDGED !== true) throw new Error("Your destination expired. Select the original link again.");
+          return window.AppAuth.requireAuth({intentToken:authHandoff.token});
+        }).catch(function (err) {
+          status.textContent = err.MESSAGE || "Unable to continue. Select the original link again.";
+          button.disabled = false;
+        });
+      });
+      dismiss.addEventListener("click",function () {
+        dismiss.disabled = true;
+        var acknowledgment = modules.onboarding && modules.onboarding.acknowledgeOverview
+          ? modules.onboarding.acknowledgeOverview() : Promise.resolve();
+        acknowledgment.then(function () { return window.Api.dismissAuthIntent(authHandoff.token); })
+          .then(function () {
+            panel.hidden = true;
+            authHandoff = {};
+            document.body.removeAttribute("data-auth-handoff");
+            var current = new URL(window.location.href);
+            current.searchParams.delete("authIntent");
+            window.history.replaceState(window.history.state,"",current.pathname + current.search + current.hash);
+          }).catch(function () { status.textContent = "Unable to dismiss this goal. Please try again."; })
+          .finally(function () { dismiss.disabled = false; });
+      });
+      document.addEventListener("fpw:onboarding:updated",function (event) {
+        if (!authHandoff.token || authHandoff.destinationKey !== "planner") return;
+        var checklist = event.detail && event.detail.checklist || {};
+        var ready = checklist.allComplete === true;
+        button.disabled = !ready;
+        status.textContent = ready ? "Your setup is ready. Continue when you want to start planning."
+          : "Your planning goal is saved. Complete the four setup essentials, then continue.";
+      });
+    }
+    [["planner","routeBuilderModal"],["route","routeBuilderModal"],["vessel","vesselModal"],
+      ["draft","floatPlanWizardModal"],["draft","basicFloatPlanModal"]].forEach(function (entry) {
+      var target = document.getElementById(entry[1]);
+      if (target) target.addEventListener("shown.bs.modal",function () {
+        if (authHandoff.destinationKey === entry[0]) completeAuthHandoff();
+      });
+    });
+    document.addEventListener("fpw:dashboard:user-ready",function () {
+      var createdEmail = document.getElementById("authCreatedEmail");
+      if (createdEmail && createdEmail.textContent && utils.showDashboardAlert) {
+        utils.showDashboardAlert("Account created — you’re signed in as " + createdEmail.textContent + ".", "success");
+        createdEmail.remove();
+      }
+      if (authOverview) {
+        var overview = document.getElementById("dashboardGettingStartedPanel");
+        if (overview) {
+          overview.hidden = false;
+          overview.setAttribute("tabindex","-1");
+          overview.focus({preventScroll:true});
+          overview.scrollIntoView({block:"start"});
+        }
+      }
+      if (authHandoff.destinationKey === "dashboard") completeAuthHandoff();
     });
   }
 
@@ -6395,6 +6488,7 @@
     document.addEventListener("fpw:floatplans-updated", function () {
       refreshDerivedSignalsFromState();
     });
+    initAuthHandoff();
     document.addEventListener("fpw:dashboard:user-ready", dispatchRecoveryAction);
 
     (Api.getCurrentMemberAccess ? Api.getCurrentMemberAccess() : Api.getCurrentUser())
@@ -6418,7 +6512,7 @@
         state.memberAccess = memberAccess;
         if (modules.onboarding && typeof modules.onboarding.hydrate === "function") {
           modules.onboarding.hydrate(data.ONBOARDING || data.onboarding, {
-            allowAutoOpen: !recoveryIntent.action
+            allowAutoOpen: !recoveryIntent.action && !authOverview && !authWaitForContinue
           });
         }
         if (utils.resolveHomePortLatLng) {

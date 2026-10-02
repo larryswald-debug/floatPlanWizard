@@ -20,7 +20,8 @@
   var SIGNUP_ATTRIBUTION_STORAGE_KEY = "fpw_signup_attribution";
   var SIGNUP_ATTRIBUTION_CONTENT_TYPES = {
     boat_fuel_calculator: "seo_tool",
-    great_loop_locks: "seo_hub"
+    great_loop_locks: "seo_hub",
+    great_loop_trip_planning: "seo_guide"
   };
 
   function normalizeSignupAttribution(value) {
@@ -37,7 +38,7 @@
     if (
       !SIGNUP_ATTRIBUTION_CONTENT_TYPES[landingKey]
       || sourceContentType !== SIGNUP_ATTRIBUTION_CONTENT_TYPES[landingKey]
-      || ctaType !== "plan_route"
+      || ctaType !== (landingKey === "great_loop_trip_planning" ? "plan_trip" : "plan_route")
     ) {
       return null;
     }
@@ -195,13 +196,14 @@
 
     form.addEventListener("submit", async function (evt) {
       evt.preventDefault();
+      if (btn.disabled) return;
       clearAlert();
 
       var firstName = (firstNameEl.value || "").trim();
       var lastName = (lastNameEl.value || "").trim();
       var email = (emailEl.value || "").trim();
-      var password = passwordEl.value || "";
-      var confirmPassword = confirmPasswordEl.value || "";
+      var password = (passwordEl.value || "").trim();
+      var confirmPassword = (confirmPasswordEl.value || "").trim();
       var address = addressEl ? (addressEl.value || "").trim() : "";
       var city = cityEl ? (cityEl.value || "").trim() : "";
       var state = stateEl ? (stateEl.value || "").trim() : "";
@@ -215,8 +217,12 @@
         return;
       }
 
-      if (!firstName || !lastName || !email) {
-        showAlert("First name, last name, and email are required.", "warning");
+      if (!email) {
+        showAlert("Email is required.", "warning");
+        return;
+      }
+      if (firstName.length > 45 || lastName.length > 45) {
+        showAlert("First and last names must each be 45 characters or fewer.", "warning");
         return;
       }
 
@@ -268,6 +274,18 @@
           website: website
         };
 
+        if (!window.Api || typeof window.Api.authBootstrap !== "function") {
+          throw { MESSAGE: "Account creation is temporarily unavailable. Please refresh and try again." };
+        }
+        var intentToken = form.getAttribute("data-auth-intent") || "";
+        var bootstrap = await window.Api.authBootstrap(intentToken ? { intentToken: intentToken } : {});
+        if (!bootstrap || bootstrap.SUCCESS !== true || !bootstrap.CSRF_TOKEN || !bootstrap.DISCLOSURE || !bootstrap.DISCLOSURE.REVISION) {
+          throw { MESSAGE: "Unable to prepare account creation. Please refresh and try again." };
+        }
+        payload.csrfToken = bootstrap.CSRF_TOKEN;
+        payload.disclosureRevision = bootstrap.DISCLOSURE.REVISION;
+        if (bootstrap.INTENT_TOKEN && /^[a-f0-9]{64}$/.test(bootstrap.INTENT_TOKEN)) payload.intentToken = bootstrap.INTENT_TOKEN;
+
         addSignupAttribution(payload, signupAttribution);
 
         if (!signupStartTracked) {
@@ -300,8 +318,8 @@
           }
           clearSignupAttribution();
         }
-        if (redirectUrl) {
-          window.location.href = redirectUrl;
+        if (confirmedSignup && redirectUrl) {
+          window.AppAuth.navigateContinuation(redirectUrl);
           return;
         }
         form.reset();

@@ -4,7 +4,8 @@
   var SIGNUP_ATTRIBUTION_STORAGE_KEY = "fpw_signup_attribution";
   var SIGNUP_ATTRIBUTION_CONTENT_TYPES = {
     boat_fuel_calculator: "seo_tool",
-    great_loop_locks: "seo_hub"
+    great_loop_locks: "seo_hub",
+    great_loop_trip_planning: "seo_guide"
   };
 
   if (window.__FPW_ACTION_CTA_TRACKING_BOUND__) return;
@@ -17,7 +18,8 @@
     var authState = target.getAttribute("data-fpw-track-auth-state") || "";
     var destinationKey = target.getAttribute("data-fpw-track-destination-key") || "";
 
-    if (authState !== "signed_out" || destinationKey !== "join" || !contentType || ctaType !== "plan_route") {
+    var supportedCta = landingKey === "great_loop_trip_planning" ? ctaType === "plan_trip" : ctaType === "plan_route";
+    if (authState !== "signed_out" || destinationKey !== "join" || !contentType || !supportedCta) {
       return null;
     }
 

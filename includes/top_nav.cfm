@@ -565,7 +565,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
               <div class="fpw-dropdown fpw-account-dropdown" data-fpw-dropdown>
                 <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavActive EQ 'account'> is-active</cfif>" type="button" aria-expanded="false" aria-haspopup="true" data-fpw-dropdown-toggle>
                   #renderFpwNavIcon("user", "fpw-nav-icon")#
-                  <span>Account</span>
+                  <span class="fpw-member-identity" data-fpw-member-identity data-fpw-member-email="#encodeForHTMLAttribute(topNavEmail)#" data-clarity-mask="True">#encodeForHTML(topNavUserDisplayName)#</span>
                   <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
                 </button>
                 <div class="fpw-dropdown-menu fpw-dropdown-menu-right" role="menu">
@@ -585,7 +585,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 <span>Start Free</span>
                 <span class="fpw-cta-arrow" aria-hidden="true">&rarr;</span>
               </a>
-              <a class="fpw-nav-link fpw-login-link" href="#topNavBasePath#/app/login.cfm">
+              <a class="fpw-nav-link fpw-login-link" href="#topNavBasePath#/app/login.cfm" data-fpw-auth-intent="dashboard" data-fpw-auth-source-page="top_nav" data-fpw-auth-section="top_nav" data-fpw-auth-cta-type="account" data-fpw-auth-label="Account">
                 #renderFpwNavIcon("user", "fpw-nav-icon")#
                 <span>Login</span>
               </a>
@@ -909,13 +909,20 @@ topNavShowAppSubnav = topNavIsLoggedIn
     })();
   </script>
 
+  <script>
+    window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
+    window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
+  </script>
+  <cfif NOT structKeyExists(request, "fpwApiScriptRendered")>
+    <cfset request.fpwApiScriptRendered = true>
+    <script src="#topNavBasePath#/assets/js/app/api.js?v=20261001-unified-auth"></script>
+  </cfif>
+  <cfif NOT structKeyExists(request, "fpwAuthScriptRendered")>
+    <cfset request.fpwAuthScriptRendered = true>
+    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20261001-unified-auth"></script>
+  </cfif>
   <cfif NOT topNavIsLoggedIn>
-    <script>
-      window.FPW_BASE = "#JSStringFormat(topNavBasePath)#";
-      window.FPW_API_BASE = "#JSStringFormat(topNavBasePath)#/api/v1";
-    </script>
-    <script src="#topNavBasePath#/assets/js/app/api.js?v=20260722-phase3-cutover-pdf"></script>
-    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20260526-cache-bump"></script>
-    <script src="#topNavBasePath#/assets/js/app/core.js"></script>
+    <script src="#topNavBasePath#/assets/js/app/core.js?v=20261001-unified-auth"></script>
   </cfif>
 </cfoutput>
+<cfinclude template="../partials/fpw-auth-modal.cfm">

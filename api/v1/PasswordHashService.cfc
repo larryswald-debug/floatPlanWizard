@@ -45,11 +45,15 @@ component output=false {
       return verifyAdaptivePassword(arguments.plainPassword, arguments.storedPassword);
     }
 
-    if (format == "LEGACY_SHA256") {
-      return verifyLegacySha256(arguments.plainPassword, arguments.storedPassword);
+    // A reserved adaptive prefix must never be treated as a literal password,
+    // including malformed hashes. Keep the old literal fallback for legacy rows.
+    if (format == "INVALID_ADAPTIVE" || !len(arguments.plainPassword) || !len(arguments.storedPassword)) {
+      return false;
     }
-
-    return false;
+    if (format == "LEGACY_SHA256" && verifyLegacySha256(arguments.plainPassword, arguments.storedPassword)) {
+      return true;
+    }
+    return arguments.plainPassword EQ arguments.storedPassword;
   }
 
   public string function detectPasswordFormat(required string storedPassword) {
@@ -62,6 +66,10 @@ component output=false {
       ) == 1
     ) {
       return "ADAPTIVE";
+    }
+
+    if (compareNoCase(left(stored, 7), "$pbkdf2") == 0) {
+      return "INVALID_ADAPTIVE";
     }
 
     if (reFindNoCase("^[0-9a-f]{64}$", stored) == 1) {
@@ -98,6 +106,37 @@ component output=false {
     } catch (any ignored) {
       return false;
     }
+  }
+
+
+  // Call only from server-side authentication. Hashing happens outside the UPDATE.
+  // A concurrent reset/change must win; never authenticate using an obsolete hash.
+  public struct function verifyAndUpgrade(required numeric userId, required string plainPassword,
+      required string observedPassword, string datasource="fpw") {
+    var result = {VERIFIED=false, UPGRADED=false};
+    if (arguments.userId <= 0 || !verifyPassword(arguments.plainPassword, arguments.observedPassword)) return result;
+    result.VERIFIED = true;
+    if (!needsRehash(arguments.observedPassword)) return result;
+    var replacement = hashPassword(arguments.plainPassword);
+    var upgradeResult = {};
+    queryExecute(
+      "UPDATE users SET password = :replacement
+       WHERE userId = :userId AND CAST(password AS BINARY) = CAST(:observed AS BINARY)",
+      {
+        replacement={value=replacement,cfsqltype="cf_sql_varchar"},
+        userId={value=arguments.userId,cfsqltype="cf_sql_integer"},
+        observed={value=arguments.observedPassword,cfsqltype="cf_sql_varchar"}
+      },
+      {datasource=arguments.datasource,result="local.upgradeResult"}
+    );
+    if (structKeyExists(upgradeResult, "recordCount") && val(upgradeResult.recordCount) == 1) {
+      result.UPGRADED = true;
+      return result;
+    }
+    var current = queryExecute("SELECT password FROM users WHERE userId = :userId",
+      {userId={value=arguments.userId,cfsqltype="cf_sql_integer"}}, {datasource=arguments.datasource});
+    result.VERIFIED = current.recordCount == 1 && verifyPassword(arguments.plainPassword, toString(current.password[1]));
+    return result;
   }
 
   public struct function getConfiguration() {
@@ -178,8 +217,13 @@ component output=false {
         return result;
       }
 
-      binaryDecode(result.salt, "base64");
-      binaryDecode(result.derivedKey, "base64");
+      var saltBytes = binaryDecode(result.salt, "base64");
+      var keyBytes = binaryDecode(result.derivedKey, "base64");
+      if (arrayLen(saltBytes) != variables.saltBits / 8 || arrayLen(keyBytes) != variables.keyBits / 8
+          || compare(binaryEncode(saltBytes, "base64"), result.salt) != 0
+          || compare(binaryEncode(keyBytes, "base64"), result.derivedKey) != 0) {
+        return result;
+      }
       result.valid = true;
       return result;
     } catch (any ignored) {

@@ -441,6 +441,7 @@
         <cfargument name="contactName" type="string" required="true">
         <cfargument name="floatPlanName" type="string" required="true">
         <cfargument name="captainName" type="string" required="true">
+        <cfargument name="senderName" type="string" required="true">
         <cfargument name="pdfPath" type="string" required="true">
 
         <cfset var result = {
@@ -453,6 +454,7 @@
         <cfset var recipientName = cleanBasicReviewTextValue(arguments.contactName)>
         <cfset var planName = cleanBasicReviewTextValue(arguments.floatPlanName)>
         <cfset var captain = cleanBasicReviewTextValue(arguments.captainName)>
+        <cfset var sender = cleanBasicReviewTextValue(arguments.senderName)>
         <cfset var attachmentPath = trim(arguments.pdfPath)>
         <cfset var subject = "">
         <cfset var textBody = "">
@@ -476,6 +478,11 @@
             <cfreturn result>
         </cfif>
 
+        <cfif NOT len(sender)>
+            <cfset result.errorCode = "PROFILE_NAME_REQUIRED">
+            <cfset result.message = "A saved member name is required before sending this float plan.">
+            <cfreturn result>
+        </cfif>
         <cfif NOT len(recipientName)>
             <cfset recipientName = "Float plan contact">
         </cfif>
@@ -486,12 +493,12 @@
             <cfset captain = "FPW member">
         </cfif>
 
-        <cfset subject = "Basic Float Plan: " & planName & " — " & captain>
+        <cfset subject = "Basic Float Plan: " & planName & " — " & sender>
         <cfset complianceFooter = buildEmailComplianceFooter(footerType = "service")>
         <cfset textBody = arrayToList([
             "Hello " & recipientName & ",",
             "",
-            captain & " selected you to receive the attached Basic float plan: " & planName & ".",
+            sender & " selected you to receive the attached Basic float plan: " & planName & ".",
             "",
             "This Basic Send includes the completed float-plan PDF and email delivery only.",
             "It does not include Active Cruise, Float Plan Monitoring, private Trip/Follow access, live check-ins, updates, photos, or comments.",
@@ -505,7 +512,7 @@
 
         <cfsavecontent variable="htmlContent"><cfoutput>
 <p style="margin:0 0 16px 0;">Hello #encodeForHtml(recipientName)#,</p>
-<p style="margin:0 0 16px 0;"><strong>#encodeForHtml(captain)#</strong> selected you to receive the attached Basic float plan: <strong>#encodeForHtml(planName)#</strong>.</p>
+<p style="margin:0 0 16px 0;"><strong>#encodeForHtml(sender)#</strong> selected you to receive the attached Basic float plan: <strong>#encodeForHtml(planName)#</strong>.</p>
 <p style="margin:0 0 12px 0;">This Basic Send includes the completed float-plan PDF and email delivery only.</p>
 <p style="margin:0 0 16px 0;">It does not include Active Cruise, Float Plan Monitoring, private Trip/Follow access, live check-ins, updates, photos, or comments.</p>
 <p style="margin:0 0 16px 0;"><strong>This float plan is precautionary trip information.</strong> Nothing in this email indicates that FPW has verified an emergency.</p>

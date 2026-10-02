@@ -311,7 +311,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
       <nav class="fpw-footer-col fpw-footer-plan" aria-label="FloatPlanWizard planning tools">
         <h3>Plan</h3>
         <div class="fpw-footer-plan-links">
-          <a href="#footerBasePath#/app/dashboard.cfm">Dashboard</a>
+          <a href="#footerBasePath#/app/dashboard.cfm" data-fpw-auth-intent="dashboard" data-fpw-auth-source-page="footer" data-fpw-auth-section="footer" data-fpw-auth-cta-type="dashboard" data-fpw-auth-label="Dashboard">Dashboard</a>
           <a href="#footerBasePath#/app/help.cfm">Help Center</a>
           <a href="#footerBasePath#/solo-boating-safety-guide/">Boating Safety</a>
           <a href="#footerBasePath#/why-use-a-float-plan/">Float Plan Guide</a>
@@ -331,9 +331,9 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
       <nav class="fpw-footer-col fpw-footer-account" aria-label="Account and support">
         <h3>Account</h3>
         <div class="fpw-footer-account-links">
-          <a href="#footerBasePath#/app/account.cfm">My Account</a>
-          <a href="#footerBasePath#/app/login.cfm">Log In</a>
-          <a href="#footerBasePath#/app/join.cfm">Join Free</a>
+          <a href="#footerBasePath#/app/account.cfm" data-fpw-auth-intent="account" data-fpw-auth-source-page="footer" data-fpw-auth-section="account" data-fpw-auth-cta-type="account" data-fpw-auth-label="My Account">My Account</a>
+          <a href="#footerBasePath#/app/login.cfm" data-fpw-auth-intent="account" data-fpw-auth-source-page="footer" data-fpw-auth-section="account" data-fpw-auth-cta-type="account" data-fpw-auth-label="Account">Log In</a>
+          <a href="#footerBasePath#/app/join.cfm" data-fpw-auth-intent="dashboard" data-fpw-auth-source-page="footer" data-fpw-auth-section="account" data-fpw-auth-cta-type="dashboard" data-fpw-auth-label="Dashboard">Join Free</a>
           <a href="#footerBasePath#/faq/">FAQ</a>
           <a href="#footerBasePath#/app/contact.cfm">Contact Support</a>
         </div>
@@ -362,6 +362,7 @@ for (footerModernPagePath in listToArray(footerModernPagePaths)) {
 </footer>
 
 </cfoutput>
+<cfinclude template="../partials/fpw-auth-modal.cfm">
 
 
 

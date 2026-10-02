@@ -56,6 +56,23 @@
                     </button>
                 </div>
 
+                <fieldset v-if="memberNameRequired" class="mb-4" aria-describedby="wizardMemberNameHelp">
+                    <legend class="h6">Your name / Sender name</legend>
+                    <p id="wizardMemberNameHelp" class="small text-muted">Enter your first or last name so your contacts know who sent this float plan. It will be saved to your profile.</p>
+                    <div class="row">
+                        <div class="col-sm-6 mb-2">
+                            <label class="form-label" for="wizardMemberFirstName">First name</label>
+                            <input id="wizardMemberFirstName" ref="memberFirstName" class="form-control" type="text" v-model="memberFirstName" maxlength="45" autocomplete="given-name" :disabled="isSaving" :aria-invalid="memberNameError ? 'true' : 'false'" @input="memberNameError = ''">
+                        </div>
+                        <div class="col-sm-6 mb-2">
+                            <label class="form-label" for="wizardMemberLastName">Last name</label>
+                            <input id="wizardMemberLastName" class="form-control" type="text" v-model="memberLastName" maxlength="45" autocomplete="family-name" :disabled="isSaving" :aria-invalid="memberNameError ? 'true' : 'false'" @input="memberNameError = ''">
+                        </div>
+                    </div>
+                    <p v-if="memberNameError" class="text-danger small" role="alert">{{ memberNameError }}</p>
+                </fieldset>
+                <p v-else class="small mb-3"><strong>Sender:</strong> {{ memberDisplayName }}</p>
+
                 <div class="mb-3">
                     <label class="form-label">Float Plan Name *</label>
                     <input
@@ -365,6 +382,7 @@
                 <h2 class="h5 mb-3">Step 7 – Review</h2>
 
                 <h3 class="h6">Review</h3>
+                <p v-if="memberDisplayName" class="small mb-3"><strong>Sender:</strong> {{ memberDisplayName }}</p>
                 <div class="mb-3">
                     <div v-if="pdfPreviewError" class="alert alert-warning small">
                         {{ pdfPreviewError }}
@@ -431,7 +449,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/validate.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20260802-scheduled-actual-departure"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/floatplanWizard.js?v=20261001-member-profile"></script>
 
 </body>
 </html>

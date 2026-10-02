@@ -55,14 +55,14 @@
       return;
     }
 
-    fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
+    window.Api.authBootstrap().then(function (csrf) { return fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.CSRF_TOKEN },
       body: JSON.stringify({
         action: "validate",
         token: token
       })
-    }).catch(function (err) {
+    }); }).catch(function (err) {
       setFormEnabled(false);
       showAlert((err && err.MESSAGE) ? err.MESSAGE : invalidLinkMessage, "danger");
     });
@@ -90,9 +90,10 @@
       btn.textContent = "Updating...";
 
       try {
+        var csrf = await window.Api.authBootstrap();
         var data = await fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.CSRF_TOKEN },
           body: JSON.stringify({
             action: "confirm",
             token: token,
@@ -103,7 +104,9 @@
         showAlert(data.MESSAGE || "Your password has been reset. You can now sign in.", "success");
 
         setTimeout(function () {
-          window.location.href = BASE_PATH + "/app/login.cfm";
+          var continuationToken = new URLSearchParams(window.location.search).get("continuationToken") || "";
+          window.location.href = BASE_PATH + "/app/login.cfm" +
+            (/^[a-f0-9]{64}$/.test(continuationToken) ? "?authIntent=" + continuationToken : "");
         }, 1200);
 
       } catch (err) {

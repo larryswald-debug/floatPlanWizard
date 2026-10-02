@@ -324,9 +324,13 @@ component output="false" {
         account_tier = [ "basic" ],
         onboarding_model = [ "legacy_trial", "premium_send_credit" ],
         complimentary_premium_send_credit = [ "true", "false" ],
-        landing_key = [ "boat_fuel_calculator", "great_loop_locks" ],
-        source_content_type = [ "seo_tool", "seo_hub" ],
-        cta_type = [ "plan_route" ]
+        landing_key = [ "boat_fuel_calculator", "great_loop_locks", "great_loop_trip_planning" ],
+        source_content_type = [ "seo_tool", "seo_hub", "seo_guide" ],
+        cta_type = [ "plan_route", "plan_trip" ],
+        acceptance_method = [ "continue_disclosure", "dedicated_checkbox" ],
+        terms_revision = [],
+        privacy_revision = [],
+        disclosure_revision = []
       }
     };
     definitions["complimentary_credit_granted"] = {
@@ -501,7 +505,10 @@ component output="false" {
 
       normalizedValue = lCase(trim(toString(arguments.metadata[metadataKey])));
       allowedValues = definition.metadata[normalizedKey];
-      if (!arrayContainsNoCase(allowedValues, normalizedValue)) {
+      var isConsentRevision = arguments.eventName EQ "sign_up"
+        AND listFind("terms_revision,privacy_revision,disclosure_revision",normalizedKey);
+      if (isConsentRevision ? !(len(normalizedValue) EQ 64 AND reFind("^[a-f0-9]+$",normalizedValue) EQ 1)
+          : !arrayContainsNoCase(allowedValues, normalizedValue)) {
         return failureResponse("DISALLOWED_METADATA_VALUE", "The metadata value is not allowed for this event.");
       }
 

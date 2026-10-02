@@ -1,0 +1,48 @@
+.fpw-auth-modal {
+  box-sizing: border-box;
+  width: min(480px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow-y: auto;
+  color: #eaf3ff;
+  background: #102333;
+  border: 1px solid #3a586e;
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .45);
+  font-family: inherit;
+}
+.fpw-auth-modal::backdrop { background: rgba(3, 12, 20, .76); }
+.fpw-auth-modal__content { position: relative; padding: 32px; }
+.fpw-auth-modal h2 { margin: 0 36px 12px 0; font-size: 1.6rem; line-height: 1.25; color: inherit; }
+.fpw-auth-modal p { color: #c3d4e4; line-height: 1.55; }
+.fpw-auth-modal__close {
+  position: absolute; top: 12px; right: 12px; width: 40px; height: 40px;
+  border: 0; border-radius: 8px; color: #eaf3ff; background: transparent;
+  font: inherit; font-size: 1.8rem; cursor: pointer;
+}
+.fpw-auth-modal__field { margin: 18px 0; }
+.fpw-auth-modal__field label { display: block; margin-bottom: 7px; font-weight: 700; }
+.fpw-auth-modal__field input {
+  box-sizing: border-box; width: 100%; min-height: 48px; padding: 10px 12px;
+  color: #eaf3ff; background: #081824; border: 1px solid #6b879b; border-radius: 8px;
+  font: inherit; font-size: 16px;
+}
+.fpw-auth-modal a { color: #92d6ff; text-decoration: underline; text-underline-offset: 3px; }
+.fpw-auth-modal__disclosure { font-size: .86rem; }
+.fpw-auth-modal__continue {
+  width: 100%; min-height: 48px; border: 1px solid #62b4e5; border-radius: 9px;
+  background: #2589c4; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.fpw-auth-modal__continue:disabled { opacity: .65; cursor: wait; }
+.fpw-auth-modal__forgot { display: block; margin-top: 18px; text-align: center; }
+.fpw-auth-modal__alert { padding: 12px; margin-top: 18px; border: 1px solid #e7ab8e; border-radius: 8px; color: #ffe1d2; background: #492c25; }
+.fpw-auth-modal [hidden] { display: none; }
+.fpw-auth-modal__honeypot { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.fpw-auth-modal :focus-visible { outline: 3px solid #a2ddff; outline-offset: 3px; }
+.fpw-member-identity { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+@media (max-width: 480px) {
+  .fpw-auth-modal__content { padding: 24px 20px; }
+  .fpw-auth-modal h2 { font-size: 1.35rem; }
+  .fpw-member-identity { max-width: 230px; }
+}

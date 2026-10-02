@@ -4,5 +4,11 @@
   integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
   crossorigin="anonymous"></script>
 
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js?v=20260731-basic-review-send"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20260924-recovery-actions"></script>
+<cfif NOT structKeyExists(request, "fpwApiScriptRendered")>
+  <cfset request.fpwApiScriptRendered = true>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js?v=20261001-unified-auth"></script>
+</cfif>
+<cfif NOT structKeyExists(request, "fpwAuthScriptRendered")>
+  <cfset request.fpwAuthScriptRendered = true>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20261001-unified-auth"></script>
+</cfif>

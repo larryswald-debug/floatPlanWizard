@@ -229,7 +229,7 @@
             var userId = toInt(readValue(arguments.body, "userId", 0));
             var firstName = left(trim(toString(readValue(arguments.body, "firstName", readValue(arguments.body, "fName", "")))), 45);
             var lastName = left(trim(toString(readValue(arguments.body, "lastName", readValue(arguments.body, "lName", "")))), 45);
-            var emailValue = left(trim(toString(readValue(arguments.body, "email", ""))), 255);
+            var emailValue = lCase(left(trim(toString(readValue(arguments.body, "email", ""))), 255));
             var mobilePhone = left(trim(toString(readValue(arguments.body, "mobilePhone", ""))), 50);
             var hostekUserId = left(trim(toString(readValue(arguments.body, "hostekUserId", readValue(arguments.body, "hostek_userId", "")))), 255);
             var addresses = readValue(arguments.body, "addresses", []);
@@ -272,32 +272,40 @@
                 return buildResponse(false, true, "Validation failed", {}, "Email is already used by another user.");
             }
 
-            transaction {
-                queryExecute(
-                    "UPDATE users
-                     SET fName = :firstName,
-                         lName = :lastName,
-                         email = :email,
-                         mobilePhone = :mobilePhone,
-                         hostek_userId = :hostekUserId,
-                         lastUpdate = NOW()
-                     WHERE userId = :userId",
-                    {
-                        firstName = { value = firstName, cfsqltype = "cf_sql_varchar" },
-                        lastName = { value = lastName, cfsqltype = "cf_sql_varchar" },
-                        email = { value = emailValue, cfsqltype = "cf_sql_varchar" },
-                        mobilePhone = { value = mobilePhone, cfsqltype = "cf_sql_varchar" },
-                        hostekUserId = { value = hostekUserId, cfsqltype = "cf_sql_varchar" },
-                        userId = { value = userId, cfsqltype = "cf_sql_integer" }
-                    },
-                    { datasource = getDatasource() }
-                );
+            try {
+                transaction {
+                    queryExecute(
+                        "UPDATE users
+                         SET fName = :firstName,
+                             lName = :lastName,
+                             email = :email,
+                             mobilePhone = :mobilePhone,
+                             hostek_userId = :hostekUserId,
+                             lastUpdate = NOW()
+                         WHERE userId = :userId",
+                        {
+                            firstName = { value = firstName, cfsqltype = "cf_sql_varchar" },
+                            lastName = { value = lastName, cfsqltype = "cf_sql_varchar" },
+                            email = { value = emailValue, cfsqltype = "cf_sql_varchar" },
+                            mobilePhone = { value = mobilePhone, cfsqltype = "cf_sql_varchar" },
+                            hostekUserId = { value = hostekUserId, cfsqltype = "cf_sql_varchar" },
+                            userId = { value = userId, cfsqltype = "cf_sql_integer" }
+                        },
+                        { datasource = getDatasource() }
+                    );
 
-                if (isArray(addresses)) {
-                    for (i = 1; i LTE arrayLen(addresses); i++) {
-                        saveAddressRow(userId, addresses[i]);
+                    if (isArray(addresses)) {
+                        for (i = 1; i LTE arrayLen(addresses); i++) {
+                            saveAddressRow(userId, addresses[i]);
+                        }
                     }
                 }
+
+            } catch (database duplicateEmail) {
+                if (structKeyExists(duplicateEmail,"NativeErrorCode") AND val(duplicateEmail.NativeErrorCode) EQ 1062) {
+                    return buildResponse(false, true, "Validation failed", {}, "Email is already used by another user.");
+                }
+                rethrow;
             }
 
             return buildResponse(true, true, "User saved.", { "userId" = userId });

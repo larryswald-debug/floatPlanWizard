@@ -106,6 +106,7 @@ fpwCtaConfig = {
   "buttonLabel" = "Start Planning",
   "destinationUrl" = fpwLoopPlanningDestination,
   "ctaType" = "plan_trip",
+  "authIntent" = "planner",
   "sourcePage" = "great_loop_trip_planning",
   "section" = "after_planning_guide",
   "authState" = fpwLoopPlanningCtaSignedIn ? "signed_in" : "signed_out",
@@ -210,7 +211,7 @@ fpwCtaConfig = {
           <section id="daily-decisions" tabindex="-1" aria-labelledby="daily-decisions-title">
             <h2 id="daily-decisions-title">Plan the Great Loop one realistic leg at a time</h2>
             <p>A Great Loop route gives the trip direction; a daily leg gives the crew a workable plan. Start with where you intend to leave, the water you expect to travel, and a stopping point you can reconsider. Distance, bridges, locks, fuel and daylight belong in the same decision.</p>
-            <p>You can <a href="<cfoutput>#encodeForHTMLAttribute(fpwLoopPlanningDestination)#</cfoutput>">open FPW's Trip Planner workspace</a> and use <strong>+ Create Route</strong> on the dashboard to open the <strong>FPW Route Generator</strong>. Build a route from saved waypoints, inspect the legs, correct the drawn path where needed, and review the resulting distance, timing and fuel estimates. The finished route then supports a Float Plan for the trip you actually intend to run.</p>
+            <p>You can <a href="<cfoutput>#encodeForHTMLAttribute(fpwLoopPlanningDestination)#</cfoutput>" data-fpw-auth-intent="planner" data-fpw-auth-source-page="great_loop_trip_planning" data-fpw-auth-section="daily_decisions" data-fpw-auth-cta-type="plan_trip" data-fpw-auth-label="open FPW&#39;s Trip Planner workspace">open FPW's Trip Planner workspace</a> to continue to the <strong>FPW Route Generator</strong> once your Getting Started checklist is complete. Build a route from saved waypoints, inspect the legs, correct the drawn path where needed, and review the resulting distance, timing and fuel estimates. The finished route then supports a Float Plan for the trip you actually intend to run.</p>
             <p><strong>The workflow:</strong> prepare the boat and waypoints; build the route; review each leg; adjust its geometry; check bridges, locks, time and fuel; choose a realistic daily endpoint; save the route; then review and share the Float Plan.</p>
             <p>Treat the generated result as the start of captain review. FPW organizes your planning; the captain still validates the navigable path with current charts, Notices to Mariners, official navigation information and judgment.</p>
           </section>
@@ -411,7 +412,7 @@ fpwCtaConfig = {
 </main>
 
 <cfinclude template="../../includes/footer.cfm">
-<script src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/js/fpw-action-cta.js?v=20260804-pilot"></script>
+<script src="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/js/fpw-action-cta.js?v=20261001-unified-auth"></script>
 </body>
 </html>
 

@@ -63,12 +63,15 @@
       loginButton.disabled = true;
       loginButton.textContent = "Signing in...";
 
-      Api.login(email, password)
-        .then(function () {
+      var intentToken = form.getAttribute("data-auth-intent") || "";
+      Api.login(email, password, intentToken)
+        .then(function (data) {
+          if (data.SUCCESS !== true || data.AUTH !== true) throw data;
           showLoginAlert("Login successful. Redirecting...", "success");
 
           setTimeout(function () {
-            window.location.href = getRecoveryReturnPath(form) || BASE_PATH + "/app/dashboard.cfm";
+            if (intentToken && window.AppAuth) window.AppAuth.navigateContinuation(data.REDIRECT_URL);
+            else window.location.href = getRecoveryReturnPath(form) || BASE_PATH + "/app/dashboard.cfm";
           }, 800);
         })
         .catch(function (err) {

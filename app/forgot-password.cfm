@@ -1,4 +1,15 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfinclude template="../includes/fpw_base_path.cfm">
+<cfscript>
+fpwForgotAuthToken = "";
+if (structKeyExists(url, "authIntent") AND isSimpleValue(url.authIntent)) {
+    fpwForgotAuthPrefix = replace(reReplace(request.fpwBase, "^/", ""), "/", ".", "all");
+    fpwForgotAuthContinuations = createObject("component",
+        (len(fpwForgotAuthPrefix) ? fpwForgotAuthPrefix & "." : "") & "includes.AuthContinuationService");
+    fpwForgotAuthEntry = fpwForgotAuthContinuations.getIntent(toString(url.authIntent));
+    if (!structIsEmpty(fpwForgotAuthEntry)) fpwForgotAuthToken = fpwForgotAuthEntry.token;
+}
+</cfscript>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -91,7 +102,7 @@
         </div>
       </div>
 
-      <form id="forgotForm" class="fpw-auth-form fpw-forgot-form" method="post" novalidate>
+      <form id="forgotForm" data-clarity-mask="True" class="fpw-auth-form fpw-forgot-form" method="post" novalidate>
         <div class="fpw-form-row">
           <label for="email">Email address</label>
           <div class="fpw-input-wrap">
@@ -114,9 +125,9 @@
         </button>
 
         <div class="fpw-auth-link-row">
-          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/login.cfm">Back to Sign In</a>
+          <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/login.cfm' & (len(fpwForgotAuthToken) ? '?authIntent=' & fpwForgotAuthToken : ''))#</cfoutput>">Back to Sign In</a>
           <span aria-hidden="true">|</span>
-          <a href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create free account</a>
+          <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/join.cfm' & (len(fpwForgotAuthToken) ? '?authIntent=' & fpwForgotAuthToken : ''))#</cfoutput>">Create free account</a>
         </div>
       </form>
 
@@ -140,7 +151,8 @@
   </div>
 </section>
 
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/api.js?v=20261001-unified-auth"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth-utils.js"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/forgot-password.js?v=20260530-password-reset-launch"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/forgot-password.js?v=20261001-unified-auth"></script>
 </body>
 </html>

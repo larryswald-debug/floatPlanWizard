@@ -45,6 +45,10 @@
     error: ""
   };
   var dom = {};
+  var formSaving = false;
+  var formReady = false;
+  var memberProfileLoaded = false;
+  var memberProfile = { fName: "", lName: "", displayName: "", hasName: false };
 
   function pick(obj, keys, fallback) {
     if (utils && typeof utils.pick === "function") {
@@ -302,6 +306,11 @@
 	  function cacheDom() {
     dom.modalEl = document.getElementById("basicFloatPlanModal");
     dom.form = document.getElementById("basicFloatPlanForm");
+    dom.memberNameSection = document.getElementById("basicMemberNameSection");
+    dom.memberFirstName = document.getElementById("basicMemberFirstName");
+    dom.memberLastName = document.getElementById("basicMemberLastName");
+    dom.memberNameError = document.getElementById("basicMemberNameError");
+    dom.memberSenderName = document.getElementById("basicMemberSenderName");
     dom.message = document.getElementById("basicFloatPlanMessage");
     dom.sentState = document.getElementById("basicFloatPlanSentState");
 	    dom.planId = document.getElementById("basicFloatPlanId");
@@ -770,7 +779,6 @@
 	    ]).then(function (lists) {
 	      renderCheckboxList(dom.passengers, lists[0], ["PASSENGERID", "ID"], ["PASSENGERNAME", "NAME"], "basicPassenger", "No passengers saved");
 	      renderAuthoritySelect(lists[1]);
-	      setMessage("", "info");
 	      return lists;
 	    });
 	  }
@@ -853,13 +861,80 @@
     dom.message.classList.add("alert-" + (type || "info"));
   }
 
+  function applyMemberProfile(profile) {
+    profile = profile || {};
+    var firstName = String(pick(profile, ["fName", "FNAME"], "")).trim();
+    var lastName = String(pick(profile, ["lName", "LNAME"], "")).trim();
+    memberProfile = { fName: firstName, lName: lastName, displayName: (firstName + " " + lastName).trim(), hasName: !!(firstName || lastName) };
+    memberProfileLoaded = true;
+    if (dom.memberFirstName) dom.memberFirstName.value = firstName;
+    if (dom.memberLastName) dom.memberLastName.value = lastName;
+    if (dom.memberNameSection) dom.memberNameSection.classList.toggle("d-none", memberProfile.hasName);
+    if (dom.memberSenderName) {
+      dom.memberSenderName.textContent = memberProfile.hasName ? "Sender: " + memberProfile.displayName : "";
+      dom.memberSenderName.classList.toggle("d-none", !memberProfile.hasName);
+    }
+    if (dom.memberNameError) dom.memberNameError.classList.add("d-none");
+  }
+
+  function loadMemberProfile() {
+    if (!window.Api || typeof window.Api.getProfileName !== "function") {
+      return Promise.reject({ MESSAGE: "Unable to load your sender name. Please try again." });
+    }
+    return window.Api.getProfileName().then(function (response) {
+      if (!response || response.SUCCESS !== true) throw response || { MESSAGE: "Unable to load your sender name." };
+      applyMemberProfile(response.PROFILE || response.profile);
+    });
+  }
+
+  function requireMemberName(error) {
+    if (!error || (error.ERROR !== "PROFILE_NAME_REQUIRED" && error.CODE !== "PROFILE_NAME_REQUIRED")) return;
+    memberProfile.hasName = false;
+    if (dom.memberNameSection) dom.memberNameSection.classList.remove("d-none");
+    if (dom.memberSenderName) dom.memberSenderName.classList.add("d-none");
+    if (dom.memberNameError) {
+      dom.memberNameError.textContent = getMessage(error, "Enter your first or last name before saving or sending.");
+      dom.memberNameError.classList.remove("d-none");
+    }
+    window.setTimeout(function () {
+      if (dom.memberFirstName) dom.memberFirstName.focus();
+    }, 0);
+  }
+
+  function ensureMemberName() {
+    return (memberProfileLoaded ? Promise.resolve() : loadMemberProfile()).then(function () {
+      if (memberProfile.hasName) return;
+      var firstName = String(dom.memberFirstName ? dom.memberFirstName.value : "").trim();
+      var lastName = String(dom.memberLastName ? dom.memberLastName.value : "").trim();
+      if ((!firstName && !lastName) || firstName.length > 45 || lastName.length > 45) {
+        throw { ERROR: "PROFILE_NAME_REQUIRED", MESSAGE: "Enter your first or last name, using no more than 45 characters in each field." };
+      }
+      if (!window.Api || typeof window.Api.updateProfileName !== "function") {
+        throw { MESSAGE: "Unable to save your sender name. Please try again." };
+      }
+      return window.Api.updateProfileName({ fName: firstName, lName: lastName }).then(function (response) {
+        if (!response || response.SUCCESS !== true) throw response || { MESSAGE: "Unable to save your sender name." };
+        applyMemberProfile(response.PROFILE || response.profile);
+        if (!memberProfile.hasName) throw { ERROR: "PROFILE_NAME_REQUIRED", MESSAGE: "Your name could not be confirmed. Please try again." };
+      });
+    });
+  }
+
   function setSaving(isSaving, actionLabel) {
+    formSaving = !!isSaving;
+    if (dom.modalEl) {
+      Array.prototype.forEach.call(dom.modalEl.querySelectorAll('[data-bs-dismiss="modal"]'), function (button) {
+        button.disabled = !!isSaving;
+      });
+    }
+    if (dom.memberFirstName) dom.memberFirstName.disabled = !!isSaving || !formReady;
+    if (dom.memberLastName) dom.memberLastName.disabled = !!isSaving || !formReady;
     if (dom.saveBtn) {
-      dom.saveBtn.disabled = !!isSaving;
+      dom.saveBtn.disabled = !!isSaving || !formReady;
       dom.saveBtn.textContent = isSaving && actionLabel === "save" ? "Saving..." : "Save Draft";
     }
     if (dom.sendBtn) {
-      dom.sendBtn.disabled = !!isSaving;
+      dom.sendBtn.disabled = !!isSaving || !formReady;
       dom.sendBtn.textContent = isSaving && actionLabel === "send" ? "Sending..." : "Save & Send";
     }
   }
@@ -1008,12 +1083,13 @@
   }
 
   function saveDraft() {
+    if (formSaving || !formReady) return Promise.resolve();
     if (!validateForm()) {
       return Promise.reject({ MESSAGE: "Basic float plan validation failed." });
     }
     setSaving(true, "save");
     setMessage("Saving Basic float plan draft...", "info");
-    return window.Api.saveBasicFloatPlan(buildPayload())
+    return ensureMemberName().then(function () { return window.Api.saveBasicFloatPlan(buildPayload()); })
       .then(function (payload) {
         if (!payload || payload.SUCCESS !== true) {
           throw payload || { MESSAGE: "Unable to save Basic float plan." };
@@ -1031,6 +1107,7 @@
         return payload;
       })
       .catch(function (err) {
+        requireMemberName(err);
         setMessage(getMessage(err, "Unable to save Basic float plan."), "danger");
         throw err;
       })
@@ -1055,11 +1132,12 @@
   }
 
   function saveAndSend() {
+    if (formSaving || !formReady) return;
     var planId = 0;
     if (!validateForm()) return;
     setSaving(true, "send");
     setMessage("Saving and sending Basic float plan...", "info");
-    window.Api.saveBasicFloatPlan(buildPayload())
+    ensureMemberName().then(function () { return window.Api.saveBasicFloatPlan(buildPayload()); })
       .then(function (payload) {
         if (!payload || payload.SUCCESS !== true) {
           throw payload || { MESSAGE: "Unable to save Basic float plan." };
@@ -1089,6 +1167,7 @@
         }
       })
       .catch(function (err) {
+        requireMemberName(err);
         setMessage(getMessage(err, "Unable to send Basic float plan."), "danger");
       })
       .finally(function () {
@@ -1131,6 +1210,14 @@
         }
       })
       .catch(function (err) {
+        if (err && (err.ERROR === "PROFILE_NAME_REQUIRED" || err.CODE === "PROFILE_NAME_REQUIRED")) {
+          openModal(planId).then(function (loaded) {
+            if (!loaded) return;
+            if (!memberProfile.hasName) requireMemberName(err);
+            setMessage(getMessage(err, "Enter your name before sending."), "danger");
+          });
+          return;
+        }
         draftState.error = getMessage(err, "Unable to send Basic float plan.");
         draftState.loaded = true;
         if (panelContainer) renderPanel(panelContainer);
@@ -1203,13 +1290,20 @@
   function openModal(draftId) {
     var planId = toInt(draftId);
     if (!initialized) init();
-    if (!dom.modalEl) return;
+    if (!dom.modalEl) return Promise.resolve(false);
+    formReady = false;
     resetFormForOpen(planId);
+    memberProfileLoaded = false;
+    memberProfile = { fName: "", lName: "", displayName: "", hasName: false };
+    if (dom.memberNameSection) dom.memberNameSection.classList.add("d-none");
+    if (dom.memberSenderName) dom.memberSenderName.classList.add("d-none");
+    setSaving(true, "load");
     if (modal) {
       modal.show();
     }
-    loadFormData()
+    return Promise.all([loadFormData(), loadMemberProfile()])
       .then(function () {
+        setMessage("", "info");
         if (planId <= 0) return null;
         if (!window.Api || typeof window.Api.getBasicFloatPlanDraft !== "function") {
           throw { MESSAGE: "Basic draft lookup is unavailable." };
@@ -1224,9 +1318,15 @@
           return payload;
         });
       })
+      .then(function () {
+        formReady = true;
+        return true;
+      })
       .catch(function (err) {
         setMessage(getMessage(err, "Unable to load Basic float plan options."), "danger");
-      });
+        return false;
+      })
+      .finally(function () { setSaving(false, "load"); });
   }
 
   function handleDocumentClick(event) {

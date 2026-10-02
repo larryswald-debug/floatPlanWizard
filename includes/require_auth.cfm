@@ -28,6 +28,21 @@ if (structKeyExists(session, "user") AND isStruct(session.user)) {
   }
 }
 
+request.fpwAuthHandoff = {};
+request.fpwAuthOverview = false;
+request.fpwAuthCreatedEmail = "";
+fpwAuthComponentPrefix=replace(reReplace(request.fpwBase,"^/",""),"/",".","all");
+fpwAuthContinuations = createObject("component",(len(fpwAuthComponentPrefix) ? fpwAuthComponentPrefix & "." : "") & "includes.AuthContinuationService");
+if (structKeyExists(url,"authIntent") AND isSimpleValue(url.authIntent)) {
+  fpwAuthEntry = fpwAuthContinuations.getIntent(toString(url.authIntent),fpwRequireAuthUserId);
+  if (!structIsEmpty(fpwAuthEntry)) {
+    if (fpwRequireAuthUserId GT 0) {
+      request.fpwAuthHandoff=fpwAuthContinuations.resolve(fpwAuthEntry.token,fpwRequireAuthUserId);
+    } else request.fpwRecoveryLoginUrl=request.fpwBase & "/app/login.cfm?authIntent=" & fpwAuthEntry.token;
+  }
+}
+if (fpwRequireAuthUserId GT 0) request.fpwAuthOverview=fpwAuthContinuations.needsOverview(fpwRequireAuthUserId);
+
 if (fpwRequireAuthUserId LTE 0) {
   if (len(request.fpwRecoveryLoginUrl)) {
     location(url = request.fpwRecoveryLoginUrl, addToken = false);

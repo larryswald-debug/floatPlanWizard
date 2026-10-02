@@ -813,6 +813,10 @@
   async function fetchJson(url, options) {
     options = options || {};
     options.credentials = "include";
+    if (String(options.method || "GET").toUpperCase() === "POST" && /\/profile\.cfc(?:\?|$)/.test(url)) {
+      var csrf = await window.Api.authBootstrap();
+      options.headers = Object.assign({}, options.headers || {}, {"X-CSRF-Token": csrf.CSRF_TOKEN});
+    }
 
     // If calling a CFC without explicit returnFormat, request JSON
     if (/\.cfc(\?|$)/i.test(url) && !/returnformat=/i.test(url)) {
@@ -899,6 +903,7 @@
       }
 
       populateProfile(data.PROFILE || {});
+      document.dispatchEvent(new CustomEvent("fpw:profile:updated", {detail: {PROFILE: data.PROFILE, USER: data.USER}}));
       alert("Profile saved.");
     } catch (err) {
       console.error("saveProfile error:", err);

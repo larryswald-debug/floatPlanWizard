@@ -43,11 +43,13 @@
       btn.textContent = "Sending...";
 
       try {
+        var csrf = await window.Api.authBootstrap();
+        var intentToken = new URLSearchParams(window.location.search).get("authIntent") || "";
         var data = await fetchJson(API_BASE + "/password_reset.cfc?method=handle", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.CSRF_TOKEN },
           strictSuccess: false,
-          body: JSON.stringify({ action: "request", email: email })
+          body: JSON.stringify({ action: "request", email: email, intentToken: /^[a-f0-9]{64}$/.test(intentToken) ? intentToken : "" })
         });
 
         showAlert(

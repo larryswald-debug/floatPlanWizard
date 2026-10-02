@@ -60,6 +60,7 @@ component output="false" {
       FLOATPLANID = val(arguments.floatPlanId),
       FLOAT_PLAN_NAME = plan.FLOAT_PLAN_NAME,
       CAPTAIN_NAME = plan.CAPTAIN_NAME,
+      SENDER_NAME = plan.SENDER_NAME,
       STATUS = plan.STATUS,
       CONTACTS = contacts,
       CONTACT_COUNT = arrayLen(contacts),
@@ -114,7 +115,8 @@ component output="false" {
       floatPlanId = arguments.floatPlanId,
       contact = contact,
       idempotencyKey = cleanKey,
-      requestCorrelationId = cleanCorrelationId
+      requestCorrelationId = cleanCorrelationId,
+      allowNewClaim = len(confirmation.SENDER_NAME) GT 0
     );
     if (!claim.SUCCESS) {
       return claim;
@@ -158,6 +160,7 @@ component output="false" {
         contactName = contact.NAME,
         floatPlanName = confirmation.FLOAT_PLAN_NAME,
         captainName = confirmation.CAPTAIN_NAME,
+        senderName = confirmation.SENDER_NAME,
         pdfPath = pdfPath
       );
       if (!structKeyExists(emailResult, "success") OR emailResult.success NEQ true) {
@@ -286,8 +289,10 @@ component output="false" {
       );
     }
 
+    var memberProfile = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".profile")).readMemberName(arguments.userId, variables.datasource);
     return {
       SUCCESS = true,
+      SENDER_NAME = memberProfile.displayName,
       FLOATPLANID = val(qPlan.floatPlanId[1]),
       FLOAT_PLAN_NAME = len(planName) ? planName : "Float Plan",
       CAPTAIN_NAME = len(captainName) ? captainName : "FPW member",
@@ -347,14 +352,28 @@ component output="false" {
     required numeric floatPlanId,
     required struct contact,
     required string idempotencyKey,
-    string requestCorrelationId=""
+    string requestCorrelationId="",
+    boolean allowNewClaim=true
   ) output=false {
+    var qExisting = queryNew("");
     var qInsertCount = queryNew("");
     var qReceipt = queryNew("");
     var wasInserted = false;
     var storedResponse = {};
 
     transaction {
+      // Completed/in-flight receipts retain their existing replay semantics even
+      // if the member later clears their name. Never create a new nameless send.
+      if (!arguments.allowNewClaim) {
+        qExisting = queryExecute(
+          "SELECT id FROM basic_review_send_receipts WHERE idempotency_key = :idempotencyKey LIMIT 1 FOR UPDATE",
+          {idempotencyKey={value=arguments.idempotencyKey,cfsqltype="cf_sql_varchar"}},
+          {datasource=variables.datasource}
+        );
+        if (qExisting.recordCount EQ 0) {
+          return failure("PROFILE_NAME_REQUIRED", "Enter your name in the first Float Plan step before sending.");
+        }
+      }
       queryExecute(
         "INSERT IGNORE INTO basic_review_send_receipts (
            user_id,

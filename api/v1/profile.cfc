@@ -1,6 +1,7 @@
 <cfcomponent output="false">
 
     <cffunction name="handle" access="remote" returntype="void" output="true">
+        <cfargument name="action" type="string" required="false" default="">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="application/json; charset=utf-8">
         <cfheader name="Cache-Control" value="no-store, no-cache, must-revalidate">
@@ -51,12 +52,68 @@
                 <cfset body = deserializeJSON(rawBody, false)>
             </cfif>
 
+            <cfif NOT isStruct(body)>
+                <cfheader statuscode="400">
+                <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="INVALID_BODY", MESSAGE="A JSON object is required."})#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
+            </cfif>
+
             <!-- action can come from URL or body; default = "get" -->
             <cfset action = "get">
             <cfif structKeyExists(url, "action") AND len(trim(url.action))>
                 <cfset action = lcase(trim(url.action))>
             <cfelseif structKeyExists(body, "action") AND len(trim(body.action))>
                 <cfset action = lcase(trim(body.action))>
+            </cfif>
+
+            <cfset requestGuard = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".AuthRequestGuardService"))>
+            <cfif listFindNoCase("update,update-name,changepassword", action)>
+                <cfset mutationCheck = requestGuard.validateMutation(body)>
+                <cfif NOT mutationCheck.ALLOWED>
+                    <cfheader statuscode="#mutationCheck.STATUSCODE#">
+                    <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR=mutationCheck.CODE, MESSAGE=mutationCheck.MESSAGE})#</cfoutput>
+                    <cfsetting enablecfoutputonly="false">
+                    <cfabort>
+                </cfif>
+            </cfif>
+
+            <!-- Names-only wizard updates must not erase phone or other profile/session fields. -->
+            <cfif action EQ "name" OR action EQ "update-name">
+                <cfif action EQ "update-name">
+                    <cfif (structKeyExists(body, "fName") AND NOT isSimpleValue(body.fName)) OR (structKeyExists(body, "lName") AND NOT isSimpleValue(body.lName))>
+                        <cfheader statuscode="400">
+                        <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="INVALID_NAME", MESSAGE="Name fields must contain text."})#</cfoutput>
+                        <cfsetting enablecfoutputonly="false">
+                        <cfabort>
+                    </cfif>
+                    <cfset newFName = trim(toString(body.fName ?: ""))>
+                    <cfset newLName = trim(toString(body.lName ?: ""))>
+                    <cfif (NOT len(newFName) AND NOT len(newLName)) OR len(newFName) GT 45 OR len(newLName) GT 45>
+                        <cfheader statuscode="400">
+                        <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="PROFILE_NAME_REQUIRED", MESSAGE="Enter your first or last name, using no more than 45 characters in each field."})#</cfoutput>
+                        <cfsetting enablecfoutputonly="false">
+                        <cfabort>
+                    </cfif>
+                    <cfquery datasource="fpw">
+                        UPDATE users SET
+                            fName = <cfqueryparam cfsqltype="cf_sql_varchar" value="#newFName#" null="#NOT len(newFName)#">,
+                            lName = <cfqueryparam cfsqltype="cf_sql_varchar" value="#newLName#" null="#NOT len(newLName)#">,
+                            lastUpdate = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
+                        WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
+                    </cfquery>
+                </cfif>
+                <cfset memberName = readMemberName(userId)>
+                <cfset session.user.firstName = memberName.fName>
+                <cfset session.user.lastName = memberName.lName>
+                <cfset session.user.fName = memberName.fName>
+                <cfset session.user.lName = memberName.lName>
+                <cfset session.user.displayName = memberName.displayName>
+                <cfif structKeyExists(session.user, "fullName")><cfset session.user.fullName = memberName.displayName></cfif>
+                <cfif structKeyExists(session.user, "name")><cfset session.user.name = memberName.displayName></cfif>
+                <cfoutput>#serializeJSON({SUCCESS=true, AUTH=true, PROFILE=memberName})#</cfoutput>
+                <cfsetting enablecfoutputonly="false">
+                <cfabort>
             </cfif>
 
             <!-- ========================= -->
@@ -124,53 +181,14 @@
                     <cfabort>
                 </cfif>
 
-                <!-- Load current stored password -->
-                <cfquery name="qPw" datasource="fpw">
-                    SELECT password
-                    FROM users
-                    WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                    LIMIT 1
-                </cfquery>
-
-                <cfif qPw.recordCount EQ 0>
-                    <cfset response = {
-                        SUCCESS = false,
-                        ERROR   = "NOT_FOUND",
-                        MESSAGE = "User not found."
-                    }>
-                    <cfoutput>#serializeJSON(response)#</cfoutput>
+                <cfset passwordResult = changeMemberPassword(userId, currentPassword, newPassword)>
+                <cfif NOT passwordResult.SUCCESS>
+                    <cfif structKeyExists(passwordResult, "STATUSCODE")><cfheader statuscode="#passwordResult.STATUSCODE#"></cfif>
+                    <cfif structKeyExists(passwordResult, "RETRYAFTER")><cfheader name="Retry-After" value="#passwordResult.RETRYAFTER#"></cfif>
+                    <cfoutput>#serializeJSON(passwordResult)#</cfoutput>
                     <cfsetting enablecfoutputonly="false">
                     <cfabort>
                 </cfif>
-
-                <cfset dbPassword = qPw.password>
-
-                <!-- Compare: allow legacy plaintext or SHA-256 (stored often uppercase hex) -->
-                <cfset currentHash = ucase(hash(currentPassword, "SHA-256", "UTF-8"))>
-                <cfset dbPwUpper   = ucase(dbPassword)>
-
-                <cfif NOT ( currentPassword EQ dbPassword OR currentHash EQ dbPwUpper )>
-                    <cfset response = {
-                        SUCCESS = false,
-                        ERROR   = "BAD_CURRENT_PASSWORD",
-                        MESSAGE = "Current password is incorrect."
-                    }>
-                    <cfoutput>#serializeJSON(response)#</cfoutput>
-                    <cfsetting enablecfoutputonly="false">
-                    <cfabort>
-                </cfif>
-
-                <!-- Store new password as SHA-256 uppercase hex -->
-                <cfset newHash = ucase(hash(newPassword, "SHA-256", "UTF-8"))>
-
-                <cfquery datasource="fpw">
-                    UPDATE users
-                    SET
-                        password         = <cfqueryparam cfsqltype="cf_sql_varchar" value="#newHash#">,
-                        passwordCreated  = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">,
-                        lastUpdate       = <cfqueryparam cfsqltype="cf_sql_timestamp" value="#now()#">
-                    WHERE userId = <cfqueryparam cfsqltype="cf_sql_integer" value="#userId#">
-                </cfquery>
 
             </cfif>
 
@@ -285,6 +303,74 @@
         </cftry>
 
         <cfsetting enablecfoutputonly="false">
+    </cffunction>
+
+    <cffunction name="changeMemberPassword" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="currentPassword" type="string" required="true">
+        <cfargument name="newPassword" type="string" required="true">
+        <cfscript>
+            var qPassword = queryExecute("SELECT password, email FROM users WHERE userId = :userId LIMIT 1",
+                {userId={value=arguments.userId,cfsqltype="cf_sql_integer"}}, {datasource="fpw"});
+            if (qPassword.recordCount NEQ 1) return {SUCCESS=false,ERROR="NOT_FOUND",MESSAGE="User not found."};
+            var guard = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".AuthRequestGuardService"));
+            var limiter = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".AuthRateLimitService")).init("fpw");
+            var admission = limiter.admit("change_password", lCase(trim(toString(qPassword.email[1]))), guard.getClientIp());
+            if (!admission.ALLOWED) {
+                return {SUCCESS=false,AUTH=true,ERROR=admission.CODE,MESSAGE=admission.MESSAGE,
+                    STATUSCODE=admission.STATUSCODE,RETRYAFTER=admission.RETRYAFTER};
+            }
+            var outcome = "error";
+            try {
+                var passwords = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".PasswordHashService"));
+                var observed = toString(qPassword.password[1]);
+                if (!passwords.verifyPassword(arguments.currentPassword, observed)) {
+                    outcome = "failure";
+                    return {SUCCESS=false,AUTH=true,ERROR="BAD_CURRENT_PASSWORD",MESSAGE="Current password is incorrect."};
+                }
+                var replacement = passwords.hashPassword(arguments.newPassword);
+                var writeResult = {};
+                queryExecute(
+                    "UPDATE users SET password=:replacement, passwordCreated=:changedAt, lastUpdate=:changedAt
+                     WHERE userId=:userId AND CAST(password AS BINARY)=CAST(:observed AS BINARY)",
+                    {
+                        replacement={value=replacement,cfsqltype="cf_sql_varchar"},
+                        changedAt={value=now(),cfsqltype="cf_sql_timestamp"},
+                        userId={value=arguments.userId,cfsqltype="cf_sql_integer"},
+                        observed={value=observed,cfsqltype="cf_sql_varchar"}
+                    },
+                    {datasource="fpw",result="local.writeResult"}
+                );
+                if (!structKeyExists(writeResult,"recordCount") OR val(writeResult.recordCount) NEQ 1) {
+                    return {SUCCESS=false,AUTH=true,ERROR="PASSWORD_CHANGED",MESSAGE="Your password changed during this request. Try again with your current password.",STATUSCODE=409};
+                }
+                outcome = "success";
+                return {SUCCESS=true};
+            } finally {
+                limiter.finish(admission.TICKET, outcome);
+            }
+        </cfscript>
+    </cffunction>
+
+    <!-- Canonical member identity for wizard and delivery; never falls back to email. -->
+    <cffunction name="readMemberName" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="datasource" type="string" required="false" default="fpw">
+        <cfscript>
+            var qName = queryExecute(
+                "SELECT fName, lName FROM users WHERE userId = :userId LIMIT 1",
+                { userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" } },
+                { datasource = arguments.datasource }
+            );
+            var firstName = qName.recordCount AND !isNull(qName.fName[1]) ? trim(toString(qName.fName[1])) : "";
+            var lastName = qName.recordCount AND !isNull(qName.lName[1]) ? trim(toString(qName.lName[1])) : "";
+            return {
+                fName = firstName,
+                lName = lastName,
+                displayName = trim(firstName & " " & lastName),
+                hasName = len(firstName) GT 0 OR len(lastName) GT 0
+            };
+        </cfscript>
     </cffunction>
 
     <cffunction name="normalizeOptionalUsPhone" access="private" returntype="struct" output="false">

@@ -40,7 +40,7 @@ component extends="testbox.system.BaseSpec" output="false" {
     return state;
   }
   public struct function sendBasicReviewFloatPlanEmail(required numeric userId,required string toEmail,required string contactName,
-    required string floatPlanName,required string captainName,required string pdfPath) output=false {
+    required string floatPlanName,required string captainName,required string senderName,required string pdfPath) output=false {
     var rows=queryExecute("SELECT COUNT(*) AS n FROM product_events WHERE user_id=:uid AND event_name='recovery_share_started'",
       {uid={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource="fpw"});
     request.recoveryShareProbe.startedAtTransport=val(rows.n[1]);

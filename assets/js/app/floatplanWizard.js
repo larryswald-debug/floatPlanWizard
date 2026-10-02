@@ -859,6 +859,10 @@
         basicReviewIdempotencyKey: "",
         statusMessage: null,
         memberAccess: initialMemberAccess,
+        memberProfile: { fName: "", lName: "", displayName: "", hasName: false },
+        memberFirstName: "",
+        memberLastName: "",
+        memberNameError: "",
         premiumSendReceipt: { found: false },
         timezones: DEFAULT_TIMEZONES.slice(),
         fp: {
@@ -906,6 +910,14 @@
     },
 
     computed: {
+      memberNameRequired: function () {
+        return !this.memberProfile.hasName;
+      },
+
+      memberDisplayName: function () {
+        return this.memberProfile.displayName || "";
+      },
+
       isScheduledDepartureReadOnly: function () {
         return hasActualDeparture(this.fp.FLOATPLAN);
       },
@@ -1408,10 +1420,12 @@
           });
       },
 
-      nextStep: function () {
+      nextStep: async function () {
+        if (this.isSaving || this.checkoutBusy || this.basicReviewSending || this.basicReviewLoading) return;
         if (this.step >= this.totalSteps) {
           return;
         }
+        if (this.memberNameRequired && !(await this.ensureMemberName())) return;
         if (!this.validateStep(this.step)) {
           return;
         }
@@ -1441,7 +1455,68 @@
         this.statusMessage = null;
       },
 
+      applyMemberProfile: function (profile) {
+        profile = profile || {};
+        var firstName = String(profile.fName || profile.FNAME || "").trim();
+        var lastName = String(profile.lName || profile.LNAME || "").trim();
+        this.memberProfile = {
+          fName: firstName,
+          lName: lastName,
+          displayName: (firstName + " " + lastName).trim(),
+          hasName: !!(firstName || lastName)
+        };
+        this.memberFirstName = firstName;
+        this.memberLastName = lastName;
+        this.memberNameError = "";
+      },
+
+      focusMemberName: function () {
+        var self = this;
+        this.$nextTick(function () {
+          if (self.$refs.memberFirstName) self.$refs.memberFirstName.focus();
+        });
+      },
+
+      ensureMemberName: async function () {
+        if (!this.memberNameRequired) return true;
+        var firstName = String(this.memberFirstName || "").trim();
+        var lastName = String(this.memberLastName || "").trim();
+        if ((!firstName && !lastName) || firstName.length > 45 || lastName.length > 45) {
+          this.step = 1;
+          this.memberNameError = "Enter your first or last name, using no more than 45 characters in each field.";
+          this.setStatus(this.memberNameError, false);
+          this.focusMemberName();
+          return false;
+        }
+        if (!window.Api || typeof window.Api.updateProfileName !== "function") {
+          this.handleError("Name saving is unavailable. Please try again.", "Unable to save your name.");
+          return false;
+        }
+        this.isSaving = true;
+        try {
+          var response = await window.Api.updateProfileName({ fName: firstName, lName: lastName });
+          if (!response || response.SUCCESS !== true) throw response || { MESSAGE: "Unable to save your name." };
+          this.applyMemberProfile(response.PROFILE || response.profile);
+          if (this.memberNameRequired) throw { MESSAGE: "Your name could not be confirmed. Please try again." };
+          return true;
+        } catch (err) {
+          this.step = 1;
+          this.handleError(err, "Unable to save your name.");
+          this.focusMemberName();
+          return false;
+        } finally {
+          this.isSaving = false;
+        }
+      },
+
       handleError: function (err, fallback) {
+        if (err && (err.ERROR === "PROFILE_NAME_REQUIRED" || err.CODE === "PROFILE_NAME_REQUIRED")) {
+          this.memberProfile = { fName: "", lName: "", displayName: "", hasName: false };
+          this.step = 1;
+          this.basicReviewConfirmationOpen = false;
+          this.memberNameError = err.MESSAGE || "Enter your name before saving or sending this float plan.";
+          this.focusMemberName();
+        }
         var message = fallback || "Unexpected error.";
         if (err) {
           if (typeof err === "string") {
@@ -1730,6 +1805,7 @@
             });
             self.routeDefaults = normalizeRouteDefaults(data.ROUTE_DEFAULTS || {});
             self.memberAccess = data.MEMBER_ACCESS || data.memberAccess || self.memberAccess || {};
+            self.applyMemberProfile(data.MEMBER_PROFILE || data.memberProfile);
             self.premiumSendReceipt = data.PREMIUM_SEND_RECEIPT || data.premiumSendReceipt || { found: false };
 
             self.fp.FLOATPLAN = normalizeFloatPlan(data.FLOATPLAN);
@@ -1769,6 +1845,7 @@
               self.setStatus("Checkout was canceled. Your Draft is saved and has not been sent.", false);
             }
             self.requestRouteReturnSuggestion();
+            if (self.memberNameRequired && !self.hasCommittedPremiumSend) self.step = 1;
             if (self.step === self.totalSteps) {
               self.loadPdfPreview();
             }
@@ -1849,13 +1926,15 @@
         this.initialPlanId = numeric(this.fp.FLOATPLAN.FLOATPLANID) || this.initialPlanId;
       },
 
-      submitPlan: function () {
+      submitPlan: async function () {
+        if (this.isSaving || this.checkoutBusy || this.basicReviewLoading || this.basicReviewSending) return;
         var self = this;
         if (!window.Api || typeof window.Api.saveFloatPlan !== "function") {
           this.handleError("API helper not available.", "Unable to save float plan.");
           return;
         }
 
+        if (this.memberNameRequired && !(await this.ensureMemberName())) return;
         if (!this.validateStepsThrough(this.step)) {
           return;
         }
@@ -1887,7 +1966,7 @@
         });
       },
 
-      openBasicReviewSend: function () {
+      openBasicReviewSend: async function () {
         var self = this;
         if (this.isSaving || this.checkoutBusy || this.basicReviewLoading || this.basicReviewSending) {
           return;
@@ -1896,6 +1975,7 @@
           this.handleError("API helper not available.", "Unable to prepare Basic Send.");
           return;
         }
+        if (this.memberNameRequired && !(await this.ensureMemberName())) return;
         if (!this.validateStepsThrough(this.totalSteps)) {
           return;
         }
@@ -2070,7 +2150,8 @@
           });
       },
 
-      submitPlanAndSend: function () {
+      submitPlanAndSend: async function () {
+        if (this.isSaving || this.checkoutBusy || this.basicReviewLoading || this.basicReviewSending) return;
         var self = this;
         var wasCommitted = this.hasCommittedPremiumSend;
         var sendPromise = null;
@@ -2093,6 +2174,7 @@
             this.handleError("API helper not available.", "Unable to save float plan.");
             return;
           }
+          if (this.memberNameRequired && !(await this.ensureMemberName())) return;
           if (!this.validateStepsThrough(this.totalSteps)) {
             return;
           }
