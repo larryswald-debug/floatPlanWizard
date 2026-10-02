@@ -8273,6 +8273,15 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-onboarding-step-label{
   line-height: 1.25;
 }
 
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-onboarding-step > [data-onboarding-open]{
+  grid-column: 2;
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
 body.dashboard-body[data-fpw-page="dashboard"] .fpw-onboarding-step-status{
   grid-area: status;
   color: var(--fpw-dashboard-muted, #a7bac2);
