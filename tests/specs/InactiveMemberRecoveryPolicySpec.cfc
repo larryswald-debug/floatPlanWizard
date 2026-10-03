@@ -6,7 +6,44 @@ component extends="testbox.system.BaseSpec" output="false" {
         variables.policy = createObject("component", "fpw.includes.InactiveMemberRecoveryPolicy");
       });
 
-      it("waits at 167h 59m 59s and becomes eligible at exactly 168h for every stage", function() {
+
+      it("uses separate 24-hour contact clocks while destination can remain A",function(){
+        var input=evidence("A");
+        input.first_delay_seconds=86400; input.stage_interval_seconds=86400;
+        input.now_utc="2026-09-01T23:59:59Z";
+        expect(variables.policy.evaluate(input).seconds_until_eligible).toBe(1);
+        input.now_utc="2026-09-02T00:00:00Z";
+        expect(variables.policy.evaluate(input).eligible).toBeTrue();
+        for(var contact=2;contact LTE 3;contact++){
+          input.contact_number=contact;
+          input.last_recovery={state="sent",contact_number=contact-1,at_utc=input.now_utc};
+          input.now_utc=contact EQ 2 ? "2026-09-03T00:00:00Z" : "2026-09-04T00:00:00Z";
+          var evaluated=variables.policy.evaluate(input);
+          expect(evaluated.eligible).toBeTrue();
+          expect(evaluated.contact_number).toBe(contact);
+          expect(input.stage).toBe("A");
+        }
+        input.contact_number=4;
+        expect(variables.policy.evaluate(input).reason).toBe("CONTACT_NOT_VERIFIED");
+      });
+
+      it("first delay and later interval are independent and require valid settings",function(){
+        var input=evidence("D");
+        input.first_delay_seconds=86400; input.stage_interval_seconds=172800;
+        input.now_utc="2026-09-02T00:00:00Z";
+        expect(variables.policy.evaluate(input).eligible).toBeTrue();
+        input.contact_number=2; input.last_recovery={state="sent",contact_number=1,at_utc=input.now_utc};
+        input.now_utc="2026-09-03T23:59:59Z";
+        expect(variables.policy.evaluate(input).seconds_until_eligible).toBe(1);
+        input.now_utc="2026-09-04T00:00:00Z";
+        expect(variables.policy.evaluate(input).eligible).toBeTrue();
+        for(var invalid in [0,-1,1.5,2592001,"86400"]){
+          input.stage_interval_seconds=invalid;
+          expect(variables.policy.evaluate(input).reason).toBe("TIMING_SETTINGS_INVALID");
+        }
+      });
+
+      it("with explicit 168-hour settings waits at 167h 59m 59s and becomes eligible at exactly 168h for every stage", function() {
         for (var stage in ["A", "B", "C", "D"]) {
           var input = evidence(stage);
           input.now_utc = "2026-09-07T23:59:59Z";
@@ -64,9 +101,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(input.current_stage_entered_utc).toBe(firstEntry);
       });
 
-      it("independently applies cross-stage send spacing", function() {
+      it("independently applies configured contact spacing", function() {
         var input = evidence("D");
-        input.last_recovery = {state = "sent", stage = "C", at_utc = "2026-09-07T00:00:00Z"};
+        input.contact_number=2;
+        input.last_recovery = {state = "sent", contact_number = 1, at_utc = "2026-09-07T00:00:00Z"};
         var result = variables.policy.evaluate(input);
         expect(result.anchor_utc).toBe(input.last_recovery.at_utc);
         expect(result.eligible_at_utc).toBe("2026-09-14T00:00:00Z");
@@ -77,7 +115,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         var input = evidence("D");
         input.enrollment_utc = "2026-09-04T00:00:00Z";
         input.current_stage_entered_utc = "2026-09-05T00:00:00Z";
-        input.last_recovery = {state = "sent", stage = "B", at_utc = "2026-09-06T00:00:00Z"};
+        input.contact_number=2;
+        input.last_recovery = {state = "sent", contact_number = 1, at_utc = "2026-09-06T00:00:00Z"};
         input.latest_activity = {state = "recorded", at_utc = "2026-09-07T00:00:00Z", action = activity()};
         expect(variables.policy.evaluate(input).anchor_utc).toBe(input.latest_activity.at_utc);
         input.enrollment_utc = input.now_utc;
@@ -149,19 +188,19 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(variables.policy.evaluate({highest_verified_stage = "Shared"}).reason).toBe("SHARED");
       });
 
-      it("does not requalify a deleted/recreated entity's already-sent stage", function() {
+      it("does not replay an already-sent contact for any destination", function() {
         for (var stage in ["A", "B", "C", "D"]) {
           var input = evidence(stage);
-          input.current_stage_recovery = "sent";
-          expect(variables.policy.evaluate(input).reason).toBe("STAGE_ALREADY_SENT");
+          input.current_contact_recovery = "sent";
+          expect(variables.policy.evaluate(input).reason).toBe("CONTACT_ALREADY_SENT");
         }
       });
 
-      it("holds unresolved potentially sent attempts at the current or an earlier stage", function() {
+      it("holds unresolved potentially sent attempts at the current or an earlier contact", function() {
         var input = evidence("D");
-        input.current_stage_recovery = "possibly_sent";
-        expect(variables.policy.evaluate(input).reason).toBe("STAGE_SEND_UNRESOLVED");
-        input.current_stage_recovery = "never_sent";
+        input.current_contact_recovery = "possibly_sent";
+        expect(variables.policy.evaluate(input).reason).toBe("CONTACT_SEND_UNRESOLVED");
+        input.current_contact_recovery = "never_sent";
         input.last_recovery = {state = "possibly_sent"};
         expect(variables.policy.evaluate(input).reason).toBe("RECOVERY_SEND_UNRESOLVED");
       });
@@ -221,7 +260,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
       it("holds malformed stage and history states", function() {
         for (var value in ["", "a", "unknown", "C,D", [], {}]) {
-          for (var key in ["stage", "highest_verified_stage", "current_stage_recovery"]) {
+          for (var key in ["stage", "highest_verified_stage", "current_contact_recovery"]) {
             var input = evidence();
             input[key] = value;
             expect(variables.policy.evaluate(input).eligible).toBeFalse();
@@ -249,10 +288,11 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(variables.policy.evaluate(input).reason).toBe("RECOVERY_HISTORY_CONFLICT");
       });
 
-      it("rejects same/higher-stage or unrecognized last sends that conflict with never-sent", function() {
-        for (var stage in ["C", "D", "unknown"]) {
+      it("rejects noncontiguous or unrecognized previous contact numbers", function() {
+        for (var previousContact in [0, 2, 3, "unknown"]) {
           var input = evidence("C");
-          input.last_recovery = {state = "sent", stage = stage, at_utc = "2026-09-01T00:00:00Z"};
+          input.contact_number=2;
+          input.last_recovery = {state = "sent", contact_number = previousContact, at_utc = "2026-09-01T00:00:00Z"};
           expect(variables.policy.evaluate(input).reason).toBe("RECOVERY_HISTORY_CONFLICT");
         }
       });
@@ -268,7 +308,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           input.latest_activity = {state = "recorded", at_utc = value, action = activity()};
           expect(variables.policy.evaluate(input).reason).toBe("INVALID_UTC_CLOCK");
           input = evidence("D");
-          input.last_recovery = {state = "sent", stage = "B", at_utc = value};
+          input.contact_number=2;
+        input.last_recovery = {state = "sent", contact_number = 1, at_utc = value};
           expect(variables.policy.evaluate(input).reason).toBe("INVALID_UTC_CLOCK");
         }
       });
@@ -283,7 +324,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         input.latest_activity = {state = "recorded", at_utc = "2026-09-08T00:00:01Z", action = activity()};
         expect(variables.policy.evaluate(input).reason).toBe("FUTURE_CLOCK");
         input = evidence("D");
-        input.last_recovery = {state = "sent", stage = "C", at_utc = "2026-09-08T00:00:01Z"};
+        input.contact_number=2;
+        input.last_recovery = {state = "sent", contact_number = 1, at_utc = "2026-09-08T00:00:01Z"};
         expect(variables.policy.evaluate(input).reason).toBe("FUTURE_CLOCK");
       });
 
@@ -309,7 +351,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var first = variables.policy.evaluate(input);
         expect(serializeJSON(variables.policy.evaluate(input))).toBe(serializeJSON(first));
         expect(serializeJSON(input)).toBe(before);
-        expect(structCount(first)).toBe(7);
+        expect(structCount(first)).toBe(9);
         expect(structKeyExists(first, "email")).toBeFalse();
         var held = variables.policy.evaluate({});
         expect(structCount(held)).toBe(4);
@@ -322,7 +364,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         input.has_successful_share = true;
         expect(variables.policy.evaluate(input).eligible).toBeFalse();
         input = evidence();
-        input.current_stage_recovery = "possibly_sent";
+        input.current_contact_recovery = "possibly_sent";
         expect(variables.policy.evaluate(input).eligible).toBeFalse();
       });
     });
@@ -342,7 +384,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         opt_out = false, administrator_or_test = false, invalid_recipient = false,
         active_trip_or_monitoring = false, contradictory_lifecycle = false, other = false
       },
-      current_stage_recovery = "never_sent",
+      current_contact_recovery = "never_sent",
+      contact_number=1,contact_total=3,first_delay_seconds=604800,stage_interval_seconds=604800,
       now_utc = "2026-09-08T00:00:00Z",
       enrollment_utc = "2026-09-01T00:00:00Z",
       current_stage_entered_utc = "2026-09-01T00:00:00Z",

@@ -17,8 +17,8 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(service.loadLiveEvidence(m.userId).LIFECYCLE_CONFLICT).toBeFalse();
         var enrolled=new fpw.includes.InactiveMemberRecoveryEnrollmentService().ensureEnrolled(m.userId);
         expect(enrolled.CODE).toBe("ENROLLED");
-        expect(service.evaluateMember(m.userId,fixture.plusSeconds(enrolled.ENROLLMENT_UTC,604799)).ELIGIBLE).toBeFalse();
-        var due=service.evaluateMember(m.userId,fixture.plusSeconds(enrolled.ENROLLMENT_UTC,604800));
+        expect(service.evaluateMember(m.userId,fixture.plusSeconds(enrolled.ENROLLMENT_UTC,86399)).ELIGIBLE).toBeFalse();
+        var due=service.evaluateMember(m.userId,fixture.plusSeconds(enrolled.ENROLLMENT_UTC,86400));
         expect(due.CURRENT_STAGE).toBe("D");expect(due.ELIGIBLE).toBeTrue();
       });
       for (var invalidMarker in ["missing_details","wrong_origin","reusable","visible","route_reference","route_day","operator_zero","missing_positive_vessel","foreign_positive_vessel"]) {
@@ -77,7 +77,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var m=fixture.createMember();var at=new fpw.includes.InactiveMemberRecoveryEnrollmentService().ensureEnrolled(m.userId).ENROLLMENT_UTC;
         expect(coverage.getCoverageVerification(m.userId).sharing_history).toBeFalse();
         expect(function(){coverage.recordSignupInCurrentTransaction(m.userId,{});}).toThrow();
-        expect(new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(m.userId,fixture.plusSeconds(at,604800)).DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
+        expect(new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(m.userId,fixture.plusSeconds(at,86400)).DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
       });
       for(var mutation in ["version","binding","owner","future","missing_signup"]) {
         var mode=mutation;
@@ -112,7 +112,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         coverage.finishShare(m.userId,t,"failed");
         expect(coverage.getShareEvidence(m.userId).FAILED_COUNT).toBe(1);expect(coverage.getShareEvidence(m.userId).SUCCESSFUL).toBeFalse();
         var at=new fpw.includes.InactiveMemberRecoveryEnrollmentService().ensureEnrolled(m.userId).ENROLLMENT_UTC;
-        expect(new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(m.userId,fixture.plusSeconds(at,604800)).ELIGIBLE).toBeTrue();
+        expect(new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(m.userId,fixture.plusSeconds(at,86400)).ELIGIBLE).toBeTrue();
         coverage.beginShare(m.userId,id,"premium_save_send");expect(coverage.getShareEvidence(m.userId).UNRESOLVED).toBeTrue();
       });
       it("rejects cross-member attempt ownership and source spoofing",function(){
@@ -133,7 +133,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       });
       it("revalidates newly unresolved sharing before submission and rolls back the recovery claim",function(){
         var m=fixture.fresh();var id=fixture.draft(m.userId);var at=new fpw.includes.InactiveMemberRecoveryEnrollmentService().ensureEnrolled(m.userId).ENROLLMENT_UTC;
-        fixture.setTestNow(fixture.plusSeconds(at,604800));
+        fixture.setTestNow(fixture.plusSeconds(at,86400));
         var sender=fixture.dueSender(new fpw.tests.support.RecoveryCoverageRaceClassifier(m.userId,id));
         var r=sender.processBatch(batchSize=1,dryRun=false);
         expect(r.sent).toBe(0);expect(r.canceled).toBe(1);expect(r.reasons.HOLD_UNRESOLVED_SHARE_ATTEMPT).toBe(1);

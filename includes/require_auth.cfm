@@ -49,4 +49,8 @@ if (fpwRequireAuthUserId LTE 0) {
   }
   location(url = request.fpwBase & "/index.cfm?notice=member-required", addToken = false);
 }
+// Only a successfully authenticated member page can create a return signal.
+// onRequestEnd observes this after rendering; it never counts a page view as engagement.
+if (fpwRequireAuthUserId GT 0 AND compareNoCase(cgi.request_method,"GET") EQ 0)
+  request.fpwRecoveryAuthenticatedPageUserId=fpwRequireAuthUserId;
 </cfscript>

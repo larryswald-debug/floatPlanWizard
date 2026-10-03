@@ -4,12 +4,16 @@ component output="false" {
   variables.policyService = "";
   variables.optOutService = "";
   variables.adminService = "";
+  variables.settingsService = "";
+  variables.stateService = "";
+  variables.ledgerService = "";
 
   public any function init(
     string datasource="fpw",
     any policyService="",
     any optOutService="",
-    any adminService=""
+    any adminService="",
+    any settingsService="", any stateService="", any ledgerService=""
   ) output=false {
     variables.datasource = len(trim(arguments.datasource)) ? trim(arguments.datasource) : "fpw";
     variables.policyService = isObject(arguments.policyService)
@@ -21,6 +25,12 @@ component output="false" {
     variables.adminService = isObject(arguments.adminService)
       ? arguments.adminService
       : createObject("component", "fpw.api.v1.AdminAuthorizationService").init(variables.datasource);
+    variables.settingsService=isObject(arguments.settingsService) ? arguments.settingsService
+      : new fpw.includes.InactiveMemberRecoverySettingsService(datasource=variables.datasource);
+    variables.stateService=isObject(arguments.stateService) ? arguments.stateService
+      : new fpw.includes.InactiveMemberRecoveryStateService(datasource=variables.datasource);
+    variables.ledgerService=isObject(arguments.ledgerService) ? arguments.ledgerService
+      : new fpw.includes.InactiveMemberRecoveryLedgerService(datasource=variables.datasource);
     return this;
   }
 
@@ -32,7 +42,8 @@ component output="false" {
     string enrollmentUtc="",
     string ownedClaimToken="",
     boolean evaluateFailedRetry=false,
-    struct coverageVerification={}
+    struct coverageVerification={},
+    struct timingSettings={}
   ) output=false {
     var result = baseResult(arguments.userId);
     var member = queryNew("");
@@ -182,36 +193,6 @@ component output="false" {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
     }
 
-    ledger = loadLedgerEvidence(fix(arguments.userId), currentStage, arguments.ownedClaimToken);
-    result.LEDGER_STATE = ledger.CURRENT_STAGE;
-    result.LATEST_RECOVERY_SENT_UTC = ledger.LATEST_SENT_AT_UTC;
-    result.EVIDENCE_SUMMARY.LEDGER = {
-      CURRENT_STAGE_STATUS=ledger.CURRENT_STAGE.STATUS,
-      CURRENT_STAGE_ATTEMPT_COUNT=ledger.CURRENT_STAGE.ATTEMPT_COUNT,
-      HAS_UNRESOLVED_CLAIM=ledger.HAS_UNRESOLVED_CLAIM,
-      LATEST_SENT_STAGE=ledger.LATEST_SENT_STAGE,
-      LATEST_SENT_AT_UTC=ledger.LATEST_SENT_AT_UTC
-    };
-
-    if (ledger.CURRENT_STAGE.STATUS EQ "SENT") {
-      return finish(result, currentStage, "SUPPRESSED_STAGE_ALREADY_SENT", "SUPPRESSED");
-    }
-    if (len(arguments.ownedClaimToken) AND !ledger.OWNS_CURRENT_CLAIM) {
-      return finish(result, currentStage, "HOLD_CLAIM_MISMATCH", "HELD");
-    }
-    if (ledger.CURRENT_STAGE.STATUS EQ "CLAIMED" AND !ledger.OWNS_CURRENT_CLAIM) {
-      return finish(result, currentStage, "SUPPRESSED_UNRESOLVED_CLAIM", "SUPPRESSED");
-    }
-    if (ledger.CURRENT_STAGE.STATUS EQ "FAILED" AND !arguments.evaluateFailedRetry) {
-      return finish(result, currentStage, "HOLD_RETRY_DECISION_REQUIRED", "HELD");
-    }
-    if (!listFind("NONE,SENT,CLAIMED,FAILED", ledger.CURRENT_STAGE.STATUS)) {
-      return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
-    }
-    if (ledger.HAS_UNRESOLVED_CLAIM) {
-      return finish(result, currentStage, "SUPPRESSED_UNRESOLVED_CLAIM", "SUPPRESSED");
-    }
-
     if (len(stageEnteredUtc)
       AND (!utcClock(stageEnteredUtc).VALID OR utcClock(stageEnteredUtc).SECONDS GT nowClock.SECONDS)) {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
@@ -221,25 +202,64 @@ component output="false" {
         OR utcClock(events.LATEST_ACTIVITY_AT_UTC).SECONDS GT nowClock.SECONDS)) {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
     }
+    var enrollment={};
+    try {
+      enrollment=new fpw.includes.InactiveMemberRecoveryEnrollmentService(datasource=variables.datasource).getEnrollment(arguments.userId);
+    } catch (any invalidEnrollment) {
+      return finish(result,currentStage,"HOLD_ENROLLMENT_EVIDENCE_INVALID","HELD");
+    }
+    result.ENROLLMENT_EVENT_ID=enrollment.EVENT_ID;
+    result.EVIDENCE_SUMMARY.ENROLLMENT_SOURCE=enrollment.EVENT_ID ? "product_events" : "missing";
+    if (!enrollment.EVENT_ID) return finish(result,currentStage,"ENROLLMENT_EVIDENCE_REQUIRED","HELD");
+    var timing={};
+    var recoveryState={};
+    try {
+      timing=structIsEmpty(arguments.timingSettings) ? variables.settingsService.getSettings() : duplicate(arguments.timingSettings);
+      if (!structKeyExists(timing,"revision") OR !structKeyExists(timing,"firstDelayHours")
+        OR !structKeyExists(timing,"stageIntervalHours") OR !structKeyExists(timing,"attributionWindowHours"))
+        return finish(result,currentStage,"HOLD_TIMING_SETTINGS_INVALID","HELD");
+      result.TIMING_REVISION=timing.revision;
+      result.TIMING_SETTINGS=duplicate(timing);
+    } catch (any unavailableTiming) { return finish(result,currentStage,"HOLD_TIMING_SETTINGS_UNAVAILABLE","HELD"); }
+    try {
+      recoveryState=variables.stateService.getState(arguments.userId);
+      if (recoveryState.enrollmentEventId NEQ enrollment.EVENT_ID)
+        return finish(result,currentStage,"HOLD_ENROLLMENT_STATE_MISMATCH","HELD");
+      arguments.enrollmentUtc=recoveryState.recoveryStartUtc;
+      result.RECOVERY_STATE_REVISION=recoveryState.revision;
+      result.RECOVERY_START_UTC=recoveryState.recoveryStartUtc;
+    } catch (any unavailableState) { return finish(result,currentStage,"HOLD_RECOVERY_STATE_UNAVAILABLE","HELD"); }
+    ledger=variables.ledgerService.getSequenceState(arguments.userId,arguments.ownedClaimToken);
+    if (!ledger.SUCCESS) return finish(result,currentStage,"HOLD_" & ledger.CODE,"HELD");
+    result.CONTACT_NUMBER=ledger.NEXT_CONTACT_NUMBER;
+    result.CONTACT_TOTAL=ledger.CONTACT_TOTAL;
+    result.SEQUENCE_COMPLETED=ledger.COMPLETED;
+    result.LEDGER_STATE=ledger.CURRENT_CONTACT;
+    result.LATEST_RECOVERY_SENT_UTC=ledger.LATEST_SENT_AT_UTC;
+    result.EVIDENCE_SUMMARY.LEDGER={
+      CURRENT_CONTACT_STATUS=ledger.CURRENT_CONTACT.STATUS,
+      CURRENT_CONTACT_ATTEMPT_COUNT=ledger.CURRENT_CONTACT.ATTEMPT_COUNT,
+      HAS_UNRESOLVED_CLAIM=ledger.HAS_UNRESOLVED_CLAIM,
+      LATEST_SENT_CONTACT=ledger.LATEST_SENT_CONTACT,LATEST_SENT_AT_UTC=ledger.LATEST_SENT_AT_UTC
+    };
+    if (recoveryState.paused) return finish(result,currentStage,"SUPPRESSED_RECOVERY_PAUSED","SUPPRESSED");
+    if (recoveryState.excluded) return finish(result,currentStage,"SUPPRESSED_RECOVERY_EXCLUDED","SUPPRESSED");
+    if (ledger.COMPLETED) return finish(result,currentStage,"SUPPRESSED_RECOVERY_SEQUENCE_COMPLETE","SUPPRESSED");
+    if (len(arguments.ownedClaimToken) AND !ledger.OWNS_CURRENT_CLAIM)
+      return finish(result,currentStage,"HOLD_CLAIM_MISMATCH","HELD");
+    if (ledger.HAS_UNRESOLVED_CLAIM AND !ledger.OWNS_CURRENT_CLAIM)
+      return finish(result,currentStage,"SUPPRESSED_UNRESOLVED_CLAIM","SUPPRESSED");
+    if (ledger.CURRENT_CONTACT.STATUS EQ "FAILED" AND !arguments.evaluateFailedRetry)
+      return finish(result,currentStage,"HOLD_RETRY_DECISION_REQUIRED","HELD");
+
     if (len(ledger.LATEST_SENT_AT_UTC)
       AND (!utcClock(ledger.LATEST_SENT_AT_UTC).VALID
         OR utcClock(ledger.LATEST_SENT_AT_UTC).SECONDS GT nowClock.SECONDS)) {
       return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
     }
-    if (len(ledger.LATEST_SENT_STAGE) AND stageRank(ledger.LATEST_SENT_STAGE) GTE currentRank) {
-      return finish(result, currentStage, "HOLD_CONTRADICTORY_EVIDENCE", "HELD");
-    }
 
-    if (!len(trim(arguments.enrollmentUtc))) {
-      try {
-        arguments.enrollmentUtc=new fpw.includes.InactiveMemberRecoveryEnrollmentService(datasource=variables.datasource)
-          .getEnrollmentUtc(arguments.userId);
-        result.EVIDENCE_SUMMARY.ENROLLMENT_SOURCE=len(arguments.enrollmentUtc) ? "product_events" : "missing";
-      } catch (any enrollmentLookupFailed) {
-        return finish(result, currentStage, "HOLD_ENROLLMENT_EVIDENCE_INVALID", "HELD");
-      }
-    }
-    result.EVIDENCE_SUMMARY.ENROLLMENT_UTC=arguments.enrollmentUtc;
+    result.EVIDENCE_SUMMARY.ENROLLMENT_UTC=enrollment.ENROLLMENT_UTC;
+    result.EVIDENCE_SUMMARY.RECOVERY_START_UTC=arguments.enrollmentUtc;
     if (!len(stageEnteredUtc)) {
       return finish(result, currentStage, "HOLD_INCOMPLETE_STAGE_CLOCK", "HELD");
     }
@@ -273,7 +293,7 @@ component output="false" {
         }
       : {state="none_verified"};
     lastRecovery = len(ledger.LATEST_SENT_AT_UTC)
-      ? {state="sent",stage=ledger.LATEST_SENT_STAGE,at_utc=ledger.LATEST_SENT_AT_UTC}
+      ? {state="sent",contact_number=ledger.LATEST_SENT_CONTACT,at_utc=ledger.LATEST_SENT_AT_UTC}
       : {state="never_sent"};
 
     policyInput = {
@@ -297,7 +317,11 @@ component output="false" {
         contradictory_lifecycle=false,
         other=false
       },
-      current_stage_recovery="never_sent",
+      current_contact_recovery="never_sent",
+      contact_number=ledger.NEXT_CONTACT_NUMBER,
+      contact_total=ledger.CONTACT_TOTAL,
+      first_delay_seconds=timing.firstDelayHours * 3600,
+      stage_interval_seconds=timing.stageIntervalHours * 3600,
       now_utc=trim(arguments.nowUtc),
       enrollment_utc=trim(arguments.enrollmentUtc),
       current_stage_entered_utc=stageEnteredUtc,
@@ -307,11 +331,13 @@ component output="false" {
     result.POLICY_INPUT_SUMMARY = {
       STAGE=policyInput.stage,
       STAGE_ENTERED_UTC=policyInput.current_stage_entered_utc,
-      ENROLLMENT_UTC=policyInput.enrollment_utc,
+      ENROLLMENT_UTC=enrollment.ENROLLMENT_UTC,
+      RECOVERY_START_UTC=policyInput.enrollment_utc,
       LATEST_ACTIVITY_STATE=policyInput.latest_activity.state,
       LATEST_ACTIVITY_AT_UTC=(structKeyExists(policyInput.latest_activity,"at_utc") ? policyInput.latest_activity.at_utc : ""),
       LAST_RECOVERY_STATE=policyInput.last_recovery.state,
-      LAST_RECOVERY_STAGE=(structKeyExists(policyInput.last_recovery,"stage") ? policyInput.last_recovery.stage : ""),
+      CONTACT_NUMBER=policyInput.contact_number,
+      LAST_RECOVERY_CONTACT=(structKeyExists(policyInput.last_recovery,"contact_number") ? policyInput.last_recovery.contact_number : 0),
       LAST_RECOVERY_AT_UTC=(structKeyExists(policyInput.last_recovery,"at_utc") ? policyInput.last_recovery.at_utc : "")
     };
 
@@ -324,7 +350,7 @@ component output="false" {
       if (len(ledger.LATEST_SENT_AT_UTC)
         AND structKeyExists(policyDecision,"anchor_utc")
         AND compare(ledger.LATEST_SENT_AT_UTC, policyDecision.anchor_utc) EQ 0) {
-        return finish(result, currentStage, "SUPPRESSED_CROSS_STAGE_SPACING", "DEFERRED");
+        return finish(result, currentStage, "DEFERRED_CONTACT_INTERVAL", "DEFERRED");
       }
       if (events.HAS_LATEST_ACTIVITY
         AND structKeyExists(policyDecision,"anchor_utc")
@@ -493,62 +519,6 @@ component output="false" {
     return result;
   }
 
-  private struct function loadLedgerEvidence(
-    required numeric userId, required string stage, string ownedClaimToken=""
-  ) output=false {
-    var current = queryExecute(
-      "SELECT status,attempt_count,DATE_FORMAT(claimed_at_utc,'%Y-%m-%dT%H:%i:%sZ') AS claimed_at_utc,
-        DATE_FORMAT(sent_at_utc,'%Y-%m-%dT%H:%i:%sZ') AS sent_at_utc,
-        DATE_FORMAT(failed_at_utc,'%Y-%m-%dT%H:%i:%sZ') AS failed_at_utc,
-        (status='CLAIMED' AND claim_token=:claimToken AND :claimToken<>'') AS owns_claim
-       FROM inactive_member_recovery_deliveries WHERE user_id=:userId AND recovery_stage=:stage LIMIT 1",
-      {
-        userId={value=arguments.userId,cfsqltype="cf_sql_integer"},
-        stage={value=arguments.stage,cfsqltype="cf_sql_char"},
-        claimToken={value=arguments.ownedClaimToken,cfsqltype="cf_sql_varchar"}
-      },
-      {datasource=variables.datasource}
-    );
-    var latest = queryExecute(
-      "SELECT recovery_stage,DATE_FORMAT(sent_at_utc,'%Y-%m-%dT%H:%i:%sZ') AS sent_at_utc
-       FROM inactive_member_recovery_deliveries WHERE user_id=:userId AND status='SENT'
-       ORDER BY sent_at_utc DESC,id DESC LIMIT 1",
-      {userId={value=arguments.userId,cfsqltype="cf_sql_integer"}},
-      {datasource=variables.datasource}
-    );
-    var claimed = queryExecute(
-      "SELECT COUNT(*) AS row_count FROM inactive_member_recovery_deliveries
-       WHERE user_id=:userId AND status='CLAIMED'
-         AND NOT (recovery_stage=:stage AND claim_token=:claimToken AND :claimToken<>'')",
-      {
-        userId={value=arguments.userId,cfsqltype="cf_sql_integer"},
-        stage={value=arguments.stage,cfsqltype="cf_sql_char"},
-        claimToken={value=arguments.ownedClaimToken,cfsqltype="cf_sql_varchar"}
-      },
-      {datasource=variables.datasource}
-    );
-    var currentState = {
-      HAS_ROW=false,STATUS="NONE",ATTEMPT_COUNT=0,CLAIMED_AT_UTC="",SENT_AT_UTC="",
-      FAILED_AT_UTC=""
-    };
-    if (current.recordCount EQ 1) {
-      currentState = {
-        HAS_ROW=true,
-        STATUS=uCase(trim(toString(current.status[1]))),
-        ATTEMPT_COUNT=val(current.attempt_count[1]),
-        CLAIMED_AT_UTC=(isNull(current.claimed_at_utc[1]) ? "" : toString(current.claimed_at_utc[1])),
-        SENT_AT_UTC=(isNull(current.sent_at_utc[1]) ? "" : toString(current.sent_at_utc[1])),
-        FAILED_AT_UTC=(isNull(current.failed_at_utc[1]) ? "" : toString(current.failed_at_utc[1]))
-      };
-    }
-    return {
-      CURRENT_STAGE=currentState,
-      OWNS_CURRENT_CLAIM=(current.recordCount EQ 1 AND val(current.owns_claim[1]) EQ 1),
-      HAS_UNRESOLVED_CLAIM=(val(claimed.row_count[1]) GT 0),
-      LATEST_SENT_STAGE=(latest.recordCount EQ 1 ? toString(latest.recovery_stage[1]) : ""),
-      LATEST_SENT_AT_UTC=(latest.recordCount EQ 1 ? toString(latest.sent_at_utc[1]) : "")
-    };
-  }
 
   private boolean function hasEventOwnershipConflict(required numeric userId) output=false {
     var q = queryExecute(
@@ -716,6 +686,8 @@ component output="false" {
       MEMBER_ID=(arguments.userId GT 0 AND arguments.userId EQ fix(arguments.userId) ? fix(arguments.userId) : 0),
       CLASSIFICATION="UNCLASSIFIED",
       CURRENT_STAGE="",
+      CONTACT_NUMBER=0,CONTACT_TOTAL=3,ENROLLMENT_EVENT_ID=0,TIMING_REVISION=0,TIMING_SETTINGS={},SEQUENCE_COMPLETED=false,
+      RECOVERY_STATE_REVISION=0,RECOVERY_START_UTC="",
       HIGHEST_VERIFIED_STAGE="",
       STAGE_ENTERED_UTC="",
       LATEST_QUALIFYING_ACTIVITY_UTC="",

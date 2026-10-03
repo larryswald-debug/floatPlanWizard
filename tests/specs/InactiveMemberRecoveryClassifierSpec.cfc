@@ -189,7 +189,7 @@ component extends="testbox.system.BaseSpec" output="false" {
       it("holds duplicate normalized recipient identity", function() {
         var duplicate = variables.fixturePrefix & "duplicate@example.test";
         var first = createMember("duplicate-a", "2026-08-01 00:00:00", duplicate);
-        createMember("duplicate-b", "2026-08-01 00:00:00", uCase(duplicate));
+        createMember("duplicate-b", "2026-08-01 00:00:00", " " & duplicate);
         var result = classifier().evaluateMember(first.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("HOLD_DUPLICATE_EMAIL_IDENTITY");
       });
@@ -212,12 +212,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(result.EVIDENCE_SUMMARY.LIVE.ACTIVE_MONITORING_EXISTS).toBeTrue();
       });
 
-      it("suppresses a stage already sent and reads the ledger without exposing a claim token", function() {
+      it("selects contact two after contact one at the same destination without exposing a claim token", function() {
         var member = createMember("ledger-sent", "2026-08-01 00:00:00");
         insertLedger(member.userId,"A","SENT","2026-09-01 00:00:00");
         var result = classifier().evaluateMember(member.userId,variables.nowUtc,variables.enrollmentUtc, "", false, reviewedCoverage());
-        expect(result.DECISION_CODE).toBe("SUPPRESSED_STAGE_ALREADY_SENT");
-        expect(result.LEDGER_STATE.STATUS).toBe("SENT");
+        expect(result.DECISION_CODE).toBe("ELIGIBLE");
+        expect(result.CONTACT_NUMBER).toBe(2);
+        expect(result.LEDGER_STATE.STATUS).toBe("NONE");
         expect(structKeyExists(result.LEDGER_STATE,"CLAIM_TOKEN")).toBeFalse();
       });
 
@@ -244,13 +245,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(result.POLICY_DECISION.reason).toBe("WAITING_FOR_INTERVAL");
       });
 
-      it("delays cross-stage recovery spacing through the real policy", function() {
+      it("delays contact spacing through the real policy", function() {
         var member = createMember("spacing", "2026-06-01 00:00:00");
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-07-01 00:00:00");
         insertLedger(member.userId,"A","SENT","2026-09-07 00:00:00");
         var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
-        expect(result.DECISION_CODE).toBe("SUPPRESSED_CROSS_STAGE_SPACING");
+        expect(result.DECISION_CODE).toBe("DEFERRED_CONTACT_INTERVAL");
         expect(result.LATEST_RECOVERY_SENT_UTC).toBe("2026-09-07T00:00:00Z");
       });
 
@@ -258,7 +259,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member = createMember("later-stage", "2026-06-01 00:00:00");
         var vesselId = createVessel(member.userId);
         insertEvent(member.userId,"vessel_created","vessel",vesselId,"member_api","2026-09-01 00:00:00");
-        insertLedger(member.userId,"A","SENT","2026-08-01 00:00:00");
+        insertLedger(member.userId,"A","SENT","2026-09-01 00:00:00");
         var result = classifier().evaluateMember(member.userId,variables.nowUtc,"2026-06-01T00:00:00Z", "", false, reviewedCoverage());
         expect(result.CLASSIFICATION).toBe("B");
         expect(result.DECISION_CODE).toBe("ELIGIBLE");
@@ -266,6 +267,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
       it("requires explicit enrollment and never invents it from deployment time", function() {
         var member = createMember("no-enrollment", "2026-08-01 00:00:00");
+        queryExecute("DELETE FROM product_events WHERE user_id=:id AND event_name='inactive_member_recovery_enrolled'",{id={value=member.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
         var result = classifier().evaluateMember(member.userId,variables.nowUtc,"", "", false, reviewedCoverage());
         expect(result.DECISION_CODE).toBe("ENROLLMENT_EVIDENCE_REQUIRED");
         expect(result.POLICY_DECISION).toBeEmpty();
@@ -337,13 +339,15 @@ component extends="testbox.system.BaseSpec" output="false" {
     return {stage_history=true,activity_coverage=true,sharing_history=true,recovery_history=true};
   }
 
+  public struct function getSettings() { return {revision=1,firstDelayHours=168,stageIntervalHours=168,attributionWindowHours=24}; }
+
   private any function classifier(any optOutService="") {
     return isObject(arguments.optOutService)
       ? new fpw.includes.InactiveMemberRecoveryClassifierService(
           datasource=variables.datasource,
-          optOutService=arguments.optOutService
+          optOutService=arguments.optOutService,settingsService=this
         )
-      : new fpw.includes.InactiveMemberRecoveryClassifierService(datasource=variables.datasource);
+      : new fpw.includes.InactiveMemberRecoveryClassifierService(datasource=variables.datasource,settingsService=this);
   }
 
   private struct function createMember(required string suffix, string signupAt="", string emailOverride="") {
@@ -365,6 +369,10 @@ component extends="testbox.system.BaseSpec" output="false" {
     if (len(arguments.signupAt)) {
       insertEvent(userId,"sign_up","user",userId,"member_signup",arguments.signupAt);
     }
+    queryExecute("INSERT INTO product_events(event_uuid,user_id,event_name,entity_type,entity_id,event_source,occurred_at_utc,metadata_json,created_at_utc,idempotency_key)
+      VALUES(:uuid,:id,'inactive_member_recovery_enrolled','user',:id,'recovery_enrollment','2026-09-01 00:00:00','{}','2026-09-01 00:00:00',:eventKey)",
+      {uuid={value=createUUID(),cfsqltype="cf_sql_char"},id={value=userId,cfsqltype="cf_sql_integer"},
+       eventKey={value="inactive_member_recovery_enrolled:" & userId,cfsqltype="cf_sql_varchar"}},{datasource=variables.datasource});
     return {userId=userId,email=email,marker=marker};
   }
 
@@ -512,12 +520,13 @@ component extends="testbox.system.BaseSpec" output="false" {
     var normalizedStatus = uCase(arguments.status);
     queryExecute(
       "INSERT INTO inactive_member_recovery_deliveries (
-        user_id,recovery_stage,status,claim_token,claimed_at_utc,sent_at_utc,failed_at_utc,
+        user_id,recovery_enrollment_event_id,contact_number,destination_stage,status,claim_token,claimed_at_utc,sent_at_utc,failed_at_utc,
         attempt_count,last_error_summary,created_at_utc,updated_at_utc)
-       VALUES (:userId,:stage,:status,:token,CAST(:atUtc AS DATETIME),:sentAt,:failedAt,
+       VALUES (:userId,:enrollmentId,1,:stage,:status,:token,CAST(:atUtc AS DATETIME),:sentAt,:failedAt,
         1,:errorCode,CAST(:atUtc AS DATETIME),CAST(:atUtc AS DATETIME))",
       {
         userId={value=arguments.userId,cfsqltype="cf_sql_integer"},
+        enrollmentId={value=new fpw.includes.InactiveMemberRecoveryEnrollmentService().getEnrollment(arguments.userId).EVENT_ID,cfsqltype="cf_sql_bigint"},
         stage={value=uCase(arguments.stage),cfsqltype="cf_sql_char"},
         status={value=normalizedStatus,cfsqltype="cf_sql_varchar"},
         token={value=repeatString("a",64),cfsqltype="cf_sql_char"},
@@ -549,7 +558,7 @@ component extends="testbox.system.BaseSpec" output="false" {
 
   private void function cleanupFixtures() {
     var users=queryExecute(
-      "SELECT u.userId FROM users u WHERE LOWER(u.email) LIKE :pattern
+      "SELECT u.userId FROM users u WHERE LOWER(TRIM(u.email)) LIKE :pattern
         OR (u.email='not-an-email' AND EXISTS (
           SELECT 1 FROM product_events e
           WHERE e.user_id=u.userId AND e.idempotency_key LIKE :pattern
@@ -565,7 +574,10 @@ component extends="testbox.system.BaseSpec" output="false" {
     var ids=valueList(users.userId);
     var params={ids={value=ids,cfsqltype="cf_sql_integer",list=true}};
     queryExecute("DELETE FROM email_optout WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
+    queryExecute("DELETE FROM inactive_member_recovery_messages WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
+    queryExecute("DELETE FROM inactive_member_recovery_evaluations WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
     queryExecute("DELETE FROM inactive_member_recovery_deliveries WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
+    queryExecute("DELETE FROM inactive_member_recovery_member_state WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
     queryExecute("DELETE FROM product_events WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
     queryExecute("DELETE FROM floatplan_monitoring WHERE user_id IN (:ids)",params,{datasource=variables.datasource});
     queryExecute("DELETE FROM basic_review_send_receipts WHERE user_id IN (:ids)",params,{datasource=variables.datasource});

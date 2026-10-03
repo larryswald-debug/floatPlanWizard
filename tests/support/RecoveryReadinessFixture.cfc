@@ -30,7 +30,7 @@ component extends="fpw.tests.support.RecoveryEnrollmentFixture" output="false" {
   }
   public any function dueSender(any classifier="") {
     return new fpw.api.v1.InactiveMemberRecoveryService(liveEnabled=true,candidateSource=this,clock=this,
-      classifier=arguments.classifier,transport=this);
+      classifier=arguments.classifier,transport=this,observability=new fpw.tests.support.RecoveryCoreObservationStub());
   }
   public numeric function basicDraft(required numeric userId) {
     var id=draft(arguments.userId);

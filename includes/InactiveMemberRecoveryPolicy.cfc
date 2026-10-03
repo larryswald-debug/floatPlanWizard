@@ -34,9 +34,12 @@ component output="false" {
       if (!booleanField(input.exclusions, exclusion, false)) return decision("HELD", "EXCLUSIONS_NOT_VERIFIED");
     }
 
-    if (textField(input, "current_stage_recovery", "sent")) return decision("SUPPRESSED", "STAGE_ALREADY_SENT");
-    if (textField(input, "current_stage_recovery", "possibly_sent")) return decision("HELD", "STAGE_SEND_UNRESOLVED");
-    if (!textField(input, "current_stage_recovery", "never_sent")) return decision("HELD", "STAGE_SEND_HISTORY_UNKNOWN");
+    if (!integerField(input,"contact_number",1,3) || !integerField(input,"contact_total",3,3)) return decision("HELD","CONTACT_NOT_VERIFIED");
+    if (textField(input, "current_contact_recovery", "sent")) return decision("SUPPRESSED", "CONTACT_ALREADY_SENT");
+    if (textField(input, "current_contact_recovery", "possibly_sent")) return decision("HELD", "CONTACT_SEND_UNRESOLVED");
+    if (!textField(input, "current_contact_recovery", "never_sent")) return decision("HELD", "CONTACT_SEND_HISTORY_UNKNOWN");
+    if (!integerField(input,"first_delay_seconds",3600,2592000)
+      || !integerField(input,"stage_interval_seconds",3600,2592000)) return decision("HELD","TIMING_SETTINGS_INVALID");
 
     var nowClock = utcClock(input, "now_utc");
     var enrollmentClock = utcClock(input, "enrollment_utc");
@@ -67,27 +70,32 @@ component output="false" {
     if (!structKeyExists(input, "last_recovery") || !isStruct(input.last_recovery)) {
       return decision("HELD", "RECOVERY_HISTORY_UNKNOWN");
     }
-    // An unresolved attempt at any stage cannot establish safe cross-stage spacing.
+    // An unresolved transport attempt cannot establish safe contact spacing.
     if (textField(input.last_recovery, "state", "possibly_sent")) return decision("HELD", "RECOVERY_SEND_UNRESOLVED");
     if (textField(input.last_recovery, "state", "sent")) {
-      var lastStage = stageRank(input.last_recovery, "stage");
+      var lastContact = structKeyExists(input.last_recovery,"contact_number") ? input.last_recovery.contact_number : 0;
       var sentClock = utcClock(input.last_recovery, "at_utc");
       if (!sentClock.valid) return decision("HELD", "INVALID_UTC_CLOCK");
       if (sentClock.seconds > nowClock.seconds) return decision("HELD", "FUTURE_CLOCK");
-      if (lastStage == 0 || lastStage >= stage) {
+      if (!integerField(input.last_recovery,"contact_number",1,2) || lastContact != input.contact_number - 1) {
         return decision("HELD", "RECOVERY_HISTORY_CONFLICT");
       }
       anchor = max(anchor, sentClock.seconds);
     } else if (!textField(input.last_recovery, "state", "never_sent")) {
       return decision("HELD", "RECOVERY_HISTORY_UNKNOWN");
-    } else if (structKeyExists(input.last_recovery, "at_utc") || structKeyExists(input.last_recovery, "stage")) {
+    } else if (structKeyExists(input.last_recovery, "at_utc") || structKeyExists(input.last_recovery, "contact_number")) {
       return decision("HELD", "RECOVERY_HISTORY_CONFLICT");
     }
 
-    var eligibleAt = anchor + 604800;
+    if (textField(input.last_recovery,"state","never_sent") && input.contact_number != 1) return decision("HELD","RECOVERY_HISTORY_CONFLICT");
+    var intervalSeconds = input.contact_number == 1 ? input.first_delay_seconds : input.stage_interval_seconds;
+    var eligibleAt = anchor + intervalSeconds;
     var result = nowClock.seconds >= eligibleAt
       ? decision("ELIGIBLE", "INTERVAL_ELAPSED")
       : decision("DEFERRED", "WAITING_FOR_INTERVAL");
+    result.contact_number = input.contact_number;
+    result.contact_total = input.contact_total;
+    result.interval_seconds = intervalSeconds;
     result.anchor_utc = epochToUtc(anchor);
     result.eligible_at_utc = epochToUtc(eligibleAt);
     result.seconds_until_eligible = max(0, eligibleAt - nowClock.seconds);
@@ -115,8 +123,14 @@ component output="false" {
       eligible = arguments.state == "ELIGIBLE",
       decision = arguments.state,
       reason = arguments.reason,
-      interval_seconds = 604800
+      interval_seconds = 0
     };
+  }
+
+  private boolean function integerField(required struct input,required string key,required numeric minimum,required numeric maximum) {
+    return structKeyExists(arguments.input,arguments.key) && isSimpleValue(arguments.input[arguments.key])
+      && reFind("^[0-9]+([.]0+)?$",serializeJSON(arguments.input[arguments.key]))
+      && arguments.input[arguments.key] >= arguments.minimum && arguments.input[arguments.key] <= arguments.maximum;
   }
 
   // Do not coerce "yes", "true", 1, or other truthy values into verified proof.

@@ -1,60 +1,38 @@
 # Protected recovery runner and sender orchestration
 
-Original sender-only verification: 2026-09-05, ColdFusion 2025, datasource `fpw`.
+Current contract: 2026-10-03. Exactly three time-based automated contacts use independently recalculated A/B/C/D product destinations. See [Recovery Center](recovery-center.md), [timing policy](inactive-member-recovery-threshold.md), [contact ledger](inactive-member-recovery-ledger.md), and [email copy](recovery-center-email-copy.md).
 
-## Current authority and production boundary
+## Current execution contract
 
-Development orchestration and independent coverage verification are implemented. The original sender-only run used disposable canonical data and non-delivering recovery transport; later A/B/C/D validation used local MailHog. The [final validation report](inactive-member-recovery-final-validation.md) is the current authority for the complete regression/share-path results, review status, and remaining limitations. **No production rollout is authorized by these local results.** No production schedule or live-send flag was enabled.
+The existing sources remain authoritative: classifier, pure policy, delivery ledger, durable events/receipts, current non-essential preference checks, destination resolver, authentication continuation, and email renderer/transport.
 
-Updated 2026-09-06: the default internal context provider is now `InactiveMemberRecoveryCoverageService`. It independently reads durable enrollment through the existing enrollment service and verifies versioned canonical-signup coverage. Initial/retry/pre-send evaluations re-read both. Scans and sending never enroll members; enrollment proves timing only. New canonical signup coverage is atomic and versioned; older enrolled-but-unverified members remain on `HOLD_INCOMPLETE_COVERAGE`. Retained unresolved share attempts HOLD independently of deleted trip/receipt rows. The HTTP runner still has no fixture, coverage, clock, recipient, stage, or eligibility override. The [Basic-Draft validation report](inactive-member-recovery-basic-draft-validation.md) records the prior A/B/C/D local MailHog proof and the regression exceptions present at that checkpoint; the final report above supersedes those status statements.
+1. Check the repository `.codex-snapshots/recovery-center-migration.lock` maintenance gate before scanning or writing. Validate integer batch 1–100 (default25) and strict live-mode enablement.
+2. Begin a durable run with execution source, dry/live mode, settings snapshot, and run ID. Bounded member-ID traversal preserves existing cheap admin/sharing exclusions. Only actually evaluated members receive evaluation rows.
+3. Reevaluate current membership, coverage, ownership, sharing, lifecycle, opt-out, recovery state, UTC clocks, settings, and contact history. First Delay determines contact #1; Contact Interval determines #2/#3 after the latest applicable anchor.
+4. In a preparation transaction, claim the current contact (or explicitly retry a definite failure below the transport cap). Identity is original enrollment + contact number; destination is a separate field.
+5. Freshly reevaluate with the exact claim token, resolve current owned destination, reread recipient and preferences, and select/render the current contact's template using that destination.
+6. Prepare an immutable observation/message snapshot and optional signed tracking. Observation failure falls back to the valid original untracked message and is reported; it cannot grant eligibility.
+7. Independently reevaluate after rendering. Require matching enrollment, contact, destination stage, settings revision, member-state revision/effective start, current recipient, preferences, and resolved path. Stale content or changed eligibility cancels preparation. Rollback removes a new claim or restores an exact prior FAILED retry without consuming an attempt.
+8. Submit through the existing synchronous multipart boundary **outside** the DB transaction. Record accepted delivery only on confirmed transport acceptance plus ledger confirmation. Known failure retries the same contact; uncertainty remains nonreplayable.
+9. Finalize evaluation/message/run observations nonfatally. Bounded activity reconciliation associates committed source evidence with accepted automated messages.
 
-**Before any live rollout:** obtain separate production authorization and explicit cohort enrollment; do not substitute signup dates or a blanket launch timestamp. The implemented coverage authority does not approve older history or enable sending.
+Contact progression does not depend on product-stage progression. All three contacts can point to Add Vessel or the same route. Contact #1 may begin at B/C/D. Contact #2 can point to B following legitimate progress from A. Contact #3 ends the sequence; no #4 or automatic restart exists.
 
-**Current safety posture:** live mode remains disabled and no schedule was changed. No backfill or automatic enrollment was added. Local MailHog fixture delivery is not production authorization or proof of a deployed scheduler. The verification and snapshot history below describes the original 2026-09-05 sender-only task; subsequent enrollment and readiness handoffs are separate.
+Dry runs persist run/evaluation observations and may reconcile source evidence. They never enroll, claim, render/send mail, or alter delivery history. Optional observational failure never rolls back an accepted send or triggers replay.
 
-## Discovery and exact integration changes
+## Runner and reporting
 
-The existing sources of truth remain the classifier, policy evaluator, ledger service, durable product events/receipts, non-essential eligibility/footer helpers, and email builder/transport. Discovery identified two integration defects:
+The protected GET runner retains only token, batchSize, and dryRun inputs; no member, recipient, contact, destination, clock, or eligibility override is public. Authentication and no-cache behavior are preserved. Native scheduler availability/configuration and production enablement remain distinct operational concerns.
 
-- An ordinary classifier call suppresses any unresolved claim, including the sender's own freshly acquired claim. `evaluateMember` now optionally accepts an internal `ownedClaimToken`; only the exact current member/stage/token match is exempted from that one suppression. A mismatched token holds, and any other unresolved claim still suppresses. Existing callers retain their original behavior.
-- Ordinary classification holds `FAILED` rows pending an explicit retry decision. The ledger now exposes computed `CAN_RETRY`; only then does orchestration request fresh policy evaluation using the optional internal `evaluateFailedRetry` flag. Claim/retry writes still occur only through the existing ledger methods and their three-attempt cap.
+Results contain aggregate scanned/eligible/claimed/submitted/sent/failed/suppressed/held/skipped/canceled/ambiguous counts, **contacts** separately from **destination_stages**, reasons, run_id, and observation_gaps. Recipient identities, claim tokens and exceptions are omitted. Submitted means transport reported acceptance; sent additionally requires ledger confirmation, not inbox delivery.
 
-No cancellation status or schema change was needed. An outer preparation transaction safely rolls back either a newly inserted claim or a retry update if revalidation/compliance/rendering prevents sending. Tests proved restoration of the previous FAILED row, including attempt count and timestamps. SMTP is outside that transaction.
+The classifier's actual fresh failure reason is retained when revalidation becomes ineligible. Cancellation from a changed prepared context remains distinct. Finalized historical evaluations do not change when current settings, product stage, or destination later changes.
 
-## Execution contract
+## Current test boundaries
 
-1. **Candidate selection:** bounded user-ID keyset scan of existing users; cheaply exclude currently active admin entitlements and durable Basic/Premium successful share events. Receipts, ownership, lifecycle, history and all other exclusions remain the classifier's responsibility. An application-memory traversal cursor avoids repeatedly scanning only the first held batch. It is not enrollment or delivery state and can safely reset after restart.
-2. **Bounds:** default 25, maximum 100, integer range 1–100. Invalid, duplicate, or oversized injected candidate results fail/skip safely. No unbounded request mode.
-3. **Initial evaluation:** current classifier plus unchanged 604,800-second policy. Noneligible accounts are not claimed, rendered, or sent. Reason codes remain authoritative.
-4. **Claim:** call canonical `claimStage`, or explicit `retryFailedStage` only for a retryable FAILED row. Require canonical claim success and its private token.
-5. **Revalidation:** re-read classifier/policy with fresh UTC/enrollment context and the exact claim token. Stage must still agree and remain eligible.
-6. **Compliance:** re-read the current account recipient and require `checkNonEssentialEmailEligibility()` to return `ELIGIBLE`. Opt-out, invalid recipient, lookup/token failure or renderer/address failure prevents submission.
-7. **Cancellation:** rollback the preparation transaction on pre-send cancellation/failure. No false permanent first claim, no synthetic FAILED delivery and no consumed retry attempt. A database commit with an uncertain outcome is held and never followed by transport submission in that invocation.
-8. **Destinations/templates:** after fresh eligibility/compliance checks, `InactiveMemberRecoveryDestinationService` resolves current owned work. The shared builder uses recovery action links for vessel setup, new Trip Planner entry, saved-route/planned-instance continuation, or a unique eligible Draft. Missing/ambiguous targets use Routes/Float Plans fallbacks. Authentication preserves only allowlisted actions; Dashboard and existing APIs recheck ownership on click. See `inactive-member-recovery-email-templates.md` for the exact selection and fallback contract.
-9. **Transport:** the new nonremote `email.submitInactiveMemberRecoveryEmail` wrapper calls the existing private `sendMultipartEmail`, with `spoolEnable=false` and `rethrowOnFailure=true`. No new SMTP client, provider, queue or generic fallback copy. Synchronous application submission is not inbox delivery.
-10. **SENT:** confirmed submission calls token-bound `markSent`; canonical ledger/database UTC remains authoritative.
-11. **FAILED:** only a definitively unsubmitted outcome calls token-bound `markFailed`. A later normal run may explicitly retry, up to three total claimed attempts. Cancellation restores the prior count; successful same-stage sends never repeat.
-12. **Ambiguity:** SMTP exceptions alone do not prove nonacceptance. Unknown transport outcomes and uncertain database confirmation remain non-replayable CLAIMED, or already-committed SENT when confirmation was lost. No timeout/reclaim retry was added.
-13. **Cross-stage:** a prior A send does not itself exclude B–D. The existing policy still requires fresh stage/activity intervals and at least 168 hours since the last successful recovery. Shared permanently suppresses all stages.
+Canonical disposable fixtures and injected non-delivering transports cover all first-contact destinations, repeated same-destination contacts, progress before contact #2, retries with fresh destinations, completion, concurrent claims, independent post-render revalidation, preference/ownership/sharing safeguards, and ambiguous transport/confirmation holds. Settings/default timing tests include exact 24-hour boundaries and explicitly configured nondefault intervals.
 
-The transaction provides a fresh pre-send check, not an impossible guarantee against an external member change occurring after the last read and after transport begins. There is no automatic replay after an uncertain send.
-
-## Runner, private configuration and response
-
-Endpoint: `/fpw/app/scheduled/run-inactive-member-recovery.cfm` locally; use the deployed application's actual base path in production.
-
-Configuration uses the existing private JSON at `application.stripeConfigPath`, with the existing `/_fpw_private/stripe-config.json` fallback. No second configuration store or hard-coded secret was created.
-
-- `FPW_INACTIVE_RECOVERY_RUNNER_TOKEN`: required private secret.
-- `FPW_INACTIVE_RECOVERY_LIVE_ENABLED`: defaults false; only JSON boolean `true` enables the service's live gate. This does not substitute for enrollment or other authorization.
-- Prefer `X-FPW-Recovery-Token` header. The existing scheduled-URL token convention is also supported by `token`; if used, keep scheduler configuration and access logs private.
-- GET only. Optional `batchSize` and `dryRun`; dry run defaults true. Reject every other query key, including IDs, email, stage, force and eligibility overrides.
-- Missing/wrong token: 403. Unsupported method: 405. Invalid options: 400. Live mode disabled: 403. Candidate/service failure: 503. Unexpected runner exception: 500 with a stable code only.
-- `Cache-Control: no-store, no-cache, must-revalidate`; `Pragma: no-cache`; JSON only.
-
-Safe results contain `ok`, `mode`, `scanned`, `eligible`, `claimed`, `submitted`, `sent`, `failed`, `suppressed`, `held`, `skipped`, `canceled`, `ambiguous`, stage counts A–D, aggregate reason counts, and a stable error code if applicable. No account identity, recipient, trip/route ID, token or stack trace is serialized. `submitted` means transport reported acceptance; `sent` additionally means the ledger confirmed SENT. `claimed` counts claims retained through preparation, not rolled-back cancellations. Stage counts describe processed classification, not a separate authorization.
-
-Dry run only scans/classifies/evaluates and advances the ephemeral traversal cursor. It does not claim, render email, submit, write product evidence or alter delivery history.
+The historical evidence below describes prior releases, not current test counts or production proof.
 
 ## Original 2026-09-05 verification results — historical
 
@@ -156,9 +134,9 @@ No schema/migration execution, enrollment/backfill, policy timing/stage definiti
 3. Verify the approved `FPW_BUSINESS_MAILING_ADDRESS` in production's existing private configuration.
 4. Configure a dedicated private runner token; retain live flag false for rollout checks.
 5. Verify production unsubscribe signatures, distinct preferences URL, clean text/HTML footer, recipient suppression and multipart transport.
-6. Explicitly approve and enroll only the eligible production cohort, preserve the full 168-hour enrollment grace, then run the authorized post-grace production dry run and review aggregate holds/suppressions and cohort coverage. Signup coverage does not enroll a member; older unverified history remains HOLD. A held account is not evidence of a sending defect.
+6. Explicitly approve and enroll only the eligible production cohort, preserve the currently configured First Recovery Delay, then run the authorized post-grace production dry run and review aggregate holds/suppressions and cohort coverage. Signup coverage does not enroll a member; older unverified history remains HOLD. A held account is not evidence of a sending defect.
 7. Obtain explicit approval for live sending and scheduler creation. Only then set the strict live flag and register the production task.
-8. Recommended cadence: **once daily**, default batch 25, hard max 100. At 25 scanned accounts per daily run, large cohorts take multiple days to traverse; review dry-run volume before choosing an approved bounded batch. This schedule does not change the 168-hour threshold.
+8. Recommended cadence: **once daily**, default batch 25, hard max 100. At 25 scanned accounts per daily run, large cohorts take multiple days to traverse; review dry-run volume before choosing an approved bounded batch. This schedule does not change the configured elapsed-hour eligibility policy.
 9. Monitor aggregate failures/ambiguities. Never replay ambiguous delivery claims automatically or manually manufacture legacy eligibility.
 
 No production scheduled task was created or enabled. Independent coverage verification is implemented, but deployment/configuration verification, eligible-cohort enrollment, grace-period dry-run review, and explicit live/scheduler authorization remain separate production boundaries. No historical backfill or blanket approval is authorized.

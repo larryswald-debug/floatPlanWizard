@@ -12,9 +12,14 @@ component output="false" {
 
   // Read-only. Empty means absent, not verified inactivity. Corruption throws a safe error.
   public string function getEnrollmentUtc(required numeric userId) output=false {
-    if (!validId(arguments.userId)) return "";
+    return getEnrollment(arguments.userId).ENROLLMENT_UTC;
+  }
+
+  public struct function getEnrollment(required numeric userId) output=false {
+    var absent={EVENT_ID=0,ENROLLMENT_UTC=""};
+    if (!validId(arguments.userId)) return absent;
     var row=queryExecute(
-      "SELECT e.user_id,e.event_name,e.entity_type,e.entity_id,e.event_source,e.idempotency_key,
+      "SELECT e.id,e.user_id,e.event_name,e.entity_type,e.entity_id,e.event_source,e.idempotency_key,
         e.metadata_json,DATE_FORMAT(e.occurred_at_utc,'%Y-%m-%dT%H:%i:%sZ') AS enrollment_utc,
         (e.occurred_at_utc>'1970-01-01' AND e.occurred_at_utc<=UTC_TIMESTAMP()
           AND e.occurred_at_utc=e.created_at_utc) AS valid_clock
@@ -22,7 +27,7 @@ component output="false" {
        WHERE (e.user_id=:userId AND e.event_name=:eventName) OR e.idempotency_key=:eventKey",
       eventParams(arguments.userId),{datasource=variables.datasource}
     );
-    if (!row.recordCount) return "";
+    if (!row.recordCount) return absent;
     var valid=row.recordCount EQ 1;
     if (valid) {
       valid=val(row.user_id[1]) EQ arguments.userId AND val(row.entity_id[1]) EQ arguments.userId
@@ -39,7 +44,7 @@ component output="false" {
       } catch (any invalidMetadata) { valid=false; }
     }
     if (!valid) throw(type="FPW.Recovery.InvalidEnrollment",message="ENROLLMENT_EVIDENCE_INVALID");
-    return toString(row.enrollment_utc[1]);
+    return {EVENT_ID=val(row.id[1]),ENROLLMENT_UTC=toString(row.enrollment_utc[1])};
   }
 
   // Explicit internal command. Successful signup and explicitly reviewed admin cohorts may enroll.

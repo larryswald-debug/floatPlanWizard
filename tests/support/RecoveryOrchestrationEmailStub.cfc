@@ -6,7 +6,7 @@ component extends="fpw.api.v1.email" output="false" {
     }
     return super.checkNonEssentialEmailEligibility(email=arguments.email,userId=arguments.userId);
   }
-  public struct function buildInactiveMemberRecoveryEmail(required string stage,required struct eligibility,string firstName="",string verifiedDraftUrl="",string verifiedRouteUrl="") {
+  public struct function buildInactiveMemberRecoveryEmail(required string stage,required struct eligibility,string firstName="",string verifiedDraftUrl="",string verifiedRouteUrl="",numeric contactNumber=1,struct tracking={}) {
     if (variables.mode EQ "MISSING_ADDRESS") return {success=false,errorCode="NON_ESSENTIAL_COMPLIANCE_REQUIRED"};
     if (variables.mode EQ "RENDER_FAILURE") throw(type="tests.ControlledRender",message="CONTROLLED_RENDER_FAILURE");
     return super.buildInactiveMemberRecoveryEmail(argumentCollection=arguments);

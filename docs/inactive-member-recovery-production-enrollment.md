@@ -1,5 +1,7 @@
 # Day 39: production recovery enrollment
 
+> Recovery Center update (2026-10-03): historical behavior and validation results below predate the numbered-contact transition. The current model has exactly three automated contacts, independently recalculated A/B/C/D destinations, and configurable First Delay / Contact Interval / Attribution Window defaults of 24 / 24 / 24 hours. Stage-keyed delivery rules and fixed 168-hour rollout instructions below are superseded. See [Recovery Center implementation](recovery-center.md) and [current email copy](recovery-center-email-copy.md). Historical test results are retained as historical evidence.
+
 Implementation and local verification: 2026-09-24.
 
 **Production-capable enrollment callers are implemented and locally verified. They have not been deployed or exercised against production.** No production member was enrolled, no recovery email was sent, and no live-send configuration or recurring schedule was changed.

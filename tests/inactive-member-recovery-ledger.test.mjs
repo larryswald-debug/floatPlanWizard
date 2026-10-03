@@ -5,12 +5,15 @@ import { readFileSync } from 'node:fs';
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const service=read('includes/InactiveMemberRecoveryLedgerService.cfc');
 const up=read('database/migrations/20260904_001_inactive_member_recovery_deliveries.up.sql');
+const transition=read('database/migrations/20261003_001_recovery_center.up.sql');
 const preflight=read('database/migrations/20260904_001_inactive_member_recovery_deliveries.preflight.sql');
 const down=read('database/migrations/20260904_001_inactive_member_recovery_deliveries.down.sql');
 const verify=read('database/migrations/20260904_001_inactive_member_recovery_deliveries.verify.sql');
 
-test('schema enforces one member-stage row and the three-state model',()=>{
-  assert.match(up,/UNIQUE KEY `uq_inactive_recovery_member_stage` \(`user_id`, `recovery_stage`\)/);
+test('schema transitions to enrollment contact identity and preserves the three-state model',()=>{
+  assert.match(transition,/ADD UNIQUE KEY uq_recovery_enrollment_contact \(recovery_enrollment_event_id,contact_number\)/);
+  assert.match(transition,/CHANGE COLUMN recovery_stage destination_stage/);
+  assert.match(transition,/CHECK\(contact_number BETWEEN 1 AND 3\)/);
   assert.match(up,/CHECK \(`recovery_stage` IN \('A', 'B', 'C', 'D'\)\)/);
   assert.match(up,/CHECK \(`status` IN \('CLAIMED', 'SENT', 'FAILED'\)\)/);
   assert.match(up,/CHECK \(`attempt_count` BETWEEN 1 AND 3\)/);
@@ -21,35 +24,39 @@ test('schema enforces one member-stage row and the three-state model',()=>{
 test('timestamps use database UTC and terminal-state consistency checks',()=>{
   assert.ok((up.match(/UTC_TIMESTAMP/g)||[]).length===0,'DDL must not fabricate row timestamps');
   assert.match(up,/`status` = 'CLAIMED'[\s\S]*`status` = 'SENT'[\s\S]*`status` = 'FAILED'/);
-  assert.ok((service.match(/UTC_TIMESTAMP\(6\)/g)||[]).length>=9);
+  assert.match(service,/claimed_at_utc=UTC_TIMESTAMP\(6\)/);
+  assert.match(service,/sent_at_utc=UTC_TIMESTAMP\(6\),failed_at_utc=NULL/);
+  assert.match(service,/sent_at_utc=NULL,failed_at_utc=UTC_TIMESTAMP\(6\)/);
+  assert.match(service,/updated_at_utc=UTC_TIMESTAMP\(6\)/);
   assert.doesNotMatch(service,/\bnow\(\)|dateConvert|browser|timezone/i);
 });
 
 test('claim relies on database uniqueness and row locks',()=>{
-  assert.match(service,/INSERT IGNORE INTO inactive_member_recovery_deliveries/);
-  assert.match(service,/SELECT ROW_COUNT\(\) AS inserted_count/);
+  assert.match(service,/INSERT INTO inactive_member_recovery_deliveries/);
+  assert.match(service,/SELECT ROW_COUNT\(\) AS changed_count/);
   assert.match(service,/FROM users WHERE userId=:userId FOR UPDATE/);
-  assert.match(service,/LIMIT 1 FOR UPDATE/);
+  assert.match(service,/getSequenceState\(arguments.userId\)/);
+  assert.match(service,/CONTACT_SEQUENCE_CONFLICT/);
   assert.match(service,/ALREADY_SENT/);
   assert.match(service,/ALREADY_CLAIMED/);
   assert.match(service,/FAILED_PREVIOUSLY/);
 });
 
 test('definite retries are explicit, token-bound, and capped at three',()=>{
-  assert.match(service,/public struct function retryFailedStage/);
+  assert.match(service,/public struct function retryFailedContact/);
   assert.match(service,/attempt_count=attempt_count\+1/);
   assert.match(service,/attempt_count < :maxAttempts/);
-  assert.match(service,/variables\.maxAttempts = 3/);
+  assert.match(service,/variables\.maxAttempts\s*=\s*3/);
   assert.match(service,/claim_token=:token/);
   assert.match(service,/RETRY_EXHAUSTED/);
   assert.doesNotMatch(service,/stale|timeout|expire.*claim/i);
 });
 
 test('diagnostics omit the private claim token and error content is code-only',()=>{
-  const state=service.slice(service.indexOf('private struct function stateResult'),service.indexOf('private string function dateText'));
+  const state=service.slice(service.indexOf('private struct function rowState'),service.indexOf('private struct function claimedResult'));
   assert.doesNotMatch(state,/CLAIM_TOKEN|claim_token/);
   assert.match(service,/\^\[A-Z\]\[A-Z0-9_\]\{0,63\}\$/);
-  assert.match(service,/return "RECOVERY_SEND_FAILED"/);
+  assert.match(service,/"RECOVERY_SEND_FAILED"/);
   assert.doesNotMatch(up,/email|recipient|float.?plan|trip|route|message_body/i);
 });
 

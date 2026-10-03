@@ -5,12 +5,13 @@ component output="false" {
   variables.attempts=0;
   variables.clockValue="2026-09-08T00:00:00Z";
   variables.enrollment="2026-09-01T00:00:00Z";
+  variables.timing={revision=1,firstDelayHours=168,stageIntervalHours=168,attributionWindowHours=24};
   variables.outcome="SUBMITTED";
   variables.race="";
   variables.emailMode="";
   variables.ledgerMode="";
   variables.missingEnrollment=false;
-  variables.prefix="codex-recovery-orch-" & lCase(replace(createUUID(),"-","","all"));
+  variables.prefix="codex-recovery-orch-" & left(lCase(replace(createUUID(),"-","","all")),12);
   variables.barrier=createObject("java","java.util.concurrent.CyclicBarrier").init(javaCast("int",2));
   // Shift the fixed scenario together as the calendar advances; ledger writes still use real DB UTC.
   variables.dayOffset=val(queryExecute("SELECT DATEDIFF(UTC_DATE(),'2026-09-05') AS days",{}, {datasource="fpw"}).days[1]);
@@ -21,7 +22,7 @@ component output="false" {
     var classifier=new fpw.tests.support.RecoveryOrchestrationRaceClassifier(fixture=this,action=variables.race);
     return new fpw.api.v1.InactiveMemberRecoveryService(
       datasource="fpw",liveEnabled=true,classifier=classifier,ledger=ledger,emailService=email,
-      contextProvider=this,candidateSource=this,clock=this,transport=this
+      contextProvider=this,candidateSource=this,clock=this,transport=this,observability=new fpw.tests.support.RecoveryCoreObservationStub()
     );
   }
   public void function configure(string outcome="SUBMITTED",string race="",string emailMode="",string ledgerMode="",boolean missingEnrollment=false) {
@@ -30,6 +31,8 @@ component output="false" {
     variables.emailMode=arguments.emailMode;
     variables.ledgerMode=arguments.ledgerMode;
     variables.missingEnrollment=arguments.missingEnrollment;
+    if (arguments.missingEnrollment AND arrayLen(variables.ids)) queryExecute("DELETE FROM product_events WHERE user_id IN (:ids) AND event_name='inactive_member_recovery_enrolled'",
+      {ids={value=arrayToList(variables.ids),cfsqltype="cf_sql_integer",list=true}},{datasource="fpw"});
   }
   public array function getCandidateIds(required numeric limit) {
     var ids=[];
@@ -46,6 +49,13 @@ component output="false" {
   public struct function getCoverageVerification(required numeric userId) {
     return structKeyExists(variables.records,toString(arguments.userId))
       ? {stage_history=true,activity_coverage=true,sharing_history=true,recovery_history=true} : {};
+  }
+  public struct function getSettings() { return duplicate(variables.timing); }
+  public void function setTiming(numeric firstDelayHours=24,numeric stageIntervalHours=24) {
+    variables.timing.firstDelayHours=arguments.firstDelayHours; variables.timing.stageIntervalHours=arguments.stageIntervalHours;
+  }
+  public numeric function enrollmentId(required numeric userId) {
+    return new fpw.includes.InactiveMemberRecoveryEnrollmentService().getEnrollment(arguments.userId).EVENT_ID;
   }
   public string function nowUtc() { return shiftedUtc(variables.clockValue); }
   private string function shiftedUtc(required string value) {
@@ -84,6 +94,11 @@ component output="false" {
     arrayAppend(variables.ids,userId);
     variables.records[toString(userId)]={userId=userId,email=email,planId=0,routeId=0,vesselId=0};
     event(userId,"sign_up","user",userId,"member_signup","2026-08-01 00:00:00");
+    queryExecute("INSERT INTO product_events(event_uuid,user_id,event_name,entity_type,entity_id,event_source,occurred_at_utc,metadata_json,created_at_utc,idempotency_key)
+      VALUES(:uuid,:id,'inactive_member_recovery_enrolled','user',:id,'recovery_enrollment',CAST(:at AS DATETIME),'{}',CAST(:at AS DATETIME),:eventKey)",
+      {uuid={value=createUUID(),cfsqltype="cf_sql_char"},id={value=userId,cfsqltype="cf_sql_integer"},
+       at={value=replace(replace(shiftedUtc(variables.enrollment),"T"," "),"Z",""),cfsqltype="cf_sql_varchar"},
+       eventKey={value="inactive_member_recovery_enrolled:" & userId,cfsqltype="cf_sql_varchar"}},{datasource="fpw"});
     if (arguments.stage NEQ "A") advance(userId,arguments.stage,arguments.entry);
     return duplicate(variables.records[toString(userId)]);
   }
@@ -141,8 +156,8 @@ component output="false" {
     queryExecute("DELETE FROM floatplans WHERE userId=:id",params,{datasource="fpw"});
     queryExecute("DELETE FROM user_routes WHERE user_id=:id",params,{datasource="fpw"});
   }
-  public struct function state(required numeric userId,required string stage) {
-    return new fpw.includes.InactiveMemberRecoveryLedgerService().getStageState(arguments.userId,arguments.stage);
+  public struct function state(required numeric userId,numeric contactNumber=1) {
+    return new fpw.includes.InactiveMemberRecoveryLedgerService().getContactState(arguments.userId,enrollmentId(arguments.userId),arguments.contactNumber);
   }
   public struct function counts() {
     if (!arrayLen(variables.ids)) return {users=0,ledger=0,events=0,submitted=submittedCount(),attempted=attemptCount()};
@@ -155,7 +170,10 @@ component output="false" {
     var params={ids={value=arrayToList(variables.ids),cfsqltype="cf_sql_integer",list=true}};
     for (var sql in [
       "DELETE FROM email_optout WHERE user_id IN (:ids)",
+      "DELETE FROM inactive_member_recovery_messages WHERE user_id IN (:ids)",
+      "DELETE FROM inactive_member_recovery_evaluations WHERE user_id IN (:ids)",
       "DELETE FROM inactive_member_recovery_deliveries WHERE user_id IN (:ids)",
+      "DELETE FROM inactive_member_recovery_member_state WHERE user_id IN (:ids)",
       "DELETE FROM product_events WHERE user_id IN (:ids)",
       "DELETE FROM floatplan_monitoring WHERE user_id IN (:ids)",
       "DELETE FROM floatplans WHERE userId IN (:ids)",

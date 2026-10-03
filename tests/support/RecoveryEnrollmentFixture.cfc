@@ -2,6 +2,12 @@ component extends="fpw.tests.support.RecoveryOrchestrationFixture" output="false
   variables.testNow="";
   variables.reviewed=false;
 
+  public struct function createMember(string stage="A",string entry="2026-09-01 00:00:00") {
+    var member=super.createMember(argumentCollection=arguments);
+    queryExecute("DELETE FROM product_events WHERE user_id=:id AND event_name='inactive_member_recovery_enrolled'",
+      {id={value=member.userId,cfsqltype="cf_sql_integer"}},{datasource="fpw"});
+    return member;
+  }
   public string function nowUtc() {
     return len(variables.testNow) ? variables.testNow : dbUtc();
   }
@@ -22,8 +28,8 @@ component extends="fpw.tests.support.RecoveryOrchestrationFixture" output="false
   public any function dryService(boolean reviewed=false) {
     variables.reviewed=arguments.reviewed;
     return arguments.reviewed
-      ? new fpw.api.v1.InactiveMemberRecoveryService(candidateSource=this,clock=this,contextProvider=this)
-      : new fpw.api.v1.InactiveMemberRecoveryService(candidateSource=this,clock=this);
+      ? new fpw.api.v1.InactiveMemberRecoveryService(candidateSource=this,clock=this,contextProvider=this,observability=new fpw.tests.support.RecoveryCoreObservationStub())
+      : new fpw.api.v1.InactiveMemberRecoveryService(candidateSource=this,clock=this,observability=new fpw.tests.support.RecoveryCoreObservationStub());
   }
   public numeric function enrollmentCount(required numeric userId) {
     return val(queryExecute("SELECT COUNT(*) AS n FROM product_events WHERE user_id=:id AND event_name='inactive_member_recovery_enrolled'",

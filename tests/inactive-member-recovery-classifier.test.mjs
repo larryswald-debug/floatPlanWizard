@@ -21,7 +21,7 @@ const activityEvents = [
 test("classifier is a read-only single-member service", () => {
   assert.match(classifier, /public struct function evaluateMember\s*\(/);
   assert.doesNotMatch(classifier, /\b(?:INSERT\s+INTO|UPDATE\s+[`A-Za-z_]|DELETE\s+FROM|REPLACE\s+INTO)\b/i);
-  assert.doesNotMatch(classifier, /\b(?:cfmail|cfschedule|sendMultipartEmail|recordRequiredMemberActivity|claimStage|markSent|markFailed)\s*\(/i);
+  assert.doesNotMatch(classifier, /\b(?:cfmail|cfschedule|sendMultipartEmail|recordRequiredMemberActivity|claimContact|markSent|markFailed)\s*\(/i);
   assert.doesNotMatch(classifier, /\bremote\s+(?:struct|any|boolean|string|numeric)\s+function/i);
 });
 
@@ -31,7 +31,7 @@ test("classifier integrates existing policy, preference, admin, share, ledger, a
   assert.match(classifier, /AdminAuthorizationService/);
   assert.match(classifier, /\.isOptedOut\(normalizedEmail,\s*"non_essential"\)/);
   assert.match(classifier, /\.authorizeCurrentSession\(\{userId=/);
-  assert.match(classifier, /inactive_member_recovery_deliveries/);
+  assert.match(classifier, /InactiveMemberRecoveryLedgerService/);
   assert.match(classifier, /basic_send_completed/);
   assert.match(classifier, /premium_send_completed/);
   assert.match(classifier, /basic_review_send_receipts/);
@@ -43,9 +43,9 @@ test("classifier integrates existing policy, preference, admin, share, ledger, a
 test("stable decision codes and privacy-safe result contract are present", () => {
   for (const code of [
     "ELIGIBLE", "SUPPRESSED_ALREADY_SHARED", "SUPPRESSED_OPTED_OUT", "SUPPRESSED_ADMIN",
-    "SUPPRESSED_INVALID_EMAIL", "SUPPRESSED_ACTIVE_TRIP", "SUPPRESSED_STAGE_ALREADY_SENT",
+    "SUPPRESSED_INVALID_EMAIL", "SUPPRESSED_ACTIVE_TRIP", "SUPPRESSED_RECOVERY_SEQUENCE_COMPLETE",
     "SUPPRESSED_UNRESOLVED_CLAIM", "SUPPRESSED_RECENT_ACTIVITY",
-    "SUPPRESSED_CROSS_STAGE_SPACING", "HOLD_INCOMPLETE_STAGE_CLOCK",
+    "DEFERRED_CONTACT_INTERVAL", "HOLD_INCOMPLETE_STAGE_CLOCK",
     "HOLD_INCOMPLETE_ACTIVITY_EVIDENCE", "HOLD_CONTRADICTORY_EVIDENCE",
     "HOLD_PREFERENCE_LOOKUP_FAILED", "HOLD_DUPLICATE_EMAIL_IDENTITY", "MEMBER_NOT_FOUND"
   ]) assert.match(classifier, new RegExp(`"${code}"`));
@@ -70,7 +70,7 @@ test("classifier is wired only through approved orchestration and enrollment ass
     }
   }
   scan(root);
-  assert.deepEqual(matches, ["api/v1/InactiveMemberRecoveryService.cfc", "includes/InactiveMemberRecoveryEnrollmentService.cfc"]);
+  assert.deepEqual(matches, ["api/v1/AdminRecoveryCenterService.cfc", "api/v1/InactiveMemberRecoveryService.cfc", "includes/InactiveMemberRecoveryEnrollmentService.cfc"]);
 });
 
 test("runtime runner is local-only and requires explicit confirmation", () => {

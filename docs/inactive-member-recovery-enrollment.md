@@ -1,5 +1,7 @@
 # Trustworthy recovery enrollment evidence
 
+> Recovery Center update (2026-10-03): historical behavior and validation results below predate the numbered-contact transition. The current model has exactly three automated contacts, independently recalculated A/B/C/D destinations, and configurable First Delay / Contact Interval / Attribution Window defaults of 24 / 24 / 24 hours. Stage-keyed delivery rules and fixed 168-hour rollout instructions below are superseded. See [Recovery Center implementation](recovery-center.md) and [current email copy](recovery-center-email-copy.md). Historical test results are retained as historical evidence.
+
 Historical implementation date: 2026-09-06. The evidence-service contract and original results below describe that checkpoint. **Enrollment is not historical coverage verification.**
 
 Update, 2026-09-24: production signup and reviewed administrative cohort callers are documented in [Production recovery enrollment](inactive-member-recovery-production-enrollment.md). That report supersedes the earlier explicit-pass-only signup model below. No production cohort was enrolled and no live recovery sending or schedule was enabled by this work.

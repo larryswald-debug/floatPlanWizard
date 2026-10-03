@@ -25,53 +25,44 @@ async (page) => {
     await p.getByRole('button',{name:'Start Planning My Trip'}).click();
     await p.waitForURL(/dashboard[.]cfm/,{timeout:15000});
 
-    const invalid=await post('claim',{stage:'Z'});
-    assert(get(invalid,'CODE')==='INVALID_STAGE','invalid stage rejected');
+    const invalid=await post('claim',{stage:'Z',contactNumber:1});
+    assert(get(invalid,'CODE')==='INVALID_DESTINATION_STAGE','invalid destination rejected');
+    assert(get(await post('claim',{stage:'A',contactNumber:4}),'CODE')==='INVALID_CONTACT_NUMBER','contact four rejected');
+    assert(get(await post('claim',{stage:'A',contactNumber:2}),'CODE')==='CONTACT_SEQUENCE_CONFLICT','contact cannot be skipped');
 
-    const [first,second]=await Promise.all([post('claim',{stage:'A'}),post('claim',{stage:'A'})]);
+    const [first,second]=await Promise.all([post('claim',{stage:'A',contactNumber:1}),post('claim',{stage:'A',contactNumber:1})]);
     const pair=[get(first,'CODE'),get(second,'CODE')].sort();
-    assert(JSON.stringify(pair)===JSON.stringify(['ALREADY_CLAIMED','CLAIMED']),'concurrent claim has one winner');
+    assert(JSON.stringify(pair)===JSON.stringify(['ALREADY_CLAIMED','CLAIMED']),'concurrent contact claim has one winner');
     const aClaim=get(first,'CODE')==='CLAIMED'?first:second;
-    assert(get(await post('count',{stage:'A'}),'COUNT')===1,'one Stage A row after concurrent claims');
-    assert(get(aClaim,'ATTEMPT_COUNT')===1,'new claim attempt count');
-    assert(get(await post('sent',{stage:'A',claim_token:'0'.repeat(64)}),'CODE')==='CLAIM_MISMATCH','wrong claim token rejected');
-    const aSent=await post('sent',{stage:'A',claim_token:get(aClaim,'CLAIM_TOKEN')});
-    assert(get(aSent,'CODE')==='SENT'&&get(aSent,'STATUS')==='SENT','Stage A transitions to SENT');
-    assert(/Z$/.test(get(aSent,'SENT_AT_UTC')),'sent timestamp is UTC text');
-    assert(get(await post('claim',{stage:'A'}),'CODE')==='ALREADY_SENT','same-stage SENT suppresses claim');
-    assert(get(await post('failed',{stage:'A',claim_token:get(aClaim,'CLAIM_TOKEN'),error_code:'SMTP_FAILED'}),'CODE')==='ALREADY_SENT','SENT cannot be downgraded');
+    assert(get(await post('count',{contactNumber:1}),'COUNT')===1,'one contact one row');
+    assert(get(await post('sent',{contactNumber:1,claim_token:'0'.repeat(64)}),'CODE')==='CLAIM_MISMATCH','wrong claim token rejected');
+    const aSent=await post('sent',{contactNumber:1,claim_token:get(aClaim,'CLAIM_TOKEN')});
+    assert(get(aSent,'STATUS')==='SENT','contact one accepted');
+    assert(get(await post('claim',{stage:'B',contactNumber:1}),'CODE')==='ALREADY_SENT','destination change does not replay accepted contact');
+    assert(get(await post('failed',{contactNumber:1,claim_token:get(aClaim,'CLAIM_TOKEN'),error_code:'SMTP_FAILED'}),'CODE')==='ALREADY_SENT','SENT cannot be downgraded');
 
-    const b=await post('claim',{stage:'B'});
-    assert(get(b,'CODE')==='CLAIMED','higher Stage B independently claimed');
-    const bFailed=await post('failed',{stage:'B',claim_token:get(b,'CLAIM_TOKEN'),error_code:'private-person@example.test'});
-    assert(get(bFailed,'CODE')==='FAILED','Stage B records definite failure');
+    const b=await post('claim',{stage:'A',contactNumber:2});
+    assert(get(b,'CODE')==='CLAIMED','contact two may retain destination A');
+    const bFailed=await post('failed',{contactNumber:2,claim_token:get(b,'CLAIM_TOKEN'),error_code:'private-person@example.test'});
     assert(get(bFailed,'LAST_ERROR_CODE')==='RECOVERY_SEND_FAILED','private error replaced with generic code');
-    const bNormal=await post('claim',{stage:'B'});
-    assert(get(bNormal,'CODE')==='FAILED_PREVIOUSLY'&&get(bNormal,'CAN_RETRY')===true,'normal claim does not replay failure');
-    const bRetry2=await post('retry',{stage:'B'});
-    assert(get(bRetry2,'CODE')==='FAILED_RETRY'&&get(bRetry2,'ATTEMPT_COUNT')===2,'explicit retry increments to two');
-    await post('failed',{stage:'B',claim_token:get(bRetry2,'CLAIM_TOKEN'),error_code:'SMTP_TIMEOUT'});
-    const bRetry3=await post('retry',{stage:'B'});
-    assert(get(bRetry3,'ATTEMPT_COUNT')===3,'explicit retry increments to three');
-    await post('failed',{stage:'B',claim_token:get(bRetry3,'CLAIM_TOKEN'),error_code:'SMTP_TIMEOUT'});
-    assert(get(await post('retry',{stage:'B'}),'CODE')==='RETRY_EXHAUSTED','three-attempt cap enforced');
+    assert(get(await post('claim',{stage:'A',contactNumber:2}),'CODE')==='FAILED_PREVIOUSLY','normal claim does not replay failure');
+    assert(get(await post('claim',{stage:'B',contactNumber:3}),'CODE')==='CONTACT_SEQUENCE_CONFLICT','failed contact cannot be skipped');
+    const bRetry=await post('retry',{stage:'B',contactNumber:2});
+    assert(get(bRetry,'ATTEMPT_COUNT')===2&&get(bRetry,'DESTINATION_STAGE')==='B','retry preserves contact and refreshes destination');
+    const bSent=await post('sent',{contactNumber:2,claim_token:get(bRetry,'CLAIM_TOKEN')});
+    assert(get(bSent,'STATUS')==='SENT','successful retry accepts contact two');
 
-    const c=await post('claim',{stage:'C'});
-    await post('failed',{stage:'C',claim_token:get(c,'CLAIM_TOKEN'),error_code:'SMTP_REJECTED'});
-    const cRetry=await post('retry',{stage:'C'});
-    const cSent=await post('sent',{stage:'C',claim_token:get(cRetry,'CLAIM_TOKEN')});
-    assert(get(cSent,'STATUS')==='SENT'&&get(cSent,'ATTEMPT_COUNT')===2,'successful explicit retry becomes SENT');
-
-    const d=await post('claim',{stage:'D'});
-    assert(get(d,'CODE')==='CLAIMED','Stage D claim created');
-    assert(get(await post('claim',{stage:'D'}),'CODE')==='ALREADY_CLAIMED','unresolved potentially-sent claim is non-replayable');
-
+    let c=await post('claim',{stage:'C',contactNumber:3});
+    assert(get(await post('claim',{stage:'D',contactNumber:3}),'CODE')==='ALREADY_CLAIMED','uncertain contact is not replayable');
+    const cState=await post('state',{contactNumber:3});
+    assert(!('CLAIM_TOKEN' in cState)&&!JSON.stringify(cState).includes(email),'diagnostics exclude token and PII');
+    for(let attempt=1;attempt<=3;attempt++){
+      await post('failed',{contactNumber:3,claim_token:get(c,'CLAIM_TOKEN'),error_code:'SMTP_REJECTED'});
+      if(attempt<3)c=await post('retry',{stage:'C',contactNumber:3});
+    }
+    assert(get(await post('retry',{stage:'C',contactNumber:3}),'CODE')==='RETRY_EXHAUSTED','three transport attempt cap is separate from contact number');
     const latest=await post('last');
-    const aState=await post('state',{stage:'A'}),cState=await post('state',{stage:'C'}),dState=await post('state',{stage:'D'});
-    const expected=[get(aState,'SENT_AT_UTC'),get(cState,'SENT_AT_UTC')].sort().at(-1);
-    assert(get(latest,'HAS_SENT')===true&&get(latest,'LAST_SENT_AT_UTC')===expected,'cross-stage latest SENT timestamp');
-    assert(!('CLAIM_TOKEN' in dState)&&!JSON.stringify(dState).includes(email),'diagnostic state excludes token and PII');
-    assert(get(dState,'STATUS')==='CLAIMED'&&get(dState,'ATTEMPT_COUNT')===1,'unresolved state observable');
+    assert(get(latest,'LAST_SENT_AT_UTC')===get(bSent,'SENT_AT_UTC'),'latest acceptance is contact two regardless of destination');
   } catch(e) {error=e.message;}
   finally {
     try {cleanup=await post('cleanup');} catch(e){cleanup={SUCCESS:false,ERROR:e.message};}

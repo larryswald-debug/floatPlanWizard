@@ -11,7 +11,7 @@ const email = read('api/v1/email.cfc');
 
 test('service delegates decisions, claims, rendering and delivery without duplicating authorities', () => {
   for (const name of ['InactiveMemberRecoveryClassifierService', 'InactiveMemberRecoveryLedgerService',
-    'evaluateMember', 'claimStage', 'retryFailedStage', 'checkNonEssentialEmailEligibility',
+    'evaluateMember', 'claimContact', 'retryFailedContact', 'checkNonEssentialEmailEligibility',
     'buildInactiveMemberRecoveryEmail', 'submitInactiveMemberRecoveryEmail', 'markSent', 'markFailed']) {
     assert.ok(service.includes(name), name);
   }
@@ -30,7 +30,7 @@ test('fresh authorization and compliance occur inside rollback-capable preparati
   assert.ok(tx > 0 && fresh > tx && compliance > fresh && render > compliance
     && rollback > render && submit > rollback);
   assert.match(service, /ownedClaimToken=claim\.CLAIM_TOKEN/);
-  assert.match(service, /fresh\.CURRENT_STAGE NEQ stage OR !fresh\.ELIGIBLE/);
+  assert.match(service, /matchesPreparedContext\(fresh,initial\)/);
   assert.match(service, /if \(arguments\.dryRun\) return result/);
   assert.ok(service.indexOf('if (arguments.dryRun) return result') < tx);
 });

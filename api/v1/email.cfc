@@ -112,13 +112,15 @@
     <!--- Render-only. The caller remains responsible for classifier, ownership, policy, and ledger decisions. --->
     <cffunction name="buildInactiveMemberRecoveryEmail" access="public" returntype="struct" output="false">
         <cfargument name="stage" type="string" required="true">
+        <cfargument name="contactNumber" type="numeric" required="false" default="1">
+        <cfargument name="tracking" type="struct" required="false" default="#structNew()#">
         <cfargument name="eligibility" type="struct" required="true">
         <cfargument name="firstName" type="string" required="false" default="">
         <cfargument name="verifiedDraftUrl" type="string" required="false" default="">
         <cfargument name="verifiedRouteUrl" type="string" required="false" default="">
 
         <cfset var stageValue = uCase(trim(arguments.stage))>
-        <cfset var templateConfig = getInactiveMemberRecoveryTemplateConfig(stageValue)>
+        <cfset var templateConfig = getInactiveMemberRecoveryTemplateConfig(stageValue,arguments.contactNumber)>
         <cfset var complianceFooter = {}>
         <cfset var recoveryAction = stageValue EQ "A" ? "vessel" : (stageValue EQ "B" ? "planner" : (stageValue EQ "C" ? "routes" : "plans"))>
         <cfset var ctaUrl = resolveAbsolutePublicUrl("/app/dashboard.cfm?recoveryAction=" & recoveryAction)>
@@ -127,10 +129,15 @@
         <cfset var greetingText = len(cleanFirstName) ? "Hi " & cleanFirstName & "," : "Hi,">
         <cfset var greetingHtml = len(cleanFirstName) ? "Hi " & encodeForHtml(cleanFirstName) & "," : "Hi,">
         <cfset var ctaUrlHtml = "">
+        <cfset var destinationUrl = "">
+        <cfset var openUrl = "">
         <cfset var htmlContent = "">
         <cfset var htmlBody = "">
         <cfset var textBody = "">
 
+        <cfif arguments.contactNumber LT 1 OR arguments.contactNumber GT 3 OR int(arguments.contactNumber) NEQ arguments.contactNumber>
+            <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_RECOVERY_CONTACT")>
+        </cfif>
         <cfif NOT templateConfig.valid>
             <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_RECOVERY_STAGE")>
         </cfif>
@@ -158,6 +165,19 @@
             </cfcatch>
         </cftry>
 
+        <cfset destinationUrl = ctaUrl>
+        <cfif structKeyExists(arguments.tracking,"clickUrl") AND len(arguments.tracking.clickUrl)>
+            <cfif NOT isRecoveryTrackingUrl(arguments.tracking.clickUrl,"click")>
+                <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_TRACKING_URL")>
+            </cfif>
+            <cfset ctaUrl = arguments.tracking.clickUrl>
+        </cfif>
+        <cfif structKeyExists(arguments.tracking,"openUrl") AND len(arguments.tracking.openUrl)>
+            <cfif NOT isRecoveryTrackingUrl(arguments.tracking.openUrl,"open")>
+                <cfreturn buildInactiveMemberRecoveryEmailFailure("INVALID_TRACKING_URL")>
+            </cfif>
+            <cfset openUrl = arguments.tracking.openUrl>
+        </cfif>
         <cfset ctaUrlHtml = encodeForHtmlAttribute(ctaUrl)>
         <cfset textBody = arrayToList([
             greetingText,
@@ -176,6 +196,7 @@
 <p style="margin:0 0 24px 0;"><a href="#ctaUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">#encodeForHtml(templateConfig.ctaLabel)#</a></p>
 <p style="margin:0;">The FloatPlanWizard.com Team</p>
 <div style="overflow-wrap:anywhere; word-break:break-word;">#complianceFooter.htmlBody#</div>
+<cfif len(openUrl)><img src="#encodeForHtmlAttribute(openUrl)#" width="1" height="1" alt="" style="display:block;border:0;"></cfif>
         </cfoutput></cfsavecontent>
 
         <cfset htmlBody = renderBaseEmailLayout(
@@ -191,7 +212,12 @@
             htmlBody = htmlBody,
             textBody = textBody,
             ctaLabel = templateConfig.ctaLabel,
-            ctaUrl = ctaUrl
+            ctaUrl = ctaUrl,
+            destinationUrl = destinationUrl,
+            contactNumber = int(arguments.contactNumber),
+            destinationStage = stageValue,
+            templateId = "recovery.contact_" & int(arguments.contactNumber) & ".destination_" & stageValue & ".v1",
+            templateVersion = "v1"
         }>
     </cffunction>
 
@@ -219,7 +245,8 @@
                 htmlBody=arguments.message.htmlBody,
                 textBody=arguments.message.textBody,
                 spoolEnable=false,
-                rethrowOnFailure=true
+                rethrowOnFailure=true,
+                recoveryRedactedLog=true
             )>
             <cfreturn {OUTCOME="SUBMITTED",CODE="SUBMITTED"}>
             <cfcatch type="any">
@@ -231,45 +258,85 @@
 
     <cffunction name="getInactiveMemberRecoveryTemplateConfig" access="private" returntype="struct" output="false">
         <cfargument name="stage" type="string" required="true">
-
+        <cfargument name="contactNumber" type="numeric" required="true">
         <cfset var stageValue = uCase(trim(arguments.stage))>
+        <cfset var labels = {A="Continue Vessel Setup",B="Start Planning a Trip",C="Continue Trip Planning",D="Continue Your Float Plan"}>
+        <cfset var contacts = [
+            {A={subject="Add your boat to FloatPlanWizard",body="Your FloatPlanWizard account is ready. Add your vessel details once and FPW can reuse them when you plan future trips and create Float Plans."},
+             B={subject="Ready to plan your first trip?",body="Your vessel is saved in FloatPlanWizard. When you're ready, use Trip Planner to map a route, add stops, and estimate your trip."},
+             C={subject="Pick up your trip planning",body="You've started saving trip-planning work in FloatPlanWizard. You can come back anytime to continue the route and turn it into a trip when you're ready."},
+             D={subject="Your Float Plan is waiting",body="You've started a Float Plan in FloatPlanWizard. Come back when you're ready to finish the details and share the trip with someone ashore."}},
+            {A={subject="Pick up your vessel setup",body="If adding your boat is still on your list, you can continue whenever you're ready. Save its details once so you can reuse them when planning trips and creating Float Plans."},
+             B={subject="Still planning your next trip?",body="Your vessel details are already saved. When you're ready to take the next step, Trip Planner can help you map a route, add stops, and estimate the trip."},
+             C={subject="Continue the route you started",body="Still working on your trip? Return to your saved planning work, review the route, and continue toward a Float Plan when you're ready."},
+             D={subject="Ready to finish your Float Plan?",body="If your Float Plan still needs a few details, you can pick it up whenever you're ready. Review the trip and share it with someone ashore when it's complete."}},
+            {A={subject="One last reminder to add your boat",body="One last automated reminder from FloatPlanWizard: add your boat whenever you're ready, and reuse its details for future trips and Float Plans."},
+             B={subject="One last reminder to plan your trip",body="One last automated reminder from FloatPlanWizard: your vessel details are saved, and Trip Planner is available whenever you're ready to map your next trip."},
+             C={subject="One last trip-planning reminder",body="One last automated reminder from FloatPlanWizard: return to your saved planning work whenever you're ready to continue your route."},
+             D={subject="One last Float Plan reminder",body="One last automated reminder from FloatPlanWizard: return to your Float Plan whenever you're ready to finish the details and share it with someone ashore."}}
+        ]>
+        <cfset var selected = {valid=false,subject="",body="",ctaLabel=""}>
+        <cfif arguments.contactNumber LT 1 OR arguments.contactNumber GT 3 OR int(arguments.contactNumber) NEQ arguments.contactNumber
+            OR NOT structKeyExists(labels,stageValue)>
+            <cfreturn selected>
+        </cfif>
+        <cfset selected = duplicate(contacts[int(arguments.contactNumber)][stageValue])>
+        <cfset selected.valid = true>
+        <cfset selected.ctaLabel = labels[stageValue]>
+        <cfreturn selected>
+    </cffunction>
 
-        <cfswitch expression="#stageValue#">
-            <cfcase value="A">
-                <cfreturn {
-                    valid = true,
-                    subject = "Add your boat to FloatPlanWizard",
-                    body = "Your FloatPlanWizard account is ready. Add your vessel details once and FPW can reuse them when you plan future trips and create Float Plans.",
-                    ctaLabel = "Continue Vessel Setup"
-                }>
-            </cfcase>
-            <cfcase value="B">
-                <cfreturn {
-                    valid = true,
-                    subject = "Ready to plan your first trip?",
-                    body = "Your vessel is saved in FloatPlanWizard. When you're ready, use Trip Planner to map a route, add stops, and estimate your trip.",
-                    ctaLabel = "Start Planning a Trip"
-                }>
-            </cfcase>
-            <cfcase value="C">
-                <cfreturn {
-                    valid = true,
-                    subject = "Pick up your trip planning",
-                    body = "You've started saving trip-planning work in FloatPlanWizard. You can come back anytime to continue the route and turn it into a trip when you're ready.",
-                    ctaLabel = "Continue Trip Planning"
-                }>
-            </cfcase>
-            <cfcase value="D">
-                <cfreturn {
-                    valid = true,
-                    subject = "Your Float Plan is waiting",
-                    body = "You've started a Float Plan in FloatPlanWizard. Come back when you're ready to finish the details and share the trip with someone ashore.",
-                    ctaLabel = "Continue Your Float Plan"
-                }>
-            </cfcase>
-        </cfswitch>
+    <cffunction name="isRecoveryTrackingUrl" access="private" returntype="boolean" output="false">
+        <cfargument name="candidate" type="string" required="true">
+        <cfargument name="purpose" type="string" required="true">
+        <cfset var prefix = reReplace(getEmailConfig().publicBaseUrl,"/+$","","all") & "/app/recovery-" & arguments.purpose & ".cfm?t=">
+        <cfif compare(left(arguments.candidate,len(prefix)),prefix) NEQ 0><cfreturn false></cfif>
+        <cfreturn reFind("^[A-Za-z0-9_.-]{32,512}$",removeChars(arguments.candidate,1,len(prefix))) EQ 1>
+    </cffunction>
 
-        <cfreturn { valid = false, subject = "", body = "", ctaLabel = "" }>
+    <!--- Plain text only. State and preference checks belong to the admin orchestration immediately before transport. --->
+    <cffunction name="buildRecoveryPersonalEmail" access="public" returntype="struct" output="false">
+        <cfargument name="eligibility" type="struct" required="true">
+        <cfargument name="subject" type="string" required="true">
+        <cfargument name="body" type="string" required="true">
+        <cfset var footer = {}>
+        <cfset var cleanSubject = trim(arguments.subject)>
+        <cfset var cleanBody = trim(replace(arguments.body,chr(13),"","all"))>
+        <cfset var htmlContent = "">
+        <cfif NOT len(cleanSubject) OR len(cleanSubject) GT 160 OR reFind("[\r\n\x00-\x1f]",cleanSubject)
+            OR NOT len(cleanBody) OR len(cleanBody) GT 10000 OR reFind("\x00",cleanBody)>
+            <cfreturn {success=false,errorCode="INVALID_PERSONAL_CONTENT",messageType="RECOVERY_PERSONAL"}>
+        </cfif>
+        <cftry>
+            <cfset footer = buildNonEssentialEmailComplianceFooter(arguments.eligibility)>
+            <cfcatch type="any"><cfreturn {success=false,errorCode="NON_ESSENTIAL_COMPLIANCE_REQUIRED",messageType="RECOVERY_PERSONAL"}></cfcatch>
+        </cftry>
+        <cfset htmlContent = '<div style="white-space:pre-wrap;overflow-wrap:anywhere;">' & encodeForHtml(cleanBody) & '</div><p>The FloatPlanWizard.com Team</p>' & footer.htmlBody>
+        <cfreturn {success=true,errorCode="",messageType="RECOVERY_PERSONAL",subject=cleanSubject,
+            textBody=cleanBody & chr(10) & chr(10) & "The FloatPlanWizard.com Team" & chr(10) & chr(10) & footer.textBody,
+            htmlBody=renderBaseEmailLayout(cleanSubject,htmlContent),templateId="recovery.personal.v1",templateVersion="v1"}>
+    </cffunction>
+
+    <cffunction name="submitRecoveryPersonalEmail" access="public" returntype="struct" output="false">
+        <cfargument name="toEmail" type="string" required="true">
+        <cfargument name="message" type="struct" required="true">
+        <cfset var field = "">
+        <cfif NOT isValid("email",arguments.toEmail) OR NOT structKeyExists(arguments.message,"success") OR NOT arguments.message.success
+            OR NOT structKeyExists(arguments.message,"messageType") OR arguments.message.messageType NEQ "RECOVERY_PERSONAL">
+            <cfreturn {OUTCOME="FAILED",CODE="INVALID_PERSONAL_MESSAGE"}>
+        </cfif>
+        <cfloop list="subject,htmlBody,textBody" index="field">
+            <cfif NOT structKeyExists(arguments.message,field) OR NOT isSimpleValue(arguments.message[field]) OR NOT len(trim(arguments.message[field]))>
+                <cfreturn {OUTCOME="FAILED",CODE="INVALID_PERSONAL_MESSAGE"}>
+            </cfif>
+        </cfloop>
+        <cfif reFind("[\r\n\x00-\x1f]",arguments.message.subject)><cfreturn {OUTCOME="FAILED",CODE="INVALID_PERSONAL_MESSAGE"}></cfif>
+        <cftry>
+            <cfset sendMultipartEmail(toEmail=arguments.toEmail,subject=arguments.message.subject,htmlBody=arguments.message.htmlBody,
+                textBody=arguments.message.textBody,spoolEnable=false,rethrowOnFailure=true,recoveryRedactedLog=true)>
+            <cfreturn {OUTCOME="SUBMITTED",CODE="SUBMITTED"}>
+            <cfcatch type="any"><cfreturn {OUTCOME="AMBIGUOUS",CODE="TRANSPORT_OUTCOME_UNKNOWN"}></cfcatch>
+        </cftry>
     </cffunction>
 
     <cffunction name="validateVerifiedInactiveMemberDraftUrl" access="private" returntype="struct" output="false">
@@ -1367,6 +1434,7 @@
         <cfargument name="attachmentPath" type="string" required="false" default="">
         <cfargument name="spoolEnable" type="boolean" required="false" default="true">
         <cfargument name="rethrowOnFailure" type="boolean" required="false" default="false">
+        <cfargument name="recoveryRedactedLog" type="boolean" required="false" default="false">
 
         <cfset var config = getEmailConfig()>
         <cfset var mailAttrs = {
@@ -1400,6 +1468,7 @@
                     & " subject=" & arguments.subject
                     & " from=" & mailAttrs.from
                     & " replyto=" & successReplyTo>
+                <cfif arguments.recoveryRedactedLog><cfset successLogEntry = dateTimeFormat(now(),"yyyy-mm-dd HH:nn:ss") & " recoveryMail status=SEND_ACCEPTED"></cfif>
                 <cfset successLogEntry = replace(replace(successLogEntry, chr(13), " ", "all"), chr(10), " ", "all")>
                 <cfif NOT directoryExists(successLogDirectory)>
                     <cfdirectory action="create" directory="#successLogDirectory#">
@@ -1421,6 +1490,7 @@
                         & " type=" & catchType
                         & " message=" & cfcatch.message
                         & " detail=" & left(catchDetail, 1000)>
+                    <cfif arguments.recoveryRedactedLog><cfset logEntry = dateTimeFormat(now(),"yyyy-mm-dd HH:nn:ss") & " recoveryMail status=OUTCOME_UNKNOWN"></cfif>
                     <cfset logEntry = replace(replace(logEntry, chr(13), " ", "all"), chr(10), " ", "all")>
                     <cfif NOT directoryExists(logDirectory)>
                         <cfdirectory action="create" directory="#logDirectory#">

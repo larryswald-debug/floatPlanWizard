@@ -18,27 +18,31 @@ raw=toString(getHttpRequestData().content);
 if (len(trim(raw))) body=deserializeJSON(raw);
 action=lCase(trim(body.action ?: ""));
 stage=body.stage ?: "";
+contact=structKeyExists(body,"contactNumber") AND isNumeric(body.contactNumber) ? val(body.contactNumber) : 1;
+enrollmentId=new fpw.includes.InactiveMemberRecoveryEnrollmentService().getEnrollment(uid).EVENT_ID;
 service=createObject("component","fpw.includes.InactiveMemberRecoveryLedgerService").init("fpw");
 result={SUCCESS=false,CODE="INVALID_TEST_ACTION"};
 switch(action) {
-  case "claim": result=service.claimStage(uid,stage); break;
-  case "retry": result=service.retryFailedStage(uid,stage); break;
-  case "sent": result=service.markSent(uid,stage,body.claim_token ?: ""); break;
-  case "failed": result=service.markFailed(uid,stage,body.claim_token ?: "",body.error_code ?: ""); break;
-  case "state": result=service.getStageState(uid,stage); break;
+  case "claim": result=service.claimContact(uid,enrollmentId,contact,stage); break;
+  case "retry": result=service.retryFailedContact(uid,enrollmentId,contact,stage); break;
+  case "sent": result=service.markSent(uid,enrollmentId,contact,body.claim_token ?: ""); break;
+  case "failed": result=service.markFailed(uid,enrollmentId,contact,body.claim_token ?: "",body.error_code ?: ""); break;
+  case "state": result=service.getContactState(uid,enrollmentId,contact); break;
   case "last": result=service.getLastSuccessfulRecoveryUtc(uid); break;
   case "count":
-    countRows=queryExecute("SELECT COUNT(*) AS total FROM inactive_member_recovery_deliveries WHERE user_id=:uid AND recovery_stage=:stage",
-      {uid={value=uid,cfsqltype="cf_sql_integer"},stage={value=uCase(trim(stage)),cfsqltype="cf_sql_char"}},{datasource="fpw"});
+    countRows=queryExecute("SELECT COUNT(*) AS total FROM inactive_member_recovery_deliveries WHERE user_id=:uid AND recovery_enrollment_event_id=:enrollmentId AND contact_number=:contact",
+      {uid={value=uid,cfsqltype="cf_sql_integer"},enrollmentId={value=enrollmentId,cfsqltype="cf_sql_bigint"},contact={value=contact,cfsqltype="cf_sql_tinyint"}},{datasource="fpw"});
     result={SUCCESS=true,COUNT=val(countRows.total[1])};
     break;
   case "cleanup":
     before=queryExecute("SELECT COUNT(*) AS total FROM inactive_member_recovery_deliveries WHERE user_id=:uid",
       {uid={value=uid,cfsqltype="cf_sql_integer"}},{datasource="fpw"});
+    for (table in ["inactive_member_recovery_messages","inactive_member_recovery_evaluations","inactive_member_recovery_deliveries","inactive_member_recovery_member_state"])
+      queryExecute("DELETE FROM " & table & " WHERE user_id=:uid",{uid={value=uid,cfsqltype="cf_sql_integer"}},{datasource="fpw"});
     result=createObject("component","fpw.tests.support.MemberActivityHarness").cleanup(uid);
     remaining=queryExecute("SELECT COUNT(*) AS total FROM inactive_member_recovery_deliveries WHERE user_id=:uid",
       {uid={value=uid,cfsqltype="cf_sql_integer"}},{datasource="fpw"});
-    deletedClaim=service.claimStage(uid,"A");
+    deletedClaim=service.claimContact(uid,enrollmentId,1,"A");
     result.LEDGER_ROWS_BEFORE=val(before.total[1]);
     result.LEDGER_ROWS_AFTER=val(remaining.total[1]);
     result.DELETED_MEMBER_CLAIM_CODE=deletedClaim.CODE;

@@ -139,6 +139,24 @@
 
     <cffunction name="onRequestEnd" access="public" returntype="void" output="false">
         <cfargument name="targetPage" type="string" required="true">
+        <cfset var recoveryUserId = 0>
+        <cfset var recoveryMemberApiRequest = reFindNoCase("/api/v1/[^/]+[.]cfc$",readCgiValue("script_name")) GT 0>
+        <!--- Recovery attribution is optional and runs after committed member requests. --->
+        <cftry>
+            <cfif NOT structKeyExists(request, "fpwAdminRequest") AND NOT structKeyExists(request, "fpwRecoveryRequestFailed")
+                AND (structKeyExists(request,"fpwRecoveryAuthenticatedPageUserId") OR recoveryMemberApiRequest)
+                AND structKeyExists(session,"user") AND isStruct(session.user)>
+                <cfset recoveryUserId = val(session.user.userId ?: session.user.id ?: 0)>
+                <cfif recoveryUserId GT 0>
+                    <cfset new fpw.includes.InactiveMemberRecoveryAttributionService().init("fpw").observeRequest(
+                        userId=recoveryUserId,
+                        authenticatedPageReturn=structKeyExists(request,"fpwRecoveryAuthenticatedPageUserId")
+                            AND val(request.fpwRecoveryAuthenticatedPageUserId) EQ recoveryUserId
+                    )>
+                </cfif>
+            </cfif>
+            <cfcatch type="any"><!--- Never fail a member response for optional analytics. ---></cfcatch>
+        </cftry>
         <cfif structKeyExists(request, "fpwAdminRequest")
             AND isStruct(request.fpwAdminRequest)
             AND structKeyExists(request.fpwAdminRequest, "requestMethod")
@@ -212,6 +230,7 @@
         <cfargument name="exception" type="any" required="true">
         <cfargument name="eventName" type="string" required="true">
 
+        <cfset request.fpwRecoveryRequestFailed = true>
         <cfset var rootLogDirectory = variables.applicationRootPath & "logs">
         <cfset var rootLogFile = rootLogDirectory & "/fpw-errors.log">
         <cfset var rootLogContext = buildErrorLogContext(arguments.exception, arguments.eventName)>
@@ -404,7 +423,7 @@
 
         <cfset var decodedKey = trim(arguments.key)>
         <cfset var normalizedKey = "">
-        <cfset var sensitiveKeys = "authorization,bearer,token,t,access_token,share_token,sharetoken,follower_token,followertoken,fpw_return,password,passwordconfirm,secret,client_secret,resetid,code,pairingcode,pairing_code,apikey,api_key">
+        <cfset var sensitiveKeys = "authorization,bearer,token,t,access_token,share_token,sharetoken,follower_token,followertoken,fpw_return,authintent,password,passwordconfirm,secret,client_secret,resetid,code,pairingcode,pairing_code,apikey,api_key">
 
         <cftry>
             <cfset decodedKey = urlDecode(decodedKey, "utf-8")>

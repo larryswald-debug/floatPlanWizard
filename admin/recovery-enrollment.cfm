@@ -47,6 +47,9 @@ try {
   pageError="The enrollment operation could not be verified. No automatic retry was attempted. Review current enrollment before retrying.";
 }
 hasReport=isStruct(report) AND structKeyExists(report,"rows");
+recoveryTiming={};
+try { recoveryTiming=new fpw.includes.InactiveMemberRecoverySettingsService().getSettings(); }
+catch(any timingUnavailable) { recoveryTiming={}; }
 </cfscript>
 <!doctype html>
 <html lang="en">
@@ -71,7 +74,7 @@ hasReport=isStruct(report) AND structKeyExists(report,"rows");
 <main>
   <h1>Inactive-member recovery enrollment</h1>
   <p>Preview a reviewed list of member IDs, then explicitly enroll the members that qualify. This operation never sends recovery emails or changes a schedule.</p>
-  <p class="muted">Each new enrollment starts its own UTC enrollment clock. The existing 168-hour minimum and current lifecycle checks still apply. Enrollment does not establish historical coverage; missing coverage continues to hold recovery messages.</p>
+  <p class="muted">Each new enrollment starts its own UTC enrollment clock. <cfif structKeyExists(recoveryTiming,"firstDelayHours")><cfoutput>Current First Recovery Delay: #int(recoveryTiming.firstDelayHours)# hours; interval between numbered contacts: #int(recoveryTiming.stageIntervalHours)# hours; attribution window: #int(recoveryTiming.attributionWindowHours)# hours.</cfoutput><cfelse>Timing settings are unavailable; recovery sending remains on hold until settings can be verified.</cfif> Exactly three automated recovery contacts are independent of the member’s current A/B/C/D destination. Enrollment does not establish historical coverage; missing coverage continues to hold recovery messages.</p>
   <cfif len(pageError)><cfoutput><div id="recoveryEnrollmentMessage" class="notice error" role="alert">#encodeForHTML(pageError)#</div></cfoutput></cfif>
   <cfoutput>
   <form id="recoveryEnrollmentPreviewForm" method="get" action="#encodeForHTMLAttribute(pageUrl)#">

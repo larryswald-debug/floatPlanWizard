@@ -33,7 +33,7 @@ if (listFind("prepare,prepareRetry",action)) {
     fixture=application.recoverySenderFixtures[runKey];
     if (action EQ "run") reply=fixture.service().processBatch(batchSize=1,dryRun=false);
     if (action EQ "inspect") {
-      stageState=fixture.state(fixture.getCandidateIds(1)[1],"C");
+      stageState=fixture.state(fixture.getCandidateIds(1)[1],1);
       reply={ok=true,counts=fixture.counts(),state=stageState.STATUS,attemptCount=stageState.ATTEMPT_COUNT};
     }
     if (action EQ "cleanup") {

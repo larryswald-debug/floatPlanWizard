@@ -45,6 +45,7 @@ adminReportPages = [
     { "file" = "raw-weather.cfm", "label" = "Raw Weather" },
     { "file" = "monitoring-dashboard.cfm", "label" = "Monitoring Dashboard" },
     { "file" = "scheduled-tasks.cfm", "label" = "Scheduled Tasks" },
+    { "file" = "recovery-center.cfm", "label" = "Recovery Center" },
     { "file" = "recovery-enrollment.cfm", "label" = "Recovery Enrollment" },
     { "file" = "promo-codes.cfm", "label" = "Promo Codes" },
     { "file" = "member-entitlements.cfm", "label" = "Member Entitlements" },
@@ -137,4 +138,3 @@ adminReportPages = [
     });
   </script></cfoutput>
 </cfif>
-

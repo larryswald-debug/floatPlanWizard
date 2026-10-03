@@ -8,12 +8,13 @@ component output="false" {
   variables.contextProvider="";
   variables.candidateSource="";
   variables.clock="";
+  variables.observability="";
 
   // All dependencies are internal objects, never runner request inputs.
   public any function init(
     string datasource="fpw", boolean liveEnabled=false,
     any classifier="", any ledger="", any emailService="", any transport="",
-    any contextProvider="", any candidateSource="", any clock=""
+    any contextProvider="", any candidateSource="", any clock="", any observability=""
   ) output=false {
     variables.datasource=arguments.datasource;
     variables.liveEnabled=arguments.liveEnabled;
@@ -27,15 +28,23 @@ component output="false" {
       : new fpw.includes.InactiveMemberRecoveryCoverageService(datasource=variables.datasource);
     variables.candidateSource=arguments.candidateSource;
     variables.clock=arguments.clock;
+    variables.observability=arguments.observability;
+    if (!isObject(variables.observability)) {
+      try { variables.observability=new fpw.includes.InactiveMemberRecoveryObservabilityService(datasource=variables.datasource); }
+      catch (any observationUnavailable) { variables.observability=""; }
+    }
     return this;
   }
 
-  public struct function processBatch(numeric batchSize=25, boolean dryRun=true) output=false {
+  public struct function processBatch(numeric batchSize=25, boolean dryRun=true,string executionSource="internal") output=false {
+    var maintenancePath=getDirectoryFromPath(getCurrentTemplatePath()) & "../../.codex-snapshots/recovery-center-migration.lock";
+    if (fileExists(maintenancePath)) return {ok=false,error="RECOVERY_MAINTENANCE"};
     var totals={
       "ok"=true,"mode"=(arguments.dryRun ? "dry_run" : "live"),
       "scanned"=0,"eligible"=0,"claimed"=0,"submitted"=0,"sent"=0,"failed"=0,
       "suppressed"=0,"held"=0,"skipped"=0,"canceled"=0,"ambiguous"=0,
-      "stages"={"A"=0,"B"=0,"C"=0,"D"=0},"reasons"={}
+      "destination_stages"={"A"=0,"B"=0,"C"=0,"D"=0},"contacts"={"1"=0,"2"=0,"3"=0},"reasons"={},
+      "run_id"=0,"observation_gaps"=0
     };
     if (arguments.batchSize LT 1 OR arguments.batchSize GT 100 OR arguments.batchSize NEQ fix(arguments.batchSize)) {
       totals.ok=false;
@@ -46,6 +55,19 @@ component output="false" {
       totals.ok=false;
       totals.error="LIVE_MODE_DISABLED";
       return totals;
+    }
+    var runId=0;
+    var runSettings={};
+    try { runSettings=new fpw.includes.InactiveMemberRecoverySettingsService(datasource=variables.datasource).getSettings(); }
+    catch (any settingsSnapshotUnavailable) { totals.observation_gaps++; }
+    try {
+      if (isObject(variables.observability)) runId=variables.observability.beginRun(arguments.executionSource,arguments.dryRun,runSettings);
+      else totals.observation_gaps++;
+    } catch (any runObservationFailed) { totals.observation_gaps++; }
+    totals.run_id=runId;
+    if (runId GT 0) {
+      try { new fpw.includes.InactiveMemberRecoveryAttributionService(datasource=variables.datasource).reconcileBatch(100); }
+      catch (any attributionObservationFailed) { totals.observation_gaps++; }
     }
     var candidates=[];
     try {
@@ -58,6 +80,7 @@ component output="false" {
     } catch (any candidateError) {
       totals.ok=false;
       totals.error="CANDIDATE_SOURCE_FAILED";
+      finishObservedRun(runId,totals);
       return totals;
     }
     var seen={};
@@ -71,11 +94,14 @@ component output="false" {
       totals.scanned++;
       var outcome={};
       try {
-        outcome=processMember(fix(userId),arguments.dryRun);
+        outcome=processMember(fix(userId),arguments.dryRun,runId);
       } catch (any memberError) {
         outcome=result("held","MEMBER_PROCESSING_FAILED");
       }
-      if (listFind("A,B,C,D",outcome.stage)) totals.stages[outcome.stage]++;
+      if (listFind("A,B,C,D",outcome.stage)) totals.destination_stages[outcome.stage]++;
+      if (structKeyExists(outcome,"contact_number") AND outcome.contact_number GTE 1 AND outcome.contact_number LTE 3)
+        totals.contacts[toString(outcome.contact_number)]++;
+      if (structKeyExists(outcome,"observation_gap") AND outcome.observation_gap) totals.observation_gaps++;
       if (outcome.eligible) totals.eligible++;
       if (outcome.claimed) totals.claimed++;
       if (outcome.submitted) totals.submitted++;
@@ -84,119 +110,192 @@ component output="false" {
       if (listFind("sent,failed,suppressed,held,skipped",outcome.category)) totals[outcome.category]++;
       addReason(totals,outcome.code);
     }
+    finishObservedRun(runId,totals);
     return totals;
   }
 
-  private struct function processMember(required numeric userId, required boolean dryRun) output=false {
-    var initial=evaluateCandidate(arguments.userId);
+  private void function finishObservedRun(required numeric runId,required struct totals) output=false {
+    try { if (arguments.runId GT 0) variables.observability.finishRun(arguments.runId,arguments.totals); }
+    catch (any runObservationFailed) { arguments.totals.observation_gaps++; }
+  }
+
+  private struct function processMember(required numeric userId,required boolean dryRun,numeric runId=0) output=false {
+    var initial={};
+    try { initial=evaluateCandidate(arguments.userId); }
+    catch (any evaluationFailed) {
+      initial={MEMBER_ID=arguments.userId,CURRENT_STAGE="",CONTACT_NUMBER=0,CONTACT_TOTAL=3,ENROLLMENT_EVENT_ID=0,
+        TIMING_REVISION=0,TIMING_SETTINGS={},RECOVERY_STATE_REVISION=0,RECOVERY_START_UTC="",
+        DECISION="HELD",DECISION_CODE="MEMBER_EVALUATION_FAILED",ELIGIBLE=false,POLICY_DECISION={},EVIDENCE_SUMMARY={}};
+    }
+    var evaluationId=0;
+    var observationGap=false;
+    try { if (arguments.runId GT 0) evaluationId=variables.observability.recordEvaluation(arguments.runId,arguments.userId,initial); }
+    catch (any evaluationObservationFailed) { observationGap=true; }
+    var outcome={};
+    try {
+      outcome=processEvaluatedMember(arguments.userId,arguments.dryRun,initial,arguments.runId,evaluationId);
+    } catch (any memberFailed) { outcome=result("held","MEMBER_PROCESSING_FAILED",initial.CURRENT_STAGE); }
+    outcome.contact_number=initial.CONTACT_NUMBER;
+    outcome.contact_total=initial.CONTACT_TOTAL;
+    outcome.enrollment_event_id=initial.ENROLLMENT_EVENT_ID;
+    outcome.timing_revision=initial.TIMING_REVISION;
+    outcome.evaluation_id=evaluationId;
+    outcome.observation_gap=observationGap OR (structKeyExists(outcome,"observation_gap") AND outcome.observation_gap);
+    try { if (evaluationId GT 0) variables.observability.finalizeEvaluation(evaluationId,outcome); }
+    catch (any terminalObservationFailed) { outcome.observation_gap=true; }
+    return outcome;
+  }
+
+  private struct function processEvaluatedMember(required numeric userId,required boolean dryRun,
+    required struct initial,required numeric runId,required numeric evaluationId) output=false {
     var stage=initial.CURRENT_STAGE;
+    var contact=initial.CONTACT_NUMBER;
+    var enrollmentId=initial.ENROLLMENT_EVENT_ID;
     if (!initial.ELIGIBLE) return classificationResult(initial);
     if (arguments.dryRun) return result("","ELIGIBLE",stage,true);
-
     var claim={};
     var prepared={};
     var recipient=queryNew("");
     var compliance={};
+    var messageId=0;
+    var observationGap=false;
     var cancellation=result("held","PRE_SEND_CANCELED",stage,true);
     try {
-      // Never include SMTP in this transaction. Rollback cancels a new claim or
-      // restores an exact prior FAILED retry (including its count/timestamps).
+      // SMTP stays outside this transaction. Cancellation restores exact prior retry state.
       transaction isolation="read_committed" {
         try {
           claim=initial.LEDGER_STATE.STATUS EQ "FAILED"
-            ? variables.ledger.retryFailedStage(arguments.userId,stage)
-            : variables.ledger.claimStage(arguments.userId,stage);
-          if (!structKeyExists(claim,"CLAIMED") OR !claim.CLAIMED
-            OR !listFind("CLAIMED,FAILED_RETRY",claim.CODE)) {
+            ? variables.ledger.retryFailedContact(arguments.userId,enrollmentId,contact,stage)
+            : variables.ledger.claimContact(arguments.userId,enrollmentId,contact,stage);
+          if (!structKeyExists(claim,"CLAIMED") OR !claim.CLAIMED OR !listFind("CLAIMED,FAILED_RETRY",claim.CODE)) {
             cancellation=result("skipped",claim.CODE,stage,true);
             throw(type="FPW.Recovery.CancelBeforeSend",message="CLAIM_DENIED");
           }
-
           var fresh=variables.classifier.evaluateMember(
-            userId=arguments.userId, nowUtc=nowUtc(), enrollmentUtc=enrollmentUtc(arguments.userId),
-            ownedClaimToken=claim.CLAIM_TOKEN, coverageVerification=coverageVerification(arguments.userId)
-          );
-          if (fresh.CURRENT_STAGE NEQ stage OR !fresh.ELIGIBLE) {
-            cancellation=classificationResult(fresh);
-            cancellation.stage=stage;
-            cancellation.eligible=true;
-            cancellation.canceled=true;
+            userId=arguments.userId,nowUtc=nowUtc(),enrollmentUtc=enrollmentUtc(arguments.userId),
+            ownedClaimToken=claim.CLAIM_TOKEN,coverageVerification=coverageVerification(arguments.userId));
+          if (!matchesPreparedContext(fresh,initial)) {
+            cancellation=fresh.ELIGIBLE ? result("held","REVALIDATION_CANCELED",stage,true,false,true) : classificationResult(fresh);
+            cancellation.stage=stage; cancellation.eligible=true; cancellation.canceled=true;
             throw(type="FPW.Recovery.CancelBeforeSend",message="REVALIDATION_CANCELED");
           }
-          recipient=queryExecute(
-            "SELECT email,fName FROM users WHERE userId=:userId LIMIT 1",
-            {userId={value=arguments.userId,cfsqltype="cf_sql_integer"}},
-            {datasource=variables.datasource}
-          );
+          recipient=queryExecute("SELECT email,fName FROM users WHERE userId=:userId LIMIT 1",
+            {userId={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
           if (recipient.recordCount NEQ 1) {
             cancellation=result("held","MEMBER_NOT_FOUND",stage,true,false,true);
             throw(type="FPW.Recovery.CancelBeforeSend",message="RECIPIENT_MISSING");
           }
-          compliance=variables.emailService.checkNonEssentialEmailEligibility(
-            email=toString(recipient.email[1]),userId=arguments.userId
-          );
+          compliance=variables.emailService.checkNonEssentialEmailEligibility(email=toString(recipient.email[1]),userId=arguments.userId);
           if (!compliance.eligible OR compliance.code NEQ "ELIGIBLE") {
             cancellation=result("held",compliance.code,stage,true,false,true);
             throw(type="FPW.Recovery.CancelBeforeSend",message="COMPLIANCE_CANCELED");
           }
-          // Resolve current owned planning work only after the unchanged pre-send checks.
-          var destinationPath=new fpw.includes.InactiveMemberRecoveryDestinationService(datasource=variables.datasource)
-            .resolveStage(arguments.userId,stage);
+          var destinationService=new fpw.includes.InactiveMemberRecoveryDestinationService(datasource=variables.datasource);
+          var destinationPath=destinationService.resolveStage(arguments.userId,stage);
           prepared=variables.emailService.buildInactiveMemberRecoveryEmail(
-            stage=stage,eligibility=compliance,
-            firstName=(isNull(recipient.fName[1]) ? "" : toString(recipient.fName[1])),
-            verifiedRouteUrl=(stage EQ "C" AND find("?recoveryAction=route&",destinationPath) ? destinationPath : ""),
-            verifiedDraftUrl=(stage EQ "D" AND find("?recoveryAction=draft&",destinationPath) ? destinationPath : "")
-          );
+            contactNumber=contact,stage=stage,eligibility=compliance,
+            firstName=isNull(recipient.fName[1]) ? "" : toString(recipient.fName[1]),
+            verifiedRouteUrl=stage EQ "C" AND find("?recoveryAction=route&",destinationPath) ? destinationPath : "",
+            verifiedDraftUrl=stage EQ "D" AND find("?recoveryAction=draft&",destinationPath) ? destinationPath : "");
           if (!prepared.success) {
             cancellation=result("held",prepared.errorCode,stage,true,false,true);
             throw(type="FPW.Recovery.CancelBeforeSend",message="RENDER_CANCELED");
           }
-        } catch (any preparationError) {
-          transaction action="rollback";
-          rethrow;
-        }
+          prepared.toEmail=toString(recipient.email[1]);
+          var originalMessage=duplicate(prepared);
+          try {
+            if (isObject(variables.observability)) {
+              var observed=variables.observability.prepareMessage({
+                runId=arguments.runId,evaluationId=arguments.evaluationId,userId=arguments.userId,
+                enrollmentEventId=enrollmentId,contactNumber=contact,contactTotal=3,destinationStage=stage,
+                destinationPath=destinationPath,templateId=prepared.templateId,deliveryId=claim.LEDGER_ID,
+                transportAttemptNumber=claim.ATTEMPT_COUNT,timingRevision=initial.TIMING_REVISION,settings=initial.TIMING_SETTINGS
+              },prepared);
+              messageId=observed.messageId;
+              prepared=observed.message;
+            } else observationGap=true;
+          } catch (any preparationObservationFailed) { prepared=originalMessage; observationGap=true; }
+
+          // Rendering/tracking do not confer authorization: independently check current state and target.
+          var finalCheck=variables.classifier.evaluateMember(
+            userId=arguments.userId,nowUtc=nowUtc(),enrollmentUtc=enrollmentUtc(arguments.userId),
+            ownedClaimToken=claim.CLAIM_TOKEN,coverageVerification=coverageVerification(arguments.userId));
+          var finalRecipient=queryExecute("SELECT email FROM users WHERE userId=:userId LIMIT 1",
+            {userId={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
+          if (finalRecipient.recordCount NEQ 1 OR compare(toString(finalRecipient.email[1]),toString(recipient.email[1])) NEQ 0) {
+            cancellation=result("held","RECIPIENT_CHANGED",stage,true,false,true);
+            throw(type="FPW.Recovery.CancelBeforeSend",message="RECIPIENT_CHANGED");
+          }
+          var finalCompliance=variables.emailService.checkNonEssentialEmailEligibility(email=toString(finalRecipient.email[1]),userId=arguments.userId);
+          if (!matchesPreparedContext(finalCheck,initial) OR !finalCompliance.eligible OR finalCompliance.code NEQ "ELIGIBLE"
+            OR compare(destinationService.resolveStage(arguments.userId,finalCheck.CURRENT_STAGE),destinationPath) NEQ 0) {
+            cancellation=result("held","FINAL_REVALIDATION_CANCELED",stage,true,false,true);
+            throw(type="FPW.Recovery.CancelBeforeSend",message="FINAL_REVALIDATION_CANCELED");
+          }
+        } catch (any preparationError) { transaction action="rollback"; rethrow; }
       }
     } catch (FPW.Recovery.CancelBeforeSend canceled) {
+      observeMessage(messageId,"CANCELED");
+      cancellation.observation_gap=observationGap;
       return cancellation;
     } catch (any preparationFailed) {
-      // No submission has occurred. An uncertain DB commit is held, never sent.
+      observeMessage(messageId,"CANCELED");
       return result("held","PRE_SEND_PREPARATION_FAILED",stage,true);
     }
 
     var submission={};
-    try {
-      submission=variables.transport.submitInactiveMemberRecoveryEmail(
-        toEmail=toString(recipient.email[1]),message=prepared
-      );
-    } catch (any unknownTransportResult) {
-      return result("held","TRANSPORT_OUTCOME_UNKNOWN",stage,true,true,false,true);
+    try { submission=variables.transport.submitInactiveMemberRecoveryEmail(toEmail=toString(recipient.email[1]),message=prepared); }
+    catch (any unknownTransportResult) {
+      return finishObservedMessage(result("held","TRANSPORT_OUTCOME_UNKNOWN",stage,true,true,false,true),messageId,"OUTCOME_UNKNOWN","",observationGap);
     }
     if (!isStruct(submission) OR !structKeyExists(submission,"OUTCOME")) {
-      return result("held","TRANSPORT_OUTCOME_UNKNOWN",stage,true,true,false,true);
+      return finishObservedMessage(result("held","TRANSPORT_OUTCOME_UNKNOWN",stage,true,true,false,true),messageId,"OUTCOME_UNKNOWN","",observationGap);
     }
     if (submission.OUTCOME EQ "SUBMITTED") {
       try {
-        var sent=variables.ledger.markSent(arguments.userId,stage,claim.CLAIM_TOKEN);
+        var sent=variables.ledger.markSent(arguments.userId,enrollmentId,contact,claim.CLAIM_TOKEN);
         if (!sent.SUCCESS OR sent.CODE NEQ "SENT") throw(type="FPW.Recovery.Unconfirmed",message="SENT_NOT_CONFIRMED");
       } catch (any unconfirmedSent) {
-        return result("held","SENT_CONFIRMATION_UNKNOWN",stage,true,true,false,true,true);
+        return finishObservedMessage(result("held","SENT_CONFIRMATION_UNKNOWN",stage,true,true,false,true,true),messageId,"OUTCOME_UNKNOWN","",observationGap);
       }
-      return result("sent","SENT",stage,true,true,false,false,true);
+      if (!observeMessage(messageId,"SEND_ACCEPTED",sent.SENT_AT_UTC)) observationGap=true;
+      var accepted=result("sent","SENT",stage,true,true,false,false,true);
+      accepted.message_id=messageId; accepted.observation_gap=observationGap;
+      return accepted;
     }
     if (submission.OUTCOME EQ "FAILED") {
       try {
-        var failed=variables.ledger.markFailed(
-          arguments.userId,stage,claim.CLAIM_TOKEN,
-          (structKeyExists(submission,"CODE") ? safeCode(submission.CODE) : "RECOVERY_SEND_FAILED")
-        );
-        if (!failed.SUCCESS OR failed.CODE NEQ "FAILED") throw(type="FPW.Recovery.Unconfirmed",message="FAILED_NOT_CONFIRMED");
+        var failed=variables.ledger.markFailed(arguments.userId,enrollmentId,contact,claim.CLAIM_TOKEN,
+          structKeyExists(submission,"CODE") ? safeCode(submission.CODE) : "SUBMISSION_FAILED");
+        if (!failed.SUCCESS OR failed.CODE NEQ "FAILED") throw(type="FPW.Recovery.Unconfirmed",message="FAILURE_NOT_CONFIRMED");
       } catch (any unconfirmedFailure) {
-        return result("held","FAILURE_CONFIRMATION_UNKNOWN",stage,true,true,false,true);
+        return finishObservedMessage(result("held","FAILURE_CONFIRMATION_UNKNOWN",stage,true,true,false,true),messageId,"OUTCOME_UNKNOWN","",observationGap);
       }
-      return result("failed","FAILED",stage,true,true);
+      return finishObservedMessage(result("failed","FAILED",stage,true,true),messageId,"SEND_FAILED","",observationGap);
     }
-    return result("held","TRANSPORT_OUTCOME_UNKNOWN",stage,true,true,false,true);
+    return finishObservedMessage(result("held","TRANSPORT_OUTCOME_UNKNOWN",stage,true,true,false,true),messageId,"OUTCOME_UNKNOWN","",observationGap);
+  }
+
+  private struct function finishObservedMessage(required struct outcome,required numeric messageId,
+    required string status,string acceptedAtUtc="",boolean observationGap=false) output=false {
+    arguments.outcome.message_id=arguments.messageId;
+    arguments.outcome.observation_gap=!observeMessage(arguments.messageId,arguments.status,arguments.acceptedAtUtc) OR arguments.observationGap;
+    return arguments.outcome;
+  }
+
+  private boolean function matchesPreparedContext(required struct fresh,required struct initial) output=false {
+    return arguments.fresh.ELIGIBLE AND arguments.fresh.CURRENT_STAGE EQ arguments.initial.CURRENT_STAGE
+      AND arguments.fresh.CONTACT_NUMBER EQ arguments.initial.CONTACT_NUMBER
+      AND arguments.fresh.ENROLLMENT_EVENT_ID EQ arguments.initial.ENROLLMENT_EVENT_ID
+      AND arguments.fresh.TIMING_REVISION EQ arguments.initial.TIMING_REVISION
+      AND arguments.fresh.RECOVERY_STATE_REVISION EQ arguments.initial.RECOVERY_STATE_REVISION
+      AND compare(arguments.fresh.RECOVERY_START_UTC,arguments.initial.RECOVERY_START_UTC) EQ 0;
+  }
+
+  private boolean function observeMessage(required numeric messageId,required string status,string acceptedAtUtc="") output=false {
+    if (!arguments.messageId) return false;
+    try { variables.observability.finalizeMessage(arguments.messageId,arguments.status,arguments.acceptedAtUtc); return true; }
+    catch (any messageObservationFailed) { return false; }
   }
 
   private struct function evaluateCandidate(required numeric userId) output=false {
@@ -205,7 +304,7 @@ component output="false" {
       coverageVerification=coverageVerification(arguments.userId)
     );
     if (evaluated.DECISION_CODE EQ "HOLD_RETRY_DECISION_REQUIRED") {
-      var state=variables.ledger.getStageState(arguments.userId,evaluated.CURRENT_STAGE);
+      var state=variables.ledger.getContactState(arguments.userId,evaluated.ENROLLMENT_EVENT_ID,evaluated.CONTACT_NUMBER);
       if (state.SUCCESS AND structKeyExists(state,"CAN_RETRY") AND state.CAN_RETRY) {
         return variables.classifier.evaluateMember(
           userId=arguments.userId,nowUtc=nowUtc(),enrollmentUtc=enrollmentUtc(arguments.userId),

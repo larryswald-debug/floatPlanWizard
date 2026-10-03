@@ -118,16 +118,16 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(row(result,a.userId).reason).toBe("SUPPRESSED_OPTED_OUT");expect(fixture.enrollmentCount(a.userId)).toBe(0);
         expect(row(result,b.userId).enrollmentUtc).toBe(original);
       });
-      it("keeps coverage independent and applies the unchanged exact 168-hour interval",function() {
+      it("keeps coverage independent and applies the configured default 24-hour interval",function() {
         var old=fixture.createMember();var fresh=fixture.fresh();
         var preview=service.buildPreview(arrayToList([old.userId,fresh.userId]),old.userId);
         var result=service.executeReviewed(snapshot(preview),old.userId);
         expect(result.newly_enrolled).toBe(2);
         var classifier=new fpw.includes.InactiveMemberRecoveryClassifierService();
         var oldAt=row(result,old.userId).enrollmentUtc;var freshAt=row(result,fresh.userId).enrollmentUtc;
-        expect(classifier.evaluateMember(old.userId,fixture.plusSeconds(oldAt,604800)).DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
-        expect(classifier.evaluateMember(fresh.userId,fixture.plusSeconds(freshAt,604799)).ELIGIBLE).toBeFalse();
-        expect(classifier.evaluateMember(fresh.userId,fixture.plusSeconds(freshAt,604800)).ELIGIBLE).toBeTrue();
+        expect(classifier.evaluateMember(old.userId,fixture.plusSeconds(oldAt,86400)).DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
+        expect(classifier.evaluateMember(fresh.userId,fixture.plusSeconds(freshAt,86399)).ELIGIBLE).toBeFalse();
+        expect(classifier.evaluateMember(fresh.userId,fixture.plusSeconds(freshAt,86400)).ELIGIBLE).toBeTrue();
         expect(new fpw.includes.InactiveMemberRecoveryCoverageService().getCoverageVerification(old.userId).stage_history).toBeFalse();
       });
       it("makes no enrollment writes when the required review audit fails",function() {

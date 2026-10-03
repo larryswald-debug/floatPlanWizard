@@ -10,11 +10,11 @@ if (!localOnly OR (url.confirm ?: "") NEQ "RUN_RECOVERY_ENROLLMENT_INTEGRATION")
 }
 action=url.action ?: "";
 try {
-  if (action EQ "prepare") {
+  if (listFind("prepare,prepareCenter",action)) {
     runKey=lCase(replace(createUUID(),"-","","all"));
     fixture=new fpw.tests.support.RecoveryEnrollmentIntegrationFixture();
     password="Enrollment-" & runKey;
-    try {members=fixture.prepare(password);}
+    try {members=fixture.prepare(password=password,recoveryCenter=(action EQ "prepareCenter"));}
     catch(any failedPreparation) {fixture.cleanup();rethrow;}
     lock name="fpw-recovery-enrollment-integration-fixtures" type="exclusive" timeout=10 {
       if (!structKeyExists(application,"recoveryEnrollmentIntegrationFixtures")) application.recoveryEnrollmentIntegrationFixtures={};
@@ -32,6 +32,10 @@ try {
     if (action NEQ "cleanup" AND dateCompare(now(),run.expiresAt) GT 0) throw(message="EXPIRED_FIXTURE");
     if (action EQ "inspect") {
       reply=run.fixture.inspect();reply.ok=true;
+    } else if (action EQ "seedCenterPagination") {
+      uid=structKeyExists(session,"user") ? val(session.user.userId ?: session.user.id ?: 0) : 0;
+      if(uid NEQ run.members.admin.userId OR !structKeyExists(run.members,"center")) throw(message="FIXTURE_ADMIN_REQUIRED");
+      reply={ok=true,runId=run.fixture.seedPagination(run.members.center.userId,run.members.admin.userId)};
     } else if (action EQ "signupState") {
       row=queryExecute("SELECT userId FROM users WHERE email=:email",{email={value=run.signupEmail,cfsqltype="cf_sql_varchar"}},{datasource="fpw"});
       id=row.recordCount EQ 1 ? val(row.userId[1]) : 0;

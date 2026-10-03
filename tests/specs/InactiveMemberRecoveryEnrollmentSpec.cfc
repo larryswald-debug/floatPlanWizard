@@ -36,33 +36,33 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(fixture.enrollmentCount(member.userId)).toBe(1);
       });
 
-      it("enrollment alone holds even after 168 hours and explicit dates prove no coverage",function() {
+      it("enrollment alone holds even after 24 hours and explicit dates prove no coverage",function() {
         var member=fixture.createMember();
         var at=enrollment.ensureEnrolled(member.userId).ENROLLMENT_UTC;
         var classifier=new fpw.includes.InactiveMemberRecoveryClassifierService();
-        var evaluated=classifier.evaluateMember(member.userId,fixture.plusSeconds(at,604800));
+        var evaluated=classifier.evaluateMember(member.userId,fixture.plusSeconds(at,86400));
         expect(evaluated.DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
         expect(evaluated.EVIDENCE_SUMMARY.ENROLLMENT_SOURCE).toBe("product_events");
         expect(evaluated.EVIDENCE_SUMMARY.ENROLLMENT_UTC).toBe(at);
-        expect(classifier.evaluateMember(member.userId,fixture.plusSeconds(at,604800),at).ELIGIBLE).toBeFalse();
+        expect(classifier.evaluateMember(member.userId,fixture.plusSeconds(at,86400),at).ELIGIBLE).toBeFalse();
         for (var key in ["stage_history","activity_coverage","sharing_history","recovery_history"]) {
           var partial=reviewed(); structDelete(partial,key);
-          expect(classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,604800),coverageVerification=partial).DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
+          expect(classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,86400),coverageVerification=partial).DECISION_CODE).toBe("HOLD_INCOMPLETE_COVERAGE");
           partial[key]="true";
-          expect(classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,604800),coverageVerification=partial).ELIGIBLE).toBeFalse();
+          expect(classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,86400),coverageVerification=partial).ELIGIBLE).toBeFalse();
         }
       });
 
-      it("old synthetic account gets a fresh exact 168-hour grace with independently reviewed evidence",function() {
+      it("old synthetic account gets a fresh exact 24-hour grace with independently reviewed evidence",function() {
         var member=fixture.createMember();
         queryExecute("UPDATE users SET created='2020-01-01',lastLogin='2020-01-02' WHERE userId=:id",params(member.userId),{datasource="fpw"});
         var at=enrollment.ensureEnrolled(member.userId).ENROLLMENT_UTC;
         var classifier=new fpw.includes.InactiveMemberRecoveryClassifierService();
-        var early=classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,604799),coverageVerification=reviewed());
+        var early=classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,86399),coverageVerification=reviewed());
         expect(early.ELIGIBLE).toBeFalse();
         expect(early.POLICY_DECISION.seconds_until_eligible).toBe(1);
         expect(early.POLICY_DECISION.anchor_utc).toBe(at);
-        var exact=classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,604800),coverageVerification=reviewed());
+        var exact=classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,86400),coverageVerification=reviewed());
         expect(exact.DECISION_CODE).toBe("ELIGIBLE");
       });
 
@@ -70,14 +70,14 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member=fixture.createMember("B");
         var at=enrollment.ensureEnrolled(member.userId).ENROLLMENT_UTC;
         fixture.event(member.userId,"vessel_updated","vessel",member.vesselId,"member_api","2026-09-01 00:00:00");
-        var activityAt=fixture.plusSeconds(at,432000);
+        var activityAt=fixture.plusSeconds(at,43200);
         fixture.setEvidenceClock(member.userId,"vessel_updated",activityAt);
         var classifier=new fpw.includes.InactiveMemberRecoveryClassifierService();
-        var early=classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,604800),coverageVerification=reviewed());
+        var early=classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(at,86400),coverageVerification=reviewed());
         expect(early.DECISION_CODE).toBe("SUPPRESSED_RECENT_ACTIVITY");
         expect(early.POLICY_DECISION.anchor_utc).toBe(activityAt);
-        expect(early.POLICY_DECISION.eligible_at_utc).toBe(fixture.plusSeconds(activityAt,604800));
-        expect(classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(activityAt,604800),coverageVerification=reviewed()).ELIGIBLE).toBeTrue();
+        expect(early.POLICY_DECISION.eligible_at_utc).toBe(fixture.plusSeconds(activityAt,86400));
+        expect(classifier.evaluateMember(userId=member.userId,nowUtc=fixture.plusSeconds(activityAt,86400),coverageVerification=reviewed()).ELIGIBLE).toBeTrue();
         expect(enrollment.ensureEnrolled(member.userId).ENROLLMENT_UTC).toBe(at);
       });
 
@@ -85,13 +85,13 @@ component extends="testbox.system.BaseSpec" output="false" {
         var member=fixture.createMember();
         var at=enrollment.ensureEnrolled(member.userId).ENROLLMENT_UTC;
         fixture.advance(member.userId,"C");
-        var stageAt=fixture.plusSeconds(at,432000);
+        var stageAt=fixture.plusSeconds(at,43200);
         fixture.setEvidenceClock(member.userId,"user_route_created",stageAt);
         var result=new fpw.includes.InactiveMemberRecoveryClassifierService().evaluateMember(
-          userId=member.userId,nowUtc=fixture.plusSeconds(at,604800),coverageVerification=reviewed());
+          userId=member.userId,nowUtc=fixture.plusSeconds(at,86400),coverageVerification=reviewed());
         expect(result.CURRENT_STAGE).toBe("C");
         expect(result.STAGE_ENTERED_UTC).toBe(stageAt);
-        expect(result.POLICY_DECISION.eligible_at_utc).toBe(fixture.plusSeconds(stageAt,604800));
+        expect(result.POLICY_DECISION.eligible_at_utc).toBe(fixture.plusSeconds(stageAt,86400));
         expect(enrollment.getEnrollmentUtc(member.userId)).toBe(at);
       });
 
@@ -160,7 +160,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(enrollment.ensureEnrolled(opted.userId).REASON).toBe("SUPPRESSED_OPTED_OUT");
         var duplicate=fixture.createMember();
         queryExecute("UPDATE users SET email=:email WHERE userId=:id",
-          {id={value=duplicate.userId,cfsqltype="cf_sql_integer"},email={value=admin.email,cfsqltype="cf_sql_varchar"}},{datasource="fpw"});
+          {id={value=duplicate.userId,cfsqltype="cf_sql_integer"},email={value=" " & admin.email,cfsqltype="cf_sql_varchar"}},{datasource="fpw"});
         expect(enrollment.ensureEnrolled(duplicate.userId).REASON).toBe("HOLD_DUPLICATE_EMAIL_IDENTITY");
         for (var id in [0,-1,1.5,2147483647]) expect(enrollment.ensureEnrolled(id).CODE).toBe("MEMBER_NOT_FOUND");
         for (var id in fixture.getCandidateIds(100)) expect(fixture.enrollmentCount(id)).toBe(0);
@@ -338,7 +338,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var preview=enrollment.previewMembers(fixture.getCandidateIds(100));
         expect(preview.already_enrolled).toBe(1); expect(preview.enrollable).toBe(1);
         expect(fixture.enrollmentCount(absent.userId)).toBe(0);
-        fixture.setTestNow(fixture.plusSeconds(at,604800));
+        fixture.setTestNow(fixture.plusSeconds(at,86400));
         var held=fixture.dryService().processBatch(batchSize=2,dryRun=true);
         expect(held.held).toBe(2); expect(held.eligible).toBe(0);
         expect(held.reasons.HOLD_INCOMPLETE_COVERAGE).toBe(1);

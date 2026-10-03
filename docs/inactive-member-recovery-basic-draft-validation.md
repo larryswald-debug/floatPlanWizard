@@ -1,5 +1,7 @@
 # Recovery readiness: canonical Basic-Draft classifier validation
 
+> Recovery Center update (2026-10-03): historical behavior and validation results below predate the numbered-contact transition. The current model has exactly three automated contacts, independently recalculated A/B/C/D destinations, and configurable First Delay / Contact Interval / Attribution Window defaults of 24 / 24 / 24 hours. Stage-keyed delivery rules and fixed 168-hour rollout instructions below are superseded. See [Recovery Center implementation](recovery-center.md) and [current email copy](recovery-center-email-copy.md). Historical test results are retained as historical evidence.
+
 Date: 2026-09-06. Repository: `/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw`.
 
 Historical checkpoint: the later [final validation report](inactive-member-recovery-final-validation.md) supersedes this report's remaining-test, regression-exception, and uncommitted-status statements. Both regression exceptions were subsequently corrected with test-only changes, and the share-path campaign passed. The evidence below is preserved as the original Basic-Draft checkpoint.

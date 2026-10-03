@@ -16,6 +16,78 @@ component extends="testbox.system.BaseSpec" output="false" {
     describe("Inactive-member recovery email templates", function() {
       afterEach(function() { cleanupFixtures(); });
 
+      it("renders all twelve approved contact and destination combinations independently", function() {
+        var context = createEligibleContext("contact-matrix");
+        var cases = [
+          {contact=1,stage="A",subject="Add your boat to FloatPlanWizard",body="Your FloatPlanWizard account is ready. Add your vessel details once and FPW can reuse them when you plan future trips and create Float Plans."},
+          {contact=1,stage="B",subject="Ready to plan your first trip?",body="Your vessel is saved in FloatPlanWizard. When you're ready, use Trip Planner to map a route, add stops, and estimate your trip."},
+          {contact=1,stage="C",subject="Pick up your trip planning",body="You've started saving trip-planning work in FloatPlanWizard. You can come back anytime to continue the route and turn it into a trip when you're ready."},
+          {contact=1,stage="D",subject="Your Float Plan is waiting",body="You've started a Float Plan in FloatPlanWizard. Come back when you're ready to finish the details and share the trip with someone ashore."},
+          {contact=2,stage="A",subject="Pick up your vessel setup",body="If adding your boat is still on your list, you can continue whenever you're ready. Save its details once so you can reuse them when planning trips and creating Float Plans."},
+          {contact=2,stage="B",subject="Still planning your next trip?",body="Your vessel details are already saved. When you're ready to take the next step, Trip Planner can help you map a route, add stops, and estimate the trip."},
+          {contact=2,stage="C",subject="Continue the route you started",body="Still working on your trip? Return to your saved planning work, review the route, and continue toward a Float Plan when you're ready."},
+          {contact=2,stage="D",subject="Ready to finish your Float Plan?",body="If your Float Plan still needs a few details, you can pick it up whenever you're ready. Review the trip and share it with someone ashore when it's complete."},
+          {contact=3,stage="A",subject="One last reminder to add your boat",body="One last automated reminder from FloatPlanWizard: add your boat whenever you're ready, and reuse its details for future trips and Float Plans."},
+          {contact=3,stage="B",subject="One last reminder to plan your trip",body="One last automated reminder from FloatPlanWizard: your vessel details are saved, and Trip Planner is available whenever you're ready to map your next trip."},
+          {contact=3,stage="C",subject="One last trip-planning reminder",body="One last automated reminder from FloatPlanWizard: return to your saved planning work whenever you're ready to continue your route."},
+          {contact=3,stage="D",subject="One last Float Plan reminder",body="One last automated reminder from FloatPlanWizard: return to your Float Plan whenever you're ready to finish the details and share it with someone ashore."}
+        ];
+        for (var item in cases) {
+          var message = context.service.buildInactiveMemberRecoveryEmail(stage=item.stage,contactNumber=item.contact,eligibility=context.eligibility);
+          expect(message.success).toBeTrue();
+          expect(message.subject).toBe(item.subject);
+          expect(memberText(message)).toInclude(item.body);
+          expect(message.contactNumber).toBe(item.contact);
+          expect(message.destinationStage).toBe(item.stage);
+          expect(message.templateId).toBe("recovery.contact_" & item.contact & ".destination_" & item.stage & ".v1");
+          expect(message.templateVersion).toBe("v1");
+          expect(message.destinationUrl).toBe(message.ctaUrl);
+        }
+      });
+
+      it("rejects invalid contact numbers without renderable content", function() {
+        var context = createEligibleContext("bad-contact");
+        for (var contact in [0,4,-1,1.5]) {
+          var message = context.service.buildInactiveMemberRecoveryEmail(stage="A",contactNumber=contact,eligibility=context.eligibility);
+          expect(message.success).toBeFalse();
+          expect(message.errorCode).toBe("INVALID_RECOVERY_CONTACT");
+          expect(message.subject & message.htmlBody & message.textBody).toBe("");
+        }
+      });
+
+      it("accepts only canonical recovery tracking endpoints and retains the destination", function() {
+        var context = createEligibleContext("tracking");
+        var token = repeatString("a",64) & "." & repeatString("b",64);
+        var tracking = {clickUrl="http://localhost:8500/fpw/app/recovery-click.cfm?t=" & token,
+          openUrl="http://localhost:8500/fpw/app/recovery-open.cfm?t=" & token};
+        var message = context.service.buildInactiveMemberRecoveryEmail(stage="C",contactNumber=2,eligibility=context.eligibility,tracking=tracking);
+        expect(message.success).toBeTrue();
+        expect(message.ctaUrl).toBe(tracking.clickUrl);
+        expect(message.destinationUrl).toBe(variables.dashboardUrl & "?recoveryAction=routes");
+        expect(message.htmlBody).toInclude(encodeForHtmlAttribute(tracking.openUrl));
+        expect(message.textBody).notToInclude(tracking.openUrl);
+        for (var invalid in ["https://evil.example/app/recovery-click.cfm?t=" & token,
+          "http://localhost:8500/fpw/app/recovery-open.cfm?t=" & token,
+          tracking.clickUrl & "&next=https://evil.example"]) {
+          expect(context.service.buildInactiveMemberRecoveryEmail(stage="A",eligibility=context.eligibility,tracking={clickUrl=invalid}).success).toBeFalse();
+        }
+      });
+
+      it("escapes personal follow-up text and rejects header injection and failed compliance", function() {
+        var context = createEligibleContext("personal");
+        var body = "<script>alert(1)</script>" & chr(10) & "Your next step";
+        var message = context.service.buildRecoveryPersonalEmail(eligibility=context.eligibility,subject="A personal follow-up",body=body);
+        expect(message.success).toBeTrue(message.errorCode);
+        expect(message.messageType).toBe("RECOVERY_PERSONAL");
+        expect(message.htmlBody).notToInclude("<script>alert(1)</script>");
+        expect(message.htmlBody).toInclude(encodeForHtml("<script>alert(1)</script>"));
+        expect(message.textBody).toInclude(body);
+        expect(message.textBody).toInclude(context.eligibility.unsubscribeUrl);
+        expect(context.service.buildRecoveryPersonalEmail(eligibility=context.eligibility,subject="Hello" & chr(10) & "Bcc: bad@example.test",body="Text").success).toBeFalse();
+        expect(context.service.buildRecoveryPersonalEmail(eligibility={},subject="Hello",body="Text").success).toBeFalse();
+        expect(context.service.submitRecoveryPersonalEmail(toEmail=context.email,message={success=true,messageType="INACTIVE_MEMBER_RECOVERY"}).CODE).toBe("INVALID_PERSONAL_MESSAGE");
+      });
+
       it("renders the exact Stage A vessel setup message", function() {
         var context = createEligibleContext("a");
         var message = context.service.buildInactiveMemberRecoveryEmail(

@@ -411,6 +411,18 @@ component output="false" {
       eventSources = [ "recovery_enrollment" ],
       metadata = {}
     };
+    // Recovery history links typed evaluations/messages; destination and contact remain independent.
+    definitions["recovery_evaluated"] = {entityType="recovery_evaluation",eventSources=["recovery_processor"],metadata={}};
+    for (var recoveryOutcome in ["send_accepted","send_failed","outcome_unknown","canceled"])
+      definitions["recovery_message_" & recoveryOutcome] = {entityType="recovery_message",eventSources=["recovery_processor"],metadata={}};
+    for (var recoverySignal in ["opened","clicked"])
+      definitions["recovery_" & recoverySignal] = {entityType="recovery_message",eventSources=["recovery_tracking"],metadata={}};
+    for (var recoveryAttribution in ["returned","engaged"])
+      definitions["recovery_" & recoveryAttribution] = {entityType="recovery_message",eventSources=["recovery_attribution"],
+        metadata={source_event_id=[],contact_number=["1","2","3"],destination_stage=["a","b","c","d"]}};
+    definitions["recovery_authenticated_return"] = {entityType="user",eventSources=["authenticated_page"],metadata={}};
+    for (var recoveryAction in ["paused","resumed","excluded","exclusion_removed","schedule_reset"])
+      definitions["recovery_" & recoveryAction] = {entityType="user",eventSources=["recovery_admin"],metadata={operation_id=[],reason=[]}};
     definitions["login"] = {
       entityType = "user",
       eventSources = [ "password_auth" ],
@@ -507,8 +519,15 @@ component output="false" {
       allowedValues = definition.metadata[normalizedKey];
       var isConsentRevision = arguments.eventName EQ "sign_up"
         AND listFind("terms_revision,privacy_revision,disclosure_revision",normalizedKey);
-      if (isConsentRevision ? !(len(normalizedValue) EQ 64 AND reFind("^[a-f0-9]+$",normalizedValue) EQ 1)
-          : !arrayContainsNoCase(allowedValues, normalizedValue)) {
+      var recoveryFreeformAllowed = false;
+      if (listFind("recovery_returned,recovery_engaged",arguments.eventName) AND normalizedKey EQ "source_event_id")
+        recoveryFreeformAllowed = reFind("^[1-9][0-9]{0,18}$",normalizedValue) EQ 1;
+      if (listFind("recovery_paused,recovery_resumed,recovery_excluded,recovery_exclusion_removed,recovery_schedule_reset",arguments.eventName)) {
+        if (normalizedKey EQ "operation_id") recoveryFreeformAllowed = reFind("^[a-f0-9-]{32,64}$",normalizedValue) EQ 1;
+        if (normalizedKey EQ "reason") recoveryFreeformAllowed = reFind("^[a-z][a-z0-9_]{0,79}$",normalizedValue) EQ 1;
+      }
+      if (!recoveryFreeformAllowed AND (isConsentRevision ? !(len(normalizedValue) EQ 64 AND reFind("^[a-f0-9]+$",normalizedValue) EQ 1)
+          : !arrayContainsNoCase(allowedValues, normalizedValue))) {
         return failureResponse("DISALLOWED_METADATA_VALUE", "The metadata value is not allowed for this event.");
       }
 

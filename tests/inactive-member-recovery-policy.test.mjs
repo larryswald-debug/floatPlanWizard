@@ -12,7 +12,7 @@ test("policy has no I/O, runtime clock, shared state, or remote entry point", ()
   const dependencies = [...policy.matchAll(/createObject\("([^"]+)",\s*"([^"]+)"\)/g)];
   assert.equal(dependencies.length, 2);
   assert.ok(dependencies.every((match) => match[1] === "java" && match[2] === "java.time.Instant"));
-  assert.match(policy, /var eligibleAt = anchor \+ 604800;/);
+  assert.match(policy, /var eligibleAt = anchor \+ intervalSeconds;/);
   assert.match(policy, /nowClock\.seconds >= eligibleAt/);
 });
 
@@ -34,7 +34,7 @@ test("policy is wired only into the approved read-only classifier", () => {
   assert.deepEqual(matches, ["includes/InactiveMemberRecoveryClassifierService.cfc"]);
   const classifier = read(matches[0]);
   assert.match(classifier, /public struct function evaluateMember\s*\(/);
-  assert.doesNotMatch(classifier, /\b(?:cfmail|cfschedule|sendMultipartEmail|claimStage|markSent|markFailed)\s*\(/i);
+  assert.doesNotMatch(classifier, /\b(?:cfmail|cfschedule|sendMultipartEmail|claimContact|markSent|markFailed)\s*\(/i);
 });
 
 test("runtime tests are in-memory and the runner requires local confirmation", () => {
@@ -50,10 +50,10 @@ test("runtime tests are in-memory and the runner requires local confirmation", (
 
 test("contract documents the approval boundary and prerequisites", () => {
   const doc = read("docs/inactive-member-recovery-threshold.md");
-  assert.match(doc, /APPROVED — 7 DAYS; policy-only implementation/);
-  assert.match(doc, /Sending is not enabled or authorized/);
+  assert.match(doc, /three automated recovery contacts/);
+  assert.match(doc, /Production sending still requires separate/);
   assert.match(doc, /saved named route counts as C without legs/);
   assert.match(doc, /both at claim time and immediately before sending/);
   assert.match(doc, /absent instrumentation is not inactivity/);
-  assert.match(doc, /This task does not add those records/);
+  assert.match(doc, /does not enroll accounts, reconstruct old history/);
 });

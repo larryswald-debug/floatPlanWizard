@@ -1,5 +1,7 @@
 # Inactive-member recovery readiness — implementation history
 
+> Recovery Center update (2026-10-03): historical behavior and validation results below predate the numbered-contact transition. The current model has exactly three automated contacts, independently recalculated A/B/C/D destinations, and configurable First Delay / Contact Interval / Attribution Window defaults of 24 / 24 / 24 hours. Stage-keyed delivery rules and fixed 168-hour rollout instructions below are superseded. See [Recovery Center implementation](recovery-center.md) and [current email copy](recovery-center-email-copy.md). Historical test results are retained as historical evidence.
+
 Update, 2026-09-06: independent coverage authority and the separately approved
 narrow Basic-Draft classifier fix are implemented. All four A/B/C/D local MailHog
 dry-run/send paths passed at the [Basic-Draft checkpoint](inactive-member-recovery-basic-draft-validation.md).

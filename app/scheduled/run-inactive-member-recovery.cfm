@@ -32,7 +32,7 @@ try {
     } else {
       dsn=structKeyExists(application,"dsn") ? toString(application.dsn) : "fpw";
       service.init(datasource=dsn,liveEnabled=settings.liveEnabled);
-      response=service.processBatch(batchSize=val(batchValue),dryRun=(dryValue EQ "true"));
+      response=service.processBatch(batchSize=val(batchValue),dryRun=(dryValue EQ "true"),executionSource="scheduled_runner");
       if (!response.ok) httpStatus=503;
     }
   }
