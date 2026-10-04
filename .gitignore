@@ -16,6 +16,7 @@ tmp/stripe-*.json
 tmp/stripe-*.log
 publishing/common-boating-emergencies/review/
 testbox/
+downloads/floatplanwizard-solo-boating-safety-guide-orig.pdf
 
 # Local browser screenshots, traces, print samples and test output.
 /output/playwright/
