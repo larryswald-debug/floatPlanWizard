@@ -17,7 +17,7 @@
 <body>
 <cfinclude template="includes/admin_reports_nav.cfm">
 <cfoutput><main id="recoveryCenter" data-endpoint="#encodeForHTMLAttribute(request.fpwBase)#/admin/recovery-center-data.cfm"></cfoutput>
-  <header class="rc-header"><div><p class="rc-eyebrow">MEMBER SUPPORT</p><h1>Recovery Center</h1><p>Three recovery contacts. Each message uses the member’s current verified destination.</p></div><button type="button" id="rcRefresh">Refresh view</button></header>
+  <header class="rc-header"><div><p class="rc-eyebrow">MEMBER SUPPORT</p><h1>Recovery Center</h1><p>Three recovery contacts. Each message uses the member’s current verified destination.</p><p><cfoutput><a href="#encodeForHTMLAttribute(request.fpwBase)#/admin/recovery-center-user-manual.cfm">Administrator user manual</a></cfoutput></p></div><button type="button" id="rcRefresh">Refresh view</button></header>
   <div id="rcStatus" role="status" aria-live="polite" class="rc-notice" hidden></div>
   <nav class="rc-tabs" aria-label="Recovery Center views" role="tablist">
     <button id="rcTabDashboard" role="tab" aria-selected="true" aria-controls="rcDashboard" data-tab="dashboard">Dashboard</button>
