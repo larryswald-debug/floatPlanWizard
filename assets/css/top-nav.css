@@ -861,6 +861,7 @@
   outline-color: #ffffff;
 }
 
+.fpw-resource-feature-stack,
 .fpw-resource-groups {
   min-width: 0;
   display: grid;
@@ -1587,6 +1588,7 @@
     width: 100%;
   }
 
+  .fpw-resource-feature-stack,
   .fpw-resource-groups {
     gap: 24px;
   }

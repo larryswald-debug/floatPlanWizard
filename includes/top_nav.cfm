@@ -19,6 +19,7 @@ topNavBoatingSafetyActive = false;
 topNavSoloBoatingGuideActive = false;
 topNavCommonBoatingEmergenciesActive = false;
 topNavShoreContactGuideActive = false;
+topNavUserManualActive = false;
 topNavWhyFloatPlanActive = false;
 topNavFaqActive = false;
 topNavFuelActive = false;
@@ -84,10 +85,12 @@ if (!len(topNavActive) OR topNavActive EQ "resources") {
   }
 }
 
+topNavUserManualActive = reFindNoCase("/app/user-manual\.cfm$", topNavRequestPath) GT 0;
+
 topNavResourcesActive = listFindNoCase(
   "resources,resources-boat-loan-calculator,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
   topNavActive
-) GT 0;
+) GT 0 OR topNavUserManualActive;
 topNavSoloBoatingGuideActive = topNavActive EQ "resources-solo-boating-guide";
 topNavCommonBoatingEmergenciesActive = topNavActive EQ "resources-common-boating-emergencies";
 topNavShoreContactGuideActive = topNavActive EQ "resources-shore-contact-guide";
@@ -260,6 +263,11 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
       iconViewBox = "0 0 64 64";
       iconPaths = '<path d="M18 12h28v44H18z"></path><path d="M26 12a6 6 0 0 1 12 0"></path><path d="M24 26l4 4 8-9"></path><path d="M24 40h16"></path><path d="M24 48h12"></path>';
       break;
+    case "book-open":
+      iconClass = iconClass & " fpw-icon-book-open";
+      iconViewBox = "0 0 64 64";
+      iconPaths = '<path d="M32 16C24 10 15 9 6 12v38c9-3 18-2 26 4 8-6 17-7 26-4V12c-9-3-18-2-26 4z"></path><path d="M32 16v38"></path><path d="M13 22c4-1 8 0 12 2M13 30c4-1 8 0 12 2M13 38c4-1 8 0 12 2M39 24c4-2 8-3 12-2M39 32c4-2 8-3 12-2M39 40c4-2 8-3 12-2"></path>';
+      break;
     case "kayak":
       iconClass = iconClass & " fpw-icon-kayak";
       iconViewBox = "0 0 64 64";
@@ -413,6 +421,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 </button>
                 <div class="fpw-dropdown-menu fpw-resources-menu" id="fpwResourcesMenu" role="menu">
                   <div class="fpw-resources-grid">
+                    <div class="fpw-resource-feature-stack">
                     <section class="fpw-resource-feature fpw-resource-featured" aria-labelledby="fpwResourceFeaturedTitle">
                       <h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceFeaturedTitle">
                         <a
@@ -486,6 +495,31 @@ topNavShowAppSubnav = topNavIsLoggedIn
                         </a>
                       </article>
                     </section>
+
+                    <section class="fpw-resource-feature fpw-resource-featured" aria-labelledby="fpwResourceManualTitle">
+                      <h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceManualTitle">
+                        <a class="fpw-resource-section-link<cfif topNavUserManualActive> is-active</cfif>" href="#topNavBasePath#/app/user-manual.cfm" role="menuitem">Member Guide</a>
+                      </h2>
+                      <article class="fpw-resource-feature-card fpw-featured-guide">
+                        <div class="fpw-resource-feature-summary fpw-featured-guide__main">
+                          <div class="fpw-featured-guide__icon">
+                            #renderFpwNavIcon("book-open", "fpw-resource-feature-icon")#
+                          </div>
+                          <div class="fpw-resource-feature-copy fpw-featured-guide__content">
+                            <h3 class="fpw-featured-guide__title">User Manual</h3>
+                            <p class="fpw-featured-guide__description">Step-by-step instructions for FloatPlanWizard.</p>
+                          </div>
+                        </div>
+                        <a
+                          class="fpw-resource-feature-link fpw-featured-guide__button<cfif topNavUserManualActive> is-active</cfif>"
+                          href="#topNavBasePath#/app/user-manual.cfm"
+                          role="menuitem"
+                          <cfif topNavUserManualActive>aria-current="page"</cfif>>
+                          <span>Open User Manual</span><b aria-hidden="true">&rarr;</b>
+                        </a>
+                      </article>
+                    </section>
+                    </div>
 
                     <div class="fpw-resource-groups">
                       <div class="fpw-resource-group" role="group" aria-labelledby="fpwPlanningToolsTitle">
