@@ -199,10 +199,48 @@ component extends="testbox.system.BaseSpec" output="false" {
           dashboardUrl = "http://localhost:8500/fpw/app/dashboard.cfm"
         );
 
+        var manualUrl = "http://localhost:8500/fpw/app/user-manual.cfm";
+        var manualCopy = "The FloatPlanWizard User Manual walks you through the app step by step, from adding your boat and planning a trip to creating a Float Plan, checking in while underway, and completing your trip.";
+        expect(message.subject).toBe("Welcome to FloatPlanWizard.com");
+        expect(findNoCase(manualCopy, message.htmlBody)).toBeGT(0);
+        expect(findNoCase(manualCopy, message.textBody)).toBeGT(0);
+        expect(findNoCase('href="' & encodeForHtmlAttribute(manualUrl) & '"', message.htmlBody)).toBeGT(0);
+        expect(findNoCase(">Open the User Manual</a>", message.htmlBody)).toBeGT(0);
+        expect(findNoCase("Open the User Manual" & chr(10) & manualUrl, message.textBody)).toBeGT(0);
+        for (var body in [message.htmlBody, message.textBody]) {
+          var dashboardPosition = findNoCase("Go to Your Dashboard", body);
+          var manualPosition = findNoCase("New to FloatPlanWizard?", body);
+          var feedbackPosition = findNoCase("During this launch/beta period", body);
+          expect(dashboardPosition).toBeGT(0);
+          expect(manualPosition).toBeGT(dashboardPosition);
+          expect(feedbackPosition).toBeGT(manualPosition);
+        }
         expect(findNoCase("/unsubscribe.cfm?t=", message.textBody)).toBeGT(0);
         expect(findNoCase("You may opt out of non-essential emails here", message.textBody)).toBeGT(0);
         expect(findNoCase("You are receiving this email because", message.textBody)).toBe(0);
         expect(findNoCase("unsubscribe.cfm", message.htmlBody)).toBeGT(0);
+      });
+
+      it("uses the configured public base for welcome manual links at root and subdirectory mounts", function() {
+        for (var publicBase in ["https://welcome.example.test", "https://welcome.example.test/fpw/"]) {
+          var config = testEmailConfig();
+          var emailService = prepareMock(createObject("component", "fpw.api.v1.email").init());
+          var expectedUrl = reReplace(publicBase, "/+$", "", "all") & "/app/user-manual.cfm";
+          config.publicBaseUrl = publicBase;
+          config.dashboardUrl = reReplace(publicBase, "/+$", "", "all") & "/app/dashboard.cfm";
+          emailService.$("getEmailConfig", config);
+          emailService.$("buildWelcomeMemberOptOutUrl", "https://welcome.example.test/unsubscribe.cfm?t=test-disabled");
+          makePublic(emailService, "buildWelcomeMemberEmail", "buildWelcomeMemberEmailForTest");
+
+          var message = emailService.buildWelcomeMemberEmailForTest(
+            userId = 1, toEmail = "welcome@example.test", firstName = "Taylor"
+          );
+
+          expect(findNoCase('href="' & encodeForHtmlAttribute(expectedUrl) & '"', message.htmlBody)).toBeGT(0);
+          expect(findNoCase("Open the User Manual" & chr(10) & expectedUrl, message.textBody)).toBeGT(0);
+          expect(findNoCase("localhost", message.htmlBody)).toBe(0);
+          expect(findNoCase("localhost", message.textBody)).toBe(0);
+        }
       });
 
       it("preserves the operational builders and keeps diagnostics token-free", function() {

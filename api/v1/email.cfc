@@ -1127,6 +1127,8 @@
         <cfset var cleanFirstName = cleanTextValue(arguments.firstName)>
         <cfset var dashboardUrlValue = normalizeDashboardUrl(arguments.dashboardUrl, config.dashboardUrl)>
         <cfset var dashboardUrlHtml = encodeForHtmlAttribute(dashboardUrlValue)>
+        <cfset var userManualUrl = reReplace(config.publicBaseUrl, "/+$", "", "all") & "/app/user-manual.cfm">
+        <cfset var userManualUrlHtml = encodeForHtmlAttribute(userManualUrl)>
         <cfset var greetingText = len(cleanFirstName) ? "Hi " & cleanFirstName & "," : "Hi,">
         <cfset var greetingHtml = len(cleanFirstName) ? "Hi " & encodeForHtml(cleanFirstName) & "," : "Hi,">
         <cfset var subject = "Welcome to FloatPlanWizard.com">
@@ -1160,6 +1162,13 @@
             "",
             "You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, so you can use the main web tools from your phone, tablet, or desktop.",
             "",
+            "New to FloatPlanWizard?",
+            "",
+            "The FloatPlanWizard User Manual walks you through the app step by step, from adding your boat and planning a trip to creating a Float Plan, checking in while underway, and completing your trip.",
+            "",
+            "Open the User Manual",
+            userManualUrl,
+            "",
             "During this launch/beta period, we would love your feedback as you use FPW.",
             "",
             safetyNotice,
@@ -1176,6 +1185,9 @@
 <p style="margin:0 0 16px 0;">Start from your dashboard to begin setting up your account and float plans.</p>
 <p style="margin:0 0 22px 0;">You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, so you can use the main web tools from your phone, tablet, or desktop.</p>
 <p style="margin:0 0 24px 0;"><a href="#dashboardUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">Go to Your Dashboard</a></p>
+<p style="margin:0 0 16px 0;"><strong>New to FloatPlanWizard?</strong></p>
+<p style="margin:0 0 16px 0;">The FloatPlanWizard User Manual walks you through the app step by step, from adding your boat and planning a trip to creating a Float Plan, checking in while underway, and completing your trip.</p>
+<p style="margin:0 0 24px 0;"><a href="#userManualUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">Open the User Manual</a></p>
 <p style="margin:0 0 16px 0;">During this launch/beta period, we would love your feedback as you use FPW.</p>
 <p style="margin:0 0 16px 0; font-size:13px; line-height:1.5; color:##495057;"><strong>Safety notice:</strong> #encodeForHtml(safetyNotice)#</p>
 <p style="margin:0 0 24px 0;">Thank you,<br>The FloatPlanWizard.com Team</p>
