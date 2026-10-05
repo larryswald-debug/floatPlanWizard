@@ -1,10 +1,10 @@
 <cfcomponent displayname="floatPlanUtils" output="false" hint="I create the float plan pdf">
 	<cfset datasource = 'floatPlan'>
-	<cffunction name="init" access="remote" output="false" hint="I am the class constructor">		
+	<cffunction name="init" access="public" output="false" hint="I am the class constructor">
 		<cfreturn this>		
 	</cffunction>
 	
-	<cffunction name="optOutOfFloatPlan" access="remote" output="false" >
+	<cffunction name="optOutOfFloatPlan" access="public" output="false" >
 		<cfargument name="fpid" required="true" > 
 		<cfargument name="email" required="true" > 
 		<cfset var boolSuccess = true>
@@ -22,13 +22,13 @@
 		<cfreturn boolSuccess>		
 	</cffunction>
 	
-	<cffunction name="checkFloatPlanStatus" access="remote" output="false" >
+	<cffunction name="checkFloatPlanStatus" access="public" output="false" >
 		<cfargument name="fpid" required="true" >
 		<cfset objFpDAO = createObject('component','data.dataAccess.floatPlanDAO').init() />
 		<cfreturn  objFpDAO.getFloatPlanStatus(arguments.fpid)>		
 	</cffunction>
 	
-	<cffunction name="getContactId" access="remote" output="false" >
+	<cffunction name="getContactId" access="public" output="false" >
 		<cfargument name="emailAddress" required="true" />
 		<cfargument name="fpid" required="true" />
 		<!--- get the contacts id from te dao --->
@@ -36,7 +36,7 @@
 		<cfreturn  contactDAO.getContactIDbyEmail(arguments.emailAddress, arguments.fpid)>	
 	</cffunction>
 	
-	<cffunction name="convertToServerTime" access="remote" output="false" hint="converts a valid date object to server time" >
+	<cffunction name="convertToServerTime" access="public" output="false" hint="converts a valid date object to server time" >
 		<cfargument name="tStamp" type="date" required="true" hint="The date to be converted">
 		<cfargument name="tZone" type="string" required="true" hint="the time zone of the date to be converted">	
 		<cfscript>
@@ -89,7 +89,7 @@
 		<cfreturn serverDT>
 	</cffunction>
 	
-	<cffunction name="populatFloatPlanGrid" access="remote" output="false" returnformat="JSON" >
+	<cffunction name="populatFloatPlanGrid" access="public" output="false" returnformat="JSON" >
 		<cfargument name="userId" required="true" /> 
 		<cfset objFloatPlanSvc = createObject('component','data.dataAccess.floatPlanService').init() />
 		<cfset qFloatPlans = objFloatPlanSvc.filterByUserId(arguments.userId)>		
@@ -110,7 +110,7 @@
 		<cfreturn result />	
 	</cffunction>
 	
-	<cffunction name="cloneFloatPlan" access="remote" output="false" hint="clones an existing float plan">
+	<cffunction name="cloneFloatPlan" access="public" output="false" hint="clones an existing float plan">
 		<cfargument name="floatPlanId" required="true" />
 		<cfargument name="floatPlanName" required="false" default="" />
 		<cfif arguments.floatPlanName EQ ''>
@@ -124,7 +124,7 @@
 		<cfreturn dupFpid>
 	</cffunction>
 	
-	<cffunction name="closeFloatPlan" access="remote" output="false" >
+	<cffunction name="closeFloatPlan" access="public" output="false" >
 		<cfargument name="fpid" required="true" />
 		<cfset objFpDAO = createObject('component','data.dataAccess.floatPlanDAO').init() />
 		<cfset closeFp =  objFpDAO.updateFloatPlanStatus(arguments.fpid,'Open')>
@@ -132,7 +132,7 @@
 		<cfreturn closeFp>	
 	</cffunction>
 	
-	<cffunction name="cancelFloatPlan" access="remote" output="false" >
+	<cffunction name="cancelFloatPlan" access="public" output="false" >
 		<cfargument name="fpid" required="true" />
 		<cfargument name="status" required="true" />
 		<cfset objFpDAO = createObject('component','data.dataAccess.floatPlanDAO').init() />
@@ -145,7 +145,7 @@
 		</cfif>				
 	</cffunction>
 	
-	<cffunction name="sendFloatPlan" access="remote" output="false" hint="send float plan by email to conatcts" returnformat="plain" >
+	<cffunction name="sendFloatPlan" access="public" output="false" hint="send float plan by email to conatcts" returnformat="plain" >
 		<cfargument name="floatPlanId" required="true" />
 		<cfargument name="whenToSend" required="true" />
 		<cfargument name="messageType" required="false" default="Sent" />
@@ -201,7 +201,7 @@
 		</cfif>
 	</cffunction>
 	
-	<cffunction name="deliverFloatPlan" access="remote" output="false">
+	<cffunction name="deliverFloatPlan" access="public" output="false">
 		<cfargument name="floatPlanId" required="true" />
 		<cfargument name="messageType" required="false" default="sent" />
 		<cfargument name="contactEmail" required="false" default="" /> 
@@ -371,7 +371,7 @@
 		<cfreturn true>
 	</cffunction>
 	
-	<cffunction name="getNewcontactForFloatPlan" access="remote" output="false" returntype="any" returnformat="json">
+	<cffunction name="getNewcontactForFloatPlan" access="public" output="false" returntype="any" returnformat="json">
 		<cfargument name="contactId" required="true" />	
 		<cfset objDatasource = createObject('component','data.beans.Datasource').init('floatPlan','root','pass') />
 		<!--- Instantiate the passenger service object --->
@@ -390,7 +390,7 @@
 		<cfreturn result />
 	</cffunction>
 	
-	<cffunction name="getNewWpForFloatPlan" access="remote" output="false" returntype="any" returnformat="json">
+	<cffunction name="getNewWpForFloatPlan" access="public" output="false" returntype="any" returnformat="json">
 		<cfargument name="wpId" required="true" />	
 		<cfset objDatasource = createObject('component','data.beans.Datasource').init('floatPlan','root','pass') />
 		<!--- Instantiate the passenger service object --->
@@ -409,7 +409,7 @@
 		<cfreturn result />
 	</cffunction>
 	
-	<cffunction name="getNewOpForFloatPlan" access="remote" output="false" returntype="any" returnformat="json">
+	<cffunction name="getNewOpForFloatPlan" access="public" output="false" returntype="any" returnformat="json">
 		<cfargument name="opId" required="true" />	
 		<cfset objDatasource = createObject('component','data.beans.Datasource').init('floatPlan','root','pass') />
 		<!--- Instantiate the passenger service object --->
@@ -428,7 +428,7 @@
 		<cfreturn result />
 	</cffunction>
 	
-	<cffunction name="getNewVesselForFloatPlan" access="remote" output="false" returntype="any" returnformat="json">
+	<cffunction name="getNewVesselForFloatPlan" access="public" output="false" returntype="any" returnformat="json">
 		<cfargument name="vesselId" required="true" />	
 		<cfset objDatasource = createObject('component','data.beans.Datasource').init('floatPlan','root','pass') />
 		<!--- Instantiate the passenger service object --->
@@ -449,7 +449,7 @@
 		<cfreturn result />			
 	</cffunction>
 	
-	<cffunction name="getNewPassengerForFloatPlan" access="remote" output="false" returntype="any" returnformat="json">		
+	<cffunction name="getNewPassengerForFloatPlan" access="public" output="false" returntype="any" returnformat="json">
 		<cfargument name="passId" required="true" />		
 		<!--- instantiate the Datasourece object --->
 		<cfset objDatasource = createObject('component','data.beans.Datasource').init('floatPlan','root','pass') />
@@ -477,7 +477,7 @@
 		<cfreturn result />
 	</cffunction>	
 	
-	<cffunction name="getFloatPlanForForm" access="remote" output="false" returntype="any" returnformat="json">
+	<cffunction name="getFloatPlanForForm" access="public" output="false" returntype="any" returnformat="json">
 		<cfargument name="floatPlanId" required="true" />
 		
 		<!--- Define variables --->
@@ -541,7 +541,7 @@
 		<cfreturn result />
 	</cffunction>
 		
-	<cffunction name="createPDF" access="remote" output="false" hint="i create the float plan pdf" returnformat="plain" >
+	<cffunction name="createPDF" access="public" output="false" hint="i create the float plan pdf" returnformat="plain" >
 		<cfargument name="fpId" required="true" hint="I am the floatPlan id to use for the pdf" />
 		<cftry>			
 			<!--- instantiate the Datasourece object --->

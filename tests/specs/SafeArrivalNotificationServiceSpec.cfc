@@ -234,6 +234,10 @@ component extends="testbox.system.BaseSpec" output="false" {
         var basicShore = {};
         var excludedShore = {};
         var referralPath = "/app/join.cfm?utm_source=shore_contact&utm_medium=email&utm_campaign=safe_arrival&utm_content=plan_own_trip";
+        var referralEligibility = emailService.checkNonEssentialEmailEligibility(
+          email = variables.fixturePrefix & "render@example.test", userId = 0
+        );
+        expect(referralEligibility.eligible).toBeTrue();
 
         makePublic(emailService, "buildSafeArrivalCaptainEmail", "buildSafeArrivalCaptainEmailForTest");
         makePublic(emailService, "buildSafeArrivalShoreContactEmail", "buildSafeArrivalShoreContactEmailForTest");
@@ -259,7 +263,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
           completionTimezone = "America/New_York",
           followPath = "/fpw/app/follow.cfm?slug=trip-safe&t=opaque-token",
-          includeReferral = true
+          includeReferral = true,
+          referralUnsubscribeUrl = referralEligibility.unsubscribeUrl
         );
         basicShore = emailService.buildSafeArrivalShoreContactEmailForTest(
           recipientName = "Trusted Contact",
@@ -271,7 +276,8 @@ component extends="testbox.system.BaseSpec" output="false" {
           completionLabel = "Sep 1, 2026 4:15 PM America/New_York",
           completionTimezone = "America/New_York",
           followPath = "",
-          includeReferral = true
+          includeReferral = true,
+          referralUnsubscribeUrl = referralEligibility.unsubscribeUrl
         );
         excludedShore = emailService.buildSafeArrivalShoreContactEmailForTest(
           recipientName = "Trusted Contact",
@@ -293,6 +299,11 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("completed safely", captain.textBody)).toBeGT(0);
         expect(shore.hasFollowLink).toBeTrue();
         expect(shore.hasReferral).toBeTrue();
+        expect(shore.referralUnsubscribeUrl).toBe(referralEligibility.unsubscribeUrl);
+        expect(findNoCase(encodeForHtmlAttribute(referralEligibility.unsubscribeUrl), shore.htmlBody)).toBeGT(0);
+        expect(findNoCase(referralEligibility.unsubscribeUrl, shore.textBody)).toBeGT(0);
+        expect(findNoCase("account.cfm", shore.htmlBody & shore.textBody)).toBe(0);
+        expect(findNoCase("close your FloatPlanWizard.com account", shore.textBody)).toBe(0);
         expect(findNoCase("/fpw/app/follow.cfm?", shore.followPath)).toBeGT(0);
         expect(findNoCase("completed-trip.cfm", shore.htmlBody)).toBe(0);
         expect(shore.referralPath).toBe(referralPath);
@@ -389,7 +400,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           followPath = "",
           includeReferral = includeAfterFailure
         );
-        senderService.$("shouldIncludeSafeArrivalReferral", false);
+        senderService.$("checkNonEssentialEmailEligibility", {eligible=false,code="PREFERENCE_LOOKUP_FAILED",unsubscribeUrl=""});
         senderService.$("sendMultipartEmail");
         sendResult = senderService.sendSafeArrivalShoreContactEmail(
           userId = 42,
@@ -414,6 +425,80 @@ component extends="testbox.system.BaseSpec" output="false" {
         expect(findNoCase("completed safely", lookupFailureMessage.textBody)).toBeGT(0);
         expect(findNoCase("Plan your own boating trip.", optedOutMessage.htmlBody & optedOutMessage.textBody)).toBe(0);
         expect(findNoCase("Plan your own boating trip.", lookupFailureMessage.htmlBody & lookupFailureMessage.textBody)).toBe(0);
+      });
+
+      it("keeps operational transport after a shore recipient uses the signed optional-email unsubscribe", function() {
+        var sender = prepareMock(createObject("component", "fpw.api.v1.email").init());
+        var preference = createObject("component", "fpw.api.v1.EmailOptOutService").init(datasource=variables.datasource);
+        var recipientEmail = variables.fixturePrefix & lCase(reReplace(createUUID(), "[^A-Za-z0-9]", "", "all")) & "@example.test";
+        var sendArgs = {
+          userId=42, toEmail=recipientEmail, recipientName="Trusted Contact", captainName="Casey Captain",
+          floatPlanId=42, tripName="First Return", vesselName="Waypoint", destination="Test Anchorage",
+          completionLabel="Oct 5, 2026 1:00 PM America/New_York", completionTimezone="America/New_York", followPath=""
+        };
+        sender.$("sendMultipartEmail");
+        expect(sender.sendSafeArrivalShoreContactEmail(argumentCollection=sendArgs).success).toBeTrue();
+        expect(sender.$count("sendMultipartEmail")).toBe(1);
+        var first = sender.$callLog().sendMultipartEmail[1];
+        var links = reMatchNoCase("https?://[^\s]+/unsubscribe\.cfm\?t=[^\s]+", first.textBody);
+        expect(arrayLen(links)).toBe(1);
+        var token = urlDecode(listLast(links[1], "="));
+        var validation = preference.validateSignedOptOutToken(token);
+        expect(validation.success).toBeTrue();
+        expect(validation.userId).toBe(0);
+        expect(validation.email).toBe(recipientEmail);
+        expect(findNoCase("completed safely", first.textBody)).toBeGT(0);
+        expect(findNoCase("Plan your own boating trip.", first.textBody)).toBeGT(0);
+        expect(findNoCase("account.cfm", first.textBody & first.htmlBody)).toBe(0);
+        var recipientUsers=queryExecute(
+          "SELECT COUNT(*) AS row_count FROM users WHERE LOWER(TRIM(email))=:email",
+          {email={value=recipientEmail,cfsqltype="cf_sql_varchar"}},{datasource=variables.datasource}
+        );
+        expect(val(recipientUsers.row_count[1])).toBe(0);
+        var localUnsubscribePrefix="http://localhost:8500/fpw/unsubscribe.cfm?t=";
+        expect(left(links[1],len(localUnsubscribePrefix))).toBe(localUnsubscribePrefix);
+        var unsubscribeResponse={};
+        // No browser session cookies: the signed nonmember link must work while logged out.
+        cfhttp(method="GET",url=links[1],result="unsubscribeResponse",timeout=20,
+          redirect=false,throwOnError=false);
+        expect(val(unsubscribeResponse.statusCode)).toBe(200);
+        expect(findNoCase("Email Preference Updated",toString(unsubscribeResponse.fileContent))).toBeGT(0);
+        expect(preference.isOptedOut(recipientEmail,"non_essential")).toBeTrue();
+        sendArgs.floatPlanId=43;
+        sendArgs.tripName="Second Return";
+        expect(sender.sendSafeArrivalShoreContactEmail(argumentCollection=sendArgs).success).toBeTrue();
+        expect(sender.$count("sendMultipartEmail")).toBe(2);
+        var second = sender.$callLog().sendMultipartEmail[2];
+        expect(second.toEmail).toBe(recipientEmail);
+        expect(second.spoolEnable).toBeFalse();
+        expect(findNoCase("Second Return", second.textBody)).toBeGT(0);
+        expect(findNoCase("completed safely", second.textBody)).toBeGT(0);
+        expect(findNoCase("Plan your own boating trip.", second.textBody & second.htmlBody)).toBe(0);
+        expect(findNoCase("unsubscribe.cfm", second.textBody & second.htmlBody)).toBe(0);
+      });
+
+      it("omits optional referral on signing failure without blocking operational transport", function() {
+        var sender = prepareMock(createObject("component", "fpw.api.v1.email").init());
+        var missingSigning = createObject("component", "fpw.api.v1.EmailOptOutService").init(
+          configPath=expandPath("/fpw/tests/fixtures/codex-safe-arrival-missing-signing.json"),
+          datasource=variables.datasource
+        );
+        var recipientEmail = variables.fixturePrefix & "signing-failure@example.test";
+        sender.$("createEmailOptOutService", missingSigning);
+        sender.$("sendMultipartEmail");
+        var eligibility=sender.checkNonEssentialEmailEligibility(email=recipientEmail,userId=0);
+        expect(eligibility.eligible).toBeFalse();
+        expect(eligibility.code).toBe("UNSUBSCRIBE_URL_FAILED");
+        var result=sender.sendSafeArrivalShoreContactEmail(
+          userId=42,toEmail=recipientEmail,floatPlanId=42,captainName="Casey Captain",
+          completionLabel="Oct 5, 2026 1:00 PM America/New_York",completionTimezone="America/New_York"
+        );
+        expect(result.success).toBeTrue();
+        expect(sender.$count("sendMultipartEmail")).toBe(1);
+        var message=sender.$callLog().sendMultipartEmail[1];
+        expect(findNoCase("completed safely",message.textBody)).toBeGT(0);
+        expect(findNoCase("Plan your own boating trip.",message.textBody & message.htmlBody)).toBe(0);
+        expect(findNoCase("unsubscribe.cfm",message.textBody & message.htmlBody)).toBe(0);
       });
 
       it("uses stable recipient claims and both post-commit closure hooks by source contract", function() {

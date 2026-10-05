@@ -102,6 +102,25 @@
         </div>
       </div>
 
+      <section class="card shadow-sm mb-4" id="email-preferences" aria-labelledby="emailPreferencesHeading">
+        <div class="card-body">
+          <h2 class="h5 mb-3" id="emailPreferencesHeading">Email Preferences</h2>
+          <form id="emailPreferencesForm">
+            <label for="optionalEmailsEnabled" class="form-label fw-semibold">Optional Emails</label>
+            <p class="small text-muted" id="optionalEmailsDescription">Control non-essential FloatPlanWizard emails such as recovery, engagement, referral, or promotional messages. Important account, trip, safety, monitoring, and requested service emails are not affected.</p>
+            <div class="d-flex flex-wrap align-items-center gap-3">
+              <select class="form-select w-auto" id="optionalEmailsEnabled" aria-describedby="optionalEmailsDescription emailPreferencesStatus" disabled>
+                <option value="" disabled selected>Loading…</option>
+                <option value="on">ON</option>
+                <option value="off">OFF</option>
+              </select>
+              <button class="btn btn-primary" type="submit" id="saveEmailPreferencesBtn" disabled>Save Preferences</button>
+            </div>
+            <p class="small mt-3 mb-0" id="emailPreferencesStatus" role="status" aria-live="polite">Loading email preferences…</p>
+          </form>
+        </div>
+      </section>
+
       <div class="card shadow-sm">
         <div class="card-body">
           <h2 class="h5 mb-3">Home Port</h2>
@@ -278,7 +297,7 @@
 <cfinclude template="../includes/footer.cfm">
 
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20261001-member-profile"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/account.js?v=20261005-email-preferences"></script>
 
 </body>
 </html>

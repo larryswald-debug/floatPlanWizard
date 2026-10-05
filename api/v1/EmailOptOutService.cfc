@@ -262,6 +262,47 @@
     </cfscript>
   </cffunction>
 
+  <!-- Nonremote member preference methods. Callers must derive userId from authenticated ownership. -->
+  <cffunction name="getMemberOptionalEmailPreference" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfscript>
+      var member = findUserEmailById(arguments.userId);
+      if (!member.success OR !isValid("email", member.email)) {
+        return safeResult(false, "MEMBER_EMAIL_UNAVAILABLE", "Email preferences are unavailable.");
+      }
+      return { success = true, optionalEmailsEnabled = !isOptedOut(member.email, "non_essential") };
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="setMemberOptionalEmailPreference" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="enabled" type="boolean" required="true">
+    <cfargument name="ipAddress" type="string" required="false" default="">
+    <cfargument name="userAgent" type="string" required="false" default="">
+    <cfscript>
+      var member = findUserEmailById(arguments.userId);
+      if (!member.success OR !isValid("email", member.email)) {
+        return safeResult(false, "MEMBER_EMAIL_UNAVAILABLE", "Email preferences are unavailable.");
+      }
+      if (arguments.enabled) {
+        // Absence means no voluntary suppression. Prior addresses and other types stay untouched.
+        queryExecute("
+          DELETE FROM email_optout
+          WHERE email_hash = :emailHash AND opt_out_type = :optOutType
+        ", {
+          emailHash = { value = hashEmail(member.email), cfsqltype = "cf_sql_char" },
+          optOutType = { value = "non_essential", cfsqltype = "cf_sql_varchar" }
+        }, { datasource = variables.datasource });
+      } else {
+        var result = recordOptOut(email = member.email, userId = arguments.userId,
+          optOutType = "non_essential", source = "account_preferences",
+          ipAddress = arguments.ipAddress, userAgent = arguments.userAgent);
+        if (!result.success) return result;
+      }
+      return getMemberOptionalEmailPreference(arguments.userId);
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getOptOutSecret" access="private" returntype="string" output="false">
     <cfscript>
       var configResult = loadPrivateConfig();

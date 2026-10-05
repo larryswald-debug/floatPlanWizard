@@ -68,7 +68,7 @@
             </cfif>
 
             <cfset requestGuard = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".AuthRequestGuardService"))>
-            <cfif listFindNoCase("update,update-name,changepassword", action)>
+            <cfif listFindNoCase("update,update-name,changepassword,update-email-preferences", action)>
                 <cfset mutationCheck = requestGuard.validateMutation(body)>
                 <cfif NOT mutationCheck.ALLOWED>
                     <cfheader statuscode="#mutationCheck.STATUSCODE#">
@@ -76,6 +76,48 @@
                     <cfsetting enablecfoutputonly="false">
                     <cfabort>
                 </cfif>
+            </cfif>
+
+            <!-- Optional email preferences use the authenticated member's current DB address only. -->
+            <cfif action EQ "email-preferences" OR action EQ "update-email-preferences">
+                <cfif action EQ "update-email-preferences">
+                    <cfset preferenceBodyValid = structKeyExists(body, "optionalEmailsEnabled")>
+                    <cfloop collection="#body#" item="preferenceKey">
+                        <cfif NOT listFindNoCase("action,csrfToken,optionalEmailsEnabled", preferenceKey)>
+                            <cfset preferenceBodyValid = false>
+                        </cfif>
+                    </cfloop>
+                    <cfif preferenceBodyValid>
+                        <cfset preferenceBodyValid = isSimpleValue(body.optionalEmailsEnabled)
+                            AND listFind("true,false", serializeJSON(body.optionalEmailsEnabled)) GT 0>
+                    </cfif>
+                    <cfif NOT preferenceBodyValid>
+                        <cfheader statuscode="400">
+                        <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="INVALID_EMAIL_PREFERENCE", MESSAGE="Choose whether optional emails are on or off."})#</cfoutput>
+                        <cfsetting enablecfoutputonly="false"><cfabort>
+                    </cfif>
+                </cfif>
+                <cftry>
+                    <cfset preferenceService = createObject("component", reReplace(getMetadata(this).name, "\.[^.]+$", ".EmailOptOutService")).init(datasource="fpw")>
+                    <cfif action EQ "update-email-preferences">
+                        <cfset preferenceResult = preferenceService.setMemberOptionalEmailPreference(
+                            userId = userId, enabled = body.optionalEmailsEnabled,
+                            ipAddress = requestGuard.getClientIp(),
+                            userAgent = structKeyExists(cgi, "http_user_agent") ? toString(cgi.http_user_agent) : ""
+                        )>
+                    <cfelse>
+                        <cfset preferenceResult = preferenceService.getMemberOptionalEmailPreference(userId)>
+                    </cfif>
+                    <cfif NOT preferenceResult.success>
+                        <cfthrow type="fpw.emailOptOut.PreferenceUnavailable" message="Email preferences unavailable.">
+                    </cfif>
+                    <cfoutput>#serializeJSON({SUCCESS=true, AUTH=true, EMAIL_PREFERENCES={optionalEmailsEnabled=preferenceResult.optionalEmailsEnabled}})#</cfoutput>
+                    <cfcatch type="any">
+                        <cfheader statuscode="503">
+                        <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="EMAIL_PREFERENCES_UNAVAILABLE", MESSAGE="Unable to load or save email preferences. Please try again."})#</cfoutput>
+                    </cfcatch>
+                </cftry>
+                <cfsetting enablecfoutputonly="false"><cfabort>
             </cfif>
 
             <!-- Names-only wizard updates must not erase phone or other profile/session fields. -->

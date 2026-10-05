@@ -794,6 +794,7 @@
         <cfset var toAddress = lCase(trim(arguments.toEmail))>
         <cfset var emailMessage = {}>
         <cfset var includeReferral = false>
+        <cfset var referralEligibility = {eligible=false,unsubscribeUrl=""}>
 
         <cfif int(arguments.userId) LTE 0 OR int(arguments.floatPlanId) LTE 0>
             <cfset result.errorCode = "INVALID_TRIP_OWNER">
@@ -814,7 +815,15 @@
             <cfreturn result>
         </cfif>
 
-        <cfset includeReferral = shouldIncludeSafeArrivalReferral(toAddress)>
+        <!--- The owner userId is not the shore recipient. Address-bound tokens work without an account. --->
+        <cftry>
+            <cfset referralEligibility = checkNonEssentialEmailEligibility(email=toAddress, userId=0)>
+            <cfset includeReferral = referralEligibility.eligible>
+            <cfcatch type="any">
+                <!--- Optional content fails closed; the operational confirmation must still send. --->
+                <cfset referralEligibility = {eligible=false,unsubscribeUrl=""}>
+            </cfcatch>
+        </cftry>
 
         <cftry>
             <cfset emailMessage = buildSafeArrivalShoreContactEmail(
@@ -827,7 +836,8 @@
                 completionLabel = arguments.completionLabel,
                 completionTimezone = arguments.completionTimezone,
                 followPath = arguments.followPath,
-                includeReferral = includeReferral
+                includeReferral = includeReferral,
+                referralUnsubscribeUrl = referralEligibility.unsubscribeUrl
             )>
             <cfset sendMultipartEmail(
                 toEmail = toAddress,
@@ -947,6 +957,7 @@
         <cfargument name="completionTimezone" type="string" required="true">
         <cfargument name="followPath" type="string" required="false" default="">
         <cfargument name="includeReferral" type="boolean" required="false" default="false">
+        <cfargument name="referralUnsubscribeUrl" type="string" required="false" default="">
 
         <cfset var recipient = cleanSafeArrivalTextValue(arguments.recipientName)>
         <cfset var captain = cleanSafeArrivalTextValue(arguments.captainName)>
@@ -958,13 +969,14 @@
         <cfset var followPathValue = trim(arguments.followPath)>
         <cfset var followUrl = len(followPathValue) ? resolveAbsolutePublicUrl(followPathValue) : "">
         <cfset var referralPath = "/app/join.cfm?utm_source=shore_contact&utm_medium=email&utm_campaign=safe_arrival&utm_content=plan_own_trip">
-        <cfset var referralUrl = arguments.includeReferral ? resolveAbsolutePublicUrl(referralPath) : "">
+        <cfset var optionalUnsubscribeUrl = trim(arguments.referralUnsubscribeUrl)>
+        <cfset var referralUrl = (arguments.includeReferral AND isSignedNonEssentialUnsubscribeUrl(optionalUnsubscribeUrl)) ? resolveAbsolutePublicUrl(referralPath) : "">
         <cfset var subject = "">
         <cfset var textLines = []>
         <cfset var textBody = "">
         <cfset var htmlContent = "">
         <cfset var htmlBody = "">
-        <cfset var complianceFooter = buildEmailComplianceFooter(footerType = "service")>
+        <cfset var complianceFooter = buildEmailComplianceFooter(footerType = "service", context = {includeAccountGuidance=false})>
 
         <cfif NOT len(captain)>
             <cfset captain = "The boater">
@@ -1000,6 +1012,10 @@
             <cfset arrayAppend(textLines, "Create a free FPW account to plan your route, stops, and trip estimates with the Trip Planner.")>
             <cfset arrayAppend(textLines, "Plan Your Own Trip:")>
             <cfset arrayAppend(textLines, referralUrl)>
+            <cfset arrayAppend(textLines, "")>
+            <cfset arrayAppend(textLines, "Unsubscribe from optional emails:")>
+            <cfset arrayAppend(textLines, optionalUnsubscribeUrl)>
+            <cfset arrayAppend(textLines, "Trip and safety notifications are not affected.")>
         </cfif>
         <cfset textBody = arrayToList(textLines, chr(10)) & chr(10) & chr(10) & complianceFooter.textBody>
 
@@ -1018,6 +1034,7 @@
     <p style="margin:0 0 8px 0;"><strong>Plan your own boating trip.</strong></p>
     <p style="margin:0 0 8px 0;">Create a free FPW account to plan your route, stops, and trip estimates with the Trip Planner.</p>
     <p style="margin:0;"><a href="#encodeForHtmlAttribute(referralUrl)#" style="color:##0d6efd; font-weight:600;">Plan Your Own Trip</a></p>
+    <p style="margin:12px 0 0; font-size:12px;"><a href="#encodeForHtmlAttribute(optionalUnsubscribeUrl)#" style="color:##0d6efd;">Unsubscribe from optional emails</a><br>Trip and safety notifications are not affected.</p>
 </div></cfif>
 #complianceFooter.htmlBody#
         </cfoutput></cfsavecontent>
@@ -1033,6 +1050,7 @@
             referralPath = (len(referralUrl) ? referralPath : ""),
             referralUrl = referralUrl,
             hasReferral = len(referralUrl) GT 0,
+            referralUnsubscribeUrl = (len(referralUrl) ? optionalUnsubscribeUrl : ""),
             floatPlanId = int(arguments.floatPlanId),
             completionTimezone = timezoneValue
         }>
@@ -1257,34 +1275,14 @@
     <cffunction name="shouldIncludeSafeArrivalReferral" access="private" returntype="boolean" output="false">
         <cfargument name="toEmail" type="string" required="true">
         <cfargument name="optOutService" type="any" required="false">
-
-        <cfset var recipient = lCase(trim(arguments.toEmail))>
-        <cfset var preferenceService = "">
-
-        <cfif NOT isValid("email", recipient)>
-            <cfreturn false>
+        <cfset var eligibilityArguments = {email=arguments.toEmail, userId=0}>
+        <cfif structKeyExists(arguments, "optOutService") AND isObject(arguments.optOutService)>
+            <cfset eligibilityArguments.optOutService = arguments.optOutService>
         </cfif>
-
         <cftry>
-            <cfif structKeyExists(arguments, "optOutService") AND isObject(arguments.optOutService)>
-                <cfset preferenceService = arguments.optOutService>
-            <cfelse>
-                <cftry>
-                    <cfset preferenceService = createObject("component", "api.v1.EmailOptOutService").init()>
-                    <cfcatch type="any">
-                        <cfset preferenceService = createObject("component", "fpw.api.v1.EmailOptOutService").init()>
-                    </cfcatch>
-                </cftry>
-            </cfif>
-
-            <cfreturn NOT preferenceService.isOptedOut(
-                email = recipient,
-                optOutType = "non_essential"
-            )>
-
-            <cfcatch type="any">
-                <cfreturn false>
-            </cfcatch>
+            <cfset var eligibility = checkNonEssentialEmailEligibility(argumentCollection=eligibilityArguments)>
+            <cfreturn eligibility.eligible>
+            <cfcatch type="any"><cfreturn false></cfcatch>
         </cftry>
     </cffunction>
 
@@ -1357,6 +1355,7 @@
         <cfset var siteUrl = config.publicBaseUrl>
         <cfset var businessMailingAddress = "">
         <cfset var serviceBusinessMailingAddress = "[FloatPlanWizard.com Mailing Address]">
+        <cfset var includeAccountGuidance = NOT structKeyExists(arguments.context, "includeAccountGuidance") OR arguments.context.includeAccountGuidance>
         <cfset var emailPreferencesUrlHtml = encodeForHtmlAttribute(emailPreferencesUrl)>
         <cfset var emailPreferencesUrlTextHtml = encodeForHtml(emailPreferencesUrl)>
         <cfset var unsubscribeUrlHtml = encodeForHtmlAttribute(unsubscribeUrl)>
@@ -1374,6 +1373,7 @@
         </cfif>
 
         <cfif footerTypeValue EQ "service">
+            <cfif includeAccountGuidance>
             <cfset textBody = arrayToList([
                 "You may opt out of non-essential emails here:",
                 nonEssentialOptOutUrl,
@@ -1384,11 +1384,14 @@
                 serviceBusinessMailingAddress,
                 siteUrl
             ], chr(10))>
+            <cfelse>
+                <cfset textBody = arrayToList(["FloatPlanWizard.com", serviceBusinessMailingAddress, siteUrl], chr(10))>
+            </cfif>
 
             <cfsavecontent variable="htmlBody"><cfoutput>
 <div style="margin-top:24px; padding-top:18px; border-top:1px solid ##dee2e6; color:##6c757d; font-size:12px; line-height:1.5;">
-    <p style="margin:0 0 12px 0;">You may opt out of non-essential emails here:<br><a href="#emailPreferencesUrlHtml#" style="color:##0d6efd;">#emailPreferencesUrlTextHtml#</a></p>
-    <p style="margin:0 0 12px 0;">Some FloatPlanWizard.com emails are required to operate your account or complete actions you request. For example, sending a float plan requires email delivery. To stop all account-related and service-related emails, you must close your FloatPlanWizard.com account.</p>
+    <cfif includeAccountGuidance><p style="margin:0 0 12px 0;">You may opt out of non-essential emails here:<br><a href="#emailPreferencesUrlHtml#" style="color:##0d6efd;">#emailPreferencesUrlTextHtml#</a></p>
+    <p style="margin:0 0 12px 0;">Some FloatPlanWizard.com emails are required to operate your account or complete actions you request. For example, sending a float plan requires email delivery. To stop all account-related and service-related emails, you must close your FloatPlanWizard.com account.</p></cfif>
     <p style="margin:0;">FloatPlanWizard.com<br>#encodeForHtml(serviceBusinessMailingAddress)#<br><a href="#siteUrlHtml#" style="color:##0d6efd;">#siteUrlTextHtml#</a></p>
 </div>
             </cfoutput></cfsavecontent>

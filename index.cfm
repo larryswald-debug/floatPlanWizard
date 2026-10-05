@@ -108,20 +108,41 @@ function fpwClientIp() {
   return structKeyExists(cgi, "remote_addr") ? fpwSafeString(cgi.remote_addr, 45) : "";
 }
 
-function fpwBuildUnsubscribeLink(required string email, required string baseUrl) {
-  var safeBaseUrl = trim(arguments.baseUrl);
-  var separator = find("?", safeBaseUrl) ? "&" : "?";
-  return safeBaseUrl & separator & "email=" & urlEncodedFormat(arguments.email);
-}
+function fpwSendPrelaunchWelcomeEmail(
+  required string recipientEmail,
+  required struct mailConfig,
+  any emailService = "",
+  any mailTransport = ""
+) {
+  var recipient = lCase(trim(arguments.recipientEmail));
+  var eligibility = {};
+  var optionalEmailService = arguments.emailService;
+  try {
+    if (!isObject(optionalEmailService)) {
+      try {
+        optionalEmailService = createObject("component", "api.v1.email").init();
+      } catch (any rootComponentUnavailable) {
+        optionalEmailService = createObject("component", "fpw.api.v1.email").init();
+      }
+    }
+    eligibility = optionalEmailService.checkNonEssentialEmailEligibility(email = recipient);
+  } catch (any preferenceUnavailable) {
+    return { sent = false, code = "PREFERENCE_LOOKUP_FAILED" };
+  }
+  if (!structKeyExists(eligibility, "eligible") OR !eligibility.eligible) {
+    return {
+      sent = false,
+      code = structKeyExists(eligibility, "code") ? eligibility.code : "PREFERENCE_LOOKUP_FAILED"
+    };
+  }
 
-function fpwSendPrelaunchWelcomeEmail(required string recipientEmail, required struct mailConfig) {
-  var unsubscribeLink = fpwBuildUnsubscribeLink(arguments.recipientEmail, arguments.mailConfig.unsubscribeBaseUrl);
+  var unsubscribeLink = eligibility.unsubscribeUrl;
   var fromAddress = trim(arguments.mailConfig.fromAddress);
   var fromDisplayName = trim(arguments.mailConfig.fromDisplayName);
   var fromValue = len(fromDisplayName) ? fromDisplayName & " <" & fromAddress & ">" : fromAddress;
   var replyTo = structKeyExists(arguments.mailConfig, "replyTo") ? trim(arguments.mailConfig.replyTo) : "";
   var mailAttrs = {
-    to = arguments.recipientEmail,
+    to = recipient,
     from = fromValue,
     subject = "Thanks for joining the FloatPlanWizard launch list",
     type = "text",
@@ -161,9 +182,15 @@ function fpwSendPrelaunchWelcomeEmail(required string recipientEmail, required s
     mailAttrs.replyto = replyTo;
   }
 
-  cfmail(attributeCollection = mailAttrs) {
-    writeOutput(mailBody);
+  // Optional dependencies are internal-only; HTTP signup requests cannot supply them.
+  if (isObject(arguments.mailTransport)) {
+    arguments.mailTransport.send(mailAttributes = mailAttrs, body = mailBody);
+  } else {
+    cfmail(attributeCollection = mailAttrs) {
+      writeOutput(mailBody);
+    }
   }
+  return { sent = true, code = "SEND_ACCEPTED" };
 }
 
 schemaAtKey = chr(64);
@@ -178,13 +205,11 @@ function fpwHomeSchemaRef(required string idValue) {
   return out;
 }
 
-// Welcome / Thank-you email configuration (prelaunch self-contained).
-// Replace unsubscribeBaseUrl with the live unsubscribe endpoint when ready.
+// Welcome / Thank-you email configuration. Optional-email eligibility and links are canonical.
 prelaunchWelcomeEmailConfig = {
   fromAddress = "no-reply@floatplanwizard.com",
   fromDisplayName = "FloatPlanWizard",
-  replyTo = "",
-  unsubscribeBaseUrl = "https://FloatPlanWizard.com/unsubscribe.cfm"
+  replyTo = ""
 };
 
 isEarlyAccessPost = structKeyExists(cgi, "request_method")
