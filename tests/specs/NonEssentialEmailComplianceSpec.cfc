@@ -199,10 +199,178 @@ component extends="testbox.system.BaseSpec" output="false" {
           dashboardUrl = "http://localhost:8500/fpw/app/dashboard.cfm"
         );
 
+        var manualUrl = "http://localhost:8500/fpw/app/user-manual.cfm";
+        var manualCopy = "The FloatPlanWizard User Manual walks you through the app step by step, from adding your boat and planning a trip to creating a Float Plan, checking in while underway, and completing your trip.";
+        expect(message.subject).toBe("Welcome to FloatPlanWizard.com");
+        expect(findNoCase(manualCopy, message.htmlBody)).toBeGT(0);
+        expect(findNoCase(manualCopy, message.textBody)).toBeGT(0);
+        expect(findNoCase('href="' & encodeForHtmlAttribute(manualUrl) & '"', message.htmlBody)).toBeGT(0);
+        expect(findNoCase(">Open the User Manual</a>", message.htmlBody)).toBeGT(0);
+        expect(findNoCase("Open the User Manual" & chr(10) & manualUrl, message.textBody)).toBeGT(0);
+        for (var body in [message.htmlBody, message.textBody]) {
+          var dashboardPosition = findNoCase("Go to Your Dashboard", body);
+          var manualPosition = findNoCase("New to FloatPlanWizard?", body);
+          var feedbackPosition = findNoCase("During this launch/beta period", body);
+          expect(dashboardPosition).toBeGT(0);
+          expect(manualPosition).toBeGT(dashboardPosition);
+          expect(feedbackPosition).toBeGT(manualPosition);
+        }
         expect(findNoCase("/unsubscribe.cfm?t=", message.textBody)).toBeGT(0);
         expect(findNoCase("You may opt out of non-essential emails here", message.textBody)).toBeGT(0);
         expect(findNoCase("You are receiving this email because", message.textBody)).toBe(0);
         expect(findNoCase("unsubscribe.cfm", message.htmlBody)).toBeGT(0);
+      });
+
+      it("uses the configured public base for welcome manual links at root and subdirectory mounts", function() {
+        for (var publicBase in ["https://welcome.example.test", "https://welcome.example.test/fpw/"]) {
+          var config = testEmailConfig();
+          var emailService = prepareMock(createObject("component", "fpw.api.v1.email").init());
+          var expectedUrl = reReplace(publicBase, "/+$", "", "all") & "/app/user-manual.cfm";
+          config.publicBaseUrl = publicBase;
+          config.dashboardUrl = reReplace(publicBase, "/+$", "", "all") & "/app/dashboard.cfm";
+          emailService.$("getEmailConfig", config);
+          emailService.$("buildWelcomeMemberOptOutUrl", "https://welcome.example.test/unsubscribe.cfm?t=test-disabled");
+          makePublic(emailService, "buildWelcomeMemberEmail", "buildWelcomeMemberEmailForTest");
+
+          var message = emailService.buildWelcomeMemberEmailForTest(
+            userId = 1, toEmail = "welcome@example.test", firstName = "Taylor"
+          );
+
+          expect(findNoCase('href="' & encodeForHtmlAttribute(expectedUrl) & '"', message.htmlBody)).toBeGT(0);
+          expect(findNoCase("Open the User Manual" & chr(10) & expectedUrl, message.textBody)).toBeGT(0);
+          expect(findNoCase("localhost", message.htmlBody)).toBe(0);
+          expect(findNoCase("localhost", message.textBody)).toBe(0);
+        }
+      });
+
+      it("preserves the reviewed captain completed-trip fallback link and escaped content", function() {
+        var service = prepareMock(new fpw.api.v1.email());
+        service.$("getEmailConfig", testEmailConfig());
+        makePublic(service, "buildSafeArrivalCaptainEmail", "captainForTest");
+        var message = service.captainForTest(
+          recipientName = "<Captain>", floatPlanId = 42, tripName = "<Safe Trip>",
+          vesselName = "Boat & Crew", departureLocation = "Port A", destination = "Port B",
+          completionLabel = "October 5, 2026 12:00 PM", completionTimezone = "America/New_York",
+          completedTripPath = "/fpw/app/completed-trip.cfm?id=42"
+        );
+        var escapedUrl = encodeForHtmlAttribute(message.ctaUrl);
+        expect(message.subject).toBe("Your FloatPlanWizard trip is complete");
+        expect(message.ctaUrl).toBe("http://localhost:8500/fpw/app/completed-trip.cfm?id=42");
+        expect(arrayLen(reMatch(">View Completed Trip</a>", message.htmlBody))).toBe(1);
+        var completedHref = 'href="' & escapedUrl & '"';
+        expect((len(message.htmlBody) - len(replace(message.htmlBody,completedHref,"","all"))) / len(completedHref)).toBe(2);
+        expect(message.htmlBody).toInclude("If the button doesn't work, copy and paste this link into your browser:");
+        expect(message.htmlBody).toInclude(">" & encodeForHtml(message.ctaUrl) & "</a>");
+        expect(message.htmlBody).toInclude(encodeForHtml("<Captain>"));
+        expect(message.htmlBody).toInclude(encodeForHtml("<Safe Trip>"));
+        expect(message.htmlBody).notToInclude("<Captain>");
+        expect(message.textBody).toInclude("View Completed Trip:" & chr(10) & message.ctaUrl);
+        expect(message.textBody).toInclude("completed safely and closed");
+        expect(message.textBody).notToInclude("If the button doesn't work");
+      });
+
+      it("submits security and operational messages despite a real optional-email opt-out", function() {
+        var fixture = createUserFixture("operational-opted-out");
+        var preference = new fpw.api.v1.EmailOptOutService(datasource=variables.datasource);
+        expect(preference.recordOptOut(fixture.email,fixture.userId,"non_essential","compliance_test").success).toBeTrue();
+        var service = prepareMock(new fpw.api.v1.email());
+        service.$("getEmailConfig", testEmailConfig());
+        service.$("sendMultipartEmail");
+        expect(service.checkNonEssentialEmailEligibility(fixture.email,fixture.userId).code).toBe("OPTED_OUT");
+        var reset = service.sendPasswordResetEmail(
+          userId=fixture.userId,toEmail=fixture.email,resetUrl="http://localhost:8500/fpw/app/reset-password.cfm?t=test-only"
+        );
+        var departure = service.sendDepartureReminderEmail(
+          userId=fixture.userId,toEmail=fixture.email,floatPlanId=42,floatPlanName="Operational Trip",
+          scheduledDepartureLabel="October 5, 2026 12:00 PM",departureTimezone="America/New_York",reminderType="PRE_DEPARTURE"
+        );
+        var captain = service.sendSafeArrivalCaptainEmail(
+          userId=fixture.userId,toEmail=fixture.email,floatPlanId=42,tripName="Operational Trip",
+          completionLabel="October 5, 2026 12:00 PM",completionTimezone="America/New_York",
+          completedTripPath="/fpw/app/completed-trip.cfm?id=42"
+        );
+        var pdfPath = getTempDirectory() & "codex-optional-operational-" & createUUID() & ".pdf";
+        var basic = {};
+        try {
+          fileWrite(pdfPath, "%PDF-1.4 TEST-ONLY FAKE TRANSPORT ATTACHMENT", "utf-8");
+          basic = service.sendBasicReviewFloatPlanEmail(
+            userId=fixture.userId,toEmail=fixture.email,contactName="Fixture Contact",
+            floatPlanName="Operational Trip",captainName="Fixture Captain",senderName="Fixture Member",pdfPath=pdfPath
+          );
+          expect(reset.success).toBeTrue();
+          expect(departure.success).toBeTrue();
+          expect(captain.success).toBeTrue();
+          expect(basic.success).toBeTrue();
+          expect(service.$count("sendMultipartEmail")).toBe(4);
+          var calls = service.$callLog().sendMultipartEmail;
+          for (var call in calls) expect(call.toEmail).toBe(fixture.email);
+          expect(calls[1].textBody).toInclude("reset");
+          expect(calls[2].spoolEnable).toBeFalse();
+          expect(calls[3].spoolEnable).toBeFalse();
+          expect(calls[4].attachmentPath).toBe(pdfPath);
+          expect(calls[4].textBody).toInclude("Basic Send");
+          expect(preference.isOptedOut(fixture.email,"non_essential")).toBeTrue();
+        } finally {
+          if (fileExists(pdfPath)) fileDelete(pdfPath);
+        }
+      });
+
+      it("keeps opted-out recipients in Basic, Premium, and safety recipient selection", function() {
+        var owner = createUserFixture("recipient-owner");
+        var contact = createUserFixture("recipient-contact");
+        var preference = new fpw.api.v1.EmailOptOutService(datasource=variables.datasource);
+        expect(preference.recordOptOut(owner.email,owner.userId,"non_essential","compliance_test").success).toBeTrue();
+        expect(preference.recordOptOut(contact.email,contact.userId,"non_essential","compliance_test").success).toBeTrue();
+        var inserted = {};
+        var planId = 0;
+        var contactId = 0;
+        try {
+          queryExecute("INSERT INTO floatplans(userId,floatPlanName,status,dateCreated,lastUpdate)
+            VALUES(:owner,'Optional Preference Regression','DRAFT',UTC_TIMESTAMP(),UTC_TIMESTAMP())",
+            {owner={value=owner.userId,cfsqltype="cf_sql_integer"}},
+            {datasource=variables.datasource,result="inserted"});
+          planId=val(inserted.generatedKey);
+          queryExecute("INSERT INTO contacts(name,phone,userId,email) VALUES('Fixture Contact','5550100000',:owner,:email)",
+            {owner={value=owner.userId,cfsqltype="cf_sql_integer"},email={value=contact.email,cfsqltype="cf_sql_varchar"}},
+            {datasource=variables.datasource,result="inserted"});
+          contactId=val(inserted.generatedKey);
+          queryExecute("INSERT INTO floatplan_contacts(contactId,floatPlanId) VALUES(:contact,:plan)",
+            {contact={value=contactId,cfsqltype="cf_sql_integer"},plan={value=planId,cfsqltype="cf_sql_integer"}},
+            {datasource=variables.datasource});
+          queryExecute("INSERT INTO floatplan_basic_details(floatplan_id,vessel_name,operator_name,captain_name,captain_email,
+            notification_contact_name,notification_contact_email,launch_location,destination_location,
+            authority_name_snapshot,authority_phone_snapshot)
+            VALUES(:plan,'Fixture Boat','Fixture Operator','Fixture Captain',:ownerEmail,'Fixture Contact',:email,'Port A','Port B','Fixture Authority','5550100001')",
+            {plan={value=planId,cfsqltype="cf_sql_integer"},ownerEmail={value=owner.email,cfsqltype="cf_sql_varchar"},
+              email={value=contact.email,cfsqltype="cf_sql_varchar"}},{datasource=variables.datasource});
+          var controller = new fpw.api.v1.floatplan();
+          makePublic(controller,"loadBasicPlanContactEmails","basicRecipientsForTest");
+          makePublic(controller,"loadPlanContactEmails","premiumRecipientsForTest");
+          var basicRecipients=controller.basicRecipientsForTest(planId);
+          var premiumRecipients=controller.premiumRecipientsForTest(owner.userId,planId);
+          expect(arrayLen(basicRecipients)).toBe(1);
+          expect(basicRecipients[1].EMAIL).toBe(contact.email);
+          expect(arrayLen(premiumRecipients)).toBe(1);
+          expect(premiumRecipients[1].EMAIL).toBe(contact.email);
+          var safety = new fpw.api.v1.OverdueAlertService();
+          makePublic(safety,"loadFloatPlanAlertContext","contextForTest");
+          makePublic(safety,"getOwnerAlertEmails","ownersForTest");
+          makePublic(safety,"getSelectedContactEmails","contactsForTest");
+          var context=safety.contextForTest(planId);
+          expect(safety.ownersForTest(context)).toBe([owner.email]);
+          expect(safety.contactsForTest(context)).toBe([contact.email]);
+          expect(preference.isOptedOut(owner.email,"non_essential")).toBeTrue();
+          expect(preference.isOptedOut(contact.email,"non_essential")).toBeTrue();
+        } finally {
+          if (planId GT 0) {
+            var planParams={id={value=planId,cfsqltype="cf_sql_integer"}};
+            queryExecute("DELETE FROM floatplan_contacts WHERE floatPlanId=:id",planParams,{datasource=variables.datasource});
+            queryExecute("DELETE FROM floatplan_basic_details WHERE floatplan_id=:id",planParams,{datasource=variables.datasource});
+            queryExecute("DELETE FROM floatplans WHERE floatPlanId=:id",planParams,{datasource=variables.datasource});
+          }
+          if (contactId GT 0) queryExecute("DELETE FROM contacts WHERE contactId=:id",
+            {id={value=contactId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
+        }
       });
 
       it("preserves the operational builders and keeps diagnostics token-free", function() {

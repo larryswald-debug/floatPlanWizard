@@ -837,6 +837,61 @@
     return data;
   }
 
+  var savedOptionalEmailsEnabled = null;
+
+  function setEmailPreferencesBusy(busy) {
+    if ($("optionalEmailsEnabled")) $("optionalEmailsEnabled").disabled = busy;
+    if ($("saveEmailPreferencesBtn")) $("saveEmailPreferencesBtn").disabled = busy;
+  }
+
+  function showEmailPreference(enabled) {
+    savedOptionalEmailsEnabled = enabled;
+    $("optionalEmailsEnabled").value = enabled ? "on" : "off";
+    setText("emailPreferencesStatus", enabled ? "Optional emails are turned on." : "Optional emails are turned off.");
+  }
+
+  async function loadEmailPreferences() {
+    if (!$("emailPreferencesForm")) return;
+    setEmailPreferencesBusy(true);
+    try {
+      var data = await fetchJson(API_BASE + "/profile.cfc?method=handle&action=email-preferences", { method: "GET" });
+      if (!ensureAuth(data)) return;
+      var preference = data && data.EMAIL_PREFERENCES;
+      var enabled = pick(preference, ["optionalEmailsEnabled", "OPTIONALEMAILSENABLED"], null);
+      if (!data || data.SUCCESS !== true || typeof enabled !== "boolean") throw data;
+      showEmailPreference(enabled);
+      setEmailPreferencesBusy(false);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      setText("emailPreferencesStatus", "Unable to load email preferences. Refresh the page to try again.");
+    }
+  }
+
+  async function saveEmailPreferences(evt) {
+    evt.preventDefault();
+    var value = $("optionalEmailsEnabled").value;
+    if (savedOptionalEmailsEnabled === null || (value !== "on" && value !== "off")) return;
+    setEmailPreferencesBusy(true);
+    setText("emailPreferencesStatus", "Saving email preferences…");
+    try {
+      var data = await fetchJson(API_BASE + "/profile.cfc?method=handle&action=update-email-preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optionalEmailsEnabled: value === "on" })
+      });
+      if (!ensureAuth(data)) return;
+      var enabled = pick(data && data.EMAIL_PREFERENCES, ["optionalEmailsEnabled", "OPTIONALEMAILSENABLED"], null);
+      if (!data || data.SUCCESS !== true || typeof enabled !== "boolean") throw data;
+      showEmailPreference(enabled);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      $("optionalEmailsEnabled").value = savedOptionalEmailsEnabled ? "on" : "off";
+      setText("emailPreferencesStatus", "Unable to save email preferences. Please try again.");
+    } finally {
+      setEmailPreferencesBusy(false);
+    }
+  }
+
   async function loadProfile() {
     try {
       var data = await fetchJson(API_BASE + "/profile.cfc?method=handle", { method: "GET" });
@@ -1268,6 +1323,9 @@
     var profileForm = $("profileForm");
     if (profileForm) profileForm.addEventListener("submit", saveProfile);
 
+    var emailPreferencesForm = $("emailPreferencesForm");
+    if (emailPreferencesForm) emailPreferencesForm.addEventListener("submit", saveEmailPreferences);
+
     var pwForm = $("passwordForm");
     if (pwForm) pwForm.addEventListener("submit", changePassword);
 
@@ -1305,6 +1363,7 @@
     if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
     loadProfile();
+    loadEmailPreferences();
     loadMembershipBilling().then(refreshMembershipAfterStripeReturn);
     loadCompanionDevices();
   });

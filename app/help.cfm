@@ -27,6 +27,7 @@
         <p class="fpw-help-kicker">FloatPlanWizard guide</p>
         <h1 id="helpTitle">FloatPlanWizard Help Center</h1>
         <p class="fpw-help-lede">Learn how to plan a trip, send a float plan, monitor your cruise, share your Trip status page, and check boating weather.</p>
+        <p><a href="<cfoutput>#request.fpwBase#</cfoutput>/app/user-manual.cfm">Open the complete member manual</a> for step-by-step instructions, worked scenarios, and a printable reference.</p>
       </div>
 
       <div class="fpw-help-search" role="search" aria-label="Search help topics">
