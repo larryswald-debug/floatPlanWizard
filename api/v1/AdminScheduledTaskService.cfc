@@ -168,8 +168,24 @@ component output="false" {
         return target;
     }
 
+    private string function schedulerTargetUrl(required struct row) output="false" {
+        var target = value(arguments.row, "url");
+        var alternateBase = "";
+        // CF Admin can move local :8500 from the URL into the native port field.
+        // Normalize only verified equivalent forms; leave the path and query bytes intact.
+        if (variables.config.environment EQ "dev" AND value(arguments.row, "port") EQ "8500") {
+            alternateBase = replace(variables.config.baseUrl, ":8500", "", "one");
+        } else if (variables.config.environment EQ "production" AND listFind("80,443", value(arguments.row, "port"))) {
+            alternateBase = variables.config.baseUrl & ":443";
+        }
+        if (len(alternateBase) AND compare(left(target, len(alternateBase) + 1), alternateBase & "/") EQ 0) {
+            return variables.config.baseUrl & mid(target, len(alternateBase) + 1, len(target));
+        }
+        return target;
+    }
+
     private boolean function approvedBinding(required struct row, required struct entry) output="false" {
-        try { return approvedTarget(value(arguments.row,"url"),targetUrl(arguments.entry),
+        try { return approvedTarget(schedulerTargetUrl(arguments.row),targetUrl(arguments.entry),
             listFindNoCase("monitor,departure-reminders,single-trip-expiration,inactive-member-recovery", arguments.entry.endpointId) GT 0); }
         catch (any ignored) { return false; }
     }
@@ -218,7 +234,7 @@ component output="false" {
     private struct function discoverEntry(required struct row) output="false" {
         var entry = {name=value(arguments.row, "task"), group=value(arguments.row, "group"),
             mode=lCase(value(arguments.row, "mode")), application="", parameters={}, allowCreate=false};
-        var actual = value(arguments.row, "url");
+        var actual = schedulerTargetUrl(arguments.row);
         var parts = listToArray(actual, "?", true);
         var queryValues = {};
         if (variables.config.environment EQ "unconfigured" OR !reFind("^[A-Za-z0-9_ .-]{1,60}$", entry.name)
@@ -344,9 +360,9 @@ component output="false" {
 
     private string function unsafeReason(required struct row, required struct entry) output="false" {
         if (!approvedBinding(arguments.row,arguments.entry)) return "The target or parameters do not match an approved script.";
-        // Production URLs use HTTPS's default port. Do not turn an ambiguous legacy port
-        // into an explicit override during UPDATE. Development URLs carry the verified :8500.
-        if (variables.config.environment EQ "production" AND value(arguments.row, "port") NEQ "443") return "The scheduler did not prove the approved HTTPS port. This task is read-only until its transport settings are verified.";
+        // The approved HTTPS URL supplies its default port. Native port metadata may be
+        // the scheduler default (80) or legacy explicit HTTPS (443); other overrides remain unverified.
+        if (variables.config.environment EQ "production" AND !listFind("80,443", value(arguments.row, "port"))) return "The scheduler did not prove the approved HTTPS port. This task is read-only until its transport settings are verified.";
         if (pausedStatus(arguments.row) EQ "Unavailable") return "The scheduler did not return a recognized pause status.";
         if (!listFindNoCase("once,daily,weekly,monthly", value(arguments.row, "interval")) AND !reFind("^[0-9]+$", value(arguments.row, "interval"))) return "This schedule type cannot be safely represented by this manager.";
         // No event handler, chain, cron, finite repeat, cluster or hidden authentication is simplified.
@@ -417,7 +433,7 @@ component output="false" {
             if (!structKeyExists(arguments.row, key) OR len(value(arguments.row, key))) return "Run is unavailable because execution settings cannot be safely verified.";
         }
         if (!structKeyExists(arguments.row, "chainedtask") OR listFindNoCase("true,yes,1", value(arguments.row, "chainedtask"))) return "Run is unavailable for chained or unverified execution settings.";
-        if (variables.config.environment EQ "production" AND value(arguments.row, "port") NEQ "443") return "Run is unavailable until the HTTPS transport settings are verified.";
+        if (variables.config.environment EQ "production" AND !listFind("80,443", value(arguments.row, "port"))) return "Run is unavailable until the HTTPS transport settings are verified.";
         return "";
     }
 
@@ -581,6 +597,8 @@ component output="false" {
         for (key in listToArray("enddate,endtime,file,path,port,proxyport,publish,resolveurl,overwrite,onexception,onmisfire,priority,retrycount,isdaily")) {
             if (len(value(arguments.row, key))) attrs[key] = arguments.row[key];
         }
+        // schedulerTargetUrl supplies local :8500 or production HTTPS. Do not resend a redundant port.
+        if (listFind(variables.config.environment EQ "production" ? "80,443" : "80,8500", value(arguments.row, "port"))) structDelete(attrs, "port");
         return attrs;
     }
 
@@ -628,7 +646,7 @@ component output="false" {
                     // A future start prevents immediate misfire execution during creation.
                     if (!futureSchedulerStart(attrs.startdate, attrs.starttime, now())) fail("The start date and time must be later than the current scheduler time. A later time today is allowed.");
                     attrs.url = targetUrl(entry);
-                    attrs.port = variables.config.environment EQ "production" ? 443 : 8500;
+                    // Keep the port solely in the approved URL (local :8500, implicit HTTPS in production).
                     attrs.operation = "HTTPRequest";
                     attrs.publish = false;
                     attrs.resolveurl = false;
@@ -647,7 +665,7 @@ component output="false" {
                         if (structKeyExists(arguments.input,"frequencyMode") AND selectedFrequency(arguments.input) NEQ "seconds" AND reFind("^[0-9]+$",value(row,"interval"))) structDelete(attrs,"endtime");
                         durationFields(attrs, arguments.input);
                         attrs.action = "update";
-                        attrs.url = row.url;
+                        attrs.url = schedulerTargetUrl(row);
                         attrs.operation = "HTTPRequest";
                     }
                 }
