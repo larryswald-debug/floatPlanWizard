@@ -85,14 +85,106 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="preflightOperationalTarget" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfargument name="forUpdate" type="boolean" required="false" default="false">
+    <cfscript>
+      var result = { rejected = false, gate = {} };
+      var access = { authenticated = arguments.userId GT 0, userId = val(arguments.userId) };
+      var qTarget = queryNew("");
+      var qReceipt = queryNew("");
+      var tripAccess = {};
+      var targetOwned = false;
+      var targetStatus = "";
+
+      if (!arguments.forUpdate AND arguments.userId LTE 0) {
+        result.rejected = true;
+        result.gate = denied("AUTH_REQUIRED", "Log in to continue.", false, 401, false, access);
+        return result;
+      }
+      if (!arguments.forUpdate AND arguments.floatPlanId LTE 0) {
+        result.rejected = true;
+        result.gate = denied("FLOAT_PLAN_REQUIRED", "A valid float plan is required.", true, 400, false, access);
+        return result;
+      }
+
+      // Reject non-operational targets before account access can expire another trip.
+      qTarget = queryExecute(
+        "SELECT userId, UPPER(TRIM(status)) AS status_value
+         FROM floatplans
+         WHERE floatPlanId = :floatPlanId
+         LIMIT 1",
+        { floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" } },
+        { datasource = variables.datasource }
+      );
+      targetOwned = qTarget.recordCount EQ 1 AND val(qTarget.userId[1]) EQ val(arguments.userId);
+      if (targetOwned) {
+        targetStatus = isNull(qTarget.status_value[1]) ? "" : toString(qTarget.status_value[1]);
+        if (targetStatus NEQ "DRAFT") {
+          return result;
+        }
+      }
+
+      tripAccess = getPremiumTripAccessService().getTripOperationalAccess(arguments.userId, arguments.floatPlanId, false);
+      if (arguments.forUpdate) {
+        // Match the existing update gate's receipt-first denial order without taking locks.
+        qReceipt = queryExecute(
+          "SELECT id
+           FROM premium_send_receipts
+           WHERE user_id = :userId
+             AND float_plan_id = :floatPlanId
+           LIMIT 1",
+          {
+            userId = { value = arguments.userId, cfsqltype = "cf_sql_integer" },
+            floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" }
+          },
+          { datasource = variables.datasource }
+        );
+        if (qReceipt.recordCount NEQ 1) {
+          tripAccess = getPremiumTripAccessService().getTripOperationalAccess(0, 0, false);
+          tripAccess.userMessage = "Premium access for this float plan is unavailable.";
+        } else if (!targetOwned) {
+          tripAccess = getPremiumTripAccessService().getTripOperationalAccess(0, 0, false);
+          tripAccess.reasonCode = "TRIP_ACCESS_BINDING_INVALID";
+          tripAccess.userMessage = "This float plan access record is invalid.";
+        }
+      }
+      // A concurrent activation still goes through the existing authoritative gate.
+      if (tripAccess.allowed) {
+        return result;
+      }
+
+      access.tripOperationalAccess = tripAccess;
+      access.tripOperationalFloatPlanId = val(arguments.floatPlanId);
+      result.rejected = true;
+      result.gate = denied(
+        errorCode = tripAccess.reasonCode,
+        message = tripAccess.userMessage,
+        auth = true,
+        statusCode = 403,
+        includeUpgradeOptions = listFindNoCase("TRIP_ACCESS_EXPIRED,MEMBERSHIP_REQUIRED", tripAccess.reasonCode) GT 0,
+        access = access
+      );
+      result.gate.tripAccess = tripAccess;
+      result.gate.response.tripAccess = tripAccess;
+      return result;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="requireTripOperationalAccess" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
-      var access = getCurrentAccess(arguments.userId);
+      var preflight = preflightOperationalTarget(arguments.userId, arguments.floatPlanId);
+      var access = {};
       var tripAccess = {};
       var gateResult = {};
 
+      if (preflight.rejected) {
+        return preflight.gate;
+      }
+      access = getCurrentAccess(arguments.userId);
       if (!structKeyExists(access, "authenticated") OR !access.authenticated) {
         return denied(
           errorCode = "AUTH_REQUIRED",
@@ -146,12 +238,19 @@
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
-      var access = getCurrentAccess(arguments.userId);
-      var tripAccess = getPremiumTripAccessService().getTripOperationalAccessForUpdate(
+      var preflight = preflightOperationalTarget(arguments.userId, arguments.floatPlanId, true);
+      var access = {};
+      var tripAccess = {};
+      var gateResult = {};
+
+      if (preflight.rejected) {
+        return preflight.gate;
+      }
+      access = getCurrentAccess(arguments.userId);
+      tripAccess = getPremiumTripAccessService().getTripOperationalAccessForUpdate(
         arguments.userId,
         arguments.floatPlanId
       );
-      var gateResult = {};
 
       access.tripOperationalAccess = tripAccess;
       access.tripOperationalFloatPlanId = val(arguments.floatPlanId);

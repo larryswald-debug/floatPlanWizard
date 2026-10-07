@@ -24,7 +24,7 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20261002-onboarding-action-alignment">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20261006-route-summary-order">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard" data-auth-wait-for-continue="<cfoutput>#request.fpwAuthWaitForContinue ? 'true' : 'false'#</cfoutput>" data-auth-overview="<cfoutput>#request.fpwAuthOverview ? 'true' : 'false'#</cfoutput>" data-auth-handoff="<cfoutput>#encodeForHTMLAttribute(serializeJSON(request.fpwAuthHandoff))#</cfoutput>" data-auth-created="<cfoutput>#len(request.fpwAuthCreatedEmail) ? 'true' : 'false'#</cfoutput>" data-recovery-intent="<cfoutput>#encodeForHtmlAttribute(serializeJSON(fpwRecoveryIntent))#</cfoutput>" data-recovery-login-url="<cfoutput>#encodeForHtmlAttribute(fpwRecoveryLoginUrl)#</cfoutput>">
@@ -1626,7 +1626,7 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20261001-auth-overview"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261001-auth-continuation"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261006-route-summary-order"></script>
 
 </body>
 </html>

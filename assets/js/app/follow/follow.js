@@ -12,6 +12,7 @@
     followerStorageKey: "",
     mapPayload: null,
     isOwner: false,
+    isPreview: false,
     pageContext: {},
     timeline: {
       payload: null,
@@ -248,6 +249,7 @@
   }
 
   function fetchJson(action, payload) {
+    if (state.isPreview) return Promise.reject(new Error("Trip actions are disabled in preview."));
     return fetch(apiUrl(action), {
       method: "POST",
       credentials: "same-origin",
@@ -273,6 +275,7 @@
   }
 
   function cacheFollowerToken(token) {
+    if (state.isPreview) return;
     if (!state.followerStorageKey) return;
     if (!token) return;
     try {
@@ -283,6 +286,7 @@
   }
 
   function readCachedFollowerToken() {
+    if (state.isPreview) return "";
     if (!state.followerStorageKey) return "";
     try {
       return window.localStorage.getItem(state.followerStorageKey) || "";
@@ -1149,6 +1153,7 @@
   }
 
   function buildFloatPlanPdfDownloadUrl(payload) {
+    if (state.isPreview) return "";
     var stream = payload && payload.stream && typeof payload.stream === "object" ? payload.stream : {};
     var slug = String(stream.slug || state.slug || "").trim();
     var streamId = toInt(stream.id || stream.stream_id || state.streamId, 0);
@@ -1244,6 +1249,7 @@
   }
 
   function handleFloatPlanPdfDownload(event) {
+    if (state.isPreview) { event.preventDefault(); return; }
     var link = event.currentTarget;
     var href = link ? String(link.href || "") : "";
     var originalText = link ? (link.textContent || "Download PDF") : "Download PDF";
@@ -1498,9 +1504,9 @@
     var order = toInt(leg.leg_order, 0);
     var legText = String(leg.label || (String(leg.start_name || "Start") + " -> " + String(leg.end_name || "End"))).trim();
     var progress = (leg.progress && typeof leg.progress === "object") ? leg.progress : {};
-    var progressPct = timelineValueText(progress.percent_complete, 0, "%");
+    var progressPct = state.isPreview ? "Not started" : timelineValueText(progress.percent_complete, 0, "%");
     var lastUpdateRaw = String(progress.last_update_ts || "").trim();
-    var lastUpdateText = lastUpdateRaw ? formatTimeLabel(lastUpdateRaw) : "n/a";
+    var lastUpdateText = state.isPreview ? "No updates in preview" : (lastUpdateRaw ? formatTimeLabel(lastUpdateRaw) : "n/a");
     var cumulativeHours = timelineValueText(leg.cumulative_hours, 1, "h");
     var legHours = timelineValueText(leg.hours, 1, "h");
     var maxHoursPerDay = timelineValueText(summary.max_hours_per_day, 1, "h");
@@ -1600,7 +1606,7 @@
       var lastUpdateRaw = String(progress.last_update_ts || "").trim();
       var lastUpdate = lastUpdateRaw ? formatTimeLabel(lastUpdateRaw) : "";
       var legText = label || (startName + " -> " + endName);
-      var progressText = "Progress " + pct + "%";
+      var progressText = state.isPreview ? "Planned — not started" : ("Progress " + pct + "%");
       if (lastUpdate) {
         progressText += " | Updated " + lastUpdate;
       }
@@ -1664,7 +1670,11 @@
 
     if (!api || typeof api.initFollowMap !== "function") return;
 
-    api.initFollowMap("followMap", {});
+    // Scope the approved origin-only exception to OSM preview tile images.
+    api.initFollowMap("followMap", state.isPreview ? {
+      tileUrl: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      tileOptions: { maxZoom: 18, attribution: "&copy; OpenStreetMap", referrerPolicy: "origin" }
+    } : {});
     api.renderRoute(routeGeo);
     api.renderPins(pins);
     api.fitBoundsToRoute(routeGeo, pins);
@@ -1827,10 +1837,13 @@
     state.posts = list;
     updateSidebarLastCheckinFromPosts(list);
     renderPhase6LowerCards(state.bootstrap || {}, list);
+    renderOwnerPreviewState(state.bootstrap || {});
     if (!dom.postsContainer) return;
 
     if (!list.length) {
-      dom.postsContainer.innerHTML = '<div class="feed-card"><p>No posts yet. Add the first voyage update.</p></div>';
+      dom.postsContainer.innerHTML = state.isPreview
+        ? '<div class="feed-card"><p>No captain updates yet. Posting, photos, comments, and reactions are disabled in preview.</p></div>'
+        : '<div class="feed-card"><p>No posts yet. Add the first voyage update.</p></div>';
       if (dom.photoCount) dom.photoCount.textContent = "0 new";
       return;
     }
@@ -2158,6 +2171,7 @@
   }
 
   function postAsOwner() {
+    if (state.isPreview) return;
     var text = dom.composerText ? String(dom.composerText.value || "").trim() : "";
     var mediaFile = (dom.composerPhotoUrl && dom.composerPhotoUrl.files && dom.composerPhotoUrl.files[0]) ? dom.composerPhotoUrl.files[0] : null;
     var mime = String(mediaFile && mediaFile.type ? mediaFile.type : "").toLowerCase();
@@ -2252,6 +2266,7 @@
   }
 
   function copyShareLink() {
+    if (state.isPreview) return;
     var url = window.location.origin + getBasePath() + "/app/follow.cfm?slug=" + encodeURIComponent(state.slug || "") + "&t=" + encodeURIComponent(state.token || "");
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(function () {
@@ -2285,6 +2300,7 @@
   }
 
   function openFullMapWindow() {
+    if (state.isPreview) return;
     var targetUrl = buildFollowContextUrl("/app/follow-full-map.cfm");
     var featureParts = [
       "popup=yes",
@@ -2345,6 +2361,122 @@
     if (heading) heading.focus();
   }
 
+  function renderOwnerPreviewState(payload) {
+    if (!state.isPreview) return;
+    var preview = payload.preview || {};
+    var currentLeg = getAuthoritySection(payload, "currentLeg");
+    var summary = (payload.timeline || {}).summary || {};
+    var firstLeg = authorityText(currentLeg.label) || "Saved route";
+    var nextStop = authorityText(currentLeg.toName) || "Not provided";
+    var fields = {
+      "trip-card-share-link": "Not shared",
+      "trip-card-privacy": "Owner preview",
+      "trip-card-monitoring": "Off",
+      "trip-card-monitor-state-text": "Monitoring is off. This Draft has not started.",
+      "trip-card-monitor-state-pill": "Preview",
+      "safety-status-title": "Preview safety status",
+      "safety-status-copy": "This Draft is not being monitored. No live vessel condition, location, or safety status is available in preview.",
+      "trip-card-status-pill": "Draft",
+      "live-chip": "Preview — not live",
+      "journey-subtitle": "Draft — not started. Monitoring is off.",
+      "journey-status-pill": "Draft",
+      "journey-departure-label": "Planned Departure",
+      "journey-departed-value": preview.plannedDepartureLabel || "Not provided",
+      "journey-departed-meta": "Saved plan; trip has not started",
+      "preview-planned-arrival": preview.plannedArrivalLabel || "Not provided",
+      "journey-current-leg-value": "Not started",
+      "journey-current-leg-meta": "First planned leg: " + firstLeg,
+      "journey-next-stop-value": nextStop,
+      "journey-next-stop-meta": "First planned stop",
+      "journey-checkin-value": "No check-ins yet",
+      "journey-checkin-meta": "Check-ins are disabled in preview.",
+      "card-status-title": "Draft",
+      "card-status-value": "Not started",
+      "card-status-copy": "Your saved plan is being previewed. Monitoring is off.",
+      "card-conditions-title": "Monitoring off",
+      "card-conditions-copy": "Weather and monitoring are unavailable in preview.",
+      "map-panel-subtitle": "Saved route and waypoints. Pan and zoom are available; full-map view is disabled in preview.",
+      "map-position-note": "No position has been reported. Phone location sharing is not active in preview. Future location updates will be shown here when supported and enabled.",
+      "today-progress-metric": "Not started",
+      "today-progress-location": "First planned leg: " + firstLeg,
+      "today-progress-eta": "No live progress or ETA in preview.",
+      "trip-summary-mode": "Draft — not started",
+      "trip-summary-safety": "Monitoring is off.",
+      "stream-glance-updated": "No updates yet",
+      "stream-glance-hours": "Not started",
+      "stream-glance-miles": "Not started",
+      "stream-glance-checkin": "No check-ins yet",
+      "stream-glance-checkin-meta": "Check-ins are disabled in preview.",
+      "stream-glance-next-stop": nextStop,
+      "stream-glance-next-stop-meta": "First planned stop",
+      "stream-subtitle": "Captain updates will appear here during a shared trip. Posting and reactions are disabled in preview.",
+      "latest-photos-copy": "No photos have been shared. Uploads are disabled in preview.",
+      "float-plan-description": "Complete your Float Plan to prepare it for sharing.",
+      "float-plan-meta": "Downloads are disabled in preview.",
+      "float-plan-download-action": "Download PDF (unavailable in preview)",
+      "timeline-subtitle": "Your saved planned legs. No live milestones, check-ins, or progress in preview.",
+      "timeline-next-update": "Saved route only. No live updates in preview."
+    };
+    Object.keys(fields).forEach(function (key) { setHookText(key, fields[key]); });
+    setHookText("trip-summary-distance", safeNum(summary.total_nm) === null ? "Distance not provided" : formatTimelineNumber(summary.total_nm, 1) + " nm planned");
+    setHookCardKicker("timeline-fuel-reserve", "Fuel + reserve");
+    setHookCardBody("timeline-fuel-reserve", "Unavailable in preview", "Review fuel while completing your Float Plan.");
+    setHookWidth("journey-progress-fill", 0);
+    setHookWidth("today-progress-fill", 0);
+    var badges = getHookField("map-badges");
+    if (badges) badges.innerHTML = '<div class="map-badge">Saved planned route</div>';
+    if (dom.composerText) dom.composerText.placeholder = "Posting is disabled in preview.";
+    if (dom.composerHelp) dom.composerHelp.textContent = "Posting, uploads, and reactions are disabled in preview.";
+    if (dom.composerAvatar) dom.composerAvatar.textContent = "PV";
+  }
+
+  function disablePreviewControls() {
+    document.querySelectorAll(".trip-actions button, #openFullMapBtn, #followActionBtn, .composer button, .composer textarea, .composer input").forEach(function (control) {
+      control.disabled = true;
+      control.setAttribute("aria-disabled", "true");
+      control.title = "Unavailable in preview. Continue Float Plan to prepare your trip.";
+    });
+    document.querySelectorAll(".composer .quick-tag").forEach(function (control) {
+      control.setAttribute("aria-disabled", "true");
+      control.title = "Posting is disabled in preview.";
+    });
+    var download = getHookField("float-plan-download-action");
+    if (download) {
+      download.removeAttribute("href");
+      download.removeAttribute("download");
+      download.setAttribute("aria-disabled", "true");
+      download.classList.add("is-disabled");
+    }
+  }
+
+  // Both modes use the same renderers. Preview supplies only a server-authorized planned DTO.
+  function renderStreamView(res) {
+    if (!state.isPreview) setLoaderMilestone("floatPlan");
+    renderHeaderAndCards(res);
+    if (!state.isPreview) setLoaderMilestone("weather");
+    renderMap(res.map || {});
+    if (!state.isPreview) setLoaderMilestone("route");
+    renderCruiseTimelineInline(res.timeline || {});
+    renderCruiseTimelineLegs(res.timeline && Array.isArray(res.timeline.legs) ? res.timeline.legs : []);
+    setComposerMode();
+    renderOwnerPreviewState(res);
+  }
+
+  function bootstrapOwnerPreview() {
+    var res = state.pageContext.previewBootstrap;
+    if (!res || res.SUCCESS !== true || res.view_mode !== "owner_preview") {
+      failLoader("This Draft trip preview is unavailable.");
+      return;
+    }
+    state.bootstrap = res;
+    state.stream = res.stream || {};
+    state.isOwner = false;
+    renderStreamView(res);
+    renderPosts([]);
+    disablePreviewControls();
+    finishLoader();
+  }
+
   function bootstrapStream() {
     setLoaderMilestone("bootstrap");
     return fetchJson("getStreamBootstrap", {
@@ -2364,14 +2496,7 @@
       state.followerStorageKey = "fpw.voyage.follower." + String(state.streamId || state.slug || "stream");
       state.followerToken = readCachedFollowerToken();
 
-      setLoaderMilestone("floatPlan");
-      renderHeaderAndCards(res);
-      setLoaderMilestone("weather");
-      renderMap(res.map || {});
-      setLoaderMilestone("route");
-      renderCruiseTimelineInline(res.timeline || {});
-      renderCruiseTimelineLegs(res.timeline && Array.isArray(res.timeline.legs) ? res.timeline.legs : []);
-      setComposerMode();
+      renderStreamView(res);
       setLoaderMilestone("finalize");
       return loadPosts().then(function (postsRes) {
         finishLoader();
@@ -2444,6 +2569,12 @@
     dom.statusDot = document.querySelector(".status-dot");
     dom.openFullMapBtn = document.getElementById("openFullMapBtn");
 
+    if (state.isPreview) {
+      disablePreviewControls();
+      wireCruiseTimelineInteractions();
+      return;
+    }
+
     if (dom.copyLinkBtn) {
       dom.copyLinkBtn.addEventListener("click", copyShareLink);
     }
@@ -2497,8 +2628,14 @@
   }
 
   function init() {
-    var route = readSlugTokenFromUrl();
     state.pageContext = readPageContext();
+    state.isPreview = state.pageContext.mode === "preview";
+    if (state.isPreview) {
+      bindUi();
+      try { bootstrapOwnerPreview(); } catch (err) { failLoader("This Draft trip preview is unavailable."); }
+      return;
+    }
+    var route = readSlugTokenFromUrl();
     state.slug = route.slug;
     state.token = route.token;
     state.streamId = route.streamId;

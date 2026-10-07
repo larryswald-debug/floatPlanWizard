@@ -150,6 +150,147 @@
     </cfscript>
   </cffunction>
 
+  <cffunction name="getPreviewViewModel" access="public" returntype="struct" output="false">
+    <cfargument name="userId" type="numeric" required="true">
+    <cfargument name="floatPlanId" type="numeric" required="true">
+    <cfscript>
+      var model = baseModel();
+      var previewService = "";
+      var context = {};
+      var qPlan = queryNew("");
+      var projection = {};
+      var routeTimeline = {};
+      var previewReason = "Available when your trip starts.";
+
+      try {
+        previewService = createObject("component", "fpw.api.v1.TripPreviewService").init(variables.datasource);
+      } catch (any previewPathErr) {
+        previewService = createObject("component", "api.v1.TripPreviewService").init(variables.datasource);
+      }
+      context = previewService.getContext(arguments.userId, arguments.floatPlanId);
+      model.mode = "preview";
+      model.preview = context;
+      if (!context.eligible) {
+        model.errorCode = context.reasonCode;
+        model.message = context.message;
+        return model;
+      }
+
+      qPlan = loadPlanContext(arguments.userId, arguments.floatPlanId);
+      if (qPlan.recordCount NEQ 1 OR uCase(safeString(qPlan.status[1])) NEQ "DRAFT"
+          OR safeNumber(qPlan.route_instance_id[1]) NEQ context.routeInstanceId) {
+        model.errorCode = "PREVIEW_NOT_READY";
+        model.message = "This trip is no longer available for preview.";
+        return model;
+      }
+
+      model.generatedAtUtc = formatUtc(now());
+      model.floatPlan = buildFloatPlanSection(qPlan);
+      model.route = buildRouteSection(qPlan);
+      model.route.streamId = 0;
+      model.route.streamSlug = "";
+      model.checkInHistory = { "items" = [], "count" = 0 };
+      model.captainLog = { "items" = [], "count" = 0 };
+      model.privateTimeline = { "items" = [], "count" = 0 };
+      model.map = buildMapSection(qPlan, model.checkInHistory, true);
+      model.map.streamId = 0;
+      model.map.currentPosition = { "available" = false, "message" = "Phone-reported locations will appear here while tracking is active." };
+      model.floatPlanInfo = buildFloatPlanInfoSection(qPlan);
+      model.contacts = loadContacts(arguments.floatPlanId);
+      model.monitoring = buildMonitoringSection(queryNew(""), qPlan);
+      model.monitoring.state = "";
+      model.monitoring.isEnabled = false;
+      model.monitoring.manualDelayMinutesTotal = 0;
+      model.monitoring.manualDelayLabel = "Not started";
+      model.monitoring.dailyStartLabel = formatLocalTimeLabel(safeString(qPlan.dailyStartLocalTime[1]), "Not set");
+      model.floatPlanMonitor = buildFloatPlanMonitorSection(qPlan, queryNew(""));
+      model.floatPlanMonitor.statusLabel = "Not started";
+      model.floatPlanMonitor.statusColor = "var(--muted)";
+      model.floatPlanMonitor.tripPageLabel = "Not shared";
+      model.floatPlanMonitor.tripPageAvailable = false;
+      model.floatPlanMonitor.streamId = 0;
+      model.floatPlanMonitor.streamSlug = "";
+      model.floatPlanMonitor.monitorContact.phoneHref = "";
+      model.floatPlanMonitor.monitorContact.smsHref = "";
+      model.floatPlanMonitor.monitorContact.emailHref = "";
+      if (!model.floatPlanMonitor.monitorContact.available) {
+        model.floatPlanMonitor.attachmentLabel = "Not selected";
+      }
+
+      projection = loadProjection(arguments.floatPlanId, model, arguments.userId);
+      routeTimeline = enrichRouteTimelineFuel(qPlan, extractRouteTimeline(projection));
+      if (!structKeyExists(routeTimeline, "available") OR !routeTimeline.available) {
+        model.errorCode = "PREVIEW_ROUTE_UNAVAILABLE";
+        model.message = "The planned route could not be loaded for preview.";
+        return model;
+      }
+      model.routeTimeline = routeTimeline;
+      model.currentLeg = buildCurrentLegSection(qPlan, projection, routeTimeline);
+      model.currentLeg.statusLabel = "Not started";
+      model.currentLeg.etaUtc = (arrayLen(routeTimeline.legs) ? safeString(routeTimeline.legs[1].etaUtc) : "");
+      model.currentLeg.fuel = buildCurrentLegFuelSection(qPlan, routeTimeline, model.currentLeg);
+      model.pace = buildPaceSection(qPlan, projection, routeTimeline);
+      if (structKeyExists(projection, "pace") AND structKeyExists(projection.pace, "available") AND !projection.pace.available) {
+        model.pace.available = false;
+        model.pace.currentLabel = "Not set";
+        model.pace.plannedLabel = "Not set";
+      }
+      model.pace.disabledReason = previewReason;
+      model.weather = buildWeatherSection(qPlan, model.map, model.currentLeg);
+      model.weather.message = "Weather lookup and route updates are unavailable in preview.";
+      model.weather.lookup.available = false;
+      model.weather.lookup.endpoint = "";
+      model.weather.lookup.payload = {};
+      model.weather.apply.available = false;
+      model.weather.apply.endpoints = {};
+      model.weather.apply.payload = {};
+      model.checkIn = buildCheckInSection(qPlan, model.monitoring, "scheduled", "scheduled");
+      model.actions = buildActionsSection(model.monitoring, model.currentLeg, routeTimeline, qPlan, "scheduled", "scheduled", {});
+      disablePreviewActions(model.actions);
+      for (var option in model.checkIn.allowedStatusOptions) {
+        option.enabled = false;
+        option.disabledReason = previewReason;
+        option.startsTripPreDeparture = false;
+        option.confirmationRequired = false;
+        option.confirmationMessage = "";
+      }
+
+      model.displayAuthority.primary = "planned_trip";
+      model.displayAuthority.routeTimeline = "planned_preview";
+      model.displayAuthority.monitoring = "not_started";
+      model.tripState = "planned";
+      model.motionState = "planned";
+      model.safetyState = "not_started";
+      model.hero = buildHeroSection(model);
+      model.hero.status = "Not started";
+      model.hero.statusDetail = "This trip has not started. You are viewing your planned trip in read-only preview.";
+      model.success = true;
+      model.message = "Planned trip preview loaded.";
+      finalizeAuthorityWarnings(model);
+      return model;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="disablePreviewActions" access="private" returntype="void" output="false">
+    <cfargument name="actions" type="struct" required="true">
+    <cfscript>
+      if (structKeyExists(arguments.actions, "enabled")) {
+        arguments.actions.enabled = false;
+        arguments.actions.reason = "Available when your trip starts.";
+        arguments.actions.disabledReason = "Available when your trip starts.";
+      }
+      if (structKeyExists(arguments.actions, "endpoint")) arguments.actions.endpoint = "";
+      if (structKeyExists(arguments.actions, "payload")) arguments.actions.payload = {};
+      if (structKeyExists(arguments.actions, "supportsLocation")) arguments.actions.supportsLocation = false;
+      if (structKeyExists(arguments.actions, "locationCapture")) arguments.actions.locationCapture = {};
+      if (structKeyExists(arguments.actions, "confirmationRequired")) arguments.actions.confirmationRequired = false;
+      if (structKeyExists(arguments.actions, "confirmationMessage")) arguments.actions.confirmationMessage = "";
+      for (var key in arguments.actions) {
+        if (isStruct(arguments.actions[key])) disablePreviewActions(arguments.actions[key]);
+      }
+    </cfscript>
+  </cffunction>
+
   <cffunction name="getPublicFollowAuthority" access="public" returntype="struct" output="false">
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
@@ -631,6 +772,7 @@
   <cffunction name="loadProjection" access="private" returntype="struct" output="false">
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfargument name="model" type="struct" required="true">
+    <cfargument name="previewUserId" type="numeric" required="false" default="0">
     <cfscript>
       var service = "";
       try {
@@ -639,6 +781,9 @@
         service = createObject("component", "api.v1.TripProgressProjectionService").init(variables.datasource);
       }
       try {
+        if (arguments.previewUserId GT 0) {
+          return service.getPlannedProjection(arguments.previewUserId, arguments.floatPlanId);
+        }
         return service.getProjection(arguments.floatPlanId, "", { "includeOperationalLockTime" = false });
       } catch (any projectionErr) {
         addWarning(arguments.model, "ACTIVE_CRUISE_PROJECTION_ERROR", projectionErr.message, "TripProgressProjectionService");
@@ -1836,12 +1981,13 @@
   <cffunction name="buildMapSection" access="private" returntype="struct" output="false">
     <cfargument name="qPlan" type="query" required="true">
     <cfargument name="checkInHistory" type="struct" required="true">
+    <cfargument name="plannedPreview" type="boolean" required="false" default="false">
     <cfscript>
       var routeInstanceId = safeNumber(arguments.qPlan.route_instance_id[1]);
       var ownerUserId = safeNumber(arguments.qPlan.userId[1]);
       var mapLegs = loadRouteMapLegs(routeInstanceId);
       var routeMapService = createRouteMapGeometryService();
-      var routeMap = routeMapService.buildRouteMapData(routeInstanceId, ownerUserId, 0);
+      var routeMap = routeMapService.buildRouteMapData(routeInstanceId, ownerUserId, 0, !arguments.plannedPreview);
       var routeGeo = (
         structKeyExists(routeMap, "route_geo") AND isStruct(routeMap.route_geo)
           ? routeMap.route_geo

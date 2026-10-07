@@ -23,7 +23,8 @@ fpwClarityIsBlockedPath = (
 );
 </cfscript>
 
-<cfif fpwClarityIsProductionHost AND NOT fpwClarityIsBlockedPath AND NOT structKeyExists(request, "fpwClarityTagRendered")>
+<cfif NOT (structKeyExists(request, "fpwTripPreview") AND request.fpwTripPreview)
+  AND fpwClarityIsProductionHost AND NOT fpwClarityIsBlockedPath AND NOT structKeyExists(request, "fpwClarityTagRendered")>
   <cfset request.fpwClarityTagRendered = true>
   <!-- Microsoft Clarity tracking: production only, project x61nnnmu8k -->
   <script type="text/javascript">

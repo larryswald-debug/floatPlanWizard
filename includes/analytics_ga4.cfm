@@ -6,6 +6,7 @@ fpwGaPath = lCase(trim(toString(cgi.script_name)));
 fpwGaBasePath = "";
 fpwGaIsProductionHost = false;
 fpwGaIsBlockedPath = false;
+fpwGaIsTripPreview = structKeyExists(request, "fpwTripPreview") AND request.fpwTripPreview;
 
 if (structKeyExists(request, "fpwBase")) {
   fpwGaBasePath = trim(toString(request.fpwBase));
@@ -23,7 +24,7 @@ fpwGaIsBlockedPath = (
 );
 </cfscript>
 
-<cfif NOT structKeyExists(request, "fpwPlausibleTagRendered")>
+<cfif NOT fpwGaIsTripPreview AND NOT structKeyExists(request, "fpwPlausibleTagRendered")>
   <cfset request.fpwPlausibleTagRendered = true>
 <!-- Privacy-friendly analytics by Plausible -->
 <script async src="https://plausible.io/js/pa-RzmzzpwAcdcGg_-4y94nc.js"></script>
@@ -37,6 +38,9 @@ fpwGaIsBlockedPath = (
   <cfset request.fpwGa4HelperRendered = true>
   <script>
     window.FPWAnalytics = window.FPWAnalytics || {};
+    <cfif fpwGaIsTripPreview>
+    window.FPWAnalytics.track = function() {};
+    <cfelse>
     window.FPWAnalytics.track = window.FPWAnalytics.track || function(eventName, params) {
       if (!eventName || typeof window.gtag !== "function") {
         return;
@@ -45,10 +49,11 @@ fpwGaIsBlockedPath = (
         window.gtag("event", String(eventName), (params && typeof params === "object") ? params : {});
       } catch (err) {}
     };
+    </cfif>
   </script>
 </cfif>
 
-<cfif fpwGaIsProductionHost AND NOT fpwGaIsBlockedPath AND NOT structKeyExists(request, "fpwGa4TagRendered")>
+<cfif NOT fpwGaIsTripPreview AND fpwGaIsProductionHost AND NOT fpwGaIsBlockedPath AND NOT structKeyExists(request, "fpwGa4TagRendered")>
   <cfset request.fpwGa4TagRendered = true>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-JJCH1QE0LH"></script>

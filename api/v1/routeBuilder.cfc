@@ -1026,6 +1026,8 @@
             var routeScopedGroup = {};
             var activeRouteSource = {};
             var savedRouteInputs = {};
+            var previewService = "";
+            var previewContext = {};
             var hasPremiumSendHistory = false;
             var hasActiveFloatPlan = false;
             var canDelete = false;
@@ -1091,6 +1093,12 @@
                 }
             }
 
+            try {
+                previewService = createObject("component", "fpw.api.v1.TripPreviewService").init(application.dsn);
+            } catch (any previewPathError) {
+                previewService = createObject("component", "api.v1.TripPreviewService").init(application.dsn);
+            }
+
             for (i = 1; i LTE qRoutes.recordCount; i++) {
                 timeline = getTimeline(arguments.userId, qRoutes.short_code[i]);
                 if (!structKeyExists(timeline, "SUCCESS") OR timeline.SUCCESS EQ false) {
@@ -1138,6 +1146,15 @@
                         activeRouteSource = activeRouteSource
                     )) {
                         currentRouteGroup = duplicate(out.CURRENT_GROUP);
+                    }
+                }
+                if (structCount(currentRouteGroup) GT 0) {
+                    currentRouteGroup.PREVIEW_READY = false;
+                    currentRouteGroup.PREVIEW_REASON = "";
+                    if (currentRouteGroup.IS_DRAFT) {
+                        previewContext = previewService.getContext(arguments.userId, currentRouteGroup.FLOATPLAN_ID);
+                        currentRouteGroup.PREVIEW_READY = previewContext.eligible;
+                        currentRouteGroup.PREVIEW_REASON = previewContext.message;
                     }
                 }
                 hasPremiumSendHistory = val(qRoutes.has_premium_send_history[i]) GT 0;

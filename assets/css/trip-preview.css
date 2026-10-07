@@ -1,0 +1,33 @@
+/* Shared chrome for the existing captain and shore-contact preview renderers. */
+.fpw-trip-preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1050;
+  margin: 0 auto 1rem;
+  padding: 1rem 1.25rem;
+  color: #eef6ff;
+  background: #173b55;
+  border: 2px solid #f2c66d;
+  border-radius: .65rem;
+  box-shadow: 0 3px 14px rgba(0,0,0,.22);
+}
+.fpw-trip-preview-label { display: block; color: #ffe1a3; font-weight: 800; letter-spacing: .06em; }
+.fpw-trip-preview-banner p { margin: .35rem 0 .75rem; color: inherit; }
+.fpw-trip-preview-nav { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.fpw-trip-preview-nav a { color: #fff; border: 1px solid #abc4d6; padding: .55rem .8rem; border-radius: .35rem; text-decoration: none; }
+.fpw-trip-preview-nav a[aria-current="page"] { background: #fff; color: #173b55; font-weight: 700; }
+.fpw-trip-preview-nav .fpw-trip-preview-continue,
+.fpw-trip-preview-continue { display: inline-block; background: #ffe1a3; color: #173b55; padding: .65rem 1rem; border: 1px solid #ffe1a3; border-radius: .35rem; font-weight: 800; text-decoration: none; }
+.fpw-trip-preview-nav .fpw-trip-preview-continue { margin-left: auto; }
+.fpw-trip-preview-nav a:focus-visible, .fpw-trip-preview-continue:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.fpw-trip-preview-note { color: #c8d5e2; font-size: .9rem; line-height: 1.45; }
+.fpw-trip-preview-banner .fpw-trip-preview-note { color: #eef6ff; }
+[data-trip-preview-view] button:disabled,
+body.fpw-trip-preview button:disabled { cursor: not-allowed; }
+.follow-body > .fpw-trip-preview-banner { margin: .5rem; }
+@media (max-width: 640px) {
+  .fpw-trip-preview-banner { padding: .8rem; }
+  .fpw-trip-preview-nav { gap: .45rem; }
+  .fpw-trip-preview-nav a { flex: 1 1 auto; text-align: center; }
+  .fpw-trip-preview-nav .fpw-trip-preview-continue { flex-basis: 100%; margin-left: 0; }
+}

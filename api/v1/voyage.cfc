@@ -468,7 +468,139 @@
         </cfscript>
     </cffunction>
 
-	    <cffunction name="getStreamBootstrap" access="private" returntype="struct" output="false">
+	    <!--- Owner page adapter only: deliberately non-remote and free of reads or writes. --->
+    <cffunction name="getOwnerPreviewViewModel" access="public" returntype="struct" output="false">
+        <cfargument name="context" type="struct" required="true">
+        <cfargument name="plannedViewModel" type="struct" required="true">
+        <cfscript>
+            var model = arguments.plannedViewModel;
+            var plan = getPublicAuthoritySection(model, "floatPlan");
+            var route = getPublicAuthoritySection(model, "route");
+            var info = getPublicAuthoritySection(model, "floatPlanInfo");
+            var vessel = getPublicAuthoritySection(info, "vessel");
+            var savedReturn = getPublicAuthoritySection(info, "return");
+            var sourceMap = getPublicAuthoritySection(model, "map");
+            var sourceGeo = getPublicAuthoritySection(sourceMap, "routeGeo");
+            var sourceTimeline = getPublicAuthoritySection(model, "routeTimeline");
+            var sourceSummary = getPublicAuthoritySection(sourceTimeline, "summary");
+            var legs = [];
+            var pins = [];
+            var row = {};
+            var pin = {};
+            var leg = {};
+            var lockSummary = {};
+            var totalHours = 0;
+            var hoursAvailable = true;
+            var totalNm = "";
+            var departureLabel = publicAuthorityText(plan, "scheduledDepartureLocalLabel");
+            var arrivalLabel = formatVoyageLocalWallClockDisplayLabel(publicAuthorityText(savedReturn, "scheduledLocalRaw"));
+            var firstFrom = publicAuthorityText(route, "startLocation");
+            var firstTo = "";
+            var title = publicAuthorityText(plan, "name");
+            var out = { "SUCCESS"=false, "MESSAGE"="This Draft trip preview is unavailable." };
+
+            if (!structKeyExists(arguments.context, "eligible") OR !arguments.context.eligible
+                OR !structKeyExists(model, "success") OR !model.success
+                OR compareNoCase(publicAuthorityText(model, "mode"), "preview") NEQ 0
+                OR val(publicAuthorityText(plan, "id")) NEQ arguments.context.floatPlanId
+                OR val(publicAuthorityText(route, "routeInstanceId")) NEQ arguments.context.routeInstanceId) {
+                return out;
+            }
+            if (!len(title)) title = publicAuthorityText(route, "routeName");
+            if (!len(title)) title = "Draft trip";
+            if (!len(departureLabel)) departureLabel = "Not provided";
+            if (len(arrivalLabel) AND len(publicAuthorityText(savedReturn, "timezone"))) {
+                arrivalLabel &= " " & publicAuthorityText(savedReturn, "timezone");
+            }
+            if (!len(arrivalLabel)) arrivalLabel = "Not provided";
+            if (isNumeric(publicAuthorityText(sourceSummary, "totalNm")) AND val(sourceSummary.totalNm) GT 0) {
+                totalNm = val(sourceSummary.totalNm);
+            }
+            if (structKeyExists(sourceTimeline, "legs") AND isArray(sourceTimeline.legs)) {
+                for (row in sourceTimeline.legs) {
+                    if (!isStruct(row)) continue;
+                    leg = {
+                        "leg_order"=val(publicAuthorityText(row, "routeLegOrder")),
+                        "start_name"=publicAuthorityText(row, "fromName"),
+                        "end_name"=publicAuthorityText(row, "toName"),
+                        "label"=publicAuthorityText(row, "fromName") & " to " & publicAuthorityText(row, "toName"),
+                        "dist_nm"="", "hours"="", "cumulative_hours"="", "locks"="",
+                        "progress"={ "percent_complete"="", "last_update_ts"="" }
+                    };
+                    if (isNumeric(publicAuthorityText(row, "distanceNm")) AND val(row.distanceNm) GT 0) leg.dist_nm = val(row.distanceNm);
+                    if (isNumeric(publicAuthorityText(row, "estimatedDurationSeconds")) AND val(row.estimatedDurationSeconds) GT 0) {
+                        leg.hours = val(row.estimatedDurationSeconds) / 3600;
+                        totalHours += leg.hours;
+                        if (hoursAvailable) leg.cumulative_hours = totalHours;
+                    } else hoursAvailable = false;
+                    lockSummary = getPublicAuthoritySection(row, "lockSummary");
+                    if (isNumeric(publicAuthorityText(lockSummary, "lockCount")) AND val(lockSummary.lockCount) GTE 0) {
+                        leg.locks = val(lockSummary.lockCount);
+                    } else if (structKeyExists(row, "locks") AND isArray(row.locks) AND arrayLen(row.locks)) leg.locks = arrayLen(row.locks);
+                    arrayAppend(legs, leg);
+                }
+            }
+            if (arrayLen(legs)) {
+                firstFrom = legs[1].start_name;
+                firstTo = legs[1].end_name;
+            }
+            if (structKeyExists(sourceMap, "pins") AND isArray(sourceMap.pins)) {
+                for (pin in sourceMap.pins) {
+                    if (!isStruct(pin) OR !isNumeric(publicAuthorityText(pin, "lat")) OR !isNumeric(publicAuthorityText(pin, "lng"))) continue;
+                    if (abs(val(pin.lat)) GT 90 OR abs(val(pin.lng)) GT 180) continue;
+                    arrayAppend(pins, {
+                        "lat"=val(pin.lat), "lng"=val(pin.lng),
+                        "label"=encodeForHTML(publicAuthorityText(pin, "label")),
+                        "type"=publicAuthorityText(pin, "type"),
+                        "sequence"=isNumeric(publicAuthorityText(pin, "sequence")) ? val(pin.sequence) : ""
+                    });
+                }
+            }
+            out = {
+                "SUCCESS"=true, "MESSAGE"="OK", "view_mode"="owner_preview",
+                "stream"={ "title"=title, "status"="Draft", "privacy_mode"="owner_preview", "allow_interactions"=false, "is_owner"=false },
+                "sidebar"={ "vessel_name"=publicAuthorityText(vessel, "name"), "privacy_label"="Owner preview", "monitoring_summary"="Off" },
+                "topCards"={ "status"="Draft", "location_label"=firstFrom, "next_stop"=firstTo, "conditions"="Monitoring off" },
+                "map"={ "routeGeo"={ "type"="MultiLineString", "coordinates"=[] }, "pins"=pins, "current"={} },
+                "legWeather"={}, "pinned"={},
+                "timeline"={
+                    "legs"=legs,
+                    "summary"={
+                        "total_nm"=totalNm, "total_hours"=(hoursAvailable AND arrayLen(legs) ? totalHours : ""),
+                        "effective_speed_kn"=(isNumeric(publicAuthorityText(sourceSummary, "effectiveSpeedKn")) AND val(sourceSummary.effectiveSpeedKn) GT 0 ? val(sourceSummary.effectiveSpeedKn) : ""),
+                        "fuel_est"="", "reserve_est"="", "reserve_pct"="", "reserve_mode"=""
+                    },
+                    "meta"={ "inputs_source"="Saved Draft plan" }
+                },
+                "body"={
+                    "page_subtitle"="Your saved route as a shore contact will see it. Draft preview only.",
+                    "journey_subtitle"="Not started. Monitoring is off.",
+                    "trip_summary_confidence"="Saved route",
+                    "trip_summary_mode"="Draft — not started",
+                    "trip_summary_safety"="Monitoring is off in preview.",
+                    "timeline_next_update"="Planned route only. No live updates in preview.",
+                    "family_confidence_subtitle"="No trip or monitoring activity is created by this preview."
+                },
+                "publicAuthority"={
+                    "identity"={ "floatPlanId"=arguments.context.floatPlanId, "routeInstanceId"=arguments.context.routeInstanceId },
+                    "progress"={ "routeProgressPercent"=0, "legProgressPercent"="" },
+                    "currentLeg"={ "fromName"=firstFrom, "toName"=firstTo, "label"=(arrayLen(legs) ? legs[1].label : "") },
+                    "timing"={ "hasActualDeparture"=false, "scheduledDepartureLocalLabel"=departureLabel },
+                    "monitoring"={ "publicHealthLabel"="Draft", "publicHealthVariant"="good" },
+                    "tripState"={ "code"="draft", "label"="Not started", "helperText"="Monitoring is off in preview." }
+                },
+                "trackLog"={ "count"=0, "gpsCount"=0, "entries"=[] },
+                "preview"={ "plannedDepartureLabel"=departureLabel, "plannedArrivalLabel"=arrivalLabel }
+            };
+            if (structKeyExists(sourceGeo, "coordinates") AND isArray(sourceGeo.coordinates)
+                AND listFind("LineString,MultiLineString", publicAuthorityText(sourceGeo, "type"))) {
+                out.map.routeGeo = { "type"=publicAuthorityText(sourceGeo, "type"), "coordinates"=duplicate(sourceGeo.coordinates) };
+            }
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="getStreamBootstrap" access="private" returntype="struct" output="false">
 	        <cfargument name="slug" type="string" required="false" default="">
 	        <cfargument name="shareToken" type="string" required="false" default="">
 	        <cfargument name="streamId" type="numeric" required="false" default="0">
@@ -2063,6 +2195,7 @@
             var canonicalPlan = {};
             var memberGateResult = {};
             var routeMap = {};
+            var targetPreflight = {};
             var pointKey = lCase(trim(arguments.point));
             var routeLegOrderRaw = trim(toString(arguments.routeLegOrder));
             var routeLegOrderProvided = len(routeLegOrderRaw) GT 0;
@@ -2121,6 +2254,9 @@
                     auth=true
                 );
             }
+
+            targetPreflight = getMemberAccessGateService().preflightOperationalTarget(arguments.currentUserId, arguments.floatPlanId);
+            if (targetPreflight.rejected) return targetPreflight.gate.response;
 
             canonicalPlan = resolveCanonicalActiveFloatPlan(arguments.currentUserId, arguments.floatPlanId);
             if (!canonicalPlan.SUCCESS) {

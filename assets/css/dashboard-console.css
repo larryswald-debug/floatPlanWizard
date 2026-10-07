@@ -7441,6 +7441,16 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-d
   gap: 10px;
 }
 
+.fpw-route-detail-actions--saved > .js-expedition-delete,
+.fpw-route-detail-actions--saved > .js-expedition-archive{
+  grid-column: 1 / -1;
+}
+
+.fpw-route-detail-actions .js-expedition-trip-preview:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .fpw-route-workspace-btn{
   min-height: 38px;
   padding: 0 14px;

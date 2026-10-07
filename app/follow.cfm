@@ -1,4 +1,49 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfset fpwFollowPreview = structKeyExists(url, "mode") AND isSimpleValue(url.mode) AND compareNoCase(trim(toString(url.mode)), "preview") EQ 0>
+<cfif fpwFollowPreview>
+  <cfset request.fpwTripPreview = true>
+  <cfheader name="Cache-Control" value="no-store">
+  <cfheader name="Referrer-Policy" value="no-referrer">
+  <cfheader name="X-Robots-Tag" value="noindex, nofollow">
+  <cfinclude template="../includes/require_auth.cfm">
+  <cfscript>
+    fpwFollowPreviewContext = { eligible=false };
+    fpwFollowPreviewBootstrap = { "SUCCESS"=false, "MESSAGE"="This Draft trip preview is unavailable." };
+    fpwFollowPreviewContinueUrl = "";
+    fpwFollowPreviewPlanId = 0;
+    fpwFollowPreviewPrefix = replace(reReplace(request.fpwBase, "^/", ""), "/", ".", "all");
+    fpwFollowPreviewPrefix = len(fpwFollowPreviewPrefix) ? fpwFollowPreviewPrefix & "." : "";
+    fpwFollowPreviewDatasource = structKeyExists(application, "dsn") AND len(trim(toString(application.dsn))) ? trim(toString(application.dsn)) : "fpw";
+    if (structKeyExists(url, "floatPlanId") AND isSimpleValue(url.floatPlanId)
+        AND reFind("^[1-9][0-9]{0,9}$", toString(url.floatPlanId))
+        AND !reFind("[^0-9]", toString(url.floatPlanId))
+        AND val(url.floatPlanId) LTE 2147483647) {
+      fpwFollowPreviewPlanId = val(url.floatPlanId);
+    }
+    try {
+      fpwFollowPreviewContext = createObject("component", fpwFollowPreviewPrefix & "api.v1.TripPreviewService")
+        .init(fpwFollowPreviewDatasource).getContext(fpwRequireAuthUserId, fpwFollowPreviewPlanId);
+      if (fpwFollowPreviewContext.eligible) {
+        fpwFollowPreviewModel = createObject("component", fpwFollowPreviewPrefix & "api.v1.ActiveCruiseViewModelService")
+          .init(fpwFollowPreviewDatasource).getPreviewViewModel(fpwRequireAuthUserId, fpwFollowPreviewPlanId);
+        fpwFollowPreviewBootstrap = createObject("component", fpwFollowPreviewPrefix & "api.v1.voyage")
+          .getOwnerPreviewViewModel(fpwFollowPreviewContext, fpwFollowPreviewModel);
+        if (fpwFollowPreviewBootstrap.SUCCESS) {
+          fpwFollowPreviewContinueUrl = createObject("component", fpwFollowPreviewPrefix & "includes.InactiveMemberRecoveryActionPathService")
+            .buildPath(request.fpwBase, {recoveryAction="draft", floatPlanId=toString(fpwFollowPreviewPlanId)});
+        }
+      }
+    } catch (any fpwFollowPreviewError) {
+      fpwFollowPreviewBootstrap = { "SUCCESS"=false, "MESSAGE"="This Draft trip preview is unavailable." };
+    }
+    fpwFollowPageContextJson = serializeJSON({
+      "fpwBase"=request.fpwBase, "mode"="preview", "previewBootstrap"=fpwFollowPreviewBootstrap
+    });
+    // Keep user-supplied names inside this JSON script element.
+    fpwFollowPageContextJson = replace(fpwFollowPageContextJson, "<", "\u003c", "all");
+  </cfscript>
+  <cfif NOT fpwFollowPreviewBootstrap.SUCCESS><cfheader statuscode="404"></cfif>
+</cfif>
 <!doctype html>
 <html lang="en">
 <head>
@@ -9,6 +54,7 @@
   <cfinclude template="../includes/header_styles.cfm">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/follow.css?v=20260903-completed-contact" />
+  <cfif fpwFollowPreview><link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/trip-preview.css?v=20261006-preview"></cfif>
   <style>
     body.follow-loading { overflow: hidden; }
     body.follow-loading .app { visibility: hidden; }
@@ -28,6 +74,23 @@
   </style>
 </head>
 <body class="follow-body follow-loading">
+  <cfif fpwFollowPreview>
+    <section class="fpw-trip-preview-banner" role="region" aria-label="Trip preview" data-trip-preview-view="follow">
+      <div>
+        <strong class="fpw-trip-preview-label">Preview Trip Experience — Shore Contact View</strong>
+        <p class="fpw-trip-preview-note">Owner-only preview of your saved Draft. Your trip has not started. Monitoring, sharing, and trip actions are off.</p>
+      </div>
+      <cfif len(fpwFollowPreviewContinueUrl)>
+        <cfoutput>
+          <nav class="fpw-trip-preview-nav" aria-label="Preview views">
+            <a href="#encodeForHTMLAttribute(request.fpwBase & '/app/active-cruise.cfm?mode=preview&floatPlanId=' & fpwFollowPreviewPlanId)#">Captain View</a>
+            <span aria-current="page">Shore Contact View</span>
+          </nav>
+          <a class="fpw-trip-preview-continue" data-trip-preview-continue href="#encodeForHTMLAttribute(fpwFollowPreviewContinueUrl)#">Continue Float Plan</a>
+        </cfoutput>
+      </cfif>
+    </section>
+  </cfif>
   <div class="follow-loader" id="followLoader" role="status" aria-live="polite" aria-atomic="true">
     <div class="follow-loader__card">
       <div class="follow-loader__eyebrow">FloatPlanWizard</div>
@@ -105,7 +168,7 @@
         <div class="follow-float-plan-icon" aria-hidden="true">PDF</div>
         <div class="follow-float-plan-body">
           <h2>Float Plan</h2>
-          <p>Download the filed float plan for this voyage.</p>
+          <p data-fpw-field="float-plan-description">Download the filed float plan for this voyage.</p>
           <a class="follow-primary-action is-disabled" aria-disabled="true" data-fpw-field="float-plan-download-action">Float plan PDF unavailable</a>
           <p class="follow-card-meta" data-fpw-field="float-plan-meta">PDF unavailable</p>
         </div>
@@ -152,6 +215,13 @@
             <strong data-fpw-field="journey-departed-value">—</strong>
             <small data-fpw-field="journey-departed-meta">—</small>
           </div>
+          <cfif fpwFollowPreview>
+            <div class="journey-stop">
+              <div class="kicker">Planned Arrival</div>
+              <strong data-fpw-field="preview-planned-arrival">Not provided</strong>
+              <small>Saved return time; no live ETA</small>
+            </div>
+          </cfif>
           <div class="journey-stop">
             <div class="kicker">Current leg</div>
             <strong data-fpw-field="journey-current-leg-value">—</strong>
@@ -257,8 +327,8 @@
             </div>
             <div class="trust-grid">
               <div class="trust-card">
-                <h4>What green means</h4>
-                <p>No missed required check-ins have been recorded at this time. This does not confirm the vessel’s latest condition or location.</p>
+                <h4 data-fpw-field="safety-status-title">What green means</h4>
+                <p data-fpw-field="safety-status-copy">No missed required check-ins have been recorded at this time. This does not confirm the vessel’s latest condition or location.</p>
               </div>
               <div class="trust-card">
                 <h4>Why ETA can shift</h4>
@@ -423,11 +493,11 @@
     </main>
   </div>
 
-  <script id="followPageContext" type="application/json"><cfoutput>{"fpwBase":"#JSStringFormat(request.fpwBase)#"}</cfoutput></script>
+  <script id="followPageContext" type="application/json"><cfif fpwFollowPreview><cfoutput>#fpwFollowPageContextJson#</cfoutput><cfelse><cfoutput>{"fpwBase":"#JSStringFormat(request.fpwBase)#"}</cfoutput></cfif></script>
 
   <cfinclude template="../includes/footer_scripts.cfm">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/followMap.js?v=20260526-cache-bump"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260903-completed-contact"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/follow/follow.js?v=20260903-completed-contact-qa6-001-final-arrival-20261006-trip-preview-osm-origin"></script>
 </body>
 </html>

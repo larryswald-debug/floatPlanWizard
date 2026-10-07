@@ -137,6 +137,16 @@
         <cfreturn true>
     </cffunction>
 
+    <cffunction name="onAbort" access="public" returntype="void" output="false">
+        <cfargument name="targetPage" type="string" required="true">
+        <!--- cflocation replaces Cache-Control; preserve preview headers on auth redirects. --->
+        <cfif structKeyExists(request, "fpwTripPreview") AND request.fpwTripPreview>
+            <cfset getPageContext().getResponse().setHeader("Cache-Control", "no-store")>
+            <cfset getPageContext().getResponse().setHeader("Referrer-Policy", "no-referrer")>
+            <cfset getPageContext().getResponse().setHeader("X-Robots-Tag", "noindex, nofollow")>
+        </cfif>
+    </cffunction>
+
     <cffunction name="onRequestEnd" access="public" returntype="void" output="false">
         <cfargument name="targetPage" type="string" required="true">
         <cfset var recoveryUserId = 0>
@@ -144,6 +154,7 @@
         <!--- Recovery attribution is optional and runs after committed member requests. --->
         <cftry>
             <cfif NOT structKeyExists(request, "fpwAdminRequest") AND NOT structKeyExists(request, "fpwRecoveryRequestFailed")
+                AND NOT (structKeyExists(request, "fpwTripPreview") AND request.fpwTripPreview)
                 AND (structKeyExists(request,"fpwRecoveryAuthenticatedPageUserId") OR recoveryMemberApiRequest)
                 AND structKeyExists(session,"user") AND isStruct(session.user)>
                 <cfset recoveryUserId = val(session.user.userId ?: session.user.id ?: 0)>

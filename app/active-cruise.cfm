@@ -1,3 +1,10 @@
+<cfset activeCruiseV2PreviewRequested = structKeyExists(url, "mode") AND isSimpleValue(url.mode) AND compareNoCase(trim(toString(url.mode)), "preview") EQ 0>
+<cfset request.fpwTripPreview = activeCruiseV2PreviewRequested>
+<cfif activeCruiseV2PreviewRequested>
+  <cfheader name="Cache-Control" value="no-store">
+  <cfheader name="Referrer-Policy" value="no-referrer">
+  <cfheader name="X-Robots-Tag" value="noindex, nofollow">
+</cfif>
 <cfinclude template="../includes/require_auth.cfm">
 <cfscript>
   function fpwV2HookValue(required string key) {
@@ -87,16 +94,17 @@
     return result;
   }
 
-  function fpwV2LoadActiveCruiseModel(required numeric userId, required numeric floatPlanId, required string datasource) {
+  function fpwV2LoadActiveCruiseModel(required numeric userId, required numeric floatPlanId, required string datasource, boolean preview=false) {
+    var service = "";
     try {
-      return createObject("component", "fpw.api.v1.ActiveCruiseViewModelService")
-        .init(arguments.datasource)
-        .getActiveCruiseViewModel(arguments.userId, arguments.floatPlanId);
+      service = createObject("component", "fpw.api.v1.ActiveCruiseViewModelService").init(arguments.datasource);
     } catch (any viewModelPathErr) {
-      return createObject("component", "api.v1.ActiveCruiseViewModelService")
-        .init(arguments.datasource)
-        .getActiveCruiseViewModel(arguments.userId, arguments.floatPlanId);
+      service = createObject("component", "api.v1.ActiveCruiseViewModelService").init(arguments.datasource);
     }
+    if (arguments.preview) {
+      return service.getPreviewViewModel(arguments.userId, arguments.floatPlanId);
+    }
+    return service.getActiveCruiseViewModel(arguments.userId, arguments.floatPlanId);
   }
 
   function fpwV2Get(required struct source, required string key, any defaultValue="") {
@@ -354,12 +362,56 @@
   activeCruiseV2Model = {};
   activeCruiseV2RouteProgressSummary = {};
   activeCruiseV2CurrentLegFuel = {};
+  activeCruiseV2Preflight = { rejected = false };
+  activeCruiseV2ContinueUrl = "";
 
-  if (isNumeric(fpwV2HookValue("floatPlanId"))) {
+  if (activeCruiseV2PreviewRequested) {
+    if (structKeyExists(url, "floatPlanId") AND isSimpleValue(url.floatPlanId)) {
+      activeCruiseV2RawPreviewFloatPlanId = toString(url.floatPlanId);
+      if (reFind("^[1-9][0-9]{0,9}$", activeCruiseV2RawPreviewFloatPlanId)
+          AND !reFind("[^0-9]", activeCruiseV2RawPreviewFloatPlanId)
+          AND val(activeCruiseV2RawPreviewFloatPlanId) LTE 2147483647) {
+        activeCruiseV2RequestedFloatPlanId = val(activeCruiseV2RawPreviewFloatPlanId);
+      }
+    }
+  } else if (reFind("^[1-9][0-9]*$", fpwV2HookValue("floatPlanId"))) {
     activeCruiseV2RequestedFloatPlanId = val(fpwV2HookValue("floatPlanId"));
   }
 
-  if (activeCruiseV2UserId LTE 0) {
+  if (!activeCruiseV2PreviewRequested AND structKeyExists(url, "floatPlanId")) {
+    try {
+      activeCruiseV2GateService = createObject("component", "fpw.api.v1.MemberAccessGateService").init(activeCruiseV2Datasource);
+    } catch (any gatePathErr) {
+      activeCruiseV2GateService = createObject("component", "api.v1.MemberAccessGateService").init(activeCruiseV2Datasource);
+    }
+    activeCruiseV2Preflight = activeCruiseV2GateService.preflightOperationalTarget(activeCruiseV2UserId, activeCruiseV2RequestedFloatPlanId);
+    if (activeCruiseV2Preflight.rejected) {
+      request.fpwTripPreview = true;
+    }
+  }
+
+  if (activeCruiseV2PreviewRequested) {
+    activeCruiseV2FloatPlanId = activeCruiseV2RequestedFloatPlanId;
+    activeCruiseV2Model = fpwV2LoadActiveCruiseModel(activeCruiseV2UserId, activeCruiseV2FloatPlanId, activeCruiseV2Datasource, true);
+    activeCruiseV2AccessValid = activeCruiseV2Model.success EQ true;
+    activeCruiseV2AccessMessage = activeCruiseV2Model.message;
+    activeCruiseV2AccessDetail = "Preview is available for your eligible planned trip before it is shared or started.";
+    if (activeCruiseV2AccessValid) {
+      activeCruiseV2RouteInstanceId = activeCruiseV2Model.preview.routeInstanceId;
+      try {
+        activeCruiseV2ActionPaths = createObject("component", "fpw.includes.InactiveMemberRecoveryActionPathService");
+      } catch (any actionPathErr) {
+        activeCruiseV2ActionPaths = createObject("component", "includes.InactiveMemberRecoveryActionPathService");
+      }
+      activeCruiseV2ContinueUrl = activeCruiseV2ActionPaths.buildPath(activeCruiseV2BasePath, {
+        recoveryAction = "draft",
+        floatPlanId = activeCruiseV2FloatPlanId
+      });
+    }
+  } else if (activeCruiseV2Preflight.rejected) {
+    activeCruiseV2AccessMessage = "This trip is not available in Active Cruise.";
+    activeCruiseV2AccessDetail = "A planned trip can be viewed in Preview Trip Experience before it starts.";
+  } else if (activeCruiseV2UserId LTE 0) {
     activeCruiseV2AccessMessage = "Sign in to view Active Cruise V2.";
     activeCruiseV2AccessDetail = "The V2 shell uses the authenticated session user as its access authority.";
   } else {
@@ -484,15 +536,25 @@
     activeCruiseV2CurrentLegFuel = activeCruiseV2Model.currentLeg.fuel;
   }
 </cfscript>
+<cfif activeCruiseV2PreviewRequested AND !activeCruiseV2AccessValid>
+  <cfheader statuscode="404">
+</cfif>
+<cfif request.fpwTripPreview AND !activeCruiseV2PreviewRequested>
+  <cfheader name="Cache-Control" value="no-store">
+  <cfheader name="Referrer-Policy" value="no-referrer">
+  <cfheader name="X-Robots-Tag" value="noindex, nofollow">
+</cfif>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Active Cruise V2</title>
+  <title><cfif activeCruiseV2PreviewRequested>Captain Preview | FloatPlanWizard<cfelse>Active Cruise V2</cfif></title>
+  <cfif request.fpwTripPreview><meta name="robots" content="noindex, nofollow"></cfif>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/top-nav.css?v=20260930-great-loop-trip-planning-nav">
+<cfif request.fpwTripPreview><link rel="stylesheet" href="<cfoutput>#activeCruiseV2BasePath#</cfoutput>/assets/css/trip-preview.css?v=20261006"></cfif>
   <cfinclude template="../includes/analytics_clarity.cfm">
   <style>
     :root {
@@ -3526,7 +3588,7 @@
     }
   </style>
 </head>
-<body>
+<body<cfif activeCruiseV2PreviewRequested> data-trip-preview="true"</cfif>>
 <cfset request.fpwTopNavActive = "active-cruise">
 <cfinclude template="../includes/top_nav.cfm">
 <cfoutput>
@@ -3536,7 +3598,7 @@
         <div class="brand-mark" aria-hidden="true">&##9875;</div>
         <div class="brand-copy">
           <div class="brand-title">FloatPlanWizard &bull; Active Cruise Console</div>
-          <div class="brand-sub">Private operational view for the captain and trip owner</div>
+          <div class="brand-sub"><cfif activeCruiseV2PreviewRequested>Read-only captain preview of your planned trip<cfelse>Private operational view for the captain and trip owner</cfif></div>
         </div>
       </div>
       <div class="top-actions" aria-label="Read-only Active Cruise V2 identity">
@@ -3549,6 +3611,19 @@
 
   <main class="main">
     <div class="shell">
+      <cfif activeCruiseV2PreviewRequested>
+        <section class="fpw-trip-preview-banner" role="region" aria-label="Trip preview" data-trip-preview-view="active_cruise">
+          <strong class="fpw-trip-preview-label">PREVIEW MODE</strong>
+          <p>This trip has not started. You are viewing how Active Cruise will look while underway.</p>
+          <cfif activeCruiseV2AccessValid>
+            <nav class="fpw-trip-preview-nav" aria-label="Preview views">
+              <a href="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/app/active-cruise.cfm?mode=preview&amp;floatPlanId=#activeCruiseV2FloatPlanId#" aria-current="page">Captain View</a>
+              <a href="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/app/follow.cfm?mode=preview&amp;floatPlanId=#activeCruiseV2FloatPlanId#">Shore Contact View</a>
+              <a class="fpw-trip-preview-continue" data-trip-preview-continue href="#encodeForHTMLAttribute(activeCruiseV2ContinueUrl)#">Continue Float Plan</a>
+            </nav>
+          </cfif>
+        </section>
+      </cfif>
       <cfif !activeCruiseV2AccessValid>
         <section class="panel section-card">
           <div class="section-top">
@@ -3556,14 +3631,34 @@
               <h2>#encodeForHTML(activeCruiseV2AccessMessage)#</h2>
               <p>#encodeForHTML(activeCruiseV2AccessDetail)#</p>
             </div>
-            <div class="badge badge-warn">#activeCruiseV2ExpiredAccess ? "Trip Access Expired" : "Active Cruise Unavailable"#</div>
+            <div class="badge badge-warn">#activeCruiseV2PreviewRequested ? "Preview Unavailable" : (activeCruiseV2ExpiredAccess ? "Trip Access Expired" : "Active Cruise Unavailable")#</div>
           </div>
           <div class="floatplan-box">
-            <p style="margin:0; color:var(--muted); line-height:1.6;">The V2 page uses the authenticated session user as its access authority.</p>
+            <p style="margin:0; color:var(--muted); line-height:1.6;"><cfif request.fpwTripPreview>Only the authenticated trip owner can view this trip.<cfelse>The V2 page uses the authenticated session user as its access authority.</cfif></p>
+            <cfif activeCruiseV2Preflight.rejected AND activeCruiseV2RequestedFloatPlanId GT 0>
+              <p><a href="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/app/active-cruise.cfm?mode=preview&amp;floatPlanId=#activeCruiseV2RequestedFloatPlanId#">Preview Trip Experience</a></p>
+            </cfif>
           </div>
         </section>
       <cfelse>
         <cfset mapModel = (structKeyExists(activeCruiseV2Model, "map") AND isStruct(activeCruiseV2Model.map) ? activeCruiseV2Model.map : {})>
+        <cfif activeCruiseV2PreviewRequested>
+          <cfset mapModel = duplicate(mapModel)>
+          <cfif structKeyExists(mapModel, "pins") AND isArray(mapModel.pins)>
+            <cfloop array="#mapModel.pins#" item="previewMapPin">
+              <cfif isStruct(previewMapPin) AND structKeyExists(previewMapPin, "label")><cfset previewMapPin.label = encodeForHTML(toString(previewMapPin.label))></cfif>
+            </cfloop>
+          </cfif>
+          <cfif structKeyExists(mapModel, "legs") AND isArray(mapModel.legs)>
+            <cfloop array="#mapModel.legs#" item="previewMapLeg">
+              <cfloop list="from,to" index="previewMapPointKey">
+                <cfif isStruct(previewMapLeg) AND structKeyExists(previewMapLeg, previewMapPointKey) AND isStruct(previewMapLeg[previewMapPointKey]) AND structKeyExists(previewMapLeg[previewMapPointKey], "name")>
+                  <cfset previewMapLeg[previewMapPointKey].name = encodeForHTML(toString(previewMapLeg[previewMapPointKey].name))>
+                </cfif>
+              </cfloop>
+            </cfloop>
+          </cfif>
+        </cfif>
         <cfset weatherModel = (structKeyExists(activeCruiseV2Model, "weather") AND isStruct(activeCruiseV2Model.weather) ? activeCruiseV2Model.weather : {})>
         <cfset floatPlanInfoModel = (structKeyExists(activeCruiseV2Model, "floatPlanInfo") AND isStruct(activeCruiseV2Model.floatPlanInfo) ? activeCruiseV2Model.floatPlanInfo : {})>
         <cfset activeCruiseV2TripTimezone = fpwV2Text(fpwV2Get(activeCruiseV2Model.floatPlan, "timezone"), "UTC")>
@@ -3610,7 +3705,8 @@
           <cfset weatherApplyRouteCode = fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "routeCode"), "")>
         </cfif>
         <cfif (
-          len(weatherApplyRouteCode)
+          !activeCruiseV2PreviewRequested
+          AND len(weatherApplyRouteCode)
           AND (
             NOT structKeyExists(weatherModel, "apply")
             OR NOT isStruct(weatherModel.apply)
@@ -3690,11 +3786,11 @@
         <cfif len(dailyStartInputValue) GTE 5>
           <cfset dailyStartInputValue = left(dailyStartInputValue, 5)>
         </cfif>
-        <cfif !len(trim(dailyStartInputValue))>
+        <cfif !activeCruiseV2PreviewRequested AND !len(trim(dailyStartInputValue))>
           <cfset dailyStartInputValue = "08:00">
         </cfif>
         <cfif addDelayEnabled><cfset addDelayReason = ""></cfif>
-        <cfif fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal LTE 0>
+        <cfif !activeCruiseV2PreviewRequested AND fpwV2ActionEnabled(timingClearDelayAction) AND manualDelayMinutesTotal LTE 0>
           <cfset clearDelayReason = "No manual delay is currently applied.">
         <cfelseif clearDelayEnabled>
           <cfset clearDelayReason = "">
@@ -3735,7 +3831,9 @@
                   </cfif>
                 </div>
                 <div id="fpwActiveCruiseV2PositionNote" class="panel-note<cfif NOT mapCurrentPositionAvailable> is-warning</cfif>" role="note">
-                  <cfif mapCurrentPositionAvailable>
+                  <cfif activeCruiseV2PreviewRequested>
+                    Automatic Location Tracking: Your latest phone-reported location will appear here while tracking is active.
+                  <cfelseif mapCurrentPositionAvailable>
                     Latest reported position: #encodeForHTML(mapCurrentPositionSourceLabel)#<cfif len(mapCurrentPositionUpdatedLabel)> &middot; Updated #encodeForHTML(mapCurrentPositionUpdatedLabel)#</cfif>. FPW is not continuous live vessel tracking.
                   <cfelse>
                     No position update has been reported yet. This map shows the planned route; FPW is not continuous live vessel tracking.
@@ -3750,7 +3848,7 @@
                   <small>Planned trip start</small>
                 </div>
                 <div class="metric">
-                  <span>Current Leg</span>
+                  <span><cfif activeCruiseV2PreviewRequested>First Planned Leg<cfelse>Current Leg</cfif></span>
                   <strong data-fpw-field="hero.currentLegSummary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "order"), "Not available"))# of #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "totalLegs"), "0"))#</strong>
                   <small data-fpw-field="hero.legMeta">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Current route leg"))#</small>
                 </div>
@@ -3767,7 +3865,7 @@
                 <div class="metric">
                   <span>ETA</span>
                   <strong data-fpw-field="hero.eta">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
-                  <small data-fpw-field="hero.etaMeta"><cfif activeCruiseV2CurrentLegCompleted>No future ETA remains<cfelse>Active leg ETA</cfif></small>
+                  <small data-fpw-field="hero.etaMeta"><cfif activeCruiseV2PreviewRequested>Planned arrival estimate<cfelseif activeCruiseV2CurrentLegCompleted>No future ETA remains<cfelse>Active leg ETA</cfif></small>
                 </div>
               </div>
 
@@ -3798,7 +3896,7 @@
                   </div>
                   <div class="route-leg-estimate" aria-label="Route leg estimate">
                     <div class="route-leg-estimate-head">
-                      <h4 class="route-leg-estimate-title">Current Leg Estimate</h4>
+                      <h4 class="route-leg-estimate-title"><cfif activeCruiseV2PreviewRequested>First Planned Leg Estimate<cfelse>Current Leg Estimate</cfif></h4>
                       <span class="route-leg-estimate-state" data-fpw-field="currentLeg.statusLabel">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "statusLabel"), "Not available"))#</span>
                     </div>
                     <p class="route-leg-estimate-copy" data-fpw-field="currentLeg.summary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# to #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</p>
@@ -3833,7 +3931,7 @@
                     <div class="ac-panel-header">
                       <div>
                         <h2>Pace / Speed</h2>
-                        <p>Operational pace for the active trip projection.</p>
+                        <p><cfif activeCruiseV2PreviewRequested>Saved planning pace. Pace changes are available when your trip starts.<cfelse>Operational pace for the active trip projection.</cfif></p>
                       </div>
                       <span class="pace-header-label">#encodeForHTML(fpwV2Text(fpwV2Get(paceModel, "currentLabel"), "Relaxed"))#</span>
                     </div>
@@ -3852,32 +3950,32 @@
                       </div>
                       <cfif len(paceUpdateReason)><p class="ac-muted-note">#encodeForHTML(paceUpdateReason)#</p></cfif>
                     </div>
-                    <div class="action-feedback ac-action-ready-message" id="fpwV2PaceFeedback" role="status" aria-live="polite">Change pace to update the active trip projection.</div>
+                    <div class="action-feedback ac-action-ready-message" id="fpwV2PaceFeedback" role="status" aria-live="polite"><cfif activeCruiseV2PreviewRequested>Available when your trip starts.<cfelse>Change pace to update the active trip projection.</cfif></div>
                   </section>
                 </div>
               </div>
 
-              <section class="mini-panel ac-weather-command-panel ac-weather-panel--not-checked" id="acV2WeatherPanel" aria-label="Weather lookup" data-weather-panel-state="not-checked">
+              <section class="mini-panel ac-weather-command-panel #activeCruiseV2PreviewRequested ? "ac-weather-panel--preview" : "ac-weather-panel--not-checked"#" id="acV2WeatherPanel" aria-label="Weather lookup" data-weather-panel-state="#activeCruiseV2PreviewRequested ? "preview" : "not-checked"#">
                 <div id="fpwV2WeatherLookup" class="weather-lookup-layout" data-fpw-base="#encodeForHTMLAttribute(activeCruiseV2BasePath)#">
                   <div class="ac-weather-command-header">
                     <div class="ac-weather-command-title">
                       <span class="ac-weather-command-icon" aria-hidden="true">WX</span>
                       <h3>Weather</h3>
                     </div>
-                    <form id="fpwV2WeatherForm" class="weather-lookup-form">
+                    <form id="fpwV2WeatherForm" class="weather-lookup-form"<cfif activeCruiseV2PreviewRequested> onsubmit="return false;"</cfif>>
                       <div class="weather-choice-row" role="group" aria-label="Current leg weather lookup point">
                         <span class="ac-weather-control-label">Current Leg</span>
                         <label class="weather-choice">
-                          <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
+                          <input type="radio" name="fpwV2WeatherPoint" value="start"<cfif structKeyExists(weatherStartPoint, "available") AND weatherStartPoint.available EQ true> checked</cfif><cfif activeCruiseV2PreviewRequested OR !structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true> disabled</cfif>>
                           <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherStartPoint, "label"), "Start"))#</span>
                         </label>
                         <label class="weather-choice">
-                          <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
+                          <input type="radio" name="fpwV2WeatherPoint" value="end"<cfif (!structKeyExists(weatherStartPoint, "available") OR weatherStartPoint.available NEQ true) AND structKeyExists(weatherEndPoint, "available") AND weatherEndPoint.available EQ true> checked</cfif><cfif activeCruiseV2PreviewRequested OR !structKeyExists(weatherEndPoint, "available") OR weatherEndPoint.available NEQ true> disabled</cfif>>
                           <span>#encodeForHTML(fpwV2Text(fpwV2Get(weatherEndPoint, "label"), "End"))#</span>
                         </label>
                       </div>
-                      <button type="submit" class="btn btn-secondary ac-weather-command-btn"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
-                      <span class="ac-weather-status-chip" data-weather-chip="alerts">No alerts</span>
+                      <button type="#activeCruiseV2PreviewRequested ? "button" : "submit"#" class="btn btn-secondary ac-weather-command-btn"<cfif !weatherLookupAvailable> disabled</cfif>>Check Conditions</button>
+                      <span class="ac-weather-status-chip" data-weather-chip="alerts"><cfif activeCruiseV2PreviewRequested>Not checked<cfelse>No alerts</cfif></span>
                     </form>
                   </div>
                 </div>
@@ -3909,7 +4007,7 @@
                   </article>
                   <article class="ac-weather-metric-tile">
                     <div class="ac-weather-metric-label">Weather Factor</div>
-                    <strong class="ac-weather-metric-value" data-weather-field="weatherFactor">0%</strong>
+                    <strong class="ac-weather-metric-value" data-weather-field="weatherFactor"><cfif activeCruiseV2PreviewRequested>Not checked<cfelse>0%</cfif></strong>
                   </article>
                   <article class="ac-weather-metric-tile">
                     <div class="ac-weather-metric-label">Alerts</div>
@@ -3917,7 +4015,7 @@
                   </article>
                 </div>
                 <div class="ac-weather-command-footer">
-                  <p class="ac-weather-applied-note" data-weather-field="weatherFactorNote"><cfif weatherApplyAvailable>Check conditions to calculate a route weather factor.<cfelse>Weather factor apply is not available in AC-V2.</cfif></p>
+                  <p class="ac-weather-applied-note" data-weather-field="weatherFactorNote"><cfif activeCruiseV2PreviewRequested>Weather checks and applying weather to your route are unavailable in preview.<cfelseif weatherApplyAvailable>Check conditions to calculate a route weather factor.<cfelse>Weather factor apply is not available in AC-V2.</cfif></p>
                   <button type="button" class="btn btn-secondary ac-weather-command-btn ac-weather-apply-btn" id="fpwV2WeatherApplyBtn" disabled aria-disabled="true">Apply Weather to Route</button>
                 </div>
                 <cfif arrayLen(weatherWarnings)>
@@ -4126,7 +4224,7 @@
                       <div class="route-plan-final">
                         <div class="route-plan-kicker">Final Destination</div>
                         <strong>#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.route, "endLocation"), "Not available"))#</strong>
-                        <span>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "ETA unavailable"))#</span>
+                        <span>#encodeForHTML(fpwV2TripDateTimeLabel(activeCruiseV2PreviewRequested ? fpwV2Get(activeCruiseV2RouteProgressSummary, "finalArrivalUtc") : fpwV2Get(activeCruiseV2Model.currentLeg, "etaUtc"), activeCruiseV2TripTimezone, "ETA unavailable"))#</span>
                       </div>
                     <cfelse>
                       <div class="route-plan-final">
@@ -4204,7 +4302,7 @@
                   <div class="ac-panel-header">
                     <div>
                       <h2>Check-In &amp; Route Control</h2>
-                      <p>Update status and route actions.</p>
+                      <p><cfif activeCruiseV2PreviewRequested>These controls will be available when your trip starts.<cfelse>Update status and route actions.</cfif></p>
                     </div>
                   </div>
 
@@ -4273,12 +4371,12 @@
                   </div>
 
                   <div class="ac-command-section ac-v2-note-compact" aria-label="Check-in note" data-ac-v2-note-shell>
-                    <button type="button" class="ac-v2-note-toggle" data-ac-v2-note-toggle aria-expanded="false" aria-controls="fpwV2CheckInNoteShell">
+                    <button type="button" class="ac-v2-note-toggle" data-ac-v2-note-toggle aria-expanded="false" aria-controls="fpwV2CheckInNoteShell"<cfif activeCruiseV2PreviewRequested> disabled aria-disabled="true"</cfif>>
                       <span>+ Add optional note</span>
                       <span class="ac-note-counter" id="fpwV2CheckInNoteCounter">0/500</span>
                     </button>
                     <div class="ac-v2-note-collapsible" id="fpwV2CheckInNoteShell" data-ac-v2-note-collapsible hidden>
-                      <textarea id="fpwV2CheckInNote" class="ac-checkin-note checkin-note-input" maxlength="500" placeholder="Optional note for this check-in"></textarea>
+                      <textarea id="fpwV2CheckInNote" class="ac-checkin-note checkin-note-input" maxlength="500" placeholder="Optional note for this check-in"<cfif activeCruiseV2PreviewRequested> disabled</cfif>></textarea>
                     </div>
                   </div>
 
@@ -4322,22 +4420,22 @@
                   <article class="ac-monitor-tile">
                     <div class="ac-section-label">Last Check-In</div>
                     <strong class="ac-monitor-value" data-fpw-field="floatPlan.lastCheckIn">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "lastCheckinAtUtc"), activeCruiseV2TripTimezone, "Not available"))#</strong>
-                    <p>Captain confirmed status</p>
+                    <p><cfif activeCruiseV2PreviewRequested>Captain updates will appear here once the trip begins.<cfelse>Captain confirmed status</cfif></p>
                   </article>
                   <article class="ac-monitor-tile">
                     <div class="ac-section-label">Secure for Night</div>
-                    <strong class="ac-monitor-value" data-fpw-field="monitor.secureForNight"><cfif fpwV2Get(activeCruiseV2Model.monitoring, "secureForNight", false) EQ true>YES<cfelse>NO</cfif></strong>
+                    <strong class="ac-monitor-value" data-fpw-field="monitor.secureForNight"><cfif activeCruiseV2PreviewRequested>Not started<cfelseif fpwV2Get(activeCruiseV2Model.monitoring, "secureForNight", false) EQ true>YES<cfelse>NO</cfif></strong>
                     <p>#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "secureForNightUntilUtc"), activeCruiseV2TripTimezone, "Secure-until unavailable"))#</p>
                   </article>
                   <article class="ac-monitor-tile">
                     <div class="ac-section-label">Next Expected Check-In</div>
                     <strong class="ac-monitor-value" data-fpw-field="monitor.nextExpectedCheckIn">#encodeForHTML(fpwV2TripDateTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "expectedCheckinAtUtc"), activeCruiseV2TripTimezone, fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "expectedCheckinLocalLabel"), "Not available")))#</strong>
-                    <p>Canonical monitoring checkpoint</p>
+                    <p><cfif activeCruiseV2PreviewRequested>Monitoring has not started.<cfelse>Canonical monitoring checkpoint</cfif></p>
                   </article>
                   <article class="ac-monitor-tile ac-delay-tile">
                     <div class="ac-section-label">Current Delay</div>
                     <strong class="ac-monitor-value" data-fpw-field="delay.currentTotal">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.monitoring, "manualDelayLabel"), "0 minutes"))#</strong>
-                    <p>Current manual delay total applied to canonical trip timing.</p>
+                    <p><cfif activeCruiseV2PreviewRequested>No operational delay is active in preview.<cfelse>Current manual delay total applied to canonical trip timing.</cfif></p>
                     <button type="button" class="ac-command-btn ac-clear-delay-btn" data-ac-v2-timing-action="clearDelay" data-endpoint="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "endpoint"), ""))#" data-method="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "method"), "POST"))#" data-payload="#encodeForHTMLAttribute(fpwV2Json(fpwV2Get(timingClearDelayAction, "payload", {})))#" data-confirmation-required="#encodeForHTMLAttribute(toString(fpwV2Get(timingClearDelayAction, "confirmationRequired", false)))#" data-confirmation-message="#encodeForHTMLAttribute(fpwV2Text(fpwV2Get(timingClearDelayAction, "confirmationMessage"), ""))#"<cfif !clearDelayEnabled> disabled aria-disabled="true"</cfif>>#encodeForHTML(fpwV2Text(fpwV2Get(timingClearDelayAction, "label"), "Clear Delay"))#</button>
                     <cfif len(clearDelayReason)><p class="ac-muted-note">#encodeForHTML(clearDelayReason)#</p></cfif>
                   </article>
@@ -4356,7 +4454,7 @@
 
                 <div class="ac-command-section ac-daily-start-section">
                   <div class="ac-section-label">Daily Start Time</div>
-                  <strong class="ac-monitor-value" data-fpw-field="monitor.dailyStartLabel">#encodeForHTML(fpwV2TripLocalTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), "08:00 " & fpwV2TripTimezoneLabel(activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"))))#</strong>
+                  <strong class="ac-monitor-value" data-fpw-field="monitor.dailyStartLabel"><cfif activeCruiseV2PreviewRequested AND !len(dailyStartInputValue)>Not set<cfelse>#encodeForHTML(fpwV2TripLocalTimeLabel(fpwV2Get(activeCruiseV2Model.monitoring, "dailyStartLocalTime"), activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"), "08:00 " & fpwV2TripTimezoneLabel(activeCruiseV2TripTimezone, fpwV2Get(activeCruiseV2Model.floatPlan, "scheduledDepartureUtc"))))#</cfif></strong>
                   <p>Applied to overnight resume and next-day monitoring.</p>
                   <div class="ac-inline-control-row">
                     <input id="fpwV2DailyStartLocalTime" class="timing-input" type="time" step="60" value="#encodeForHTMLAttribute(dailyStartInputValue)#"<cfif !dailyStartEnabled> disabled</cfif>>
@@ -4397,7 +4495,7 @@
                       </cfloop>
                     </div>
                   <cfelse>
-                    <div class="captain-note-empty">Private timeline events will appear here after the next Active Cruise V2 action.</div>
+                    <div class="captain-note-empty"><cfif activeCruiseV2PreviewRequested>Captain updates will appear here once the trip begins.<cfelse>Private timeline events will appear here after the next Active Cruise V2 action.</cfif></div>
                   </cfif>
                 </div>
                 <div class="log-box">
@@ -4445,7 +4543,7 @@
                     </div>
                   <cfelse>
                     <div class="log-list captain-note-log-list" id="fpwV2CaptainQuickNoteList"></div>
-                    <div class="captain-note-empty" id="fpwV2CaptainQuickNoteEmpty">Private captain notes will appear here after they are saved.</div>
+                    <div class="captain-note-empty" id="fpwV2CaptainQuickNoteEmpty"><cfif activeCruiseV2PreviewRequested>Captain notes will appear here once the trip begins.<cfelse>Private captain notes will appear here after they are saved.</cfif></div>
                   </cfif>
                 </div>
               </div>
@@ -4537,9 +4635,10 @@
     <div class="ac-v2-map-modal" id="fpwActiveCruiseV2FullMapModal" aria-hidden="true" hidden>
       <div class="ac-v2-map-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="fpwActiveCruiseV2FullMapTitle">
         <div class="ac-v2-map-modal-head">
-          <h2 class="ac-v2-map-modal-title" id="fpwActiveCruiseV2FullMapTitle">Full Route Map</h2>
+          <h2 class="ac-v2-map-modal-title" id="fpwActiveCruiseV2FullMapTitle"><cfif activeCruiseV2PreviewRequested>PREVIEW MODE &middot; </cfif>Full Route Map</h2>
           <button class="ac-v2-map-modal-close" id="fpwActiveCruiseV2FullMapClose" type="button" aria-label="Close full map">&times;</button>
         </div>
+        <cfif activeCruiseV2PreviewRequested><p class="fpw-trip-preview-note">This trip has not started. Planned route only; no live location is shown.</p></cfif>
         <div class="ac-v2-map-modal-body">
           <div class="ac-v2-map-modal-canvas" id="fpwActiveCruiseV2FullMap" aria-label="Full route map from Active Cruise V2 view model"></div>
           <div id="fpwActiveCruiseV2FullMapStatus" class="map-load-state is-visible" aria-live="polite">
@@ -4553,9 +4652,9 @@
   </cfif>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260527-cache-bump"></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260527-cache-bump"></script>
+  <cfif !request.fpwTripPreview><script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260527-cache-bump"></script></cfif>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260527-cache-bump"></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260527-cache-bump"></script>
+  <cfif !request.fpwTripPreview><script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260527-cache-bump"></script></cfif>
 </cfoutput>
 <cfinclude template="../includes/footer.cfm">
 <script>
@@ -4746,7 +4845,15 @@
       return;
     }
 
+    <cfif activeCruiseV2PreviewRequested>
+    // Only OSM tile images receive the origin; the preview document stays no-referrer.
+    mapInstance = window.FPWFollowMap.initFollowMap('fpwActiveCruiseV2Map', {
+      tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      tileOptions: { maxZoom: 18, attribution: '&copy; OpenStreetMap', referrerPolicy: 'origin' }
+    });
+    <cfelse>
     mapInstance = window.FPWFollowMap.initFollowMap('fpwActiveCruiseV2Map', {});
+    </cfif>
     if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
       window.FPW.attachLeafletMarineLayers({
         map: mapInstance,
@@ -4875,6 +4982,7 @@
     }).setView([39.5, -95.5], 4);
     baseLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
+      <cfif activeCruiseV2PreviewRequested>referrerPolicy: 'origin',</cfif>
       attribution: '&copy; OpenStreetMap'
     }).addTo(fullMapInstance);
     if (window.FPW && typeof window.FPW.attachLeafletMarineLayers === 'function') {
@@ -5029,6 +5137,7 @@
   }
 })();
 
+<cfif !request.fpwTripPreview>
 window.FPWActiveCruiseV2 = window.FPWActiveCruiseV2 || {};
 window.FPWActiveCruiseV2.fieldSelectorValue = function(value) {
   return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -5123,6 +5232,8 @@ window.FPWActiveCruiseV2.fetchAndRefresh = function(options) {
     });
 };
 
+</cfif>
+window.FPWActiveCruiseV2 = window.FPWActiveCruiseV2 || {};
 window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
   const panel = document.getElementById('acV2RouteProgressPanel');
   if (!panel) {
@@ -5266,6 +5377,7 @@ window.FPWActiveCruiseV2.bindRouteProgressPanel = function() {
 };
 window.FPWActiveCruiseV2.bindRouteProgressPanel();
 
+<cfif !request.fpwTripPreview>
 (function() {
   const root = document.getElementById('fpwV2WeatherLookup');
   const form = document.getElementById('fpwV2WeatherForm');
@@ -6972,6 +7084,7 @@ window.FPWActiveCruiseV2.bindActionPanel = function() {
   });
 };
 window.FPWActiveCruiseV2.bindActionPanel();
+</cfif>
 </script>
 </body>
 </html>

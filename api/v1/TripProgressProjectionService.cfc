@@ -8,6 +8,78 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getPlannedProjection" access="public" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfscript>
+            var out = baseProjection();
+            var qPlan = loadPlan(arguments.floatPlanId);
+            var qLegs = queryNew("");
+            var routeInputs = {};
+            var speedKn = 0;
+            var firstLeg = {};
+            var timeline = {};
+            var savedSpeedAvailable = false;
+            var speedInputKey = "";
+            if (qPlan.recordCount NEQ 1
+                OR safeNumber(qPlan.userId[1]) NEQ arguments.userId
+                OR uCase(safeString(qPlan.status[1])) NEQ "DRAFT") {
+                out.success = false;
+                out.message = "An owned draft is required for planned projection.";
+                return out;
+            }
+            qLegs = loadRouteLegs(safeNumber(qPlan.route_instance_id[1]));
+            if (qLegs.recordCount EQ 0) {
+                out.success = false;
+                out.message = "Saved route legs are required for planned projection.";
+                return out;
+            }
+            routeInputs = parseRouteInputs(loadRouteInstance(safeNumber(qPlan.route_instance_id[1])));
+            for (speedInputKey in [
+                "weather_adjusted_speed_kn", "weatherAdjustedSpeedKn", "effective_speed_kn", "effectiveSpeedKn",
+                "effective_cruising_speed", "effectiveCruisingSpeed", "cruising_speed", "cruisingSpeed",
+                "vessel_most_efficient_speed_kn", "vesselMostEfficientSpeedKn",
+                "max_speed_kn", "maxSpeedKn", "vessel_max_speed_kn", "vesselMaxSpeedKn", "vessel_max_speed", "vesselMaxSpeed"
+            ]) {
+                if (structKeyExists(routeInputs, speedInputKey)
+                    AND isNumeric(routeInputs[speedInputKey]) AND val(routeInputs[speedInputKey]) GT 0) {
+                    savedSpeedAvailable = true;
+                    break;
+                }
+            }
+            if (savedSpeedAvailable) speedKn = resolveEffectiveSpeed(routeInputs, 0);
+            firstLeg = {
+                "routeLegOrder" = safeNumber(qLegs.leg_order[1]),
+                "status" = "NOT_STARTED",
+                "startedAtUtc" = "",
+                "completedAtUtc" = "",
+                "startName" = safeString(qLegs.start_name[1]),
+                "endName" = safeString(qLegs.end_name[1]),
+                "distanceNm" = safeNumber(qLegs.base_dist_nm[1]),
+                "authority" = "route_instance_legs"
+            };
+            out.floatPlanId = arguments.floatPlanId;
+            out.userId = arguments.userId;
+            out.routeInstanceId = safeNumber(qPlan.route_instance_id[1]);
+            out.currentLeg = firstLeg;
+            out.pace = buildPaceMeta(routeInputs, 0);
+            if (!savedSpeedAvailable) {
+                out.pace.available = false;
+                out.pace.effectiveSpeedKn = 0;
+                out.pace.weatherAdjustedSpeedKn = 0;
+                out.pace.speedSource = "unavailable";
+            }
+            timeline = { "routeInstanceId" = out.routeInstanceId, "pace" = out.pace };
+            out.routeTimeline = buildScheduledRouteTimelineProjection(
+                qPlan, qLegs, queryNew(""), firstLeg, normalizeAsOf(""), speedKn, timeline, out,
+                { "includeOperationalLockTime" = false }, true
+            );
+            out.success = out.routeTimeline.available;
+            out.message = (out.success ? "Planned route projection loaded." : "Planned route projection unavailable.");
+            return out;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="getProjectionForStream" access="public" returntype="struct" output="false">
         <cfargument name="streamId" type="numeric" required="true">
         <cfargument name="asOfUtc" type="any" required="false" default="">
@@ -1285,6 +1357,7 @@
         <cfargument name="timeline" type="struct" required="true">
         <cfargument name="out" type="struct" required="true">
         <cfargument name="projectionOptions" type="struct" required="true">
+        <cfargument name="plannedPreview" type="boolean" required="false" default="false">
         <cfscript>
             var scheduledTimeline = duplicate(arguments.timeline);
             var scheduledDepartureDt = getScheduledDepartureUtc(arguments.qPlan);
@@ -1309,9 +1382,11 @@
             var lockTimeMinutes = 0;
             var legDurationSeconds = 0;
             var durationAuthority = "";
-            var manualDelayMinutes = max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1]));
+            var manualDelayMinutes = (arguments.plannedPreview ? 0 : max(0, safeNumber(arguments.qPlan.manual_delay_minutes_total[1])));
+            var timingAvailable = false;
+            var durationAvailable = false;
 
-            scheduledTimeline.authority = "scheduled_projection";
+            scheduledTimeline.authority = (arguments.plannedPreview ? "planned_preview" : "scheduled_projection");
             scheduledTimeline.available = false;
             scheduledTimeline.generatedAtUtc = formatUtc(arguments.asOfUtc);
             scheduledTimeline.currentLegOrder = currentLegOrder;
@@ -1340,12 +1415,12 @@
                 scheduledTimeline.reason = "Current leg authority is missing.";
                 return scheduledTimeline;
             }
-            if (arguments.speedKn LTE 0) {
+            if (arguments.speedKn LTE 0 AND !arguments.plannedPreview) {
                 addRouteTimelineWarning(scheduledTimeline, arguments.out, "ROUTE_TIMELINE_SPEED_MISSING", "Route timeline cannot be projected because effective speed is missing.");
                 scheduledTimeline.reason = "Effective speed is missing.";
                 return scheduledTimeline;
             }
-            if (!isDate(scheduledDepartureDt)) {
+            if (!isDate(scheduledDepartureDt) AND !arguments.plannedPreview) {
                 addRouteTimelineWarning(scheduledTimeline, arguments.out, "ROUTE_TIMELINE_SCHEDULE_MISSING", "Route timeline cannot be projected because scheduled departure data is missing.");
                 scheduledTimeline.reason = "Scheduled departure data is missing.";
                 return scheduledTimeline;
@@ -1358,14 +1433,15 @@
                     distanceMissing = true;
                 }
             }
-            if (distanceMissing OR totalNm LTE 0) {
+            if ((distanceMissing OR totalNm LTE 0) AND !arguments.plannedPreview) {
                 addRouteTimelineWarning(scheduledTimeline, arguments.out, "ROUTE_TIMELINE_DISTANCE_MISSING", "Route timeline cannot be projected because one or more route leg distances are missing.");
                 scheduledTimeline.reason = "Route leg distance is missing.";
                 return scheduledTimeline;
             }
 
+            timingAvailable = arguments.speedKn GT 0 AND isDate(scheduledDepartureDt) AND !distanceMissing AND totalNm GT 0;
             priorArrivalDt = scheduledDepartureDt;
-            if (manualDelayMinutes GT 0) {
+            if (manualDelayMinutes GT 0 AND timingAvailable) {
                 priorArrivalDt = dateAdd("n", manualDelayMinutes, priorArrivalDt);
             }
             for (i = 1; i LTE arguments.qLegs.recordCount; i++) {
@@ -1373,7 +1449,7 @@
                 distanceNm = safeNumber(arguments.qLegs.base_dist_nm[i]);
                 progressRow = findProgressForLeg(arguments.qProgress, legOrder);
                 statusVal = safeString(progressRow.status);
-                isCurrent = (legOrder EQ currentLegOrder);
+                isCurrent = (!arguments.plannedPreview AND legOrder EQ currentLegOrder);
                 departureDt = priorArrivalDt;
                 legLockModel = buildLegLockModel(
                     safeString(arguments.qLegs.lock_route_code[i]),
@@ -1381,14 +1457,21 @@
                     safeNumber(arguments.qLegs.lock_count[i])
                 );
                 lockTimeMinutes = (arguments.projectionOptions.includeOperationalLockTime ? getOperationalLockTimeMinutes(legLockModel) : 0);
-                legDurationSeconds = round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60);
-                durationAuthority = (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection");
-                arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
-                departureUtc = formatUtc(departureDt);
-                arrivalUtc = formatUtc(arrivalDt);
-                departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
-                priorArrivalDt = arrivalDt;
-                finalArrivalUtc = arrivalUtc;
+                durationAvailable = arguments.speedKn GT 0 AND distanceNm GT 0;
+                legDurationSeconds = (durationAvailable ? round((distanceNm / arguments.speedKn) * 3600) + round(lockTimeMinutes * 60) : 0);
+                durationAuthority = (durationAvailable ? (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection") : "unavailable");
+                if (timingAvailable) {
+                    arrivalDt = dateAdd("s", legDurationSeconds, departureDt);
+                    departureUtc = formatUtc(departureDt);
+                    arrivalUtc = formatUtc(arrivalDt);
+                    departureSource = (i EQ 1 ? scheduledDepartureSource : "previous_leg_arrival_projection");
+                    priorArrivalDt = arrivalDt;
+                    finalArrivalUtc = arrivalUtc;
+                } else {
+                    departureUtc = "";
+                    arrivalUtc = "";
+                    departureSource = "";
+                }
 
                 arrayAppend(scheduledTimeline.legs, {
                     "routeLegOrder" = legOrder,
@@ -1410,15 +1493,15 @@
                     "remainingNm" = roundTo1(distanceNm),
                     "percentComplete" = 0,
                     "estimatedDurationSeconds" = legDurationSeconds,
-                    "estimatedDurationLabel" = formatDurationSecondsLabel(legDurationSeconds),
+                    "estimatedDurationLabel" = (durationAvailable ? formatDurationSecondsLabel(legDurationSeconds) : ""),
                     "remainingDurationSeconds" = legDurationSeconds,
-                    "remainingDurationLabel" = formatDurationSecondsLabel(legDurationSeconds),
+                    "remainingDurationLabel" = (durationAvailable ? formatDurationSecondsLabel(legDurationSeconds) : ""),
                     "durationAuthority" = durationAuthority,
                     "paused" = false,
                     "expectedResumeAtUtc" = "",
                     "departureSource" = departureSource,
-                    "arrivalSource" = (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection"),
-                    "authority" = "scheduled_projection",
+                    "arrivalSource" = (timingAvailable ? (lockTimeMinutes GT 0 ? "scheduled_projection_plus_operational_lock_time" : "scheduled_projection") : ""),
+                    "authority" = scheduledTimeline.authority,
                     "usesLatestCheckinAsAnchor" = false,
                     "lockSummary" = legLockModel.lockSummary,
                     "locks" = legLockModel.locks,

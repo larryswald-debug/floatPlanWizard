@@ -169,13 +169,15 @@ if (topNavIsLoggedIn) {
   }
   topNavMemberDisplayInitials = uCase(topNavMemberDisplayInitials);
 
-  try {
-    topNavAccess = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(topNavUserId);
-    if (structKeyExists(topNavAccess, "hasPremium") AND topNavAccess.hasPremium EQ true) {
-      topNavHasPremium = true;
+  if (!(structKeyExists(request, "fpwTripPreview") AND request.fpwTripPreview)) {
+    try {
+      topNavAccess = new fpw.api.v1.MemberEntitlementService().init("fpw").getCurrentAccess(topNavUserId);
+      if (structKeyExists(topNavAccess, "hasPremium") AND topNavAccess.hasPremium EQ true) {
+        topNavHasPremium = true;
+      }
+    } catch (any topNavAccessError) {
+      topNavHasPremium = false;
     }
-  } catch (any topNavAccessError) {
-    topNavHasPremium = false;
   }
 }
 

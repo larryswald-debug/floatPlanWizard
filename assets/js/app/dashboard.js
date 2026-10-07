@@ -5086,7 +5086,8 @@
         status: String(group.STATUS || "").trim().toUpperCase(),
         currentState: String(group.CURRENT_STATE || "").trim().toUpperCase(),
         isDraft: !!group.IS_DRAFT,
-        isActive: !!group.IS_ACTIVE
+        isActive: !!group.IS_ACTIVE,
+        previewReady: routeActionFlag(group.PREVIEW_READY)
       };
     }
 
@@ -5238,6 +5239,62 @@
       return "";
     }
 
+    var previewLaunchPending = false;
+
+    function launchTripPreview(planId, view) {
+      if (previewLaunchPending || !/^[1-9][0-9]*$/.test(String(planId))) return;
+      if (view !== "active_cruise" && view !== "follow") return;
+      previewLaunchPending = true;
+      var destination = BASE_PATH + "/app/" + (view === "follow" ? "follow.cfm" : "active-cruise.cfm")
+        + "?mode=preview&floatPlanId=" + encodeURIComponent(String(planId));
+      var navigated = false;
+      var timeoutId = null;
+      document.querySelectorAll(".js-expedition-trip-preview").forEach(function (button) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+      });
+      function navigate() {
+        if (navigated) return;
+        navigated = true;
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        window.location.assign(destination);
+      }
+      if (!window.FPWAnalytics || typeof window.FPWAnalytics.track !== "function" || typeof window.gtag !== "function") {
+        navigate();
+        return;
+      }
+      timeoutId = window.setTimeout(navigate, 1000);
+      try {
+        window.FPWAnalytics.track("preview_requested", {
+          view: view,
+          event_callback: navigate,
+          event_timeout: 1000
+        });
+      } catch (err) {
+        navigate();
+      }
+    }
+
+    window.addEventListener("pageshow", function (event) {
+      if (!event.persisted) return;
+      previewLaunchPending = false;
+      document.querySelectorAll(".js-expedition-trip-preview").forEach(function (button) {
+        button.disabled = button.getAttribute("data-preview-ready") !== "1";
+        button.removeAttribute("aria-busy");
+      });
+    });
+
+    function buildTripPreviewActions(currentGroup, showUnavailable) {
+      var previewReady = !!currentGroup && currentGroup.isDraft && currentGroup.previewReady;
+      if (!previewReady && !showUnavailable) return "";
+      var previewAttributes = ' data-preview-ready="' + (previewReady ? "1" : "0") + '"';
+      if (!previewReady) {
+        previewAttributes += ' disabled title="Preview is available once this route has an eligible Draft Float Plan."';
+      }
+      return '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-preview" data-preview-view="active_cruise" aria-label="Preview Active Cruise"' + previewAttributes + '>Preview Active Cruise</button>'
+        + '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-preview" data-preview-view="follow" aria-label="Preview Follow Page"' + previewAttributes + '>Preview Follow Page</button>';
+    }
+
     function buildRouteTableActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction, actionPolicy) {
       var html = buildActionContextOpen(currentGroup, "fpw-route-table-actions");
       var isDraftGroup = isDraftRouteGroup(currentGroup, currentState);
@@ -5264,24 +5321,33 @@
     }
 
     function buildRouteDetailActions(currentGroup, currentState, showActiveCruiseAction, showTripPageAction, showActivateRouteAction, actionPolicy) {
-      var html = buildActionContextOpen(currentGroup, "fpw-route-detail-actions");
       var isDraftGroup = isDraftRouteGroup(currentGroup, currentState);
+      var actionClass = "fpw-route-detail-actions"
+        + ((!currentGroup || (isDraftGroup && currentState !== "ACTIVE")) ? " fpw-route-detail-actions--saved" : "");
+      var html = buildActionContextOpen(currentGroup, actionClass);
       var planActionLabel = isDraftGroup ? "Complete Float Plan" : "Edit Float Plan";
-      if (!currentGroup) html += '<div class="fpw-route-detail-actions">';
+      if (!currentGroup) html += '<div class="' + actionClass + '">';
       if (currentState === "ACTIVE" && currentGroup) {
         html += showActiveCruiseAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-active-cruise">Open Active Cruise</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
         html += showTripPageAction ? '<button type="button" class="fpw-route-workspace-btn js-expedition-trip-page">Follow Page</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--danger js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '">Cancel</button>';
+      } else if (isDraftGroup) {
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Complete Float Plan" title="Complete Float Plan">Complete Float Plan</button>';
+        html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += buildTripPreviewActions(currentGroup, true);
+        html += buildRouteDetailDispositionAction(actionPolicy);
       } else if (currentGroup) {
         html += isDraftGroup ? "" : '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '">View &amp; Send Float Plan</button>';
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="' + planActionLabel + '" title="' + planActionLabel + '">' + planActionLabel + '</button>';
+        html += buildTripPreviewActions(currentGroup);
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
         html += buildRouteDetailDispositionAction(actionPolicy);
       } else {
-        html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Activate Route</button>' : "";
+        html += showActivateRouteAction ? '<button type="button" class="fpw-route-workspace-btn fpw-route-workspace-btn--primary js-expedition-build-floatplans">Draft Float Plan</button>' : "";
         html += '<button type="button" class="fpw-route-workspace-btn js-expedition-view-edit">Edit Route</button>';
+        html += buildTripPreviewActions(currentGroup, true);
         html += buildRouteDetailDispositionAction(actionPolicy);
       }
       html += '</div>';
@@ -6274,6 +6340,13 @@
           }
           if (!target.closest("button") && card.classList.contains("fpw-routes-table-row")) {
             selectRoute(routeCode);
+            return;
+          }
+          var previewAction = target.closest(".js-expedition-trip-preview");
+          if (previewAction) {
+            event.preventDefault();
+            if (previewAction.disabled || previewAction.getAttribute("data-preview-ready") !== "1") return;
+            launchTripPreview(currentGroupPlanId || currentFloatPlanId, previewAction.getAttribute("data-preview-view"));
             return;
           }
           if (target.classList.contains("js-expedition-active-cruise")) {
