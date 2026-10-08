@@ -731,11 +731,14 @@ main.dashboard-main{
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
   padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
   cursor: pointer;
   color: var(--text);
   background: rgba(255,255,255,0.05);
   transition: transform 0.12s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.dashboard-body button:not(:where(.fpw-site-header *)){
+  font-size: 0.85rem;
 }
 
 .dashboard-body button:hover{
@@ -4458,11 +4461,12 @@ body.dashboard-body[data-fpw-page="dashboard"]::before{
   color: rgba(249, 253, 255, 0.96);
 }
 
-body.dashboard-body[data-fpw-page="dashboard"] h2{
+/* Keep dashboard heading sizes out of the shared navigation without changing specificity. */
+body.dashboard-body[data-fpw-page="dashboard"] h2:not(:where(.fpw-site-header *)){
   font-size: 24px !important;
 }
 
-body.dashboard-body[data-fpw-page="dashboard"] h3{
+body.dashboard-body[data-fpw-page="dashboard"] h3:not(:where(.fpw-site-header *)){
   font-size: 18px;
 }
 
