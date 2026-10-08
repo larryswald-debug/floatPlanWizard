@@ -194,6 +194,7 @@
 <p style="margin:0 0 16px 0;">#greetingHtml#</p>
 <p style="margin:0 0 22px 0;">#encodeForHtml(templateConfig.body)#</p>
 <p style="margin:0 0 24px 0;"><a href="#ctaUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">#encodeForHtml(templateConfig.ctaLabel)#</a></p>
+#renderEmailUrlFallback(ctaUrl)#
 <p style="margin:0;">The FloatPlanWizard.com Team</p>
 <div style="overflow-wrap:anywhere; word-break:break-word;">#complianceFooter.htmlBody#</div>
 <cfif len(openUrl)><img src="#encodeForHtmlAttribute(openUrl)#" width="1" height="1" alt="" style="display:block;border:0;"></cfif>
@@ -466,7 +467,7 @@
             <cfreturn result>
         </cfif>
 
-        <cfif NOT len(resetUrlValue) OR NOT reFindNoCase("^https?://", resetUrlValue)>
+        <cfif NOT len(resetUrlValue) OR NOT isCanonicalPublicUrl(resetUrlValue, getEmailConfig().publicBaseUrl)>
             <cfset result.errorCode = "INVALID_RESET_LINK">
             <cfset result.message = "Password reset URL is invalid.">
             <cfreturn result>
@@ -1029,12 +1030,15 @@
     <tr><td style="padding:5px 0; color:##6c757d;">Completed</td><td style="padding:5px 0;">#encodeForHtml(completedLabel)#</td></tr>
 </table>
 <p style="margin:0 0 22px 0;">Monitoring or follow-up for this trip is no longer required.</p>
-<cfif len(followUrl)><p style="margin:0;"><a href="#encodeForHtmlAttribute(followUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">View Final Trip Status</a></p></cfif>
+<cfif len(followUrl)><p style="margin:0;"><a href="#encodeForHtmlAttribute(followUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">View Final Trip Status</a></p>
+#renderEmailUrlFallback(followUrl)#</cfif>
 <cfif len(referralUrl)><div style="margin-top:24px; padding-top:18px; border-top:1px solid ##dee2e6; color:##495057; font-size:14px; line-height:1.5;">
     <p style="margin:0 0 8px 0;"><strong>Plan your own boating trip.</strong></p>
     <p style="margin:0 0 8px 0;">Create a free FPW account to plan your route, stops, and trip estimates with the Trip Planner.</p>
     <p style="margin:0;"><a href="#encodeForHtmlAttribute(referralUrl)#" style="color:##0d6efd; font-weight:600;">Plan Your Own Trip</a></p>
+#renderEmailUrlFallback(referralUrl)#
     <p style="margin:12px 0 0; font-size:12px;"><a href="#encodeForHtmlAttribute(optionalUnsubscribeUrl)#" style="color:##0d6efd;">Unsubscribe from optional emails</a><br>Trip and safety notifications are not affected.</p>
+    #renderEmailUrlFallback(optionalUnsubscribeUrl)#
 </div></cfif>
 #complianceFooter.htmlBody#
         </cfoutput></cfsavecontent>
@@ -1098,6 +1102,7 @@
 <p style="margin:0 0 16px 0;"><strong>#encodeForHtml(planName)#</strong> is scheduled to depart <strong>#encodeForHtml(departureLabel)# (#encodeForHtml(timezoneLabel)#)</strong>.</p>
 <p style="margin:0 0 22px 0;">This is a reminder that your scheduled departure is coming up.</p>
 <p style="margin:0;"><a href="#encodeForHtmlAttribute(ctaUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">Open Active Cruise</a></p>
+#renderEmailUrlFallback(ctaUrl)#
 #complianceFooter.htmlBody#
             </cfoutput></cfsavecontent>
         <cfelse>
@@ -1119,6 +1124,7 @@
 <p style="margin:0 0 12px 0;">FPW has not recorded an actual trip start.</p>
 <p style="margin:0 0 22px 0;">If your plans changed, review the trip. If you are leaving now, open Active Cruise to start or manage it.</p>
 <p style="margin:0;"><a href="#encodeForHtmlAttribute(ctaUrl)#" style="display:inline-block;background:##17d8e6;color:##06243a;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;">Open Active Cruise</a></p>
+#renderEmailUrlFallback(ctaUrl)#
 #complianceFooter.htmlBody#
             </cfoutput></cfsavecontent>
         </cfif>
@@ -1203,9 +1209,11 @@
 <p style="margin:0 0 16px 0;">Start from your dashboard to begin setting up your account and float plans.</p>
 <p style="margin:0 0 22px 0;">You can use FloatPlanWizard.com from your phone, tablet, or desktop. The site is mobile-friendly, so you can use the main web tools from your phone, tablet, or desktop.</p>
 <p style="margin:0 0 24px 0;"><a href="#dashboardUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">Go to Your Dashboard</a></p>
+#renderEmailUrlFallback(dashboardUrlValue)#
 <p style="margin:0 0 16px 0;"><strong>New to FloatPlanWizard?</strong></p>
 <p style="margin:0 0 16px 0;">The FloatPlanWizard User Manual walks you through the app step by step, from adding your boat and planning a trip to creating a Float Plan, checking in while underway, and completing your trip.</p>
 <p style="margin:0 0 24px 0;"><a href="#userManualUrlHtml#" style="display:inline-block; background-color:##0d6efd; color:##ffffff; text-decoration:none; font-weight:600; padding:12px 18px; border-radius:6px;">Open the User Manual</a></p>
+#renderEmailUrlFallback(userManualUrl)#
 <p style="margin:0 0 16px 0;">During this launch/beta period, we would love your feedback as you use FPW.</p>
 <p style="margin:0 0 16px 0; font-size:13px; line-height:1.5; color:##495057;"><strong>Safety notice:</strong> #encodeForHtml(safetyNotice)#</p>
 <p style="margin:0 0 24px 0;">Thank you,<br>The FloatPlanWizard.com Team</p>
@@ -1298,6 +1306,11 @@
             userId = arguments.userId,
             optOutType = "non_essential"
         )>
+    </cffunction>
+
+    <cffunction name="renderEmailUrlFallback" access="private" returntype="string" output="false">
+        <cfargument name="rawUrl" type="string" required="true">
+        <cfreturn '<p style="margin:12px 0 24px 0; font-size:12px; line-height:1.5; color:##6c757d; overflow-wrap:anywhere; word-break:break-word;">If the button or link does not work, copy and paste this address into your browser:<br><span class="fpw-email-url-fallback">' & encodeForHtml(arguments.rawUrl) & '</span></p>'>
     </cffunction>
 
     <cffunction name="renderBaseEmailLayout" access="private" returntype="string" output="false">
@@ -1524,8 +1537,8 @@
     <cffunction name="getEmailConfig" access="private" returntype="struct" output="false">
         <cfset var fromDisplayName = "FloatPlanWizard">
         <cfset var fromEmail = "info@floatplanwizard.com">
-        <cfset var fallbackPublicBaseUrl = "https://www.floatplanwizard.com">
-        <cfset var fallbackDashboardUrl = "https://www.floatplanwizard.com/app/dashboard.cfm">
+        <cfset var fallbackPublicBaseUrl = "https://floatplanwizard.com">
+        <cfset var fallbackDashboardUrl = "https://floatplanwizard.com/app/dashboard.cfm">
         <cfset var publicBaseUrl = resolvePublicBaseUrl(fallbackPublicBaseUrl)>
         <cfset var dashboardUrl = publicBaseUrl & "/app/dashboard.cfm">
         <cfif compareNoCase(publicBaseUrl, fallbackPublicBaseUrl) EQ 0>
@@ -1538,7 +1551,7 @@
             replyToEmail = "info@floatplanwizard.com",
             publicBaseUrl = publicBaseUrl,
             dashboardUrl = dashboardUrl,
-            emailPreferencesUrl = publicBaseUrl & "/app/account.cfm##email-preferences"
+            emailPreferencesUrl = publicBaseUrl & "/app/account.cfm?section=email-preferences##email-preferences"
         }>
 
         <cfreturn config>
@@ -1649,41 +1662,42 @@
         <cfreturn appRoot & "logs">
     </cffunction>
 
+    <cffunction name="getPublicBaseUrl" access="public" returntype="string" output="false">
+        <cfreturn resolvePublicBaseUrl("https://floatplanwizard.com")>
+    </cffunction>
+
+    <cffunction name="getPublicUrlSettings" access="private" returntype="struct" output="false">
+        <cfset var settings = {environment="", developmentBaseUrl=""}>
+        <cfif isDefined("application")>
+            <cfif structKeyExists(application, "env")>
+                <cfset settings.environment = lCase(trim(toString(application.env)))>
+            </cfif>
+            <cfif structKeyExists(application, "settings") AND isStruct(application.settings)
+                AND structKeyExists(application.settings, "FPW_PUBLIC_BASE_URL")>
+                <cfset settings.developmentBaseUrl = trim(toString(application.settings.FPW_PUBLIC_BASE_URL))>
+            </cfif>
+        </cfif>
+        <cfreturn settings>
+    </cffunction>
+
     <cffunction name="resolvePublicBaseUrl" access="private" returntype="string" output="false">
         <cfargument name="fallbackBaseUrl" type="string" required="true">
 
-        <cfset var host = "">
-        <cfset var scheme = "https">
-        <cfset var forwardedProto = "">
+        <cfset var settings = getPublicUrlSettings()>
         <cfset var basePath = resolveFpwBasePath()>
-
-        <cfif structKeyExists(cgi, "http_host")>
-            <cfset host = trim(toString(cgi.http_host))>
-        <cfelseif structKeyExists(cgi, "HTTP_HOST")>
-            <cfset host = trim(toString(cgi.HTTP_HOST))>
+        <cfset var developmentBaseUrl = reReplace(settings.developmentBaseUrl, "/+$", "", "all")>
+        <!--- Production and unknown environments always use the canonical public origin.
+              A dev-only application setting can override the complete local base, including mount. --->
+        <cfif NOT listFindNoCase("dev,development,local", settings.environment)>
+            <cfreturn "https://floatplanwizard.com" & basePath>
         </cfif>
-
-        <cfif NOT len(host)>
-            <cfreturn reReplace(trim(arguments.fallbackBaseUrl), "/+$", "", "all")>
+        <cfif len(developmentBaseUrl)>
+            <cfif NOT reFindNoCase("^https?://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]{1,5})?(/[A-Za-z0-9_-]+)*$", developmentBaseUrl)>
+                <cfthrow type="email.InvalidDevelopmentPublicBaseUrl" message="Development public URL must use a local origin and an optional application mount.">
+            </cfif>
+            <cfreturn developmentBaseUrl>
         </cfif>
-
-        <cfif structKeyExists(cgi, "http_x_forwarded_proto")>
-            <cfset forwardedProto = lCase(trim(listFirst(toString(cgi.http_x_forwarded_proto), ",")))>
-        <cfelseif structKeyExists(cgi, "HTTP_X_FORWARDED_PROTO")>
-            <cfset forwardedProto = lCase(trim(listFirst(toString(cgi.HTTP_X_FORWARDED_PROTO), ",")))>
-        </cfif>
-
-        <cfif listFindNoCase("http,https", forwardedProto)>
-            <cfset scheme = forwardedProto>
-        <cfelseif structKeyExists(cgi, "https") AND listFindNoCase("on,1,true", trim(toString(cgi.https)))>
-            <cfset scheme = "https">
-        <cfelseif structKeyExists(cgi, "HTTPS") AND listFindNoCase("on,1,true", trim(toString(cgi.HTTPS)))>
-            <cfset scheme = "https">
-        <cfelseif findNoCase("localhost", host) OR left(host, 4) EQ "127.">
-            <cfset scheme = "http">
-        </cfif>
-
-        <cfreturn reReplace(scheme & "://" & host & basePath, "/+$", "", "all")>
+        <cfreturn "http://localhost:8500" & basePath>
     </cffunction>
 
     <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
@@ -1725,6 +1739,9 @@
         <cfset var basePath = resolveFpwBasePath()>
 
         <cfif reFindNoCase("^https?://", pathValue)>
+            <cfif NOT isCanonicalPublicUrl(pathValue, publicBaseUrl)>
+                <cfthrow type="email.InvalidPublicUrl" message="Email URL must use the configured public origin and mount.">
+            </cfif>
             <cfreturn pathValue>
         </cfif>
         <cfif NOT len(pathValue)>
@@ -1749,12 +1766,25 @@
         <cfreturn publicBaseUrl & pathValue>
     </cffunction>
 
+    <cffunction name="isCanonicalPublicUrl" access="private" returntype="boolean" output="false">
+        <cfargument name="urlValue" type="string" required="true">
+        <cfargument name="publicBaseUrl" type="string" required="true">
+        <cfset var base = reReplace(arguments.publicBaseUrl, "/+$", "", "all")>
+        <cfset var suffix = "">
+        <cfif reFind("[\x00-\x20\x7f]", arguments.urlValue)
+            OR compareNoCase(left(arguments.urlValue, len(base)), base) NEQ 0>
+            <cfreturn false>
+        </cfif>
+        <cfset suffix = mid(arguments.urlValue, len(base) + 1, len(arguments.urlValue))>
+        <cfreturn NOT len(suffix) OR listFind("/,?,##", left(suffix, 1)) GT 0>
+    </cffunction>
+
     <cffunction name="normalizeDashboardUrl" access="private" returntype="string" output="false">
         <cfargument name="dashboardUrl" type="string" required="false" default="">
         <cfargument name="defaultDashboardUrl" type="string" required="true">
 
         <cfset var urlValue = trim(arguments.dashboardUrl)>
-        <cfif len(urlValue) AND reFindNoCase("^https?://", urlValue)>
+        <cfif len(urlValue) AND isCanonicalPublicUrl(urlValue, getEmailConfig().publicBaseUrl)>
             <cfreturn urlValue>
         </cfif>
 

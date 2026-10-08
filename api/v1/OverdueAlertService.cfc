@@ -320,7 +320,7 @@
         <cftry>
             <cfmail
                 to="#toList#"
-                from="alerts@fpw.test"
+                from="noreply@floatplanwizard.com"
                 subject="#subject#"
                 type="text">#body#
             </cfmail>
@@ -409,7 +409,7 @@
         <cftry>
             <cfmail
                 to="#toList#"
-                from="alerts@fpw.test"
+                from="noreply@floatplanwizard.com"
                 subject="#subject#"
                 type="text">#body#
             </cfmail>
@@ -482,7 +482,7 @@
         <cftry>
             <cfmail
                 to="#toList#"
-                from="alerts@fpw.test"
+                from="noreply@floatplanwizard.com"
                 subject="#subject#"
                 type="text">#body#
             </cfmail>

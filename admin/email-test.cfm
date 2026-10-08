@@ -6,12 +6,9 @@ diagnosticRecipient = "support@floatplanwizard.com";
 approvedFromAddresses = [
     "noreply@floatplanwizard.com",
     "support@floatplanwizard.com",
-    "info@floatplanwizard.com",
-    "lswald@yahoo.com",
-    "larry.s.wald@gmail.com",
-    "larry@waldmedia.com"
+    "info@floatplanwizard.com"
 ];
-defaultReplyTo = "lswald@yahoo.com";
+defaultReplyTo = "support@floatplanwizard.com";
 fromAddressLimit = 254;
 subjectLimit = 180;
 bodyLimit = 5000;
@@ -116,6 +113,8 @@ if (isPostRequest) {
             OR find(chr(10), replyToValue)
             OR !isValid("email", replyToValue)) {
             arrayAppend(formErrors, "Reply-To must be a valid email address of 254 characters or fewer.");
+        } else if (!arrayFindNoCase(approvedFromAddresses, replyToValue)) {
+            arrayAppend(formErrors, "Reply-To must use an approved FPW address for this diagnostic.");
         }
     }
 

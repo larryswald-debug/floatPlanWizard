@@ -111,7 +111,7 @@ async (page) => {
     });
     await scenario("Expired session keeps recovery action after real unauthorized API response",members.CZERO,"recoveryAction=route&routeId=" + members.CZERO.ROUTEID,async (p,context) => {
       await modal(p,"#routeBuilderModal");
-      const logout = await (await context.request.post(root + "/api/v1/auth.cfc?method=handle",{data:{action:"logout"}})).json();
+      const logout = await p.evaluate(() => window.Api.logout());
       assert(logout.SUCCESS === true,"Fixture logout failed");
       await Promise.all([
         p.waitForURL(root + "/app/login.cfm?recoveryAction=route&routeId=" + members.CZERO.ROUTEID,{timeout:15000}),

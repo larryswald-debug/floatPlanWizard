@@ -511,7 +511,7 @@
     var status = document.getElementById("authContinuationStatus");
     if (panel && authHandoff.token && authHandoff.destinationKey !== "dashboard") {
       panel.hidden = false;
-      var labels = {planner:"Trip Planner",account:"Account",vessel:"Vessel Setup",routes:"Routes",plans:"Float Plans",route:"Your Route",draft:"Your Float Plan"};
+      var labels = {planner:"Trip Planner",account:"Account",vessel:"Vessel Setup",routes:"Routes",plans:"Float Plans",route:"Your Route",draft:"Your Float Plan","active-cruise":"Active Cruise","completed-trip":"Completed Trip","account-preferences":"Email Preferences"};
       button.textContent = "Continue to " + (labels[authHandoff.destinationKey] || "Dashboard");
       button.disabled = authHandoff.destinationKey === "planner";
       status.textContent = authHandoff.destinationKey === "planner"

@@ -1,13 +1,13 @@
 {
-  "description": "SHA-256 of UTF-8, LF-normalized reviewed operational function bodies. Captain fallback-link change from commit 1c5f86b is validated by NonEssentialEmailComplianceSpec; shore optional-content changes are validated by SafeArrivalNotificationServiceSpec. Future changes require review before updating these checksums.",
+  "description": "SHA-256 of reviewed operational function bodies (UTF-8, LF). Approved email reliability changes: canonical reset URL validation and visible fallbacks in departure/shore-safe-arrival builders, covered by EmailReliabilitySpec and email-reliability.playwright.js. Other sender/lifecycle bodies retain their existing checksums.",
   "functions": {
-    "sendPasswordResetEmail": "92bc8cbfaac38cd3da38a0e215a46c65d6f3f57825556deea4aa3004bf538551",
+    "sendPasswordResetEmail": "650e74d232b9cf8220548a53d672b017aa430ac20be8a266c961d830768f8269",
     "sendDepartureReminderEmail": "7f5ecb387ee1be4ed3b3a983046fa428f4ac2d8b1429d32c301dce9b730fdab4",
     "sendSafeArrivalCaptainEmail": "99045d2e3434a0253c23e121e103a87b7b618c1d6a83057b0736a2ec35144f1d",
     "sendSafeArrivalShoreContactEmail": "7c83700e996d145f70f3491c339c2cbb28d2efd1d61de324a9452c43e2314bb5",
     "buildPasswordResetEmail": "1bdf6316cc7bea598b0c3d09a68ff90cbdb153ecc1505b2d71898092e6072b24",
-    "buildDepartureReminderEmail": "19e099e031724f277c7fb010201c52aec050d35970c6eab2c03483caef9d3879",
+    "buildDepartureReminderEmail": "8175d04bd8660d9c8932fa02c309083665d9a6742ae440176ba20d8d1e5ec96c",
     "buildSafeArrivalCaptainEmail": "136dd35a82ff22688641581d1f7ed98f6ff9815cc84d0ecb16d0f525a84959ec",
-    "buildSafeArrivalShoreContactEmail": "b1d732a1bb3c45fd7116b4bf6d4e65d75a65b81b19c54db7f6aa7efda0a75434"
+    "buildSafeArrivalShoreContactEmail": "9457ddace487a87f8dd6c676b28dc87f944d2f4f6c9a3344d3dd72c5dbe44219"
   }
 }

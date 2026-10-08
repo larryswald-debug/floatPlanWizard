@@ -45,8 +45,12 @@ test('coverage is independently required and strict booleans only',()=>{
   }
 });
 test('all sender evaluations re-read separate coverage and enrollment',()=>{
-  assert.equal((sender.match(/classifier\.evaluateMember\(/g)||[]).length,3);
-  assert.equal((sender.match(/coverageVerification=coverageVerification\(arguments.userId\)/g)||[]).length,3);
+  const evaluations=sender.match(/classifier\.evaluateMember\([\s\S]*?\);/g)||[];
+  assert.equal(evaluations.length,4);
+  for(const evaluation of evaluations) {
+    assert.match(evaluation,/enrollmentUtc=enrollmentUtc\(arguments.userId\)/);
+    assert.match(evaluation,/coverageVerification=coverageVerification\(arguments.userId\)/);
+  }
   assert.match(sender,/new fpw\.includes\.InactiveMemberRecoveryCoverageService/);
   assert.doesNotMatch(sender,/ensureEnrolled|previewMembers|recordEvent/);
   assert.match(sender,/variables\.liveEnabled=false/);

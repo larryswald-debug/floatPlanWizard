@@ -91,7 +91,7 @@ function cleanupPreviewFixtures() {
       <cfthrow type="tests.PreviewDraftOwnershipFailed" message="Preview Draft ownership could not be verified.">
     </cfif>
     <cfset publicBaseUrl = reReplace(eligibility.unsubscribeUrl,"/unsubscribe\.cfm\?.*$","","one")>
-    <cfset verifiedDraftUrl = publicBaseUrl & "/app/floatplan-wizard.cfm?floatPlanId=" & planId>
+    <cfset verifiedDraftUrl = publicBaseUrl & "/app/dashboard.cfm?recoveryAction=draft&floatPlanId=" & planId>
   </cfif>
 
   <cfset message = service.buildInactiveMemberRecoveryEmail(

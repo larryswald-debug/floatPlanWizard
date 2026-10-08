@@ -11,9 +11,13 @@ component output=false {
   public struct function createIntent(required string destinationKey,struct context={},struct source={}) {
     var destination=arguments.destinationKey;
     var values={};
-    if (!listFind("dashboard,account,vessel,planner,routes,plans,route,draft",destination))
+    if (!listFind("dashboard,account,vessel,planner,routes,plans,route,draft,active-cruise,completed-trip,account-preferences",destination))
       throw(type="FPW.Auth.InvalidIntent",message="Choose a supported destination.");
-    if (listFind("dashboard,account",destination)) {
+    if (listFind("active-cruise,completed-trip,account-preferences",destination)) {
+      if (!len(emailDestinationPath(destination,arguments.context)))
+        throw(type="FPW.Auth.InvalidIntent",message="Invalid destination context.");
+      values=duplicate(arguments.context);
+    } else if (listFind("dashboard,account",destination)) {
       if (!structIsEmpty(arguments.context)) throw(type="FPW.Auth.InvalidIntent",message="Unexpected destination context.");
     } else {
       if (structKeyExists(arguments.context,"recoveryAction")) throw(type="FPW.Auth.InvalidIntent",message="Unexpected destination context.");
@@ -101,7 +105,11 @@ component output=false {
       entry.waitForContinue=true;
     }
     entry.recovery={action="",routeId=0,routeInstanceId=0,routeCode="",floatPlanId=0,basicDraft=false};
-    if (!structIsEmpty(entry.values))
+    entry.emailDestinationPath="";
+    if (listFind("active-cruise,completed-trip,account-preferences",entry.destinationKey)) {
+      entry.emailDestinationPath=emailDestinationPath(entry.destinationKey,entry.values);
+      if (!len(entry.emailDestinationPath)) return {};
+    } else if (!structIsEmpty(entry.values))
       entry.recovery=createObject("component",componentPath("includes.InactiveMemberRecoveryDestinationService")).init("fpw").resolveRequest(arguments.userId,entry.values);
     entry.redirectUrl=basePath() & "/app/"
       & (!arguments.newAccount AND !(entry.waitForContinue ?: false) AND entry.destinationKey EQ "account" ? "account" : "dashboard")
@@ -171,6 +179,18 @@ component output=false {
       if (structKeyExists(arguments.source,key) AND isSimpleValue(arguments.source[key])
         AND listFind(allowed[key],toString(arguments.source[key]))) result[key]=toString(arguments.source[key]);
     return result;
+  }
+
+  // Email targets remain typed server-side intents. They are navigation hints, never authorization.
+  private string function emailDestinationPath(required string destination,required struct context) {
+    if (arguments.destination EQ "account-preferences")
+      return structIsEmpty(arguments.context) ? basePath() & "/app/account.cfm?section=email-preferences##email-preferences" : "";
+    var idKey=arguments.destination EQ "active-cruise" ? "floatPlanId" : (arguments.destination EQ "completed-trip" ? "id" : "");
+    if (!len(idKey) OR structCount(arguments.context) NEQ 1 OR !structKeyExists(arguments.context,idKey)
+      OR !isSimpleValue(arguments.context[idKey])) return "";
+    var rawId=toString(arguments.context[idKey]);
+    if (!reFind("^[1-9][0-9]{0,9}$",rawId) OR reFind("[^0-9]",rawId) OR val(rawId) GT 2147483647) return "";
+    return basePath() & "/app/" & arguments.destination & ".cfm?" & idKey & "=" & rawId;
   }
 
   private boolean function validToken(required string token) {

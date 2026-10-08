@@ -271,12 +271,12 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(message.success).toBeTrue();
           expect(message.htmlBody).toInclude(encodeForHtmlAttribute(context.eligibility.unsubscribeUrl));
           expect(message.textBody).toInclude(context.eligibility.unsubscribeUrl);
-          expect(message.htmlBody).toInclude(encodeForHtmlAttribute("http://localhost:8500/fpw/app/account.cfm##email-preferences"));
-          expect(message.textBody).toInclude("/app/account.cfm##email-preferences");
+          expect(message.htmlBody).toInclude(encodeForHtmlAttribute("http://localhost:8500/fpw/app/account.cfm?section=email-preferences##email-preferences"));
+          expect(message.textBody).toInclude("/app/account.cfm?section=email-preferences##email-preferences");
           expect(message.htmlBody).toInclude("4347 Topsail Trail, New Port Richey, FL 34652");
           expect(message.textBody).toInclude("4347 Topsail Trail, New Port Richey, FL 34652");
           expect(message.htmlBody).toInclude("overflow-wrap:anywhere; word-break:break-word;");
-          expect(context.eligibility.unsubscribeUrl).notToBe("http://localhost:8500/fpw/app/account.cfm##email-preferences");
+          expect(context.eligibility.unsubscribeUrl).notToBe("http://localhost:8500/fpw/app/account.cfm?section=email-preferences##email-preferences");
           expect(countOccurrences(message.htmlBody,"display:inline-block; background-color:##0d6efd")).toBe(1);
           expect(countOccurrences(message.htmlBody,">" & message.ctaLabel & "</a>")).toBe(1);
           cleanupFixtures();

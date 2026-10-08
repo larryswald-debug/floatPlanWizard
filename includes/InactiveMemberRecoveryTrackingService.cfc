@@ -17,6 +17,7 @@ component output=false {
     var clickUrl=base & "/app/recovery-click.cfm?t=" & token(arguments.publicId,arguments.signingSecret,"click");
     result.textBody=replace(result.textBody,destination,clickUrl,"all");
     result.htmlBody=replace(result.htmlBody,encodeForHtmlAttribute(destination),encodeForHtmlAttribute(clickUrl),"all");
+    result.htmlBody=replace(result.htmlBody,encodeForHtml(destination),encodeForHtml(clickUrl),"all");
     // A renderer may use a literal URL instead of attribute encoding.
     result.htmlBody=replace(result.htmlBody,destination,encodeForHtmlAttribute(clickUrl),"all");
     var pixel='<img src="' & encodeForHtmlAttribute(openUrl) & '" width="1" height="1" alt="" style="display:block;border:0;" />';
@@ -41,7 +42,6 @@ component output=false {
     try {
       var row=verified(arguments.candidate,"click");
       if(!row.recordCount) return fallback;
-      if(!signal(row,"click")) return fallback;
       var paths=new fpw.includes.InactiveMemberRecoveryActionPathService();
       var safe=paths.validatePath(toString(row.destination_path[1]));
       if(!len(safe)) return fallback;
@@ -59,6 +59,12 @@ component output=false {
       var authenticatedUser=structKeyExists(session,"user") AND isStruct(session.user)
         ? val(session.user.userId ?: session.user.id ?: 0) : 0;
       if(authenticatedUser GT 0 AND authenticatedUser NEQ val(row.user_id[1])) return fallback;
+      // Navigation is authorized by the token and owned destination, not analytics writes.
+      var clickRecorded=false;
+      try { clickRecorded=signal(row,"click"); } catch(any unavailableClickTelemetry) {}
+      if(!clickRecorded) {
+        try { logClickTelemetryFailure(); } catch(any unavailableTelemetryLog) {}
+      }
       var continuation=new fpw.includes.AuthContinuationService();
       var intent=continuation.createIntent(destination.action,context);
       if(authenticatedUser GT 0) {
@@ -67,6 +73,11 @@ component output=false {
       }
       return arguments.basePath & "/app/login.cfm?authIntent=" & intent.token;
     } catch(any invalidOrUnavailableTracking) {return fallback;}
+  }
+
+  private void function logClickTelemetryFailure() {
+    // Never include the bearer token, signing secret, recipient, or destination.
+    writeLog(file="fpw-recovery",type="warning",text="RECOVERY_CLICK_TELEMETRY_NOT_RECORDED");
   }
 
   private string function token(required string publicId,required string signingSecret,required string purpose) {
@@ -78,10 +89,19 @@ component output=false {
 
   private query function verified(required string candidate,required string purpose) {
     if(len(arguments.candidate) NEQ 129 OR !reFind("^[a-f0-9]{64}[.][a-f0-9]{64}$",arguments.candidate)) return queryNew("");
+    // SEND_ACCEPTED remains the analytics contract. A sent message can retain PREPARED
+    // or OUTCOME_UNKNOWN when post-transport bookkeeping fails; its signed click still
+    // selects an authenticated, ownership-checked destination. Failed/canceled sends
+    // remain excluded. Missing acceptance time uses preparation time, never a new clock.
+    var lifecycle=arguments.purpose EQ "click"
+      ? "status IN ('SEND_ACCEPTED','PREPARED','OUTCOME_UNKNOWN')"
+        & " AND COALESCE(accepted_at_utc,prepared_at_utc)<=UTC_TIMESTAMP()"
+        & " AND UTC_TIMESTAMP()<=DATE_ADD(COALESCE(accepted_at_utc,prepared_at_utc),INTERVAL 90 DAY)"
+      : "status='SEND_ACCEPTED' AND accepted_at_utc IS NOT NULL AND accepted_at_utc<=UTC_TIMESTAMP()"
+        & " AND UTC_TIMESTAMP()<=DATE_ADD(accepted_at_utc,INTERVAL 90 DAY)";
     var row=queryExecute("SELECT id,user_id,public_id,signing_secret,destination_path,attribution_deadline_utc
       FROM inactive_member_recovery_messages WHERE public_id=:publicId AND message_kind='AUTOMATED'
-      AND status='SEND_ACCEPTED' AND accepted_at_utc IS NOT NULL AND accepted_at_utc<=UTC_TIMESTAMP()
-      AND UTC_TIMESTAMP()<=DATE_ADD(accepted_at_utc,INTERVAL 90 DAY) LIMIT 1",
+      AND " & lifecycle & " LIMIT 1",
       {publicId={value=listFirst(arguments.candidate,"."),cfsqltype="cf_sql_char"}},{datasource=variables.datasource});
     if(!row.recordCount) return row;
     var expected=listLast(token(row.public_id[1],row.signing_secret[1],arguments.purpose),".");

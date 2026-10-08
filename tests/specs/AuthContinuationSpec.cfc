@@ -94,6 +94,46 @@ component extends="testbox.system.BaseSpec" output=false {
         expect(variables.service.discard(entry.token,123)).toBeTrue();
         expect(variables.service.discard(entry.token,123)).toBeFalse();
       });
+      it("preserves typed email destinations behind the existing opaque handoff",function() {
+        var cases=[
+          {key="active-cruise",context={floatPlanId=42},path="/fpw/app/active-cruise.cfm?floatPlanId=42"},
+          {key="completed-trip",context={id=43},path="/fpw/app/completed-trip.cfm?id=43"},
+          {key="account-preferences",context={},path="/fpw/app/account.cfm?section=email-preferences##email-preferences"}
+        ];
+        for (var item in cases) {
+          var intent=variables.service.createIntent(item.key,item.context);
+          var resolved=variables.service.resolve(intent.token,123);
+          expect(resolved.redirectUrl).toBe("/fpw/app/dashboard.cfm?authIntent=" & intent.token);
+          expect(resolved.emailDestinationPath).toBe(item.path);
+          expect(resolved.recovery.action).toBe("");
+          expect(structIsEmpty(variables.service.getIntent(intent.token,456))).toBeTrue();
+        }
+      });
+      it("rejects email intent parameter injection and malformed identifiers",function() {
+        for (var key in ["active-cruise","completed-trip"]) {
+          var idKey=key EQ "active-cruise" ? "floatPlanId" : "id";
+          for (var id in ["0","01","-1","1.5","1e2","2147483648","1,2"," 1","1"&chr(10),"1&returnUrl=https://evil.example"]) {
+            var context={}; context[idKey]=id;
+            expect(function() { variables.service.createIntent(key,context); }).toThrow();
+          }
+          var injected={returnUrl="https://evil.example"}; injected[idKey]=42;
+          expect(function() { variables.service.createIntent(key,injected); }).toThrow();
+          expect(function() { variables.service.createIntent(key,{}); }).toThrow();
+        }
+        expect(function() { variables.service.createIntent("account-preferences",{section="elsewhere"}); }).toThrow();
+      });
+      it("retains new-account overview and explicit Continue for every email destination",function() {
+        for (var item in [{key="active-cruise",context={floatPlanId=42}},{key="completed-trip",context={id=43}},{key="account-preferences",context={}}]) {
+          var intent=variables.service.createIntent(item.key,item.context);
+          variables.service.bindMember(123);
+          var created=variables.service.resolve(intent.token,123,true);
+          expect(created.waitForContinue).toBeTrue();
+          expect(created.redirectUrl).toBe("/fpw/app/dashboard.cfm?authIntent=" & intent.token);
+          expect(variables.service.resolve(intent.token,123).waitForContinue).toBeTrue();
+          expect(variables.service.allowContinuation(intent.token,123)).toBeTrue();
+          expect(variables.service.resolve(intent.token,123).waitForContinue).toBeFalse();
+        }
+      });
       it("ignores a valid-shaped token missing from this session",function() {
         expect(structIsEmpty(variables.service.getIntent(repeatString("a",64),123))).toBeTrue();
         expect(structIsEmpty(variables.service.resolve(repeatString("a",64),123))).toBeTrue();

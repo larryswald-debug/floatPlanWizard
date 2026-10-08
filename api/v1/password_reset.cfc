@@ -287,74 +287,19 @@
     <cffunction name="buildPasswordResetUrl" access="private" returntype="string" output="false">
         <cfargument name="token" type="string" required="true">
 
-        <cfreturn resolvePublicBaseUrl("https://www.floatplanwizard.com") & "/app/reset-password.cfm?token=" & encodeForURL(arguments.token)>
+        <cfreturn resolvePublicBaseUrl("https://floatplanwizard.com") & "/app/reset-password.cfm?token=" & encodeForURL(arguments.token)>
     </cffunction>
 
     <cffunction name="resolvePublicBaseUrl" access="private" returntype="string" output="false">
         <cfargument name="fallbackBaseUrl" type="string" required="true">
-
-        <cfset var host = "">
-        <cfset var scheme = "https">
-        <cfset var forwardedProto = "">
-        <cfset var basePath = resolveFpwBasePath()>
-
-        <cfif structKeyExists(cgi, "http_host")>
-            <cfset host = trim(toString(cgi.http_host))>
-        <cfelseif structKeyExists(cgi, "HTTP_HOST")>
-            <cfset host = trim(toString(cgi.HTTP_HOST))>
-        </cfif>
-
-        <cfif NOT len(host)>
-            <cfreturn reReplace(trim(arguments.fallbackBaseUrl), "/+$", "", "all")>
-        </cfif>
-
-        <cfif structKeyExists(cgi, "http_x_forwarded_proto")>
-            <cfset forwardedProto = lcase(trim(listFirst(toString(cgi.http_x_forwarded_proto), ",")))>
-        <cfelseif structKeyExists(cgi, "HTTP_X_FORWARDED_PROTO")>
-            <cfset forwardedProto = lcase(trim(listFirst(toString(cgi.HTTP_X_FORWARDED_PROTO), ",")))>
-        </cfif>
-
-        <cfif listFindNoCase("http,https", forwardedProto)>
-            <cfset scheme = forwardedProto>
-        <cfelseif structKeyExists(cgi, "https") AND listFindNoCase("on,1,true", trim(toString(cgi.https)))>
-            <cfset scheme = "https">
-        <cfelseif structKeyExists(cgi, "HTTPS") AND listFindNoCase("on,1,true", trim(toString(cgi.HTTPS)))>
-            <cfset scheme = "https">
-        <cfelseif findNoCase("localhost", host) OR left(host, 4) EQ "127.">
-            <cfset scheme = "http">
-        </cfif>
-
-        <cfreturn reReplace(scheme & "://" & host & basePath, "/+$", "", "all")>
-    </cffunction>
-
-    <cffunction name="resolveFpwBasePath" access="private" returntype="string" output="false">
-        <cfset var basePath = "">
-
-        <cfif structKeyExists(request, "fpwBase") AND NOT isNull(request.fpwBase)>
-            <cfset basePath = trim(toString(request.fpwBase))>
-        <cfelse>
-            <cfif structKeyExists(cgi, "script_name")>
-                <cfset basePath = trim(toString(cgi.script_name))>
-            <cfelseif structKeyExists(cgi, "SCRIPT_NAME")>
-                <cfset basePath = trim(toString(cgi.SCRIPT_NAME))>
-            </cfif>
-
-            <cfset basePath = reReplace(basePath, "[?##].*$", "")>
-            <cfset basePath = replace(basePath, "\", "/", "all")>
-            <cfset basePath = reReplaceNoCase(basePath, "/api/v1(/.*)?$", "")>
-            <cfset basePath = reReplaceNoCase(basePath, "/(app|admin|assets|tests)(/.*)?$", "")>
-            <cfset basePath = reReplaceNoCase(basePath, "/[^/]*\.(cfm|cfc)$", "")>
-        </cfif>
-
-        <cfset basePath = reReplace(basePath, "/$", "")>
-        <cfif basePath EQ "/">
-            <cfset basePath = "">
-        </cfif>
-        <cfif len(basePath) AND left(basePath, 1) NEQ "/">
-            <cfset basePath = "/" & basePath>
-        </cfif>
-
-        <cfreturn basePath>
+        <cfset var emailService = "">
+        <cftry>
+            <cfset emailService = createObject("component", "api.v1.email").init()>
+            <cfcatch type="any">
+                <cfset emailService = createObject("component", "fpw.api.v1.email").init()>
+            </cfcatch>
+        </cftry>
+        <cfreturn emailService.getPublicBaseUrl()>
     </cffunction>
 
     <cffunction name="sendPasswordResetEmail" access="private" returntype="struct" output="false">

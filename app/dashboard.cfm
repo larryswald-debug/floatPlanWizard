@@ -1626,7 +1626,7 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20261001-auth-overview"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261006-route-summary-order"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261007-email-continuation"></script>
 
 </body>
 </html>

@@ -11,14 +11,16 @@ const applicationPath = join(repoRoot, "Application.cfc");
 const authorizationPath = join(repoRoot, "api", "v1", "AdminAuthorizationService.cfc");
 const contactPath = join(repoRoot, "api", "v1", "contactUs.cfc");
 const emailServicePath = join(repoRoot, "api", "v1", "email.cfc");
+const monitoringPath = join(repoRoot, "api", "v1", "OverdueAlertService.cfc");
 
-const [page, nav, application, authorization, contact, emailService] = await Promise.all([
+const [page, nav, application, authorization, contact, emailService, monitoring] = await Promise.all([
   readFile(pagePath, "utf8"),
   readFile(navPath, "utf8"),
   readFile(applicationPath, "utf8"),
   readFile(authorizationPath, "utf8"),
   readFile(contactPath, "utf8"),
   readFile(emailServicePath, "utf8"),
+  readFile(monitoringPath, "utf8"),
 ]);
 
 test("the diagnostic page remains behind the central admin authorization and CSRF gate", () => {
@@ -30,7 +32,7 @@ test("the diagnostic page remains behind the central admin authorization and CSR
   assert.match(page, /toString\(request\.fpwAdminCsrfToken\)/);
 });
 
-test("the server-side From allowlist contains exactly the six approved senders", () => {
+test("the server-side From allowlist contains only the three approved FPW senders", () => {
   const allowlistMatch = page.match(/approvedFromAddresses\s*=\s*\[([\s\S]*?)\];/);
   assert.ok(allowlistMatch, "From allowlist block was not found");
   const addresses = [...allowlistMatch[1].matchAll(/"([^"]+@[^"]+)"/g)].map((match) => match[1]);
@@ -38,12 +40,26 @@ test("the server-side From allowlist contains exactly the six approved senders",
     "noreply@floatplanwizard.com",
     "support@floatplanwizard.com",
     "info@floatplanwizard.com",
-    "lswald@yahoo.com",
-    "larry.s.wald@gmail.com",
-    "larry@waldmedia.com",
   ]);
   assert.match(page, /arrayFindNoCase\(approvedFromAddresses,\s*selectedFrom\)/);
   assert.match(page, /The selected From address is not approved/);
+});
+
+test("FPW-controlled Reply-To defaults to support and rejects external identities", () => {
+  assert.match(page, /defaultReplyTo\s*=\s*"support@floatplanwizard\.com"/);
+  assert.match(page, /else if\s*\(!arrayFindNoCase\(approvedFromAddresses,\s*replyToValue\)\)/);
+  assert.match(page, /Reply-To must use an approved FPW address/);
+  assert.doesNotMatch(page, /@(yahoo\.com|gmail\.com|waldmedia\.com)/i);
+});
+
+test("all current direct monitoring senders use the approved existing FPW identity", () => {
+  assert.equal((monitoring.match(/from="noreply@floatplanwizard\.com"/g) || []).length, 3);
+  assert.doesNotMatch(monitoring, /from="[^"]*\.test"/i);
+});
+
+test("Contact Us intentionally preserves the validated visitor Reply-To exception", () => {
+  assert.match(contact, /<cfmail[\s\S]*?from="noreply@floatplanwizard\.com"[\s\S]*?replyto="#email#"/i);
+  assert.match(contact, /<cfelseif NOT isValidEmail>/);
 });
 
 test("the From field is editable but limited to server-approved suggestions", () => {

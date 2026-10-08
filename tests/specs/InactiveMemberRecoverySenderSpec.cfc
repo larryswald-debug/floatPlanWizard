@@ -26,7 +26,7 @@ component extends="testbox.system.BaseSpec" output="false" {
           expect(messages[i].htmlBody).toInclude(encodeForHtmlAttribute(messages[i].ctaUrl));
           expect(messages[i].textBody).toInclude("4347 Topsail Trail, New Port Richey, FL 34652");
           expect(messages[i].textBody).toInclude("/unsubscribe.cfm?t=");
-          expect(messages[i].textBody).toInclude("/app/account.cfm##email-preferences");
+          expect(messages[i].textBody).toInclude("/app/account.cfm?section=email-preferences##email-preferences");
           expect(variables.fixture.state(members[i].userId,1).STATUS).toBe("SENT");
         }
         var second=variables.fixture.service().processBatch(25,false);

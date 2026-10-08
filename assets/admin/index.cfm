@@ -168,7 +168,7 @@ function fpwSendPrelaunchWelcomeEmail(
       "Thank you again for your interest in FloatPlanWizard.",
       "",
       "- FloatPlanWizard",
-      "https://FloatPlanWizard.com",
+      optionalEmailService.getPublicBaseUrl(),
       "",
       "FloatPlanWizard",
       "United States"
