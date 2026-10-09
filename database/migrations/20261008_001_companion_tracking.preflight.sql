@@ -1,7 +1,7 @@
 -- Companion tracking Phase 1: read-only prerequisite checks (session variables only).
 -- Select the intended FPW database explicitly. Never use the SQL client's --force option.
 -- No production migration is authorized by this file. DDL requires a verified backup.
--- Supported: MySQL 8.0.16+; MariaDB 10.5.26+ within the established FPW 10.5 series.
+-- Supported: MySQL 8.0.16+; MariaDB 10.5.26+ within the 10.5 series, or exactly 10.6.24.
 SET @fpw_tracking_mariadb = LOWER(VERSION()) LIKE '%mariadb%';
 SET @fpw_tracking_version = SUBSTRING_INDEX(VERSION(), '-', 1);
 SET @fpw_tracking_major = CAST(SUBSTRING_INDEX(@fpw_tracking_version, '.', 1) AS UNSIGNED);
@@ -19,8 +19,12 @@ SET @fpw_tracking_error = CASE
   WHEN DATABASE() IS NULL THEN 'No database is selected.'
   WHEN CAST(LOWER(DATABASE()) AS BINARY) <> CAST('fpw' AS BINARY)
     THEN 'Selected database must be FPW (case-insensitive).'
-  WHEN @fpw_tracking_mariadb = 1 AND (@fpw_tracking_major <> 10 OR @fpw_tracking_minor <> 5 OR @fpw_tracking_patch < 26)
-    THEN 'Supported MariaDB versions are 10.5.26 or newer within the 10.5 series.'
+  WHEN @fpw_tracking_mariadb = 1 AND NOT (
+    @fpw_tracking_major = 10 AND (
+      (@fpw_tracking_minor = 5 AND @fpw_tracking_patch >= 26) OR
+      (@fpw_tracking_minor = 6 AND @fpw_tracking_patch = 24)
+    ))
+    THEN 'Supported MariaDB versions are 10.5.26 or newer within the 10.5 series, or exactly 10.6.24.'
   WHEN @fpw_tracking_mariadb = 0 AND (@fpw_tracking_major < 8 OR (@fpw_tracking_major = 8 AND @fpw_tracking_minor = 0 AND @fpw_tracking_patch < 16))
     THEN 'MySQL 8.0.16 or newer is required.'
   WHEN @fpw_tracking_check_enforcement <> 1 THEN 'CHECK constraint enforcement must be enabled.'
