@@ -5,7 +5,7 @@
   <cfset variables.tokenDays = 90>
   <cfset variables.inactivityDays = 30>
   <cfset variables.maxPairingAttempts = 5>
-  <cfset variables.defaultScopes = "companion:current,companion:checkin">
+  <cfset variables.defaultScopes = "companion:current,companion:checkin,companion:tracking">
 
   <cffunction name="init" access="public" returntype="any" output="false">
     <cfargument name="datasource" type="string" required="false" default="fpw">
@@ -247,6 +247,7 @@
   <cffunction name="resolveBearerToken" access="public" returntype="struct" output="false">
     <cfargument name="authorizationHeader" type="string" required="true">
     <cfargument name="requiredScope" type="string" required="false" default="">
+    <cfargument name="markUsed" type="boolean" required="false" default="true">
     <cfscript>
       var headerValue = trim(arguments.authorizationHeader);
       var rawToken = "";
@@ -287,7 +288,10 @@
         return errorResponse("COMPANION_SCOPE_DENIED", "Companion token is not allowed for this action.", false);
       }
 
-      markDeviceUsed(val(qDevice.id[1]));
+      // Read-only callers (tracking eligibility) must not update credential usage.
+      if (arguments.markUsed) {
+        markDeviceUsed(val(qDevice.id[1]));
+      }
 
       return {
         "SUCCESS" = true,

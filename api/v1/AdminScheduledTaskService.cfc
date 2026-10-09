@@ -25,9 +25,11 @@ component output="false" {
         variables.catalogLabels = {"development-test"="Development scheduler check (harmless)"};
         variables.catalogAvailable = false;
         var aliases = {"run-monitor.cfm"="monitor", "run-departure-reminders.cfm"="departure-reminders",
-            "run-single-trip-expiration.cfm"="single-trip-expiration", "run-inactive-member-recovery.cfm"="inactive-member-recovery"};
+            "run-single-trip-expiration.cfm"="single-trip-expiration", "run-inactive-member-recovery.cfm"="inactive-member-recovery",
+            "run-companion-tracking-maintenance.cfm"="companion-tracking-maintenance"};
         var labels = {"monitor"="Float plan monitor", "departure-reminders"="Departure reminders",
-            "single-trip-expiration"="Single-trip expiration", "inactive-member-recovery"="Inactive member recovery (new schedules use dry run)"};
+            "single-trip-expiration"="Single-trip expiration", "inactive-member-recovery"="Inactive member recovery (new schedules use dry run)",
+            "companion-tracking-maintenance"="Companion tracking reconciliation and retention"};
         try {
             var files = directoryList(getDirectoryFromPath(getCurrentTemplatePath()) & "../../app/scheduled", false, "query", "", "name", "file");
             for (var index=1; index LTE files.recordCount; index++) {
@@ -54,7 +56,7 @@ component output="false" {
     }
 
     private boolean function usesMonitorToken(required string endpointId) output="false" {
-        return listFindNoCase("monitor,monitor-legacy,departure-reminders,single-trip-expiration",arguments.endpointId) GT 0;
+        return listFindNoCase("monitor,monitor-legacy,departure-reminders,single-trip-expiration,companion-tracking-maintenance",arguments.endpointId) GT 0;
     }
 
     private void function validateParameters(required struct entry) output="false" {

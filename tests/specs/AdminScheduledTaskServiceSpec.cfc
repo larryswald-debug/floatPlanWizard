@@ -892,7 +892,8 @@ component extends="testbox.system.BaseSpec" output="false" {
                 var aliases = {
                     "/app/scheduled/run-monitor.cfm"="monitor",
                     "/app/scheduled/run-departure-reminders.cfm"="departure-reminders",
-                    "/app/scheduled/run-single-trip-expiration.cfm"="single-trip-expiration"
+                    "/app/scheduled/run-single-trip-expiration.cfm"="single-trip-expiration",
+                    "/app/scheduled/run-companion-tracking-maintenance.cfm"="companion-tracking-maintenance"
                 };
                 for (var path in aliases) {
                     var endpoint = endpointAt(view, path);
@@ -908,6 +909,47 @@ component extends="testbox.system.BaseSpec" output="false" {
                 } else {
                     expect(f.service.mutate(input).success).toBeTrue();
                     expect(f.gateway.getExecuted()[1].url).toBe("http://localhost:8500/fpw/app/scheduled/run-monitor.cfm");
+                }
+            });
+
+            it("adds the protected tracking runner without creating a schedule or exposing its token", function() {
+                var f = fixture(rows=[], configChanges={tasks=[]});
+                var view = f.service.getView();
+                var endpoint = endpointAt(view, "/app/scheduled/run-companion-tracking-maintenance.cfm");
+                expect(structIsEmpty(endpoint)).toBeFalse();
+                expect(endpoint.id).toBe("companion-tracking-maintenance");
+                expect(endpoint.available).toBeTrue();
+                expect(arrayLen(f.gateway.getExecuted())).toBe(0);
+                var monitorToken = structKeyExists(application, "monitorToken") ? trim(toString(application.monitorToken)) : "";
+                if (len(monitorToken)) expect(find(monitorToken, serializeJSON(view))).toBe(0);
+                var input = newTaskInput();
+                input.endpointId = endpoint.id;
+                expect(f.service.mutate(input).success).toBeTrue();
+                var expectedUrl = "http://localhost:8500/fpw/app/scheduled/run-companion-tracking-maintenance.cfm";
+                if (len(monitorToken)) expectedUrl &= "?token=" & urlEncodedFormat(monitorToken);
+                expect(compare(f.gateway.getExecuted()[1].url, expectedUrl)).toBe(0);
+            });
+
+            it("allows only bounded configured tracking maintenance limits", function() {
+                for (var limit in [1, 100, 500]) {
+                    var entry = {id="manager-spec", name="FPW_DEV_MANAGER_SPEC", mode="server", group="FPW_DEV_TEST",
+                        application="", endpointId="companion-tracking-maintenance", allowCreate=true, parameters={limit=limit}};
+                    var f = fixture(rows=[], configChanges={tasks=[entry]});
+                    var input = inputFor(f, "create");
+                    input.endpointId = entry.endpointId;
+                    expect(f.service.mutate(input).success).toBeTrue();
+                    expect(find("limit=" & limit, f.gateway.getExecuted()[1].url) GT 0).toBeTrue();
+                }
+                for (var parameters in [{limit=0}, {limit=501}, {limit=1.5}, {limit="1000"}, {dryRun=true}, {token="SIMULATED_SECRET"}]) {
+                    var rejected = false;
+                    try {
+                        fixture(rows=[], configChanges={tasks=[{id="manager-spec", name="FPW_DEV_MANAGER_SPEC",
+                            mode="server", group="FPW_DEV_TEST", application="", endpointId="companion-tracking-maintenance",
+                            allowCreate=true, parameters=parameters}]});
+                    } catch (FPWScheduler.Validation expected) {
+                        rejected = true;
+                    }
+                    expect(rejected).toBeTrue();
                 }
             });
 

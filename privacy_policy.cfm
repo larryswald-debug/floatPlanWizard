@@ -269,9 +269,17 @@
   </p>
 
   <p>
-    Float Plan Wizard does not continuously track your device unless we clearly disclose that feature and
-    you authorize it. For launch, location collection is intended to support user-submitted check-ins and
-    related trip records, not continuous live tracking.
+    Automatic trip tracking is optional and requires you to explicitly start tracking with a paired
+    Companion device. When this feature is available and authorized, FPW may periodically collect
+    this phone's location for that trip, including while the app is in the background or the screen
+    is locked. Positions may be stored on the phone when offline and uploaded when connectivity
+    returns, within the trip's authorization period. You can stop tracking at any time.
+  </p>
+
+  <p>
+    Location collection and delivery are best-effort. Automatic positions do not constitute a captain
+    check-in, acknowledge monitoring, change overdue status, complete a trip, or confirm anyone's
+    safety. Continued collection after the app terminates or the device restarts is not guaranteed.
   </p>
 
   <h3>Companion App and Device Information</h3>
@@ -433,9 +441,16 @@
   </p>
 
   <p>
-    Location information may be used to record check-ins, support monitoring features, display trip
-    progress, provide trip context to designated contacts, maintain trip records, troubleshoot the Service,
-    and improve safety-related trip-planning features.
+    Location information submitted with a check-in may be used to record check-ins, support monitoring
+    features, display trip progress, provide trip context to designated contacts, maintain trip records,
+    troubleshoot the Service, and improve safety-related trip-planning features.
+  </p>
+
+  <p>
+    Automatic tracking positions are stored separately from check-ins and monitoring. Access to these
+    positions is currently limited to the authenticated paired captain; automatic tracking does not
+    provide public or follower access. Phone-reported positions can be inaccurate or fabricated and
+    are not independently verified as the device's physical location.
   </p>
 
   <p>
@@ -496,6 +511,13 @@
     accounts, provide trip records, support monitoring and notification features, process payments,
     resolve disputes, enforce our Terms of Use, comply with legal obligations, prevent fraud, maintain
     security, and support legitimate business purposes.
+  </p>
+
+  <p>
+    Automatic tracking location samples are retained for 90 days from their capture time. Closed
+    tracking-session metadata is retained for 90 days from session closure. Scheduled cleanup removes
+    records after these periods in bounded batches, so deletion may not occur at the exact expiration
+    time. Deleting your account removes its associated tracking records.
   </p>
 
   <p>
