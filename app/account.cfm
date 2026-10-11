@@ -245,7 +245,7 @@
       </div>
     </div>
 
-    <div class="col-12">
+    <cfif fpwRequireAuthUserId EQ 1><div class="col-12">
       <div class="card shadow-sm" id="companionDevicesCard">
         <div class="card-body">
           <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
@@ -285,7 +285,7 @@
           <div id="companionDevicesList" class="companion-device-list"></div>
         </div>
       </div>
-    </div>
+    </div></cfif>
   </div>
 </div>
 

@@ -10,6 +10,7 @@
   <title>FloatPlanWizard Help Center</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Learn how to use FloatPlanWizard to plan a trip, send a float plan, monitor your cruise, share a Trip status page, and check marine weather.">
+  <cfset request.fpwFaviconDeclared = true>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306131d'/%3E%3Cpath d='M32 10v44M10 32h44M17 17l30 30M47 17 17 47' stroke='%2321f3ee' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='14' fill='none' stroke='%2367d8ff' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ffd18a'/%3E%3C/svg%3E">
 
   <cfinclude template="../includes/fpw_base_path.cfm">

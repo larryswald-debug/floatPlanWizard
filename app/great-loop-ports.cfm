@@ -296,6 +296,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="<cfoutput>#request.fpwBase#</cfoutput>/favicon.ico">
   <title><cfoutput>#encodeForHTML(pageTitle)#</cfoutput></title>
   <meta name="description" content="<cfoutput>#encodeForHTMLAttribute(pageDescription)#</cfoutput>">
   <link rel="canonical" href="<cfoutput>#encodeForHTMLAttribute(canonicalUrl)#</cfoutput>">
