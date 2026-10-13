@@ -36,6 +36,16 @@
           <cfoutput>#serializeJSON(response)#</cfoutput>
         </cfcase>
 
+        <cfcase value="currentdevice,current-device" delimiters=",">
+          <cfset response = requireRequestMethod("GET")>
+          <cfif response.SUCCESS>
+            <cfset response = service.getCurrentDevice(readAuthorizationHeader())>
+          <cfelse>
+            <cfset response.AUTH = false>
+          </cfif>
+          <cfoutput>#serializeJSON(response)#</cfoutput>
+        </cfcase>
+
         <cfcase value="listdevices,list-devices" delimiters=",">
           <cfset response = requireRequestMethod("GET")>
           <cfset userId = resolveSessionUserId()>

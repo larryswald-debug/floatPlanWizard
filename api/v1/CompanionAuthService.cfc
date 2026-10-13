@@ -248,12 +248,14 @@
     <cfargument name="authorizationHeader" type="string" required="true">
     <cfargument name="requiredScope" type="string" required="false" default="">
     <cfargument name="markUsed" type="boolean" required="false" default="true">
+    <cfargument name="includeDevice" type="boolean" required="false" default="false">
     <cfscript>
       var headerValue = trim(arguments.authorizationHeader);
       var rawToken = "";
       var tokenPrefix = "";
       var tokenHash = "";
       var qDevice = {};
+      var result = {};
 
       if (!len(headerValue)) {
         return errorResponse("TOKEN_MISSING", "Companion token is required.", false);
@@ -293,7 +295,7 @@
         markDeviceUsed(val(qDevice.id[1]));
       }
 
-      return {
+      result = {
         "SUCCESS" = true,
         "success" = true,
         "AUTH" = true,
@@ -307,6 +309,30 @@
         "devicePlatform" = hasQueryValue(qDevice.platform[1]) ? toString(qDevice.platform[1]) : "",
         "appVersion" = hasQueryValue(qDevice.app_version[1]) ? toString(qDevice.app_version[1]) : "",
         "scopes" = toString(qDevice.scopes[1])
+      };
+      if (arguments.includeDevice) {
+        result["DEVICE"] = deviceRowToStruct(qDevice);
+        structDelete(result.DEVICE, "tokenPrefix");
+      }
+      return result;
+    </cfscript>
+  </cffunction>
+
+  <cffunction name="getCurrentDevice" access="public" returntype="struct" output="false">
+    <cfargument name="authorizationHeader" type="string" required="true">
+    <cfscript>
+      // Reuse the validated row without renewing usage or accepting a web session.
+      var auth = resolveBearerToken(arguments.authorizationHeader, "", false, true);
+      if (!auth.SUCCESS) {
+        return auth;
+      }
+      return {
+        "SUCCESS" = true,
+        "AUTH" = true,
+        "ERROR" = "",
+        "MESSAGE" = "Companion pairing is active.",
+        "DEVICE" = auth.DEVICE,
+        "EXPIRES_AT_UTC" = auth.DEVICE.expiresAtUtc
       };
     </cfscript>
   </cffunction>
