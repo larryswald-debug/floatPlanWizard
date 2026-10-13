@@ -289,25 +289,26 @@
     <cfargument name="userId" type="numeric" required="true">
     <cfargument name="floatPlanId" type="numeric" required="true">
     <cfscript>
+      // Preserve UTC wall-clock text before JDBC can apply the server time zone.
       return queryExecute("
         SELECT
           id,
           monitoring_mode,
           monitor_state,
           is_monitoring_enabled,
-          expected_checkin_at,
-          grace_expires_at,
-          missed_at,
-          escalated_at,
+          CAST(expected_checkin_at AS CHAR) AS expected_checkin_at,
+          CAST(grace_expires_at AS CHAR) AS grace_expires_at,
+          CAST(missed_at AS CHAR) AS missed_at,
+          CAST(escalated_at AS CHAR) AS escalated_at,
           resolved_at,
           closed_at,
-          last_checkin_at,
+          CAST(last_checkin_at AS CHAR) AS last_checkin_at,
           last_checkin_status,
           secure_for_night,
-          secure_for_night_until,
+          CAST(secure_for_night_until AS CHAR) AS secure_for_night_until,
           escalation_delay_minutes,
           grace_window_minutes,
-          next_monitor_eval_at,
+          CAST(next_monitor_eval_at AS CHAR) AS next_monitor_eval_at,
           last_monitor_eval_at
         FROM floatplan_monitoring
         WHERE float_plan_id = :floatPlanId
@@ -378,15 +379,15 @@
           gps_altitude_meters,
           speed_knots,
           heading_degrees,
-          location_captured_at_utc,
-          received_at_utc,
+          CAST(location_captured_at_utc AS CHAR) AS location_captured_at_utc,
+          CAST(received_at_utc AS CHAR) AS received_at_utc,
           process_status,
-          created_utc
+          CAST(created_utc AS CHAR) AS created_utc
         FROM floatplan_companion_events
         WHERE user_id = :userId
           AND floatplan_id = :floatPlanId
           AND event_type = 'CHECKIN'
-        ORDER BY COALESCE(received_at_utc, created_utc, location_captured_at_utc) DESC, id DESC
+        ORDER BY COALESCE(floatplan_companion_events.received_at_utc, floatplan_companion_events.created_utc, floatplan_companion_events.location_captured_at_utc) DESC, id DESC
         LIMIT :limitRows
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -394,14 +395,14 @@
         limitRows = { value = limitRows, cfsqltype = "cf_sql_integer" }
       }, { datasource = variables.datasource });
       var qCanonical = queryExecute("
-        SELECT id, event_status, occurred_at_utc, payload_json
+        SELECT id, event_status, CAST(occurred_at_utc AS CHAR) AS occurred_at_utc, payload_json
         FROM floatplan_events
         WHERE floatplan_id = :floatPlanId
           AND user_id = :userId
           AND event_type = 'CHECKIN_RECEIVED'
           AND source = 'active_cruise_checkin'
           AND voided_at_utc IS NULL
-        ORDER BY occurred_at_utc DESC, id DESC
+        ORDER BY floatplan_events.occurred_at_utc DESC, id DESC
         LIMIT :limitRows
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -495,7 +496,7 @@
         });
       }
 
-      sortGpsHistoryItemsDesc(items);
+      items = sortGpsHistoryItemsDesc(items);
       return limitArray(items, limitRows);
     </cfscript>
   </cffunction>
@@ -509,7 +510,7 @@
       items = appendCompanionAuditItems(items, arguments.userId, arguments.floatPlanId, arguments.timezone);
       items = appendMonitorAuditItems(items, arguments.userId, arguments.floatPlanId, arguments.timezone);
       items = appendCanonicalAuditItems(items, arguments.userId, arguments.floatPlanId, arguments.timezone);
-      sortAuditItemsDesc(items);
+      items = sortAuditItemsDesc(items);
       return limitArray(items, 20);
     </cfscript>
   </cffunction>
@@ -538,12 +539,12 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var qEvents = queryExecute("
-        SELECT id, canonical_status, latitude, longitude, gps_accuracy_meters, location_captured_at_utc, received_at_utc, created_utc
+        SELECT id, canonical_status, latitude, longitude, gps_accuracy_meters, CAST(location_captured_at_utc AS CHAR) AS location_captured_at_utc, CAST(received_at_utc AS CHAR) AS received_at_utc, CAST(created_utc AS CHAR) AS created_utc
         FROM floatplan_companion_events
         WHERE user_id = :userId
           AND floatplan_id = :floatPlanId
           AND event_type = 'CHECKIN'
-        ORDER BY COALESCE(received_at_utc, created_utc, location_captured_at_utc) DESC, id DESC
+        ORDER BY COALESCE(floatplan_companion_events.received_at_utc, floatplan_companion_events.created_utc, floatplan_companion_events.location_captured_at_utc) DESC, id DESC
         LIMIT 10
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -600,11 +601,11 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var qEvents = queryExecute("
-        SELECT id, event_type, from_state, to_state, event_at, checkin_status, actor_type
+        SELECT id, event_type, from_state, to_state, CAST(event_at AS CHAR) AS event_at, checkin_status, actor_type
         FROM floatplan_monitor_events
         WHERE user_id = :userId
           AND float_plan_id = :floatPlanId
-        ORDER BY event_at DESC, id DESC
+        ORDER BY floatplan_monitor_events.event_at DESC, id DESC
         LIMIT 20
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -644,14 +645,14 @@
     <cfargument name="timezone" type="string" required="true">
     <cfscript>
       var qEvents = queryExecute("
-        SELECT id, event_status, occurred_at_utc, source, payload_json
+        SELECT id, event_status, CAST(occurred_at_utc AS CHAR) AS occurred_at_utc, source, payload_json
         FROM floatplan_events
         WHERE floatplan_id = :floatPlanId
           AND user_id = :userId
           AND event_type = 'CHECKIN_RECEIVED'
           AND source = 'active_cruise_checkin'
           AND voided_at_utc IS NULL
-        ORDER BY occurred_at_utc DESC, id DESC
+        ORDER BY floatplan_events.occurred_at_utc DESC, id DESC
         LIMIT 10
       ", {
         floatPlanId = { value = arguments.floatPlanId, cfsqltype = "cf_sql_integer" },
@@ -1201,9 +1202,10 @@
 
   <cffunction name="getCurrentUtcTimestamp" access="private" returntype="any" output="false">
     <cfscript>
-      var qNow = queryExecute("SELECT UTC_TIMESTAMP() AS utc_now", {}, { datasource = variables.datasource });
-      if (qNow.recordCount AND isDate(qNow.utc_now[1])) {
-        return qNow.utc_now[1];
+      var qNow = queryExecute("SELECT CAST(UTC_TIMESTAMP() AS CHAR) AS utc_now", {}, { datasource = variables.datasource });
+      var utcNow = qNow.recordCount ? parseStoredUtcDate(qNow.utc_now[1]) : "";
+      if (isDate(utcNow)) {
+        return utcNow;
       }
       return now();
     </cfscript>
@@ -1212,10 +1214,11 @@
   <cffunction name="formatUtc" access="private" returntype="string" output="false">
     <cfargument name="value" type="any" required="true">
     <cfscript>
-      if (!isDate(arguments.value)) {
+      var utcValue = parseStoredUtcDate(arguments.value);
+      if (!isDate(utcValue)) {
         return "";
       }
-      return dateTimeFormat(arguments.value, "yyyy-mm-dd'T'HH:nn:ss'Z'", "UTC");
+      return dateTimeFormat(utcValue, "yyyy-mm-dd'T'HH:nn:ss'Z'", "UTC");
     </cfscript>
   </cffunction>
 
@@ -1224,13 +1227,14 @@
     <cfargument name="timezone" type="string" required="false" default="UTC">
     <cfscript>
       var tz = len(trim(arguments.timezone)) ? trim(arguments.timezone) : "UTC";
-      if (!isDate(arguments.value)) {
+      var utcValue = parseStoredUtcDate(arguments.value);
+      if (!isDate(utcValue)) {
         return "";
       }
       try {
-        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt", tz);
+        return dateTimeFormat(utcValue, "mmm d, yyyy h:nn tt", tz);
       } catch (any localLabelErr) {
-        return dateTimeFormat(arguments.value, "mmm d, yyyy h:nn tt");
+        return dateTimeFormat(utcValue, "mmm d, yyyy h:nn tt");
       }
     </cfscript>
   </cffunction>
@@ -1421,11 +1425,15 @@
     <cfscript>
       var raw = safeString(arguments.value);
       var parsedValue = "";
-      if (isDate(arguments.value)) {
+      if (isInstanceOf(arguments.value, "java.util.Date")) {
         return arguments.value;
       }
       if (!len(raw)) {
         return "";
+      }
+      // SQL DATETIME text is UTC by contract; ISO offsets already identify an instant.
+      if (reFind("^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$", raw)) {
+        raw = replace(raw, " ", "T") & "Z";
       }
       try {
         parsedValue = parseDateTime(raw);
@@ -1539,7 +1547,7 @@
     </cfscript>
   </cffunction>
 
-  <cffunction name="sortAuditItemsDesc" access="private" returntype="void" output="false">
+  <cffunction name="sortAuditItemsDesc" access="private" returntype="array" output="false">
     <cfargument name="items" type="array" required="true">
     <cfscript>
       var i = 0;
@@ -1554,10 +1562,11 @@
           }
         }
       }
+      return arguments.items;
     </cfscript>
   </cffunction>
 
-  <cffunction name="sortGpsHistoryItemsDesc" access="private" returntype="void" output="false">
+  <cffunction name="sortGpsHistoryItemsDesc" access="private" returntype="array" output="false">
     <cfargument name="items" type="array" required="true">
     <cfscript>
       var i = 0;
@@ -1572,6 +1581,7 @@
           }
         }
       }
+      return arguments.items;
     </cfscript>
   </cffunction>
 

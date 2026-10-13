@@ -36,7 +36,7 @@ test("Monitoring serializes UTC explicitly and never strips an ISO timezone", ()
 
   assert.match(
     formatter,
-    /dateTimeFormat\(arguments\.value,\s*"yyyy-mm-dd'T'HH:nn:ss'Z'",\s*"UTC"\)/
+    /dateTimeFormat\(utcValue,\s*"yyyy-mm-dd'T'HH:nn:ss'Z'",\s*"UTC"\)/
   );
   assert.match(parser, /parsedValue\s*=\s*parseDateTime\(raw\)/);
   assert.doesNotMatch(parser, /reReplace[^\n]+(?:Z\$|\[\+\-\])/i);
