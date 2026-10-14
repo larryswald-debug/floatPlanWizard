@@ -541,6 +541,7 @@ completedTripPageTitle = completedTripModel.SUCCESS
 <body class="dashboard-body completed-trip-body" data-fpw-page="completed-trip">
 
 <cfset request.fpwTopNavActive = "dashboard">
+<cfset request.fpwTopNavHelpPage = "completed-trip">
 <cfinclude template="../includes/top_nav.cfm">
 
 <main class="dashboard-main completed-trip-main">

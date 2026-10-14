@@ -301,10 +301,17 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
 }
 
 topNavHelpActive = listFindNoCase("help,help-contact,help-support,help-feedback", topNavActive) GT 0;
+topNavHelpPage = topNavActive;
+if (structKeyExists(request, "fpwTopNavHelpPage")) {
+  topNavHelpPage = lCase(trim(toString(request.fpwTopNavHelpPage)));
+}
 topNavHelpSections = {
-  "dashboard" = "route-and-trip-planning", "active-cruise" = "active-cruise-and-monitoring",
-  "monitoring" = "active-cruise-and-monitoring", "weather" = "weather-and-safety",
-  "fuel" = "calculators-and-tools"
+  "dashboard" = "1-find-your-way-around-fpw",
+  "completed-trip" = "23-view-the-completed-trip-record",
+  "active-cruise" = "18-read-active-cruise",
+  "monitoring" = "19-check-in-and-understand-monitoring",
+  "weather" = "13-use-weather-in-planning-and-underway",
+  "fuel" = "14-use-the-linked-fuel-and-range-calculator"
 };
 
 topNavShowAppSubnav = topNavIsLoggedIn
@@ -680,8 +687,8 @@ topNavShowAppSubnav = topNavIsLoggedIn
             <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path></svg>
             <span>Fuel Calculator</span>
           </a>
-          <cfif structKeyExists(topNavHelpSections, topNavActive)>
-            <a class="fpw-app-link fpw-context-help" href="#topNavBasePath#/help/###topNavHelpSections[topNavActive]#">
+          <cfif structKeyExists(topNavHelpSections, topNavHelpPage)>
+            <a class="fpw-app-link fpw-context-help" href="#topNavBasePath#/app/user-manual.cfm###topNavHelpSections[topNavHelpPage]#">
               #renderFpwNavIcon("help", "fpw-subnav-icon")#<span>Help for this page</span>
             </a>
           </cfif>

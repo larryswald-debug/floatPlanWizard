@@ -1,9 +1,21 @@
 async(page)=>{
  const base='http://localhost:8500/fpw', out={contextual:[],touch:[],forms:[]};
  const assert=(v,m)=>{if(!v)throw Error(m);};
- for(const [path,section] of [['/app/dashboard.cfm','route-and-trip-planning'],['/app/active-cruise.cfm','active-cruise-and-monitoring'],['/app/monitoring.cfm','active-cruise-and-monitoring'],['/app/weather.cfm','weather-and-safety'],['/boat-fuel-calculator/','calculators-and-tools']]){
+ for(const [path,section] of [
+   ['/app/dashboard.cfm','1-find-your-way-around-fpw'],
+   ['/app/completed-trip.cfm','23-view-the-completed-trip-record'],
+   ['/app/active-cruise.cfm','18-read-active-cruise'],
+   ['/app/active-cruise.cfm?mode=preview','18-read-active-cruise'],
+   ['/app/monitoring.cfm','19-check-in-and-understand-monitoring'],
+   ['/app/weather.cfm','13-use-weather-in-planning-and-underway'],
+   ['/boat-fuel-calculator/','14-use-the-linked-fuel-and-range-calculator'],
+   ['/app/fuel-calculator.cfm','14-use-the-linked-fuel-and-range-calculator']
+ ]){
    await page.goto(base+path,{waitUntil:'domcontentloaded'});
-   const link=page.locator('.fpw-context-help');assert(await link.count()===1,path+' contextual link');assert((await link.getAttribute('href')).endsWith('#'+section),path+' contextual target');
+   const link=page.locator('.fpw-context-help');assert(await link.count()===1,path+' contextual link');assert(await link.getAttribute('href')==='/fpw/app/user-manual.cfm#'+section,path+' contextual target');
+   await link.click();
+   await page.waitForURL(base+'/app/user-manual.cfm#'+section);
+   assert(await page.locator('[id="'+section+'"]').isVisible(),path+' manual chapter visible');
    out.contextual.push({path,section});
  }
  for (const member of [false,true]) {
