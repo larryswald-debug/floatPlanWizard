@@ -123,7 +123,7 @@ test("existing CSS and analytics implementation retain the hero presentation and
   assert.match(css, /\.fpw-hero\s*\{[\s\S]*?min-height:\s*360px;[\s\S]*?background:\s*#04152f;/);
   assert.match(css, /\.fpw-hero-copy h1\s*\{[\s\S]*?font-size:\s*clamp\(38px, 4\.1vw, 48px\);/);
   assert.match(css, /\.fpw-hero \.fpw-btn-primary\s*\{[\s\S]*?color:\s*#071529;/);
-  assert.match(homepage, /fpw-conversion-landing\.css\?v=20260830-float-plan-pillar-link/);
+  assert.match(homepage, /fpw-conversion-landing\.css\?v=20261013-home-nav-align/);
   assert.match(css, /\.fpw-trust-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/);
   assert.match(css, /@media \(max-width:\s*720px\)[\s\S]*?\.fpw-hero-copy h1\s*\{[\s\S]*?font-size:\s*31px;/);
   assert.match(css, /@media \(max-width:\s*720px\)[\s\S]*?\.fpw-trust-row\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);

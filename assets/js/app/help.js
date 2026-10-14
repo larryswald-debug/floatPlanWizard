@@ -84,7 +84,7 @@
     });
   }
 
-  tocLinks.forEach(function (link) {
+  Array.prototype.slice.call(document.querySelectorAll("[data-help-toc-link], .fpw-help-topic a[href^='#']")).forEach(function (link) {
     link.addEventListener("click", function (event) {
       var selector = link.getAttribute("href");
       var target = selector ? document.querySelector(selector) : null;
@@ -92,6 +92,10 @@
         return;
       }
       event.preventDefault();
+      if (target.hidden && searchInput) {
+        searchInput.value = "";
+        applySearch();
+      }
       target.scrollIntoView({ behavior: "smooth", block: "start" });
       setActiveLink(target.id);
       if (window.history && typeof window.history.replaceState === "function") {

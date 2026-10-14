@@ -1,26 +1,36 @@
 <cfsetting enablecfoutputonly="false" showdebugoutput="false">
-<cfparam name="url.status" default="">
-<cfparam name="url.code" default="">
-
-<cfset alertClass = "">
-<cfset alertMessage = "">
-
-<cfif url.status EQ "success">
-    <cfset alertClass = "alert-success">
-    <cfset alertMessage = "Thank you for reaching out. Your message has been sent, and we&rsquo;ll get back to you as soon as we can.">
-<cfelseif url.status EQ "error">
-    <cfset alertClass = "alert-danger">
-    <cfif url.code EQ "send_failed">
-        <cfset alertMessage = "We&rsquo;re sorry, but we were unable to send your message at this time. Please try again shortly, or contact us another way if the problem continues.">
-    <cfelse>
-        <cfset alertMessage = "Please complete all required fields and check that your email address is entered correctly, then try again.">
-    </cfif>
-</cfif>
+<cfinclude template="../includes/fpw_base_path.cfm">
+<cfheader name="Cache-Control" value="no-store">
+<cfscript>
+contactMode = structKeyExists(url,"mode") AND isSimpleValue(url.mode) AND listFind("contact,support,feedback",toString(url.mode)) ? toString(url.mode) : "contact";
+contactHeading = contactMode EQ "support" ? "Submit a Support Request" : (contactMode EQ "feedback" ? "Suggest a Feature" : "Contact FloatPlanWizard");
+contactIntro = contactMode EQ "support" ? "Describe the problem and the steps that led to it so we can help." : (contactMode EQ "feedback" ? "Share an idea that would make FloatPlanWizard more useful for your boating trips." : "Send us a question about your account, float plans, routes, or billing.");
+contactSubmitLabel = contactMode EQ "support" ? "Submit Support Request" : (contactMode EQ "feedback" ? "Send Suggestion" : "Send Message");
+contactCategories = ["Account and Login","Trip Planning","Float Plans","Active Cruise and Monitoring","Companion App","Billing and Subscriptions","Bug Report","Other"];
+contactCsrf = new fpw.api.v1.AuthRequestGuardService().getOrCreateCsrfToken();
+request.fpwTopNavActive = "help-" & contactMode;
+alertClass = "";
+alertMessage = "";
+// Confirmation comes from the preceding POST, never from arbitrary URL status text.
+lock scope="session" type="exclusive" timeout=5 {
+  if (structKeyExists(session,"fpwContactResult") AND session.fpwContactResult.mode EQ contactMode) {
+    contactResult = session.fpwContactResult;
+    structDelete(session,"fpwContactResult");
+    if (contactResult.status EQ "success") {
+      alertClass = "alert-success";
+      alertMessage = "Thank you. Your message has been submitted to FloatPlanWizard support.";
+    } else {
+      alertClass = "alert-danger";
+      alertMessage = contactResult.code EQ "send_failed" ? "We could not send your message. Please try again shortly." : "Please complete every required field, choose a category, and check the field lengths and email address.";
+    }
+  }
+}
+</cfscript>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Contact FloatPlanWizard</title>
+    <title><cfoutput>#encodeForHTML(contactHeading)#</cfoutput> | FloatPlanWizard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Contact FloatPlanWizard for account help, billing questions, float plan support, route planning feedback, and general boating trip-planning questions.">
     <link rel="canonical" href="https://floatplanwizard.com/app/contact.cfm">
@@ -42,9 +52,11 @@
     <meta name="twitter:image:alt" content="FloatPlanWizard boating trip planning and monitored float plan preview image">
 
     <cfinclude template="../includes/header_styles.cfm">
-    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20260628-public-form-shell">
+    <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/auth-pages.css?v=20261013-help-support-v3">
 </head>
 <body class="auth-page-body fpw-public-form-page fpw-contact-page">
+
+<cfinclude template="../includes/top_nav.cfm">
 
 <section class="fpw-public-form-shell fpw-contact-shell">
     <div class="fpw-public-form-card fpw-contact-card">
@@ -134,20 +146,22 @@
                     </svg>
                 </div>
                 <div>
-                    <h2>Contact FloatPlanWizard</h2>
+                    <h2><cfoutput>#encodeForHTML(contactHeading)#</cfoutput></h2>
                     <p>
-                        Have a question about your account, float plans, routes, Premium access, or launch feedback? Send us a message and we&rsquo;ll get back to you.
+                        <cfoutput>#encodeForHTML(contactIntro)#</cfoutput>
                     </p>
                 </div>
             </div>
 
-            <form id="contactForm" class="fpw-contact-form" method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/api/v1/contactUs.cfc?method=handle" novalidate>
+            <form id="contactForm" class="fpw-contact-form" method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/api/v1/contactUs.cfc?method=handle">
+                <cfoutput><input type="hidden" name="csrfToken" value="#encodeForHTMLAttribute(contactCsrf)#"><input type="hidden" name="mode" value="#encodeForHTMLAttribute(contactMode)#"></cfoutput>
                 <div class="fpw-contact-honeypot" aria-hidden="true">
                     <label for="website">Website</label>
                     <input
                         type="text"
                         id="website"
                         name="website"
+                        maxlength="200"
                         tabindex="-1"
                         autocomplete="off"
                     >
@@ -167,6 +181,7 @@
                                 type="text"
                                 id="firstName"
                                 name="firstName"
+                                maxlength="80"
                                 autocomplete="given-name"
                                 placeholder="First name"
                                 required
@@ -187,6 +202,7 @@
                                 type="text"
                                 id="lastName"
                                 name="lastName"
+                                maxlength="80"
                                 autocomplete="family-name"
                                 placeholder="Last name"
                                 required
@@ -203,10 +219,25 @@
                             type="email"
                             id="email"
                             name="email"
+                            maxlength="254"
                             autocomplete="email"
                             placeholder="you@example.com"
                             required
                         >
+                    </div>
+                </div>
+
+                <div class="fpw-form-row">
+                    <label for="subject">Subject</label>
+                    <div class="fpw-input-wrap fpw-contact-plain-input"><input type="text" id="subject" name="subject" maxlength="180" required placeholder="A short summary"></div>
+                </div>
+                <div class="fpw-form-row">
+                    <label for="category">Category</label>
+                    <div class="fpw-input-wrap fpw-contact-plain-input">
+                        <select id="category" name="category" required>
+                            <option value="">Choose a category</option>
+                            <cfoutput><cfloop array="#contactCategories#" index="contactCategory"><option value="#encodeForHTMLAttribute(contactCategory)#">#encodeForHTML(contactCategory)#</option></cfloop></cfoutput>
+                        </select>
                     </div>
                 </div>
 
@@ -216,6 +247,7 @@
                         <textarea
                             id="description"
                             name="description"
+                            maxlength="5000"
                             rows="7"
                             placeholder="How can we help?"
                             required
@@ -224,12 +256,12 @@
                 </div>
 
                 <cfif len(alertMessage)>
-                    <cfoutput><div id="contactAlert" class="alert #alertClass# fpw-contact-message" role="alert" aria-live="polite">#alertMessage#</div></cfoutput>
+                    <cfoutput><div id="contactAlert" class="alert #alertClass# fpw-contact-message" role="alert" aria-live="polite">#encodeForHTML(alertMessage)#</div></cfoutput>
                 <cfelse>
                     <div id="contactAlert" class="fpw-contact-message" aria-live="polite"></div>
                 </cfif>
 
-                <button type="submit" id="contactButton" class="fpw-contact-submit">Send Message</button>
+                <button type="submit" id="contactButton" class="fpw-contact-submit"><cfoutput>#encodeForHTML(contactSubmitLabel)#</cfoutput></button>
 
                 <p class="fpw-contact-safe-note">
                     Please do not include passwords, payment details, or emergency medical information.

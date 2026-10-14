@@ -144,7 +144,7 @@ fpwCtaConfig = {
   <script type="application/ld+json"><cfoutput>#fpwLoopPlanningJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwLoopPlanningBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/top-nav.css?v=20260930-great-loop-trip-planning-nav"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/top-nav.css?v=20261013-global-help"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwLoopPlanningBasePath#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color"></cfoutput>
   <style>

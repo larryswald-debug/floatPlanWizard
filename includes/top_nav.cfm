@@ -90,7 +90,7 @@ topNavUserManualActive = reFindNoCase("/app/user-manual\.cfm$", topNavRequestPat
 topNavResourcesActive = listFindNoCase(
   "resources,resources-boat-loan-calculator,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
   topNavActive
-) GT 0 OR topNavUserManualActive;
+) GT 0;
 topNavSoloBoatingGuideActive = topNavActive EQ "resources-solo-boating-guide";
 topNavCommonBoatingEmergenciesActive = topNavActive EQ "resources-common-boating-emergencies";
 topNavShoreContactGuideActive = topNavActive EQ "resources-shore-contact-guide";
@@ -205,6 +205,15 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
       iconClass = iconClass & " fpw-icon-help";
       iconPaths = '<circle cx="24" cy="24" r="18"></circle><path d="M18 18a6 6 0 1 1 9 5c-2 1-3 2-3 5"></path><circle cx="24" cy="35" r="1"></circle>';
       break;
+    case "message-circle":
+      iconPaths = '<path d="M42 23a18 18 0 0 1-18 18c-3 0-6-.7-8.5-2L5 43l4-10.5A18 18 0 1 1 42 23z"></path>';
+      break;
+    case "mail":
+      iconPaths = '<rect x="6" y="11" width="36" height="27" rx="3"></rect><path d="m7 13 17 13 17-13"></path><path d="m7 36 12-12M41 36 29 24"></path>';
+      break;
+    case "lightbulb":
+      iconPaths = '<path d="M17 32c0-6-7-8-7-16a14 14 0 1 1 28 0c0 8-7 10-7 16z"></path><path d="M17 38h14M20 44h8"></path>';
+      break;
     case "route":
       iconClass = iconClass & " fpw-icon-route";
       iconPaths = '<path d="M14 38c8-8 13 6 22-3"></path><path d="M16 13c0 5-6 8-6 8s-6-3-6-8a6 6 0 0 1 12 0z"></path><circle cx="10" cy="13" r="2"></circle><path d="M44 17c0 5-6 8-6 8s-6-3-6-8a6 6 0 0 1 12 0z"></path><circle cx="38" cy="17" r="2"></circle><path d="M18 25h5"></path><path d="M27 25h3"></path>';
@@ -291,6 +300,13 @@ function renderFpwNavIcon(required string name, string extraClass = "") output=f
   return '<svg class="' & iconClass & '" viewBox="' & iconViewBox & '" aria-hidden="true" focusable="false">' & iconPaths & '</svg>';
 }
 
+topNavHelpActive = listFindNoCase("help,help-contact,help-support,help-feedback", topNavActive) GT 0;
+topNavHelpSections = {
+  "dashboard" = "route-and-trip-planning", "active-cruise" = "active-cruise-and-monitoring",
+  "monitoring" = "active-cruise-and-monitoring", "weather" = "weather-and-safety",
+  "fuel" = "calculators-and-tools"
+};
+
 topNavShowAppSubnav = topNavIsLoggedIn
   AND listFindNoCase("dashboard,active-cruise,monitoring,weather,fuel", topNavActive) GT 0;
 </cfscript>
@@ -349,10 +365,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
           <nav class="fpw-primary-nav<cfif topNavIsLoggedIn> fpw-primary-nav--member</cfif>" aria-label="Primary navigation">
             <cfif NOT topNavIsLoggedIn>
-              <a class="fpw-nav-link" href="#topNavHowHref#">
-                #renderFpwNavIcon("how", "fpw-nav-icon")#
-                <span>How It Works</span>
-              </a>
               <a class="fpw-nav-link" href="#topNavBasePath#/##fpwProductPreview">
                 #renderFpwNavIcon("route", "fpw-nav-icon")#
                 <span>Features</span>
@@ -497,30 +509,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
                         </a>
                       </article>
                     </section>
-
-                    <section class="fpw-resource-feature fpw-resource-featured" aria-labelledby="fpwResourceManualTitle">
-                      <h2 class="fpw-resource-section-label fpw-resource-featured__heading" id="fpwResourceManualTitle">
-                        <a class="fpw-resource-section-link<cfif topNavUserManualActive> is-active</cfif>" href="#topNavBasePath#/app/user-manual.cfm" role="menuitem">Member Guide</a>
-                      </h2>
-                      <article class="fpw-resource-feature-card fpw-featured-guide">
-                        <div class="fpw-resource-feature-summary fpw-featured-guide__main">
-                          <div class="fpw-featured-guide__icon">
-                            #renderFpwNavIcon("book-open", "fpw-resource-feature-icon")#
-                          </div>
-                          <div class="fpw-resource-feature-copy fpw-featured-guide__content">
-                            <h3 class="fpw-featured-guide__title">User Manual</h3>
-                            <p class="fpw-featured-guide__description">Step-by-step instructions for FloatPlanWizard.</p>
-                          </div>
-                        </div>
-                        <a
-                          class="fpw-resource-feature-link fpw-featured-guide__button<cfif topNavUserManualActive> is-active</cfif>"
-                          href="#topNavBasePath#/app/user-manual.cfm"
-                          role="menuitem"
-                          <cfif topNavUserManualActive>aria-current="page"</cfif>>
-                          <span>Open User Manual</span><b aria-hidden="true">&rarr;</b>
-                        </a>
-                      </article>
-                    </section>
                     </div>
 
                     <div class="fpw-resource-groups">
@@ -588,6 +576,42 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 <span>Pricing</span>
               </a>
             </cfif>
+            <div class="fpw-dropdown fpw-help-dropdown" data-fpw-dropdown data-fpw-help-dropdown>
+              <button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavHelpActive> is-active</cfif>" id="fpwHelpToggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="fpwHelpMenu" data-fpw-dropdown-toggle>
+                #renderFpwNavIcon("help", "fpw-nav-icon")#
+                <span>Help</span>
+                <svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div class="fpw-dropdown-menu fpw-help-menu" id="fpwHelpMenu" role="menu" aria-labelledby="fpwHelpToggle" hidden>
+                <a href="#topNavBasePath#/help/" role="menuitem"<cfif topNavActive EQ 'help' AND NOT topNavUserManualActive> aria-current="page"</cfif>>
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("book-open")#</span>
+                  <span><strong>Help Center</strong><small>Guides, tutorials, and frequently asked questions.</small></span>
+                </a>
+                <div class="fpw-help-menu-separator" role="separator"></div>
+                <a href="#topNavBasePath#/app/contact.cfm" role="menuitem"<cfif topNavActive EQ 'help-contact'> aria-current="page"</cfif>>
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("message-circle")#</span>
+                  <span><strong>Contact Support</strong><small>Get assistance from FloatPlanWizard.</small></span>
+                </a>
+                <a href="#topNavBasePath#/app/contact.cfm?mode=support##contactForm" role="menuitem"<cfif topNavActive EQ 'help-support'> aria-current="page"</cfif>>
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("mail")#</span>
+                  <span><strong>Submit a Support Request</strong><small>Report a problem or request assistance.</small></span>
+                </a>
+                <div class="fpw-help-menu-separator" role="separator"></div>
+                <a href="#topNavBasePath#/app/contact.cfm?mode=feedback##contactForm" role="menuitem"<cfif topNavActive EQ 'help-feedback'> aria-current="page"</cfif>>
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("lightbulb")#</span>
+                  <span><strong>Suggest a Feature</strong><small>Share ideas to improve FloatPlanWizard.</small></span>
+                </a>
+                <div class="fpw-help-menu-separator" role="separator"></div>
+                <a href="#topNavHowHref#" role="menuitem">
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("how")#</span>
+                  <span><strong>How It Works</strong><small>Learn how to plan, share, and manage your trip.</small></span>
+                </a>
+                <a href="#topNavBasePath#/app/user-manual.cfm" role="menuitem"<cfif topNavUserManualActive> aria-current="page"</cfif>>
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("book-open")#</span>
+                  <span><strong>User Manual</strong><small>Step-by-step instructions for FloatPlanWizard.</small></span>
+                </a>
+              </div>
+            </div>
           </nav>
 
           <div class="fpw-nav-actions">
@@ -656,6 +680,11 @@ topNavShowAppSubnav = topNavIsLoggedIn
             <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path></svg>
             <span>Fuel Calculator</span>
           </a>
+          <cfif structKeyExists(topNavHelpSections, topNavActive)>
+            <a class="fpw-app-link fpw-context-help" href="#topNavBasePath#/help/###topNavHelpSections[topNavActive]#">
+              #renderFpwNavIcon("help", "fpw-subnav-icon")#<span>Help for this page</span>
+            </a>
+          </cfif>
         </div>
       </nav>
     </cfif>
@@ -680,6 +709,19 @@ topNavShowAppSubnav = topNavIsLoggedIn
       var previousBodyOverflow = "";
       var resourcesMenu = shell.querySelector(".fpw-resources-menu");
       var resourcesFrame = 0;
+      var helpDropdown = shell.querySelector("[data-fpw-help-dropdown]");
+      var helpToggle = helpDropdown ? helpDropdown.querySelector("[data-fpw-dropdown-toggle]") : null;
+      var helpMenu = helpDropdown ? helpDropdown.querySelector(".fpw-help-menu") : null;
+
+      function measureHelpMenu() {
+        if (!helpMenu || helpMenu.hidden || mobileQuery.matches) return;
+        helpMenu.style.setProperty("--fpw-help-shift", "0px");
+        var bounds = helpMenu.getBoundingClientRect();
+        var shift = Math.max(0, 16 - bounds.left) - Math.max(0, bounds.right - document.documentElement.clientWidth + 16);
+        helpMenu.style.setProperty("--fpw-help-shift", shift + "px");
+        var top = helpDropdown.getBoundingClientRect().bottom + 20;
+        helpMenu.style.maxHeight = Math.max(0, document.documentElement.clientHeight - top - 16) + "px";
+      }
 
       function measureResourcesMenu() {
         resourcesFrame = 0;
@@ -732,6 +774,10 @@ topNavShowAppSubnav = topNavIsLoggedIn
           return;
         }
         dropdown.classList.toggle("is-open", isOpen);
+        if (dropdown === helpDropdown && helpMenu) {
+          helpMenu.hidden = !isOpen;
+          if (isOpen) measureHelpMenu();
+        }
         if (isOpen && dropdown.classList.contains("fpw-dropdown--resources")) scheduleResourcesMeasurement();
         toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
         if (isOpen && source === "click") {
@@ -862,6 +908,51 @@ topNavShowAppSubnav = topNavIsLoggedIn
           return;
         }
 
+        if (dropdown === helpDropdown) {
+          var helpItems = Array.prototype.slice.call(helpMenu.querySelectorAll('[role="menuitem"]'));
+          var helpHoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+          var helpCloseTimer = 0;
+          dropdown.addEventListener("mouseenter", function () {
+            window.clearTimeout(helpCloseTimer);
+            if (!isMobileNav() && helpHoverQuery.matches) openDropdown(dropdown);
+          });
+          dropdown.addEventListener("mouseleave", function () {
+            if (!isMobileNav() && helpHoverQuery.matches) {
+              // Allow the pointer to cross the gap between the trigger and panel.
+              helpCloseTimer = window.setTimeout(function () {
+                if (dropdown.getAttribute("data-fpw-click-open") !== "true") setDropdownOpen(dropdown, false);
+              }, 180);
+            }
+          });
+          toggle.addEventListener("click", function (event) {
+            // Desktop mouse users open on hover; retain keyboard and touch activation.
+            if (!isMobileNav() && helpHoverQuery.matches && event.detail > 0 && event.pointerType !== "touch") return;
+            window.clearTimeout(helpCloseTimer);
+            var opening = !dropdown.classList.contains("is-open");
+            closeDropdowns(dropdown);
+            setDropdownOpen(dropdown, opening, "click");
+          });
+          dropdown.addEventListener("keydown", function (event) {
+            var index = helpItems.indexOf(document.activeElement);
+            var next = -1;
+            if (event.key === "ArrowDown") next = (index + 1) % helpItems.length;
+            if (event.key === "ArrowUp") next = index <= 0 ? helpItems.length - 1 : index - 1;
+            if (event.key === "Home") next = 0;
+            if (event.key === "End") next = helpItems.length - 1;
+            if (next < 0) return;
+            event.preventDefault();
+            closeDropdowns(dropdown);
+            setDropdownOpen(dropdown, true, "click");
+            helpItems[next].focus();
+          });
+          dropdown.addEventListener("focusout", function () {
+            window.setTimeout(function () {
+              if (!dropdown.contains(document.activeElement)) setDropdownOpen(dropdown, false);
+            }, 0);
+          });
+          return;
+        }
+
         dropdown.addEventListener("mouseenter", function () {
           if (!isMobileNav()) {
             openDropdown(dropdown);
@@ -922,6 +1013,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
       });
 
       document.addEventListener("click", function (event) {
+        if (helpDropdown && !helpDropdown.contains(event.target)) setDropdownOpen(helpDropdown, false);
         if (!shell.contains(event.target)) {
           setMenuOpen(false);
           closeDropdowns();
@@ -930,6 +1022,12 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
       document.addEventListener("keydown", function (event) {
         if (event.key === "Escape") {
+          if (helpDropdown && helpDropdown.classList.contains("is-open")) {
+            event.preventDefault();
+            setDropdownOpen(helpDropdown, false);
+            helpToggle.focus();
+            return;
+          }
           setMenuOpen(false);
           closeDropdowns();
           blurActiveNavElement();
@@ -938,6 +1036,8 @@ topNavShowAppSubnav = topNavIsLoggedIn
 
       window.addEventListener("resize", function () {
         scheduleResourcesMeasurement();
+        if (helpMenu) helpMenu.style.maxHeight = "";
+        measureHelpMenu();
         if (!isMobileNav()) {
           setMenuOpen(false);
         }

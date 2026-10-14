@@ -1,4 +1,6 @@
 <cfprocessingdirective pageencoding="utf-8">
+<cfset request.fpwBase = reReplaceNoCase(cgi.script_name, "/(app/help[.]cfm|help/?)$", "")>
+<cfset request.fpwTopNavActive = "help">
 <cfset helpCreditModelEnabled = (
   structKeyExists(application, "premiumSendCreditModelEnabled")
   AND listFindNoCase("1,true,yes,on", lCase(trim(toString(application.premiumSendCreditModelEnabled)))) GT 0
@@ -7,21 +9,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>FloatPlanWizard Help Center</title>
+  <title>Help Center: Guides and Support | FloatPlanWizard</title>
+  <link rel="canonical" href="https://floatplanwizard.com/help/">
+  <meta property="og:title" content="FloatPlanWizard Help Center">
+  <meta property="og:url" content="https://floatplanwizard.com/help/">
+  <meta property="og:type" content="website">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Learn how to use FloatPlanWizard to plan a trip, send a float plan, monitor your cruise, share a Trip status page, and check marine weather.">
+  <meta name="description" content="Find FloatPlanWizard guides, FAQs, planning tools, and support for account setup, routes, float plans, check-ins, weather, and billing.">
   <cfset request.fpwFaviconDeclared = true>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306131d'/%3E%3Cpath d='M32 10v44M10 32h44M17 17l30 30M47 17 17 47' stroke='%2321f3ee' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='14' fill='none' stroke='%2367d8ff' stroke-width='5'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ffd18a'/%3E%3C/svg%3E">
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help.css?v=20260526-cache-bump">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help.css?v=20261013-help-center">
 </head>
 <body class="fpw-help-body">
 
 <cfinclude template="../includes/prelaunch_top_nav.cfm">
 
 <main class="fpw-help" id="mainContent">
+  <nav class="fpw-help-container fpw-help-breadcrumbs" aria-label="Breadcrumb">
+    <a href="<cfoutput>#request.fpwBase#</cfoutput>/">Home</a><span aria-hidden="true">/</span><span aria-current="page">Help Center</span>
+  </nav>
   <section class="fpw-help-hero" aria-labelledby="helpTitle">
     <div class="fpw-help-container fpw-help-hero__inner">
       <div class="fpw-help-hero__copy">
@@ -32,12 +41,12 @@
       </div>
 
       <div class="fpw-help-search" role="search" aria-label="Search help topics">
-        <label for="fpwHelpSearch">Search the manual</label>
+        <label for="fpwHelpSearch">Search help topics</label>
         <div class="fpw-help-search__control">
           <input id="fpwHelpSearch" type="search" placeholder="Search check-ins, weather, Follow, Basic, Premium..." autocomplete="off" data-help-search>
           <button type="button" data-help-search-clear>Clear</button>
         </div>
-        <p class="fpw-help-search__status" data-help-search-status>Search by topic, task, or boating situation.</p>
+        <p class="fpw-help-search__status" data-help-search-status role="status" aria-live="polite">Search by topic, task, or boating situation.</p>
       </div>
     </div>
   </section>
@@ -47,6 +56,7 @@
       <div class="fpw-help-toc__panel">
         <p class="fpw-help-toc__title">Contents</p>
         <nav>
+          <a href="#help-topics" data-help-toc-link>Browse by topic</a>
           <a href="#get-started" data-help-toc-link>Get Started</a>
           <a href="#first-trip-checklist" data-help-toc-link>First Trip Checklist</a>
           <a href="#dashboard" data-help-toc-link>Dashboard</a>
@@ -63,6 +73,118 @@
     <div class="fpw-help-content">
       <div class="fpw-help-empty" data-help-empty hidden>No matching help topics found. Try a shorter search, such as "check-in", "weather", or "Follow".</div>
 
+      <section class="fpw-help-directory" id="help-topics" aria-labelledby="helpTopicsTitle">
+        <h2 id="helpTopicsTitle">Browse by topic</h2>
+        <div class="fpw-help-topic-grid">
+        <cfoutput>
+          <article class="fpw-help-topic" id="getting-started" data-help-section>
+            <h3>Getting Started</h3>
+            <p>Learn the basics and prepare for your first trip.</p>
+            <ul>
+              <li><a href="#request.fpwBase#/how-it-works/">How It Works</a></li>
+              <li><a href="##first-trip-checklist">First Trip Checklist</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##1-find-your-way-around-fpw">Find your way around FPW</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##2-complete-your-first-time-setup">First-time setup</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="vessels-and-account-setup" data-help-section>
+            <h3>Vessels and Account Setup</h3>
+            <p>Keep your boating information and account details ready.</p>
+            <ul>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##2-complete-your-first-time-setup">First-time setup</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##3-add-and-maintain-your-vessels">Vessels</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##4-save-operators-and-captains">Operators</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##5-save-passengers-and-crew">Passengers</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##6-choose-and-maintain-shore-contacts">Shore contacts</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##7-create-and-reuse-waypoints">Waypoints</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##24-manage-your-profile-home-port-password-and-membership">Profile and account</a></li>
+              <li><a href="#request.fpwBase#/faq/##account-management">Account FAQs</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="route-and-trip-planning" data-help-section>
+            <h3>Route and Trip Planning</h3>
+            <p>Plan your route, timing, vessel assumptions, and fuel.</p>
+            <ul>
+              <li><a href="#request.fpwBase#/faq/##route-builder">Route Builder FAQs</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##8-create-save-and-reopen-a-route">Create and save a route</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##9-choose-your-vessel-and-planning-assumptions">Planning assumptions</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##10-use-great-loop-planning-references">Planning references</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##11-adjust-a-legs-path-and-distance">Adjust route legs</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##12-understand-the-cruise-timeline-time-and-fuel-estimates">Timeline and fuel estimates</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="creating-and-sending-float-plans" data-help-section>
+            <h3>Creating and Sending Float Plans</h3>
+            <p>Prepare your plan, review it, and share your trip.</p>
+            <ul>
+              <li><a href="##dashboard">Planning workspace</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##15-complete-the-six-step-float-plan-wizard">Float Plan Wizard</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##16-review-and-send-basic-premium-and-credits">Review and send</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##17-share-your-trip-and-post-voyage-updates">Share your trip</a></li>
+              <li><a href="#request.fpwBase#/why-use-a-float-plan/">Why Use a Float Plan</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="active-cruise-and-monitoring" data-help-section>
+            <h3>Active Cruise and Monitoring</h3>
+            <p>Understand check-ins, delays, shared updates, and trip completion.</p>
+            <ul>
+              <li><a href="##active-cruise">Active Cruise overview</a></li>
+              <li><a href="##check-ins">Check-ins</a></li>
+              <li><a href="##follow">Follow</a></li>
+              <li><a href="##monitor">Monitor</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##18-read-active-cruise">Read Active Cruise</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##19-check-in-and-understand-monitoring">Monitoring</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##20-handle-delays-overnight-stops-and-multiple-legs">Delays and overnight stops</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##21-keep-captain-notes-and-reach-your-contacts">Notes and contacts</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##22-complete-or-cancel-your-trip">Complete or cancel</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##23-view-the-completed-trip-record">Completed trip record</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="weather-and-safety" data-help-section>
+            <h3>Weather and Safety</h3>
+            <p>Review weather guidance and practical boating safety references.</p>
+            <ul>
+              <li><a href="##weather">FPW weather overview</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##13-use-weather-in-planning-and-underway">Weather planning</a></li>
+              <li><a href="#request.fpwBase#/solo-boating-safety-guide/">Solo Boating Safety Guide</a></li>
+              <li><a href="#request.fpwBase#/common-boating-emergencies/">Common Boating Emergencies</a></li>
+              <li><a href="#request.fpwBase#/shore-contact-overdue-boater/">Shore Contact Guide</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="great-loop-planning" data-help-section>
+            <h3>Great Loop Planning</h3>
+            <p>Find the existing planning guides and reference libraries.</p>
+            <ul>
+              <li><a href="#request.fpwBase#/great-loop/trip-planning/">Great Loop Trip Planning</a></li>
+              <li><a href="#request.fpwBase#/great-loop/locks/">Locks</a></li>
+              <li><a href="#request.fpwBase#/great-loop/bridges/">Bridges</a></li>
+              <li><a href="#request.fpwBase#/great-loop/ports/">Ports</a></li>
+              <li><a href="#request.fpwBase#/great-loop/anchorages/">Anchorages</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##10-use-great-loop-planning-references">Using Great Loop references</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="calculators-and-tools" data-help-section>
+            <h3>Calculators and Tools</h3>
+            <p>Use the fuel, range, and boat ownership planning tools.</p>
+            <ul>
+              <li><a href="#request.fpwBase#/boat-fuel-calculator/">Boat Fuel Calculator</a></li>
+              <li><a href="#request.fpwBase#/boat-loan-calculator/">Boat Loan and Ownership Calculator</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##14-use-the-linked-fuel-and-range-calculator">Linked fuel and range calculator</a></li>
+            </ul>
+          </article>
+          <article class="fpw-help-topic" id="billing-and-subscriptions" data-help-section>
+            <h3>Billing and Subscriptions</h3>
+            <p>Find current pricing and help with membership and billing.</p>
+            <ul>
+              <li><a href="#request.fpwBase#/app/pricing.cfm">Current pricing</a></li>
+              <li><a href="#request.fpwBase#/faq/##membership">Membership FAQs</a></li>
+              <li><a href="#request.fpwBase#/faq/##billing-and-stripe">Billing FAQs</a></li>
+              <li><a href="#request.fpwBase#/app/user-manual.cfm##24-manage-your-profile-home-port-password-and-membership">Account and membership</a></li>
+            </ul>
+          </article>
+        </cfoutput>
+        </div>
+      </section>
       <section class="fpw-help-section" id="get-started" data-help-section data-help-keywords="start account setup first trip basic premium safety emergency">
         <div class="fpw-help-card">
           <p class="fpw-help-section-label">Start here</p>
@@ -350,7 +472,7 @@
 
 <cfinclude template="../includes/footer.cfm">
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help.js?v=20261013-help-center"></script>
 
 </body>
 </html>

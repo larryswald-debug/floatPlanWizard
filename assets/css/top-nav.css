@@ -1665,3 +1665,74 @@
     display: none;
   }
 }
+
+/* Help uses controller-managed state; focus alone never opens this menu. */
+.fpw-help-dropdown > .fpw-help-menu {
+  left: auto;
+  right: 0;
+  width: min(410px, calc(100vw - 32px));
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translate(var(--fpw-help-shift, 0px), 0);
+}
+.fpw-help-dropdown > .fpw-help-menu[hidden] { display: none !important; }
+.fpw-help-dropdown.is-open > .fpw-help-menu,
+.fpw-help-dropdown:focus-within > .fpw-help-menu { transform: translate(var(--fpw-help-shift, 0px), 0); }
+.fpw-help-menu::before { display: none; }
+.fpw-help-menu > a {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 13px 10px;
+  border-radius: 12px;
+  text-decoration: none;
+  white-space: normal;
+}
+.fpw-help-menu > a strong { display: block; color: var(--fpw-nav-white); font-size: 15px; line-height: 1.4; }
+.fpw-help-menu > a small { display: block; margin-top: 4px; color: var(--fpw-nav-muted); font-size: 13px; line-height: 1.5; }
+.fpw-help-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  color: var(--fpw-nav-teal);
+  background: rgba(25, 230, 238, .12);
+  border: 1px solid rgba(25, 230, 238, .2);
+}
+.fpw-help-menu-icon svg { width: 28px; height: 28px; }
+.fpw-help-menu > a:hover,
+.fpw-help-menu > a[aria-current="page"] { background: rgba(25, 230, 238, .08); }
+.fpw-help-dropdown > button:focus-visible,
+.fpw-help-menu > a:focus-visible { outline: 2px solid var(--fpw-nav-teal); outline-offset: -2px; }
+.fpw-help-menu-separator { height: 1px; margin: 6px 10px; background: rgba(169, 186, 203, .22); }
+@media (min-width: 1051px) and (max-width: 1440px) {
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-nav-inner { width: calc(100% - 28px); gap: 10px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-brand { min-width: auto; gap: 6px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-brand__mark { width: 36px; height: 36px; flex-basis: 36px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-brand__name { font-size: 20px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-brand__tagline { display: none; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-nav-menu { gap: 8px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-primary-nav,
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-nav-actions { gap: 4px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-nav-link { gap: 3px; padding-inline: 2px; font-size: 14px !important; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-nav-icon { width: 19px; height: 19px; flex-basis: 19px; }
+  .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-cta { padding-inline: 10px; font-size: 14px; }
+}
+@media (max-width: 1050px) {
+  .fpw-help-dropdown > .fpw-help-menu,
+  .fpw-help-dropdown.is-open > .fpw-help-menu,
+  .fpw-help-dropdown:focus-within > .fpw-help-menu {
+    position: static;
+    width: 100%;
+    max-height: none !important;
+    padding: 6px;
+    transform: none;
+    overflow: visible;
+  }
+  .fpw-help-menu > a { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 12px 6px; }
+  .fpw-help-menu-icon { width: 36px; height: 36px; }
+  .fpw-help-menu-icon svg { width: 24px; height: 24px; }
+}

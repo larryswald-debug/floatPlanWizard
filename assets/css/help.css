@@ -426,3 +426,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+.fpw-help-breadcrumbs { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 24px; color: var(--fpw-help-muted, #a9bacb); font-size: .9rem; }
+.fpw-help-breadcrumbs a { color: #66e2ed; }
+.fpw-help-directory { margin-bottom: 32px; scroll-margin-top: 180px; }
+.fpw-help-directory > h2 { margin-bottom: 20px; color: #f7fbff; }
+.fpw-help-topic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.fpw-help-topic { padding: 22px; border: 1px solid rgba(68, 226, 235, .22); border-radius: 16px; background: rgba(7, 26, 41, .85); scroll-margin-top: 180px; }
+.fpw-help-topic h3 { color: #f7fbff; font-size: 1.1rem; line-height: 1.4; }
+.fpw-help-topic p { color: #a9bacb; line-height: 1.6; }
+.fpw-help-topic ul { padding-left: 20px; margin-bottom: 0; }
+.fpw-help-topic li { margin-top: 9px; }
+.fpw-help-topic a { color: #66e2ed; text-underline-offset: 3px; }
+.fpw-help-topic a:focus-visible { outline: 2px solid #19e6ee; outline-offset: 3px; }
+[data-help-section][hidden] { display: none !important; }
+@media (max-width: 640px) { .fpw-help-topic-grid { grid-template-columns: 1fr; } }

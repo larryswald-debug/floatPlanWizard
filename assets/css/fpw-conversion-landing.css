@@ -43,6 +43,16 @@ body.fpw-home-page {
   overflow-x: clip;
 }
 
+@media (min-width: 1051px) {
+  .fpw-home-page .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-primary-nav {
+    margin-left: auto;
+  }
+
+  .fpw-home-page .fpw-site-header:not(.fpw-site-header--logged-in) .fpw-nav-actions {
+    margin-left: 0;
+  }
+}
+
 .fpw-landing-page {
   min-height: 100vh;
   background: #fff;

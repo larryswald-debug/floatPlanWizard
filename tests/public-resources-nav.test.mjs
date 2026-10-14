@@ -210,8 +210,8 @@ test("shared CSS provides the spacious layout, public fit, focus states, and clo
   assert.match(topNav, /var mobileQuery = window\.matchMedia\("\(max-width: 1050px\)"\);/);
 });
 
-test("every active top-nav stylesheet host uses the Great Loop Trip Planning cache version", () => {
-  assert.equal(count(topNavStylesheetHosts, /top-nav\.css\?v=20260930-great-loop-trip-planning-nav/g), 20);
+test("every listed top-nav stylesheet host uses the Global Help cache version", () => {
+  assert.equal(count(topNavStylesheetHosts, /top-nav\.css\?v=20261013-global-help/g), 20);
   assert.doesNotMatch(topNavStylesheetHosts, /top-nav\.css\?v=20260824-boating-safety-nav-v2/);
   assert.doesNotMatch(topNavStylesheetHosts, /top-nav\.css\?v=20260806-resources-mega-v3/);
 });

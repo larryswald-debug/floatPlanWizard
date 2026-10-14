@@ -8,6 +8,7 @@ component output=false {
 
   public struct function getPolicies() {
     return {
+      support_submit={ip={seconds=3600,volume=20,failures=0},account={seconds=3600,volume=5,failures=0}},
       authenticate={ip={seconds=900,volume=100,failures=0},ip_account={seconds=900,volume=0,failures=10},account={seconds=900,volume=0,failures=20}},
       create_account={ip={seconds=3600,volume=5,failures=0},ip_account={seconds=3600,volume=3,failures=0}},
       reset_request={ip={seconds=3600,volume=20,failures=0},account={seconds=3600,volume=3,failures=0}},

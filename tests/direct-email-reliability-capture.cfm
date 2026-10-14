@@ -96,7 +96,8 @@ status = 500;
   }
   componentSource &= '<cffunction name="contact_us" access="public" returntype="void" output="false">'
     & '<cfset var firstName="Capture"><cfset var lastName="Visitor"><cfset var email="visitor@example.test">'
-    & '<cfset var description="Disposable contact rendering fixture.">'
+    & '<cfset var description="Disposable contact rendering fixture."><cfset var modeLabel="Contact Us">'
+    & '<cfset var subject="Contact capture"><cfset var category="Other">'
     & sinkMail(contactSource,"contact_us",sinkPath) & '</cffunction></cfcomponent>';
   assertion(!reFindNoCase("<cfmail\b", componentSource), "Generated component contains no SMTP tag");
   fileWrite(generatedPath, componentSource, "utf-8");
