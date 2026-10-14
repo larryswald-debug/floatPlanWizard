@@ -46,6 +46,13 @@ if (!len(trim(basePath)) && structKeyExists(cgi, "script_name")) {
   }
 }
 
+// Resolve the Fuel Calculator link when this old header is opened directly.
+fuelCalculatorBasePath = basePath;
+if (!structKeyExists(request, "fpwBase") && structKeyExists(cgi, "script_name")
+    && reFindNoCase("/(api/api_assets/)?includes/top_nav_orig[.]cfm$", toString(cgi.script_name))) {
+  fuelCalculatorBasePath = reReplaceNoCase(toString(cgi.script_name), "/(api/api_assets/)?includes/top_nav_orig[.]cfm$", "");
+}
+
 memberDisplayInitials = "FP";
 if (len(userDisplayName)) {
   memberInitialParts = listToArray(reReplace(userDisplayName, "\s+", " ", "all"), " ");
@@ -955,7 +962,7 @@ if (len(userDisplayName)) {
         <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'dashboard'> is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm"<cfif request.fpwTopNavActive EQ 'dashboard'> aria-current="page"</cfif>>Dashboard</a>
         <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'weather'> is-active</cfif>" id="fpwNavWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm"<cfif request.fpwTopNavActive EQ 'weather'> aria-current="page"</cfif>>Weather</a>
         <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'monitoring'> is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm"<cfif request.fpwTopNavActive EQ 'monitoring'> aria-current="page"</cfif>>Monitor</a>
-        <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'fuel'> is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm"<cfif request.fpwTopNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
+        <a class="fpw-member-tab<cfif request.fpwTopNavActive EQ 'fuel'> is-active</cfif>" href="<cfoutput>#fuelCalculatorBasePath#</cfoutput>/boat-fuel-calculator/"<cfif request.fpwTopNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
       </nav>
 
       <div class="fpw-member-actions">
@@ -1005,7 +1012,7 @@ if (len(userDisplayName)) {
         <a class="<cfif request.fpwTopNavActive EQ 'dashboard'>is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/dashboard.cfm"<cfif request.fpwTopNavActive EQ 'dashboard'> aria-current="page"</cfif>>Dashboard</a>
         <a class="<cfif request.fpwTopNavActive EQ 'weather'>is-active</cfif>" id="fpwMobileWeatherLink" href="<cfoutput>#basePath#</cfoutput>/app/weather.cfm"<cfif request.fpwTopNavActive EQ 'weather'> aria-current="page"</cfif>>Weather</a>
         <a class="<cfif request.fpwTopNavActive EQ 'monitoring'>is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/monitoring.cfm"<cfif request.fpwTopNavActive EQ 'monitoring'> aria-current="page"</cfif>>Monitor</a>
-        <a class="<cfif request.fpwTopNavActive EQ 'fuel'>is-active</cfif>" href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm"<cfif request.fpwTopNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
+        <a class="<cfif request.fpwTopNavActive EQ 'fuel'>is-active</cfif>" href="<cfoutput>#fuelCalculatorBasePath#</cfoutput>/boat-fuel-calculator/"<cfif request.fpwTopNavActive EQ 'fuel'> aria-current="page"</cfif>>Fuel Calculator</a>
         <div class="fpw-member-mobile-panel__section">Account</div>
         <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">Member Account</a>
         <a href="<cfoutput>#basePath#</cfoutput>/app/account.cfm">Account Settings</a>
@@ -1150,7 +1157,7 @@ if (len(userDisplayName)) {
         <a href="#monitoring">Monitoring</a>
         <a href="#pricing">Pricing</a>
         <a href="#faq">FAQ</a>
-        <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
+        <a href="<cfoutput>#fuelCalculatorBasePath#</cfoutput>/boat-fuel-calculator/">Fuel Calculator</a>
       </nav>
 
       <div class="actions">
@@ -1171,7 +1178,7 @@ if (len(userDisplayName)) {
     <a href="#monitoring">Monitoring</a>
     <a href="#pricing">Pricing</a>
     <a href="#faq">FAQ</a>
-    <a href="<cfoutput>#basePath#</cfoutput>/app/fuel-calculator.cfm">Fuel Calculator</a>
+    <a href="<cfoutput>#fuelCalculatorBasePath#</cfoutput>/boat-fuel-calculator/">Fuel Calculator</a>
     <hr />
     <a href="#login" id="fpwMobilePublicLoginLink">Log in</a>
     <a href="<cfoutput>#basePath#</cfoutput>/app/join.cfm">Start free</a>

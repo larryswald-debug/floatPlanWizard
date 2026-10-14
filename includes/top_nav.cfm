@@ -515,7 +515,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
                       <div class="fpw-resource-group" role="group" aria-labelledby="fpwPlanningToolsTitle">
                         <h2 id="fpwPlanningToolsTitle">Planning Tools</h2>
                         <div class="fpw-resource-items">
-                          <a class="fpw-tool-row<cfif topNavFuelActive> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm" role="menuitem"<cfif topNavFuelActive> aria-current="page"</cfif>>
+                          <a class="fpw-tool-row<cfif topNavFuelActive> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/" role="menuitem"<cfif topNavFuelActive> aria-current="page"</cfif>>
                             #renderFpwNavIcon("fuel", "fpw-tool-icon")#
                             <span><strong>Fuel Calculator</strong><em>Estimate fuel usage, range, and costs.</em></span>
                             <b aria-hidden="true">&rarr;</b>
@@ -676,7 +676,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
             <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 18h9a4 4 0 0 0 .5-8 6 6 0 0 0-11-1.7A5 5 0 0 0 8 18z"></path><path d="M8 7V4"></path></svg>
             <span>Weather</span>
           </a>
-          <a class="fpw-app-link<cfif topNavActive EQ 'fuel'> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/boat-fuel-calculator.cfm"<cfif topNavActive EQ 'fuel'> aria-current="page"</cfif>>
+          <a class="fpw-app-link<cfif topNavActive EQ 'fuel'> is-active</cfif>" href="#topNavBasePath#/boat-fuel-calculator/"<cfif topNavActive EQ 'fuel'> aria-current="page"</cfif>>
             <svg class="fpw-subnav-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V4h9v16"></path><path d="M8 8h3"></path><path d="M14 9h2.5L19 12v6a2 2 0 0 0 4 0v-4"></path></svg>
             <span>Fuel Calculator</span>
           </a>

@@ -9,6 +9,8 @@ if (!structKeyExists(request, "fpwBase")) {
     request.fpwBase = "";
   }
 }
+// The copied calculator's base includes its container directory.
+fuelCalcPublicBasePath = reReplaceNoCase(request.fpwBase, "/api/?$", "");
 fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.user);
 </cfscript>
 
@@ -424,7 +426,7 @@ fuelCalcShowMemberNav = structKeyExists(session, "user") && isStruct(session.use
         <a href="/preLaunch.cfm#great-loop">Great Loop</a>
         <a href="/preLaunch.cfm#followers">Share the Trip</a>
         <a href="/preLaunch.cfm#story">Why FPW</a>
-        <a href="/app/fuel-calculator.cfm" class="btn btn-secondary">Fuel Calculator</a>
+        <a href="<cfoutput>#fuelCalcPublicBasePath#</cfoutput>/boat-fuel-calculator/" class="btn btn-secondary">Fuel Calculator</a>
         <a href="/preLaunch.cfm#notify" class="btn btn-secondary"><i class="bi bi-bell"></i>Get Notified</a>
       </nav>
     </div>
