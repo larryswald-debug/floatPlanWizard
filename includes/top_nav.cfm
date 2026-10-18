@@ -1069,3 +1069,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
   </cfif>
 </cfoutput>
 <cfinclude template="../partials/fpw-auth-modal.cfm">
+<cfif topNavShowAppSubnav AND NOT reFindNoCase("/app/fuel-calculator\.cfm$", topNavRequestPath)>
+  <cfinclude template="../partials/help-drawer.cfm">
+</cfif>

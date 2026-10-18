@@ -4082,7 +4082,8 @@ body.dashboard-body[data-fpw-page="dashboard"]::before{
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 116px minmax(0, 1fr);
+  /* Balance the sidebar so main content shares the header/footer centerline. */
+  grid-template-columns: 116px minmax(0, 1fr) 116px;
   min-height: 100vh;
 }
 

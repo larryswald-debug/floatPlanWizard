@@ -13,9 +13,19 @@ async(page)=>{
  ]){
    await page.goto(base+path,{waitUntil:'domcontentloaded'});
    const link=page.locator('.fpw-context-help');assert(await link.count()===1,path+' contextual link');assert(await link.getAttribute('href')==='/fpw/app/user-manual.cfm#'+section,path+' contextual target');
+   const originalUrl=page.url();
    await link.click();
-   await page.waitForURL(base+'/app/user-manual.cfm#'+section);
-   assert(await page.locator('[id="'+section+'"]').isVisible(),path+' manual chapter visible');
+   if(path==='/app/fuel-calculator.cfm'){
+     // The older calculator retains its original direct-navigation behavior.
+     await page.waitForURL(base+'/app/user-manual.cfm#'+section);
+     assert(await page.locator('[id="'+section+'"]').isVisible(),path+' manual chapter visible');
+   }else{
+     await page.locator('#fpwHelpDrawer [data-help-source-id="'+section+'"]').waitFor({state:'visible'});
+     assert(page.url()===originalUrl,path+' stays loaded');
+     await page.locator('[data-help-close]').click();
+     await page.locator('#fpwHelpDrawer').waitFor({state:'hidden'});
+     assert(await link.evaluate(n=>n===document.activeElement),path+' focus restored');
+   }
    out.contextual.push({path,section});
  }
  for (const member of [false,true]) {

@@ -1,0 +1,98 @@
+.fpw-help-drawer,
+.fpw-help-drawer * { box-sizing: border-box; }
+.fpw-help-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(450px, 100%);
+  max-width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid #b0c8cf;
+  border-radius: 0;
+  background: #fff;
+  color: #16303c;
+  box-shadow: -12px 0 40px #001b3540;
+  font: 16px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 200ms ease;
+}
+.fpw-help-drawer[open] { display: flex; flex-direction: column; }
+.fpw-help-drawer.is-visible { transform: translateX(0); }
+.fpw-help-drawer::backdrop { background: #001b3566; }
+.fpw-help-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top)) 20px 16px;
+  border-bottom: 1px solid #c8dce2;
+  background: #edf3f5;
+}
+.fpw-help-drawer__header h2 { margin: 0; color: #123f4d; font: 700 1.15rem/1.3 system-ui, sans-serif; }
+.fpw-help-drawer button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #98b7c1;
+  border-radius: 6px;
+  background: #f2f8fa;
+  color: #075568;
+  font: inherit;
+  cursor: pointer;
+}
+.fpw-help-drawer button:hover { background: #e1f0f4; }
+.fpw-help-drawer__close { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.fpw-help-drawer__close span { font-size: 1.5rem; line-height: 1; }
+.fpw-help-drawer a { color: #075e77; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.fpw-help-drawer a:hover { color: #003c50; }
+.fpw-help-drawer :focus-visible { outline: 3px solid #087f99; outline-offset: 3px; }
+.fpw-help-drawer__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 24px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+.fpw-help-drawer__status { margin: 0 0 16px; }
+.fpw-help-drawer__footer {
+  flex: 0 0 auto;
+  padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid #c8dce2;
+  background: #f9fcfd;
+  font-size: .88rem;
+}
+.fpw-help-drawer__footer p { margin: 3px 0 0; color: #48636d; font-size: .78rem; }
+.fpw-help-drawer [hidden] { display: none !important; }
+.fpw-help-manual h2 { margin: 0 0 22px; color: #135563; font-size: 1.45rem; line-height: 1.3; }
+.fpw-help-manual h3 { margin: 30px 0 12px; color: #163f4c; font-size: 1.2rem; line-height: 1.4; }
+.fpw-help-manual p { margin: 12px 0; }
+.fpw-help-manual { overflow-wrap: anywhere; }
+.fpw-help-manual ul, .fpw-help-manual ol { padding-left: 27px; margin: 14px 0 20px; }
+.fpw-help-manual li { margin: 7px 0; padding-left: 3px; }
+.fpw-help-manual .fpw-manual-part { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #dbe6ea; color: #316573; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.fpw-help-manual .fpw-manual-table { max-width: 100%; overflow-x: auto; margin: 20px 0; }
+.fpw-help-manual table { border-collapse: collapse; width: 100%; min-width: 360px; font-size: .94rem; line-height: 1.5; }
+.fpw-help-manual th, .fpw-help-manual td { padding: 9px; border: 1px solid #c9dce3; text-align: left; vertical-align: top; }
+.fpw-help-manual th { background: #e7f2f5; color: #194f5e; }
+.fpw-help-manual tbody tr:nth-child(even) { background: #f7fafb; }
+.fpw-help-manual blockquote { margin: 22px 0; border-left: 4px solid #b97d19; padding: 10px 18px; background: #fff6e6; color: #4e3c1c; }
+.fpw-help-manual .fpw-manual-back { display: inline-block; margin-top: 22px; font-size: .9rem; }
+.fpw-help-manual .fpw-manual-toc ol { list-style: none; padding: 0; }
+.fpw-help-manual .fpw-manual-toc a { display: block; padding: 4px 0; }
+.fpw-help-manual img, .fpw-help-manual video { max-width: 100%; height: auto; }
+.fpw-help-manual pre { max-width: 100%; overflow-x: auto; }
+@media (max-width: 450px) {
+  .fpw-help-drawer { border-left: 0; }
+  .fpw-help-drawer__header, .fpw-help-drawer__footer { padding-left: 16px; padding-right: 16px; }
+  .fpw-help-drawer__scroll { padding: 20px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fpw-help-drawer { transition: none; }
+}
