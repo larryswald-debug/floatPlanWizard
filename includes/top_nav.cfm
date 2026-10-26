@@ -604,10 +604,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   <span><strong>How It Works</strong><small>Learn how to plan, share, and manage your trip.</small></span>
                 </a>
                 <div class="fpw-help-menu-separator" role="separator"></div>
-                <a href="#topNavBasePath#/app/contact.cfm" role="menuitem"<cfif topNavActive EQ 'help-contact'> aria-current="page"</cfif>>
-                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("message-circle")#</span>
-                  <span><strong>Contact Support</strong><small>Get assistance from FloatPlanWizard.</small></span>
-                </a>
                 <a href="#topNavBasePath#/app/contact.cfm?mode=support##contactForm" role="menuitem"<cfif topNavActive EQ 'help-support'> aria-current="page"</cfif>>
                   <span class="fpw-help-menu-icon">#renderFpwNavIcon("mail")#</span>
                   <span><strong>Submit a Support Request</strong><small>Report a problem or request assistance.</small></span>
