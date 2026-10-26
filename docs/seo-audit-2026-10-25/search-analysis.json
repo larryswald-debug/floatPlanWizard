@@ -1,0 +1,1629 @@
+{
+  "files": {
+    "Pages": {
+      "rows": 877,
+      "columns": [
+        "Top pages",
+        "Last 28 days Clicks",
+        "Previous 28 days Clicks",
+        "Last 28 days Impressions",
+        "Previous 28 days Impressions",
+        "Last 28 days CTR",
+        "Previous 28 days CTR",
+        "Last 28 days Position",
+        "Previous 28 days Position"
+      ],
+      "totals": {
+        "current": {
+          "clicks": 110,
+          "impressions": 17028,
+          "ctr_percent": 0.6459948320413437,
+          "impression_weighted_position": 6.61811310782241
+        },
+        "previous": {
+          "clicks": 153,
+          "impressions": 20682,
+          "ctr_percent": 0.7397737162750218,
+          "impression_weighted_position": 6.970303645682236
+        }
+      }
+    },
+    "Countries": {
+      "rows": 170,
+      "columns": [
+        "Country",
+        "Last 28 days Clicks",
+        "Previous 28 days Clicks",
+        "Last 28 days Impressions",
+        "Previous 28 days Impressions",
+        "Last 28 days CTR",
+        "Previous 28 days CTR",
+        "Last 28 days Position",
+        "Previous 28 days Position"
+      ],
+      "totals": {
+        "current": {
+          "clicks": 110,
+          "impressions": 16837,
+          "ctr_percent": 0.6533230385460592,
+          "impression_weighted_position": 6.601024529310447
+        },
+        "previous": {
+          "clicks": 152,
+          "impressions": 20423,
+          "ctr_percent": 0.7442589237624248,
+          "impression_weighted_position": 6.959367379914802
+        }
+      }
+    },
+    "Devices": {
+      "rows": 3,
+      "columns": [
+        "Device",
+        "Last 28 days Clicks",
+        "Previous 28 days Clicks",
+        "Last 28 days Impressions",
+        "Previous 28 days Impressions",
+        "Last 28 days CTR",
+        "Previous 28 days CTR",
+        "Last 28 days Position",
+        "Previous 28 days Position"
+      ],
+      "totals": {
+        "current": {
+          "clicks": 110,
+          "impressions": 16837,
+          "ctr_percent": 0.6533230385460592,
+          "impression_weighted_position": 6.604744313119914
+        },
+        "previous": {
+          "clicks": 152,
+          "impressions": 20423,
+          "ctr_percent": 0.7442589237624248,
+          "impression_weighted_position": 6.965418400822601
+        }
+      }
+    },
+    "Queries": {
+      "rows": 504,
+      "columns": [
+        "Top queries",
+        "Last 28 days Clicks",
+        "Previous 28 days Clicks",
+        "Last 28 days Impressions",
+        "Previous 28 days Impressions",
+        "Last 28 days CTR",
+        "Previous 28 days CTR",
+        "Last 28 days Position",
+        "Previous 28 days Position"
+      ],
+      "totals": {
+        "current": {
+          "clicks": 0,
+          "impressions": 678,
+          "ctr_percent": 0.0,
+          "impression_weighted_position": 12.665398230088496
+        },
+        "previous": {
+          "clicks": 3,
+          "impressions": 1090,
+          "ctr_percent": 0.27522935779816515,
+          "impression_weighted_position": 14.50659633027523
+        }
+      }
+    },
+    "Search appearance": {
+      "rows": 0,
+      "columns": [],
+      "totals": {
+        "current": {
+          "clicks": 0,
+          "impressions": 0,
+          "ctr_percent": null,
+          "impression_weighted_position": null
+        },
+        "previous": {
+          "clicks": 0,
+          "impressions": 0,
+          "ctr_percent": null,
+          "impression_weighted_position": null
+        }
+      }
+    }
+  },
+  "filters": [
+    {
+      "Filter": "Search type",
+      "Value": "Web (text-based)"
+    },
+    {
+      "Filter": "Date",
+      "Value": "Last 28 days"
+    }
+  ],
+  "groups": {
+    "boat-loan-calculator": {
+      "current": {
+        "clicks": 0,
+        "impressions": 56,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 7.55
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 9,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 5.22
+      }
+    },
+    "bridges": {
+      "current": {
+        "clicks": 0,
+        "impressions": 0,
+        "ctr_percent": null,
+        "impression_weighted_position": null
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 1,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 1.0
+      }
+    },
+    "privacy_policy.cfm": {
+      "current": {
+        "clicks": 0,
+        "impressions": 2,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 2.5
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 14,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 16.29
+      }
+    },
+    "solo-boating-safety-guide": {
+      "current": {
+        "clicks": 0,
+        "impressions": 53,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 12.15
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 58,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 10.02
+      }
+    },
+    "great-loop/locks": {
+      "current": {
+        "clicks": 21,
+        "impressions": 3334,
+        "ctr_percent": 0.629874025194961,
+        "impression_weighted_position": 7.991934613077385
+      },
+      "previous": {
+        "clicks": 32,
+        "impressions": 3789,
+        "ctr_percent": 0.8445500131960939,
+        "impression_weighted_position": 8.1434336236474
+      }
+    },
+    "great-loop/ports": {
+      "current": {
+        "clicks": 2,
+        "impressions": 407,
+        "ctr_percent": 0.4914004914004914,
+        "impression_weighted_position": 9.378108108108108
+      },
+      "previous": {
+        "clicks": 2,
+        "impressions": 404,
+        "ctr_percent": 0.49504950495049505,
+        "impression_weighted_position": 10.843539603960396
+      }
+    },
+    "great-loop/bridges": {
+      "current": {
+        "clicks": 26,
+        "impressions": 1704,
+        "ctr_percent": 1.5258215962441315,
+        "impression_weighted_position": 7.0584389671361505
+      },
+      "previous": {
+        "clicks": 39,
+        "impressions": 1883,
+        "ctr_percent": 2.0711630377057886,
+        "impression_weighted_position": 7.300515135422199
+      }
+    },
+    "common-boating-emergencies": {
+      "current": {
+        "clicks": 0,
+        "impressions": 136,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 13.22
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 333,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 10.99
+      }
+    },
+    "boat-fuel-wizard": {
+      "current": {
+        "clicks": 0,
+        "impressions": 0,
+        "ctr_percent": null,
+        "impression_weighted_position": null
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 1,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 1.0
+      }
+    },
+    "great-loop/anchorages": {
+      "current": {
+        "clicks": 23,
+        "impressions": 966,
+        "ctr_percent": 2.380952380952381,
+        "impression_weighted_position": 7.374296066252588
+      },
+      "previous": {
+        "clicks": 19,
+        "impressions": 1274,
+        "ctr_percent": 1.4913657770800628,
+        "impression_weighted_position": 8.78734693877551
+      }
+    },
+    "faq": {
+      "current": {
+        "clicks": 0,
+        "impressions": 5,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 3.4
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 11,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 3.9100000000000006
+      }
+    },
+    "how-it-works": {
+      "current": {
+        "clicks": 1,
+        "impressions": 2,
+        "ctr_percent": 50.0,
+        "impression_weighted_position": 4.0
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 11,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 6.09
+      }
+    },
+    "about": {
+      "current": {
+        "clicks": 0,
+        "impressions": 5,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 4.0
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 16,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 9.06
+      }
+    },
+    "home": {
+      "current": {
+        "clicks": 2,
+        "impressions": 47,
+        "ctr_percent": 4.25531914893617,
+        "impression_weighted_position": 12.230851063829787
+      },
+      "previous": {
+        "clicks": 4,
+        "impressions": 118,
+        "ctr_percent": 3.389830508474576,
+        "impression_weighted_position": 9.07584745762712
+      }
+    },
+    "great-loop/trip-planning": {
+      "current": {
+        "clicks": 2,
+        "impressions": 16,
+        "ctr_percent": 12.5,
+        "impression_weighted_position": 6.0
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 0,
+        "ctr_percent": null,
+        "impression_weighted_position": null
+      }
+    },
+    "shore-contact-overdue-boater": {
+      "current": {
+        "clicks": 2,
+        "impressions": 158,
+        "ctr_percent": 1.2658227848101267,
+        "impression_weighted_position": 5.25
+      },
+      "previous": {
+        "clicks": 1,
+        "impressions": 308,
+        "ctr_percent": 0.3246753246753247,
+        "impression_weighted_position": 5.12
+      }
+    },
+    "boat-fuel-calculator": {
+      "current": {
+        "clicks": 29,
+        "impressions": 9962,
+        "ctr_percent": 0.2911062035735796,
+        "impression_weighted_position": 5.67
+      },
+      "previous": {
+        "clicks": 56,
+        "impressions": 12028,
+        "ctr_percent": 0.4655803126039242,
+        "impression_weighted_position": 5.8999999999999995
+      }
+    },
+    "why-use-a-float-plan": {
+      "current": {
+        "clicks": 1,
+        "impressions": 150,
+        "ctr_percent": 0.6666666666666666,
+        "impression_weighted_position": 12.67
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 326,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 11.33
+      }
+    },
+    "press.cfm": {
+      "current": {
+        "clicks": 0,
+        "impressions": 5,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 5.4
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 6,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 17.67
+      }
+    },
+    "app": {
+      "current": {
+        "clicks": 1,
+        "impressions": 19,
+        "ctr_percent": 5.2631578947368425,
+        "impression_weighted_position": 13.106315789473685
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 92,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 19.5225
+      }
+    },
+    "help": {
+      "current": {
+        "clicks": 0,
+        "impressions": 1,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 4.0
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 0,
+        "ctr_percent": null,
+        "impression_weighted_position": null
+      }
+    }
+  },
+  "branded": {
+    "brand": {
+      "rows": 0,
+      "current": {
+        "clicks": 0,
+        "impressions": 0,
+        "ctr_percent": null,
+        "impression_weighted_position": null
+      },
+      "previous": {
+        "clicks": 0,
+        "impressions": 0,
+        "ctr_percent": null,
+        "impression_weighted_position": null
+      }
+    },
+    "nonbrand": {
+      "rows": 504,
+      "current": {
+        "clicks": 0,
+        "impressions": 678,
+        "ctr_percent": 0.0,
+        "impression_weighted_position": 12.665398230088496
+      },
+      "previous": {
+        "clicks": 3,
+        "impressions": 1090,
+        "ctr_percent": 0.27522935779816515,
+        "impression_weighted_position": 14.50659633027523
+      }
+    }
+  },
+  "page_movers": [
+    {
+      "Top pages": "https://floatplanwizard.com/boat-fuel-calculator/",
+      "Last 28 days Clicks": "29",
+      "Previous 28 days Clicks": "56",
+      "Last 28 days Impressions": "9962",
+      "Previous 28 days Impressions": "12028",
+      "Last 28 days CTR": "0.29%",
+      "Previous 28 days CTR": "0.47%",
+      "Last 28 days Position": "5.67",
+      "Previous 28 days Position": "5.9"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/trent-severn-minimum-fixed-bridge-clearance-glb-0006/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "5",
+      "Last 28 days Impressions": "102",
+      "Previous 28 days Impressions": "128",
+      "Last 28 days CTR": "0.98%",
+      "Previous 28 days CTR": "3.91%",
+      "Last 28 days Position": "5.66",
+      "Previous 28 days Position": "5.98"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/chicago-sanitary-and-ship-canal/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "3",
+      "Last 28 days Impressions": "11",
+      "Previous 28 days Impressions": "28",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "10.71%",
+      "Last 28 days Position": "8.18",
+      "Previous 28 days Position": "6.89"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "4",
+      "Last 28 days Impressions": "45",
+      "Previous 28 days Impressions": "115",
+      "Last 28 days CTR": "4.44%",
+      "Previous 28 days CTR": "3.48%",
+      "Last 28 days Position": "12.53",
+      "Previous 28 days Position": "9.13"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/pickwick-locks-and-dam/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "2",
+      "Last 28 days Impressions": "82",
+      "Previous 28 days Impressions": "99",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "2.02%",
+      "Last 28 days Position": "8.11",
+      "Previous 28 days Position": "9.15"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/kentucky-lock-and-dam/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "2",
+      "Last 28 days Impressions": "58",
+      "Previous 28 days Impressions": "44",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4.55%",
+      "Last 28 days Position": "11.26",
+      "Previous 28 days Position": "8.98"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/route/atlantic-icw/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "2",
+      "Last 28 days Impressions": "39",
+      "Previous 28 days Impressions": "39",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "5.13%",
+      "Last 28 days Position": "6.92",
+      "Previous 28 days Position": "7.05"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/state/alabama/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "2",
+      "Last 28 days Impressions": "29",
+      "Previous 28 days Impressions": "48",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4.17%",
+      "Last 28 days Position": "7.14",
+      "Previous 28 days Position": "7.65"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/clearwater-harbor-anchorage-clearwater-fl/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "2",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "9",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "22.22%",
+      "Last 28 days Position": "10",
+      "Previous 28 days Position": "11.33"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/",
+      "Last 28 days Clicks": "5",
+      "Previous 28 days Clicks": "6",
+      "Last 28 days Impressions": "254",
+      "Previous 28 days Impressions": "334",
+      "Last 28 days CTR": "1.97%",
+      "Previous 28 days CTR": "1.8%",
+      "Last 28 days Position": "5.92",
+      "Previous 28 days Position": "5.57"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/dashields-locks-and-dam/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "51",
+      "Previous 28 days Impressions": "57",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "1.75%",
+      "Last 28 days Position": "10.96",
+      "Previous 28 days Position": "10.75"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/chicago-river/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "32",
+      "Previous 28 days Impressions": "24",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4.17%",
+      "Last 28 days Position": "8.5",
+      "Previous 28 days Position": "7.96"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/wilkerson-bridge-us-264-glb-0058/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "30",
+      "Previous 28 days Impressions": "12",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "8.33%",
+      "Last 28 days Position": "5.67",
+      "Previous 28 days Position": "4.75"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/thomas-j-o-brien-lock/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "27",
+      "Previous 28 days Impressions": "29",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "3.45%",
+      "Last 28 days Position": "6.37",
+      "Previous 28 days Position": "7.17"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/state/florida/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "26",
+      "Previous 28 days Impressions": "28",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "3.57%",
+      "Last 28 days Position": "8.08",
+      "Previous 28 days Position": "7.36"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/state/mississippi/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "26",
+      "Previous 28 days Impressions": "41",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "2.44%",
+      "Last 28 days Position": "8.77",
+      "Previous 28 days Position": "21.07"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/mile-hammock-bay-camp-lejeune-nc/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "22",
+      "Previous 28 days Impressions": "43",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "2.33%",
+      "Last 28 days Position": "7.41",
+      "Previous 28 days Position": "8.6"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/e2-waterford/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "22",
+      "Previous 28 days Impressions": "14",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "7.14%",
+      "Last 28 days Position": "8.59",
+      "Previous 28 days Position": "7.93"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/welland-canal-lock-7/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "19",
+      "Previous 28 days Impressions": "33",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "3.03%",
+      "Last 28 days Position": "7.95",
+      "Previous 28 days Position": "10.58"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/rideau-lock-9-hartwells/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "16",
+      "Previous 28 days Impressions": "28",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "3.57%",
+      "Last 28 days Position": "2",
+      "Previous 28 days Position": "3.18"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/route/illinois-chicago/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "15",
+      "Previous 28 days Impressions": "22",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4.55%",
+      "Last 28 days Position": "10.93",
+      "Previous 28 days Position": "7.82"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/chesapeake-city-anchorage-basin-chesapeake-city-md/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "14",
+      "Previous 28 days Impressions": "24",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4.17%",
+      "Last 28 days Position": "6.86",
+      "Previous 28 days Position": "8.67"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/waterway/erie-canal/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "13",
+      "Previous 28 days Impressions": "55",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "1.82%",
+      "Last 28 days Position": "8.92",
+      "Previous 28 days Position": "8.78"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/ports/71-dauphin-island-al/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "12",
+      "Previous 28 days Impressions": "7",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "14.29%",
+      "Last 28 days Position": "8",
+      "Previous 28 days Position": "6.29"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/beardstown-railroad-drawbridge-glb-0103/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "11",
+      "Previous 28 days Impressions": "10",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "10%",
+      "Last 28 days Position": "6.27",
+      "Previous 28 days Position": "5.3"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/markland-locks-and-dam/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "10",
+      "Previous 28 days Impressions": "30",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "3.33%",
+      "Last 28 days Position": "7.9",
+      "Previous 28 days Position": "6.63"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/tenn-tom-waterway/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "9",
+      "Previous 28 days Impressions": "5",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "20%",
+      "Last 28 days Position": "6.67",
+      "Previous 28 days Position": "4.8"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/state/il/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "9",
+      "Previous 28 days Impressions": "6",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "16.67%",
+      "Last 28 days Position": "7",
+      "Previous 28 days Position": "6"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/chicago-river-and-south-branch-chicago-river/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "9",
+      "Previous 28 days Impressions": "25",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4%",
+      "Last 28 days Position": "7.22",
+      "Previous 28 days Position": "7.88"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/boca-grande-swing-bridge-glb-0007/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "9",
+      "Previous 28 days Impressions": "17",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "5.88%",
+      "Last 28 days Position": "9.78",
+      "Previous 28 days Position": "7.35"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/norfolk-southern-railroad-bridge-glb-0130/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "8",
+      "Previous 28 days Impressions": "7",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "14.29%",
+      "Last 28 days Position": "6.75",
+      "Previous 28 days Position": "8.43"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lock-31-buckhorn/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "8",
+      "Previous 28 days Impressions": "4",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "25%",
+      "Last 28 days Position": "7.62",
+      "Previous 28 days Position": "9"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/cal-sag-little-calumet-low-fixed-bridge-group-glb-0003/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "8",
+      "Previous 28 days Impressions": "13",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "7.69%",
+      "Last 28 days Position": "9",
+      "Previous 28 days Position": "6.54"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lock-and-dam-21/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "8",
+      "Previous 28 days Impressions": "25",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4%",
+      "Last 28 days Position": "9.62",
+      "Previous 28 days Position": "6.92"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/melvin-price-locks-and-dam/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "7",
+      "Previous 28 days Impressions": "13",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "7.69%",
+      "Last 28 days Position": "7.14",
+      "Previous 28 days Position": "6.92"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lock-and-dam-24/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "6",
+      "Previous 28 days Impressions": "19",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "5.26%",
+      "Last 28 days Position": "6",
+      "Previous 28 days Position": "7.26"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/mcteer-memorial-twin-bridges-glb-0078/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "6",
+      "Previous 28 days Impressions": "13",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "7.69%",
+      "Last 28 days Position": "10",
+      "Previous 28 days Position": "6.69"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/c9-smith-s-basin/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "5",
+      "Previous 28 days Impressions": "13",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "7.69%",
+      "Last 28 days Position": "8",
+      "Previous 28 days Position": "8"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/still-pond-anchorage-still-pond-md/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "5",
+      "Previous 28 days Impressions": "17",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "5.88%",
+      "Last 28 days Position": "8.6",
+      "Previous 28 days Position": "6.18"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/cordell-hull-lock-and-dam/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "5",
+      "Previous 28 days Impressions": "6",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "16.67%",
+      "Last 28 days Position": "8.8",
+      "Previous 28 days Position": "5.5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/chessie-railroad-drawbridge-glb-0106/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "5",
+      "Previous 28 days Impressions": "4",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "25%",
+      "Last 28 days Position": "9.2",
+      "Previous 28 days Position": "4"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/chicago-river-bridge-group-downtown-route-air-draft-control-glb-0002/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "39",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "2.56%",
+      "Last 28 days Position": "5.5",
+      "Previous 28 days Position": "5.38"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/pungo-ferry-bridge-glb-0054/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "8",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "12.5%",
+      "Last 28 days Position": "7",
+      "Previous 28 days Position": "4.12"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/location/new-jersey-delaware-chesapeake/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "1",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "100%",
+      "Last 28 days Position": "7.5",
+      "Previous 28 days Position": "1"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/valley-city-highway-dual-bridges-glb-0101/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "8",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "12.5%",
+      "Last 28 days Position": "7.75",
+      "Previous 28 days Position": "6.5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/waterway/black-warrior-tombigbee-waterway/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "6",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "16.67%",
+      "Last 28 days Position": "8.5",
+      "Previous 28 days Position": "4.83"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/new-pass-sr-789-bridge-glb-0018/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "32",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "3.12%",
+      "Last 28 days Position": "9.75",
+      "Previous 28 days Position": "22.28"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/senator-william-v-roth-jr-bridge-glb-0086/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "15",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "6.67%",
+      "Last 28 days Position": "10",
+      "Previous 28 days Position": "7.4"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/grafton-illinois-river-confluence-anchorage-grafton-il/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "3",
+      "Previous 28 days Impressions": "23",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "4.35%",
+      "Last 28 days Position": "7.33",
+      "Previous 28 days Position": "7.22"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/state/il/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "3",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "33.33%",
+      "Last 28 days Position": "7.33",
+      "Previous 28 days Position": "2.33"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/b-o-chicago-terminal-railroad-bridge-glb-0109/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "3",
+      "Previous 28 days Impressions": "15",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "6.67%",
+      "Last 28 days Position": "8",
+      "Previous 28 days Position": "6.27"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/location/lake-michigan-wisconsin-and-door-county/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "13",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "7.69%",
+      "Last 28 days Position": "4",
+      "Previous 28 days Position": "5.85"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/ports/6-brewerton-three-rivers-ny/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "5",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "20%",
+      "Last 28 days Position": "7.5",
+      "Previous 28 days Position": "4.6"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/conrail-railroad-bridge-glb-0129/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "33.33%",
+      "Last 28 days Position": "8.5",
+      "Previous 28 days Position": "10"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/great-egg-harbor-anchorage-ocean-city-nj/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "4",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "25%",
+      "Last 28 days Position": "4",
+      "Previous 28 days Position": "4.75"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/nc-210-highway-bridge-glb-0066/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "1",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "100%",
+      "Last 28 days Position": "5",
+      "Previous 28 days Position": "2"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lock-3-glen-miller/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "2",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "50%",
+      "Last 28 days Position": "6",
+      "Previous 28 days Position": "6"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/carolina-beach-basin-anchorage-carolina-beach-nc/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "11",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "9.09%",
+      "Last 28 days Position": "8",
+      "Previous 28 days Position": "8.09"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/harness-creek-anchorage-annapolis-md/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "33.33%",
+      "Last 28 days Position": "12",
+      "Previous 28 days Position": "5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/illinois-river/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "0",
+      "Previous 28 days Impressions": "6",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "16.67%",
+      "Last 28 days Position": "0",
+      "Previous 28 days Position": "5.83"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/giww-indian-shores/",
+      "Last 28 days Clicks": "0",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "0",
+      "Previous 28 days Impressions": "1",
+      "Last 28 days CTR": "0%",
+      "Previous 28 days CTR": "100%",
+      "Last 28 days Position": "0",
+      "Previous 28 days Position": "6"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/waterway/tennessee-river/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "395",
+      "Previous 28 days Impressions": "83",
+      "Last 28 days CTR": "0.51%",
+      "Previous 28 days CTR": "1.2%",
+      "Last 28 days Position": "8.27",
+      "Previous 28 days Position": "7.99"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/shore-contact-overdue-boater/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "158",
+      "Previous 28 days Impressions": "308",
+      "Last 28 days CTR": "1.27%",
+      "Previous 28 days CTR": "0.32%",
+      "Last 28 days Position": "5.25",
+      "Previous 28 days Position": "5.12"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/diamond-causeway-skidaway-bridge-glb-0082/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "44",
+      "Previous 28 days Impressions": "61",
+      "Last 28 days CTR": "4.55%",
+      "Previous 28 days CTR": "1.64%",
+      "Last 28 days Position": "7.7",
+      "Previous 28 days Position": "5.92"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/mississippi-river/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "22",
+      "Previous 28 days Impressions": "20",
+      "Last 28 days CTR": "9.09%",
+      "Previous 28 days CTR": "5%",
+      "Last 28 days Position": "5.64",
+      "Previous 28 days Position": "6.85"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/little-calumet-river/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "1",
+      "Last 28 days Impressions": "18",
+      "Previous 28 days Impressions": "26",
+      "Last 28 days CTR": "11.11%",
+      "Previous 28 days CTR": "3.85%",
+      "Last 28 days Position": "4.89",
+      "Previous 28 days Position": "7.65"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/why-use-a-float-plan/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "150",
+      "Previous 28 days Impressions": "326",
+      "Last 28 days CTR": "0.67%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "12.67",
+      "Previous 28 days Position": "11.33"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/coffeeville-lock-and-dam/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "58",
+      "Previous 28 days Impressions": "19",
+      "Last 28 days CTR": "1.72%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.84",
+      "Previous 28 days Position": "8.26"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/sunshine-skyway-bridge-glb-0022/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "41",
+      "Previous 28 days Impressions": "22",
+      "Last 28 days CTR": "2.44%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.93",
+      "Previous 28 days Position": "8.05"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lock-and-dam-9/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "29",
+      "Previous 28 days Impressions": "17",
+      "Last 28 days CTR": "3.45%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.55",
+      "Previous 28 days Position": "9.24"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/peoria-and-pekin-union-railroad-drawbridge-glb-0104/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "28",
+      "Previous 28 days Impressions": "7",
+      "Last 28 days CTR": "3.57%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.93",
+      "Previous 28 days Position": "5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lock-and-dam-25/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "24",
+      "Previous 28 days Impressions": "34",
+      "Last 28 days CTR": "4.17%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.96",
+      "Previous 28 days Position": "9.03"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/atlantic-icw/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "22",
+      "Previous 28 days Impressions": "13",
+      "Last 28 days CTR": "4.55%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.45",
+      "Previous 28 days Position": "5.92"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/cheatham-lock-and-dam/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "18",
+      "Previous 28 days Impressions": "8",
+      "Last 28 days CTR": "5.56%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.11",
+      "Previous 28 days Position": "4.38"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/delaware-bay/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "18",
+      "Previous 28 days Impressions": "8",
+      "Last 28 days CTR": "5.56%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "9.11",
+      "Previous 28 days Position": "10.75"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/state/fl/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "16",
+      "Previous 28 days Impressions": "23",
+      "Last 28 days CTR": "6.25%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.81",
+      "Previous 28 days Position": "7.7"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/pensacola-bay/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "13",
+      "Previous 28 days Impressions": "4",
+      "Last 28 days CTR": "7.69%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.23",
+      "Previous 28 days Position": "5.5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/welland-canal-lock-1/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "13",
+      "Previous 28 days Impressions": "8",
+      "Last 28 days CTR": "7.69%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.77",
+      "Previous 28 days Position": "8.12"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/hospital-point-anchorage-norfolk-va/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "12",
+      "Previous 28 days Impressions": "8",
+      "Last 28 days CTR": "8.33%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.83",
+      "Previous 28 days Position": "5.62"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/blue-bluff-amory-pool-anchorage-amory-ms/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "11",
+      "Previous 28 days Impressions": "0",
+      "Last 28 days CTR": "9.09%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "4.73",
+      "Previous 28 days Position": "0"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/app/pricing.cfm",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "9",
+      "Previous 28 days Impressions": "55",
+      "Last 28 days CTR": "11.11%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.78",
+      "Previous 28 days Position": "8.11"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/route/florida-gulf-coast/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "9",
+      "Previous 28 days Impressions": "15",
+      "Last 28 days CTR": "11.11%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "8.22",
+      "Previous 28 days Position": "7.13"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/c-te-sainte-catherine-lock/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "7",
+      "Previous 28 days Impressions": "9",
+      "Last 28 days CTR": "14.29%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.57",
+      "Previous 28 days Position": "7.44"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/ports/18-florence-al/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "7",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "14.29%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "8.14",
+      "Previous 28 days Position": "10.67"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/sturgeon-bay-anchorage-area-sturgeon-bay-wi/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "7",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "14.29%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "8.43",
+      "Previous 28 days Position": "5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/st-johns-river/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "7",
+      "Previous 28 days Impressions": "4",
+      "Last 28 days CTR": "14.29%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "9",
+      "Previous 28 days Position": "10.75"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/pelican-bay-anchorage-cayo-costa-fl/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "6",
+      "Previous 28 days Impressions": "9",
+      "Last 28 days CTR": "16.67%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6.83",
+      "Previous 28 days Position": "6.56"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/cape-fear-river/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "5",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "20%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "4.4",
+      "Previous 28 days Position": "14"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/norfolk-and-western-railroad-bridge-glb-0102/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "5",
+      "Previous 28 days Impressions": "7",
+      "Last 28 days CTR": "20%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "8",
+      "Previous 28 days Position": "7.29"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/lachine-canal-lock-4-c-te-saint-paul/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "4",
+      "Previous 28 days Impressions": "5",
+      "Last 28 days CTR": "25%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "5.75",
+      "Previous 28 days Position": "3.8"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/okeechobee-waterway/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "3",
+      "Previous 28 days Impressions": "1",
+      "Last 28 days CTR": "33.33%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "4.33",
+      "Previous 28 days Position": "5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/titusville-anchorage-titusville-fl/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "3",
+      "Previous 28 days Impressions": "5",
+      "Last 28 days CTR": "33.33%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "5.67",
+      "Previous 28 days Position": "7"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/waterway/clearwater-harbor/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "3",
+      "Previous 28 days Impressions": "1",
+      "Last 28 days CTR": "33.33%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6",
+      "Previous 28 days Position": "17"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/ports/200-montreal-qc/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "2",
+      "Last 28 days CTR": "50%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "1.5",
+      "Previous 28 days Position": "1.5"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/how-it-works/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "11",
+      "Last 28 days CTR": "50%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "4",
+      "Previous 28 days Position": "6.09"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/mcevers-island-anchorage-montezuma-il/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "0",
+      "Last 28 days CTR": "50%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "4.5",
+      "Previous 28 days Position": "0"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/atlantic-beach-bridge-glb-0063/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "6",
+      "Last 28 days CTR": "50%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "4.5",
+      "Previous 28 days Position": "8.33"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/useppa-island-anchorage-useppa-captiva-fl/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "0",
+      "Last 28 days CTR": "50%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6",
+      "Previous 28 days Position": "0"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/c3-mechanicville/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "2",
+      "Previous 28 days Impressions": "3",
+      "Last 28 days CTR": "50%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "9.5",
+      "Previous 28 days Position": "5.33"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/state/sc/",
+      "Last 28 days Clicks": "1",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "1",
+      "Previous 28 days Impressions": "1",
+      "Last 28 days CTR": "100%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6",
+      "Previous 28 days Position": "9"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/olmsted-locks-and-dam/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "221",
+      "Previous 28 days Impressions": "112",
+      "Last 28 days CTR": "0.9%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "8.05",
+      "Previous 28 days Position": "6.93"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/locks/great-bridge-lock/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "49",
+      "Previous 28 days Impressions": "30",
+      "Last 28 days CTR": "4.08%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "7.55",
+      "Previous 28 days Position": "8.07"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/trip-planning/",
+      "Last 28 days Clicks": "2",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "16",
+      "Previous 28 days Impressions": "0",
+      "Last 28 days CTR": "12.5%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "6",
+      "Previous 28 days Position": "0"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/anchorages/lake-sylvia-anchorage-fort-lauderdale-fl/",
+      "Last 28 days Clicks": "4",
+      "Previous 28 days Clicks": "0",
+      "Last 28 days Impressions": "13",
+      "Previous 28 days Impressions": "19",
+      "Last 28 days CTR": "30.77%",
+      "Previous 28 days CTR": "0%",
+      "Last 28 days Position": "9",
+      "Previous 28 days Position": "9.32"
+    },
+    {
+      "Top pages": "https://floatplanwizard.com/great-loop/bridges/waterway/calumet-river/",
+      "Last 28 days Clicks": "10",
+      "Previous 28 days Clicks": "4",
+      "Last 28 days Impressions": "101",
+      "Previous 28 days Impressions": "112",
+      "Last 28 days CTR": "9.9%",
+      "Previous 28 days CTR": "3.57%",
+      "Last 28 days Position": "5.32",
+      "Previous 28 days Position": "5.85"
+    }
+  ]
+}

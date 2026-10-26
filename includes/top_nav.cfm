@@ -595,6 +595,15 @@ topNavShowAppSubnav = topNavIsLoggedIn
                   <span><strong>Help Center</strong><small>Guides, tutorials, and frequently asked questions.</small></span>
                 </a>
                 <div class="fpw-help-menu-separator" role="separator"></div>
+                <a href="#topNavBasePath#/app/user-manual.cfm" role="menuitem"<cfif topNavUserManualActive> aria-current="page"</cfif>>
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("book-open")#</span>
+                  <span><strong>User Manual</strong><small>Step-by-step instructions for FloatPlanWizard.</small></span>
+                </a>
+                <a href="#topNavHowHref#" role="menuitem">
+                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("how")#</span>
+                  <span><strong>How It Works</strong><small>Learn how to plan, share, and manage your trip.</small></span>
+                </a>
+                <div class="fpw-help-menu-separator" role="separator"></div>
                 <a href="#topNavBasePath#/app/contact.cfm" role="menuitem"<cfif topNavActive EQ 'help-contact'> aria-current="page"</cfif>>
                   <span class="fpw-help-menu-icon">#renderFpwNavIcon("message-circle")#</span>
                   <span><strong>Contact Support</strong><small>Get assistance from FloatPlanWizard.</small></span>
@@ -607,15 +616,6 @@ topNavShowAppSubnav = topNavIsLoggedIn
                 <a href="#topNavBasePath#/app/contact.cfm?mode=feedback##contactForm" role="menuitem"<cfif topNavActive EQ 'help-feedback'> aria-current="page"</cfif>>
                   <span class="fpw-help-menu-icon">#renderFpwNavIcon("lightbulb")#</span>
                   <span><strong>Suggest a Feature</strong><small>Share ideas to improve FloatPlanWizard.</small></span>
-                </a>
-                <div class="fpw-help-menu-separator" role="separator"></div>
-                <a href="#topNavHowHref#" role="menuitem">
-                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("how")#</span>
-                  <span><strong>How It Works</strong><small>Learn how to plan, share, and manage your trip.</small></span>
-                </a>
-                <a href="#topNavBasePath#/app/user-manual.cfm" role="menuitem"<cfif topNavUserManualActive> aria-current="page"</cfif>>
-                  <span class="fpw-help-menu-icon">#renderFpwNavIcon("book-open")#</span>
-                  <span><strong>User Manual</strong><small>Step-by-step instructions for FloatPlanWizard.</small></span>
                 </a>
               </div>
             </div>
