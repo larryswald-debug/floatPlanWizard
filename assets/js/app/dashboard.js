@@ -4787,6 +4787,7 @@
     var errorTextEl = null;
     var bodyEl = null;
     var routeListEl = null;
+    var routeActionTooltips = [];
     var routeEmptyEl = null;
     var accordionEl = null;
     var retryBtn = null;
@@ -4868,6 +4869,7 @@
     }
 
     function setState(stateName, message) {
+      if (stateName !== "ready") disposeRouteActionTooltips();
       toggleHidden(loadingEl, stateName !== "loading");
       toggleHidden(unauthorizedEl, stateName !== "unauthorized");
       toggleHidden(errorEl, stateName !== "error");
@@ -4886,6 +4888,7 @@
 
     function renderEmptyRoutes() {
       if (summaryEl) summaryEl.textContent = "No routes yet";
+      disposeRouteActionTooltips();
       if (routeListEl) routeListEl.innerHTML = "";
       if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
       if (accordionEl) {
@@ -5219,12 +5222,60 @@
       return !!currentGroup && (currentGroup.isDraft === true || normalizedState === "DRAFT" || normalizedStatus === "DRAFT");
     }
 
+    function disposeRouteActionTooltips() {
+      routeActionTooltips.forEach(function (entry) {
+        Object.keys(entry.listeners).forEach(function (eventName) {
+          entry.button.removeEventListener(eventName, entry.listeners[eventName]);
+        });
+        entry.tooltip.hide();
+        entry.tooltip.dispose();
+      });
+      routeActionTooltips = [];
+    }
+
+    function initRouteActionTooltips() {
+      disposeRouteActionTooltips();
+      if (!routeListEl || !window.bootstrap || !window.bootstrap.Tooltip) return;
+      routeListEl.querySelectorAll(".fpw-route-table-actions .fpw-route-icon-action").forEach(function (button) {
+        var tooltip = window.bootstrap.Tooltip.getOrCreateInstance(button, {
+          title: button.getAttribute("aria-label"),
+          // Bootstrap's automatic triggers use setTimeout even with a zero delay.
+          trigger: "manual",
+          placement: "top",
+          delay: { show: 0, hide: 0 },
+          animation: false,
+          container: "body",
+          customClass: "fpw-route-action-tooltip"
+        });
+        var hovered = false;
+        var focused = false;
+        function updateTooltip() {
+          if (hovered || focused) {
+            // Hover and focus can overlap; do not rebuild an already-visible tip.
+            if (!button.hasAttribute("aria-describedby")) tooltip.show();
+          } else {
+            tooltip.hide();
+          }
+        }
+        var listeners = {
+          mouseenter: function () { hovered = true; updateTooltip(); },
+          mouseleave: function () { hovered = false; updateTooltip(); },
+          focusin: function () { focused = true; updateTooltip(); },
+          focusout: function () { focused = false; updateTooltip(); }
+        };
+        Object.keys(listeners).forEach(function (eventName) {
+          button.addEventListener(eventName, listeners[eventName]);
+        });
+        routeActionTooltips.push({ button: button, tooltip: tooltip, listeners: listeners });
+      });
+    }
+
     function buildRouteTableDispositionAction(actionPolicy) {
       if (actionPolicy && actionPolicy.canArchive) {
-        return '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--archive js-expedition-archive" aria-label="Archive" title="Archive"></button>';
+        return '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--archive js-expedition-archive" aria-label="Archive Route" title="Archive Route"></button>';
       }
       if (actionPolicy && actionPolicy.canDelete) {
-        return '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete" title="Delete"></button>';
+        return '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--delete js-expedition-delete" aria-label="Delete Route" title="Delete Route"></button>';
       }
       return "";
     }
@@ -5301,12 +5352,12 @@
       var planActionLabel = isDraftGroup ? "Complete Float Plan" : "Edit Float Plan";
       if (!currentGroup) html += '<div class="fpw-route-table-actions">';
       if (currentState === "ACTIVE" && currentGroup) {
-        html += showActiveCruiseAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cruise js-expedition-active-cruise" aria-label="Open Active Cruise" title="Open Active Cruise"></button>' : "";
-        html += showTripPageAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--follow js-expedition-trip-page" aria-label="Follow Page" title="Follow Page"></button>' : "";
+        html += showActiveCruiseAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cruise js-expedition-active-cruise" aria-label="View Active Cruise" title="View Active Cruise"></button>' : "";
+        html += showTripPageAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--follow js-expedition-trip-page" aria-label="View Follow Page" title="View Follow Page"></button>' : "";
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
-        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cancel js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Cancel" title="Cancel"></button>';
+        html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--cancel js-expedition-plan-cancel" data-action="cancel" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="Cancel Float Plan" title="Cancel Float Plan"></button>';
       } else if (currentGroup) {
-        html += isDraftGroup ? "" : '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View & Send Float Plan"></button>';
+        html += isDraftGroup ? "" : '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--send js-expedition-plan-view" data-action="view" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="View and Send Float Plan" title="View and Send Float Plan"></button>';
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-plan js-expedition-plan-edit" data-action="edit" data-plan-id="' + currentGroup.floatPlanId + '" aria-label="' + planActionLabel + '" title="' + planActionLabel + '"></button>';
         html += showActivateRouteAction ? '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--activate js-expedition-build-floatplans" aria-label="Activate Route" title="Activate Route"></button>' : "";
         html += '<button type="button" class="fpw-route-icon-action fpw-route-icon-action--edit-route js-expedition-view-edit" aria-label="Edit Route" title="Edit Route"></button>';
@@ -5486,6 +5537,7 @@
 
     function renderRouteList(routes, activeCode, currentGroupPayload) {
       if (!routeListEl) return;
+      disposeRouteActionTooltips();
       var list = Array.isArray(routes) ? routes.slice() : [];
       var activeTripRouteIndex = -1;
       var selectedRoute = null;
@@ -5537,6 +5589,7 @@
         + '  </div>'
         +      buildSelectedRouteDetail(selectedRoute, getRouteRenderMeta(selectedRoute, activeCode))
         + '</div>';
+      initRouteActionTooltips();
       refreshMissionSummary();
       renderRecommendedNextSteps();
       updateCurrentDraftActionButtons();
@@ -5697,6 +5750,7 @@
     }
 
     function renderBasicRoutePanel(payload) {
+      disposeRouteActionTooltips();
       var basicModule = window.FPW && window.FPW.DashboardModules
         ? window.FPW.DashboardModules.basicFloatPlan
         : null;
@@ -6293,6 +6347,10 @@
       errorTextEl = document.getElementById("expeditionTimelineErrorText");
       bodyEl = document.getElementById("expeditionTimelineBody");
       routeListEl = document.getElementById("expeditionRouteList");
+      window.addEventListener("pagehide", disposeRouteActionTooltips);
+      window.addEventListener("pageshow", function (event) {
+        if (event.persisted) initRouteActionTooltips();
+      });
       routeEmptyEl = document.getElementById("expeditionRouteEmpty");
       accordionEl = document.getElementById("expeditionTimelineAccordion");
       retryBtn = document.getElementById("expeditionTimelineRetry");
