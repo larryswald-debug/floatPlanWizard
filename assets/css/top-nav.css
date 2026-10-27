@@ -1736,3 +1736,9 @@
   .fpw-help-menu-icon { width: 36px; height: 36px; }
   .fpw-help-menu-icon svg { width: 24px; height: 24px; }
 }
+
+/* Contextual Help link in the member workspace navigation. */
+.fpw-app-link.fpw-context-help {
+  background-color: #8bcf9b;
+  color: #000000;
+}
