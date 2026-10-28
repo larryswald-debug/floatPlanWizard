@@ -404,6 +404,7 @@ fpwCtaConfig = {
               <cfinclude template="../../partials/fpw-action-cta.cfm">
             </div>
             <p>Need to check your range first? <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/boat-fuel-calculator/">Use the Boat Fuel Calculator</a>.</p>
+            <p>Planning the Chesapeake portion of your cruise? Use the <a href="<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/boating-guides/chesapeake-bay/">Chesapeake Bay cruising and trip-planning guide</a> to compare destinations, review realistic travel days and prepare a regional Float Plan.</p>
           </section>
         </div>
       </div>

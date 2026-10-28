@@ -20,3 +20,4 @@ downloads/floatplanwizard-solo-boating-safety-guide-orig.pdf
 
 # Local browser screenshots, traces, print samples and test output.
 /output/playwright/
+docs/

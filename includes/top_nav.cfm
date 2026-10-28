@@ -73,6 +73,7 @@ topNavResourceRouteMap = [
   { "pattern" = "/common-boating-emergencies", "active" = "resources-common-boating-emergencies" },
   { "pattern" = "/shore-contact-overdue-boater", "active" = "resources-shore-contact-guide" },
   { "pattern" = "/why-use-a-float-plan", "active" = "resources-why-float-plan" },
+  { "pattern" = "/boating-guides/chesapeake-bay", "active" = "resources-chesapeake-guide" },
   { "pattern" = "/faq/", "active" = "resources-faq" }
 ];
 
@@ -88,7 +89,7 @@ if (!len(topNavActive) OR topNavActive EQ "resources") {
 topNavUserManualActive = reFindNoCase("/app/user-manual\.cfm$", topNavRequestPath) GT 0;
 
 topNavResourcesActive = listFindNoCase(
-  "resources,resources-boat-loan-calculator,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-faq,fuel,weather",
+  "resources,resources-boat-loan-calculator,resources-solo-boating-guide,resources-common-boating-emergencies,resources-shore-contact-guide,resources-why-float-plan,resources-chesapeake-guide,resources-faq,fuel,weather",
   topNavActive
 ) GT 0;
 topNavSoloBoatingGuideActive = topNavActive EQ "resources-solo-boating-guide";
@@ -96,6 +97,7 @@ topNavCommonBoatingEmergenciesActive = topNavActive EQ "resources-common-boating
 topNavShoreContactGuideActive = topNavActive EQ "resources-shore-contact-guide";
 topNavBoatingSafetyActive = topNavSoloBoatingGuideActive OR topNavCommonBoatingEmergenciesActive OR topNavShoreContactGuideActive;
 topNavWhyFloatPlanActive = topNavActive EQ "resources-why-float-plan";
+topNavChesapeakeGuideActive = topNavActive EQ "resources-chesapeake-guide";
 topNavFaqActive = topNavActive EQ "resources-faq";
 topNavFuelActive = topNavActive EQ "fuel";
 topNavBoatLoanActive = topNavActive EQ "resources-boat-loan-calculator";
@@ -562,6 +564,10 @@ topNavShowAppSubnav = topNavIsLoggedIn
                             </cfif>>
                             #renderFpwNavIcon("anchor", "fpw-tool-icon")#
                             <span>Common Boating Emergencies</span><b aria-hidden="true">&rarr;</b>
+                          </a>
+                          <a class="fpw-resource-link<cfif topNavChesapeakeGuideActive> is-active</cfif>" href="#topNavBasePath#/boating-guides/chesapeake-bay/" role="menuitem"<cfif topNavChesapeakeGuideActive> aria-current="page"</cfif>>
+                            #renderFpwNavIcon("book-open", "fpw-tool-icon")#
+                            <span>Chesapeake Bay Cruising Guide</span><b aria-hidden="true">&rarr;</b>
                           </a>
                           <a class="fpw-resource-link" href="#topNavHowHref#" role="menuitem">
                             #renderFpwNavIcon("how", "fpw-tool-icon")#
