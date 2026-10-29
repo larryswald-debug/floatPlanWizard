@@ -206,7 +206,7 @@ test("guide styling is scoped, responsive, printable, and has visible focus", ()
 
 test("navigation, clean routes, and sitemap publish the canonical guide", () => {
   assert.match(topNav, /"pattern" = "\/solo-boating-safety-guide", "active" = "resources-solo-boating-guide"/);
-  assert.equal(countMatches(topNav, /<span>Solo Boating Safety Guide<\/span>/g), 1);
+  assert.equal(countMatches(topNav, /data-fpw-nav-track="public_nav_solo_boating_safety_guide_click"/g), 1);
   assert.match(topNav, /href="#topNavBasePath#\/solo-boating-safety-guide\/"/);
 
   assert.match(webConfig, /\^solo-boating-safety-guide\\\.cfm\$/);

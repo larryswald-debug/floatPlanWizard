@@ -169,7 +169,7 @@ test("native dialog preserves page scroll and mobile cancellation restores a vis
   await page.setViewportSize({ width: 390, height: 844 });
   const menu = page.locator("[data-fpw-mobile-toggle]");
   await menu.click();
-  await page.locator('a[data-fpw-auth-intent="dashboard"][data-fpw-auth-source-page="top_nav"]').click();
+  await page.locator('a.fpw-login-link[data-fpw-auth-intent="dashboard"][data-fpw-auth-source-page="top_nav"]').click();
   await expect(page.locator("#fpwAuthModal")).toBeVisible();
   await expect(menu).toHaveAttribute("aria-expanded", "false");
   await page.keyboard.press("Escape");

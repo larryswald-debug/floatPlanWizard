@@ -33,17 +33,50 @@
       : "All " + chapters.length + " chapters are shown.";
   }
   function resetSearch() { search.value = ""; applySearch(); }
-  function revealHash() {
-    var id;
-    try { id = decodeURIComponent(window.location.hash.slice(1)); } catch (_) { return; }
-    var target = document.getElementById(id);
-    if (!target || !target.hasAttribute("data-manual-chapter")) return;
-    if (target.hidden) resetSearch();
+  function targetForHash(hash) {
+    if (!hash || hash === "#") return null;
+    try {
+      var target = document.getElementById(decodeURIComponent(hash.slice(1)));
+      return target && target.hasAttribute("data-manual-chapter") ? target : null;
+    } catch (_) { return null; }
+  }
+  function markChapter(target) {
     links.forEach(function (link) {
-      if (link.hash.slice(1) === id) link.setAttribute("aria-current", "location");
+      if (link.hash.slice(1) === target.id) link.setAttribute("aria-current", "location");
       else link.removeAttribute("aria-current");
     });
   }
+  function revealHash() {
+    var target = targetForHash(window.location.hash);
+    if (!target) return;
+    var wasHidden = target.hidden;
+    if (wasHidden) resetSearch();
+    markChapter(target);
+    if (wasHidden) {
+      // Re-align only when filtering prevented the browser's native fragment scroll.
+      window.requestAnimationFrame(function () {
+        target.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          block: "start"
+        });
+      });
+    }
+  }
+  // Native navigation runs after this handler, even when the fragment is unchanged.
+  document.addEventListener("click", function (event) {
+    var link = event.target.closest("a[href]");
+    if (!link || event.defaultPrevented || event.button !== 0
+      || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+      || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+    var url;
+    try { url = new URL(link.href, window.location.href); } catch (_) { return; }
+    if (url.origin !== window.location.origin || url.pathname !== window.location.pathname
+      || url.search !== window.location.search) return;
+    var target = targetForHash(url.hash);
+    if (!target) return;
+    if (target.hidden) resetSearch();
+    markChapter(target);
+  }, true);
   searchPanel.hidden = false;
   print.hidden = false;
   search.addEventListener("input", applySearch);

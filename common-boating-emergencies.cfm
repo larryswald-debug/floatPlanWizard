@@ -154,7 +154,7 @@ fpwEmergencyCtaSignedIn = fpwEmergencyCtaUserId GT 0;
   <script type="application/ld+json"><cfoutput>#fpwEmergencyJsonLdText#</cfoutput></script>
   <cfoutput><link rel="icon" type="image/svg+xml" href="#fpwEmergencyBasePath#/assets/images/landing/fpw-logo.svg"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/layout.css?v=20260620-page-width"></cfoutput>
-  <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/top-nav.css?v=20261013-global-help"></cfoutput>
+  <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/top-nav.css?v=20261028-approved-navigation"></cfoutput>
   <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/fpw-action-cta.css?v=20260804-pilot"></cfoutput>
 <cfoutput><link rel="stylesheet" href="#fpwEmergencyBasePath#/assets/css/common-boating-emergencies.css?v=20260824-individual-card-pdfs"></cfoutput>
   <cfinclude template="includes/analytics_ga4.cfm">

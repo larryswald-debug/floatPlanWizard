@@ -70,6 +70,56 @@
     }
   }
 
+  function targetForHash(hash) {
+    if (!hash || hash === "#") return null;
+    try { return document.getElementById(decodeURIComponent(hash.slice(1))); }
+    catch (_) { return null; }
+  }
+
+  function revealTarget(target) {
+    var hiddenSection = target && target.closest("[data-help-section][hidden]");
+    if (!hiddenSection || !searchInput) return false;
+    searchInput.value = "";
+    applySearch();
+    return true;
+  }
+
+  function revealHash() {
+    var target = targetForHash(window.location.hash);
+    if (!target) return;
+    var wasHidden = revealTarget(target);
+    setActiveLink(target.id);
+    if (wasHidden) {
+      // Native fragment scrolling cannot position a target while it is filtered out.
+      window.requestAnimationFrame(function () {
+        target.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          block: "start"
+        });
+      });
+    }
+  }
+
+  function isPlainNavigation(event, link) {
+    return !event.defaultPrevented && event.button === 0
+      && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+      && !link.hasAttribute("download") && (!link.target || link.target === "_self");
+  }
+
+  // Reveal before the browser follows the link, including a click on the current hash.
+  document.addEventListener("click", function (event) {
+    var link = event.target.closest("a[href]");
+    if (!link || !isPlainNavigation(event, link)) return;
+    var url;
+    try { url = new URL(link.href, window.location.href); } catch (_) { return; }
+    if (url.origin !== window.location.origin || url.pathname !== window.location.pathname
+      || url.search !== window.location.search) return;
+    var target = targetForHash(url.hash);
+    if (!target) return;
+    revealTarget(target);
+    setActiveLink(target.id);
+  }, true);
+
   if (searchInput) {
     searchInput.addEventListener("input", applySearch);
   }
@@ -86,6 +136,7 @@
 
   Array.prototype.slice.call(document.querySelectorAll("[data-help-toc-link], .fpw-help-topic a[href^='#']")).forEach(function (link) {
     link.addEventListener("click", function (event) {
+      if (!isPlainNavigation(event, link)) return;
       var selector = link.getAttribute("href");
       var target = selector ? document.querySelector(selector) : null;
       if (!target) {
@@ -96,7 +147,10 @@
         searchInput.value = "";
         applySearch();
       }
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start"
+      });
       setActiveLink(target.id);
       if (window.history && typeof window.history.replaceState === "function") {
         window.history.replaceState(null, "", selector);
@@ -121,5 +175,7 @@
     });
   }
 
+  window.addEventListener("hashchange", revealHash);
   applySearch();
+  revealHash();
 })();

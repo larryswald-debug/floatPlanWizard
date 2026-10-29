@@ -12,12 +12,20 @@
   const visibleCount = $('#visibleCount');
   const totalCount = $('#totalCount');
 
+  if (!search || !expandAllBtn || !collapseAllBtn || !clearBtn) return;
+
   function setOpen(section, open){
     section.dataset.open = open ? 'true' : 'false';
+    $('.sectionHeader', section).setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   sections.forEach(sec=>{
     const header = $('.sectionHeader', sec);
+    header.addEventListener('keydown', (e)=>{
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      setOpen(sec, sec.dataset.open !== 'true');
+    });
     header.addEventListener('click', (e)=>{
       // Don't toggle when user clicks a link/button inside header (none today, but future-safe).
       if (e.target && (e.target.closest('button') || e.target.closest('a'))) return;

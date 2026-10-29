@@ -114,12 +114,13 @@ fpwChesapeakePlannerDestination = fpwChesapeakeBasePath & (fpwChesapeakeUserId G
   <script type="application/ld+json">#fpwChesapeakeJsonLdText#</script>
   <link rel="icon" type="image/svg+xml" href="#fpwChesapeakeBasePath#/assets/images/landing/fpw-logo.svg">
   <link rel="stylesheet" href="#fpwChesapeakeBasePath#/assets/css/layout.css?v=20260620-page-width">
-  <link rel="stylesheet" href="#fpwChesapeakeBasePath#/assets/css/top-nav.css?v=20261013-global-help">
+  <link rel="stylesheet" href="#fpwChesapeakeBasePath#/assets/css/top-nav.css?v=20261028-approved-navigation">
   <link rel="stylesheet" href="#fpwChesapeakeBasePath#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color">
+  <link rel="stylesheet" href="#fpwChesapeakeBasePath#/assets/css/cruising-guides.css?v=20261028-approved-navigation">
   </cfoutput>
   <style>
     #main-content > .fpw-overdue-shell { width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2))); }
-    #main-content .fpw-overdue-content > section { scroll-margin-top: 165px; }
+    #main-content .fpw-overdue-content > section { scroll-margin-top: var(--fpw-guide-header-offset, 165px); }
     .fpw-chesapeake-figure { margin: 24px 0; }
     .fpw-chesapeake-figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; border: 1px solid var(--fpw-overdue-line); border-radius: 12px; }
     .fpw-chesapeake-figure figcaption { margin-top: 10px; color: var(--fpw-overdue-muted); font-size: 0.9rem; line-height: 1.6; }
@@ -132,22 +133,36 @@ fpwChesapeakePlannerDestination = fpwChesapeakeBasePath & (fpwChesapeakeUserId G
   <cfinclude template="../../includes/analytics_clarity.cfm">
   <cfinclude template="../../includes/trustedsite.cfm">
 </head>
-<body class="fpw-overdue-body">
+<body class="fpw-overdue-body fpw-chesapeake-body">
 <cfinclude template="../../includes/top_nav.cfm">
-<main class="fpw-overdue-page" id="main-content">
+<main class="fpw-overdue-page fpw-chesapeake-page" id="main-content">
   <div class="fpw-overdue-shell">
-    <nav class="fpw-overdue-breadcrumbs" aria-label="Breadcrumb">
+    <article class="fpw-overdue-article" aria-labelledby="fpw-chesapeake-title">
+      <header class="fpw-overdue-hero fpw-chesapeake-hero">
+        <div class="fpw-chesapeake-hero-inner">
+          <nav class="fpw-overdue-breadcrumbs" aria-label="Breadcrumb">
       <a href="<cfoutput>#fpwChesapeakeBasePath#</cfoutput>/">FloatPlanWizard</a>
       <span aria-hidden="true">&rsaquo;</span>
       <span aria-current="page">Chesapeake Bay Cruising Guide</span>
     </nav>
-    <article class="fpw-overdue-article" aria-labelledby="fpw-chesapeake-title">
-      <header class="fpw-overdue-hero">
-        <p class="fpw-overdue-eyebrow">Cruising and Trip Planning</p>
-        <h1 id="fpw-chesapeake-title"><cfoutput>#encodeForHTML(fpwChesapeakeHeadline)#</cfoutput></h1>
-        <p class="fpw-overdue-lede">Choose a manageable part of the Bay, research the actual harbor approaches, and turn a destination list into daily legs your boat and crew can handle. This guide connects those decisions to FPW's route builder, distance overrides, fuel estimates, timing and Float Plan workflow.</p>
-        <p class="fpw-chesapeake-reviewed">Reviewed <time datetime="2026-10-28">October 28, 2026</time>. Check current conditions and operating information before departure.</p>
+          <p class="fpw-overdue-eyebrow">Cruising and Trip Planning</p>
+          <h1 id="fpw-chesapeake-title"><span class="fpw-chesapeake-title-main"><cfoutput>#encodeForHTML(listFirst(fpwChesapeakeHeadline, ":"))#:</cfoutput></span> <span class="fpw-chesapeake-title-detail"><cfoutput>#encodeForHTML(trim(listRest(fpwChesapeakeHeadline, ":")))#</cfoutput></span></h1>
+          <p class="fpw-overdue-lede">Choose a manageable part of the Bay, research the actual harbor approaches, and turn a destination list into daily legs your boat and crew can handle. This guide connects those decisions to FPW's route builder, distance overrides, fuel estimates, timing and Float Plan workflow.</p>
+          <p class="fpw-chesapeake-reviewed">Reviewed <time datetime="2026-10-28">October 28, 2026</time>. Check current conditions and operating information before departure.</p>
+        </div>
       </header>
+      <nav class="fpw-guide-section-nav" aria-label="Chesapeake guide sections">
+        <div class="fpw-guide-section-links" id="fpwChesapeakeSectionLinks">
+          <a class="is-active" href="#plan-a-cruise" aria-current="location">Overview</a>
+          <a href="#destinations">Destinations</a>
+          <a href="#itineraries">Itineraries</a>
+          <a href="#build-a-route">Using FPW</a>
+          <a href="#fuel">Fuel &amp; Timing</a>
+        </div>
+        <button class="fpw-guide-section-next" type="button" aria-label="Show more guide sections" aria-controls="fpwChesapeakeSectionLinks" hidden>
+          <img src="<cfoutput>#fpwChesapeakeBasePath#</cfoutput>/assets/images/navigation/icon-chevron-right.svg" width="20" height="20" alt="">
+        </button>
+      </nav>
       <aside class="fpw-overdue-emergency" role="note" aria-labelledby="fpw-chesapeake-planning-note">
         <strong id="fpw-chesapeake-planning-note">Plan the trip here; verify the navigable route separately.</strong>
         <p>The itineraries and screenshots are planning examples. They do not establish safe channels, depths, bridge clearances or suitable overnight stops. Use current charts, official notices, local information and the vessel's limits to verify the route.</p>
@@ -333,5 +348,61 @@ fpwChesapeakePlannerDestination = fpwChesapeakeBasePath & (fpwChesapeakeUserId G
 </main>
 <cfinclude template="../../includes/footer.cfm">
 <script src="<cfoutput>#fpwChesapeakeBasePath#</cfoutput>/assets/js/fpw-action-cta.js?v=20261001-unified-auth"></script>
+<script>
+(function () {
+  "use strict";
+  var nav = document.querySelector(".fpw-guide-section-nav");
+  if (!nav) return;
+  var track = nav.querySelector(".fpw-guide-section-links");
+  var next = nav.querySelector(".fpw-guide-section-next");
+  var links = Array.prototype.slice.call(track.querySelectorAll("a[href^='#']"));
+  var sections = links.map(function (link) { return document.getElementById(link.hash.slice(1)); });
+  var header = document.querySelector(".fpw-site-header");
+  var offset = 165;
+  var queued = false;
+  function updateOverflow() {
+    next.hidden = false;
+    next.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 2;
+  }
+  function updateHeaderOffset() {
+    offset = (header ? header.getBoundingClientRect().height : 0) + 20;
+    document.documentElement.style.setProperty("--fpw-guide-header-offset", Math.ceil(offset) + "px");
+  }
+  function updateCurrentSection() {
+    queued = false;
+    var current = 0;
+    sections.forEach(function (section, index) {
+      if (section && section.getBoundingClientRect().top <= offset + 40) current = index;
+    });
+    links.forEach(function (link, index) {
+      link.classList.toggle("is-active", index === current);
+      if (index === current) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+  }
+  function scheduleCurrentSection() {
+    if (queued) return;
+    queued = true;
+    window.requestAnimationFrame(updateCurrentSection);
+  }
+  next.addEventListener("click", function () {
+    var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    track.scrollBy({ left: Math.max(180, track.clientWidth * 0.7), behavior: reduceMotion ? "auto" : "smooth" });
+  });
+  track.addEventListener("scroll", updateOverflow, { passive: true });
+  window.addEventListener("scroll", scheduleCurrentSection, { passive: true });
+  window.addEventListener("resize", function () {
+    updateHeaderOffset();
+    updateOverflow();
+    scheduleCurrentSection();
+  });
+  if (window.ResizeObserver && header) {
+    new ResizeObserver(function () { updateHeaderOffset(); scheduleCurrentSection(); }).observe(header);
+  }
+  updateHeaderOffset();
+  updateOverflow();
+  updateCurrentSection();
+})();
+</script>
 </body>
 </html>

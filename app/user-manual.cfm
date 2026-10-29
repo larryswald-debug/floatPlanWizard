@@ -11,7 +11,7 @@
   <meta name="description" content="The FloatPlanWizard member manual: boating information, route planning, Float Plans, check-ins, overnight timing and trip completion.">
   <title>FloatPlanWizard User Manual</title>
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/user-manual.css?v=20261004">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/user-manual.css?v=20261028-help-anchors">
 </head>
 <body class="fpw-manual-body">
 <a class="fpw-manual-skip" href="#manualMain">Skip to manual</a>
@@ -576,6 +576,6 @@
 </main>
 <cfinclude template="../includes/footer.cfm">
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/user-manual.js?v=20261004" defer></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/user-manual.js?v=20261028-help-anchors" defer></script>
 </body>
 </html>

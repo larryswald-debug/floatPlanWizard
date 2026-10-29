@@ -33,7 +33,7 @@
 .fpw-manual-toc a { text-decoration: none; display: block; padding: 3px 0; }
 .fpw-manual-toc a:hover, .fpw-manual-toc a[aria-current] { text-decoration: underline; color: #003c50; }
 .fpw-manual-reading { min-width: 0; }
-.fpw-manual-chapter { padding: 34px 38px; margin-bottom: 26px; border: 1px solid #d4e1e5; border-radius: 8px; background: white; scroll-margin-top: 110px; }
+.fpw-manual-chapter { padding: 34px 38px; margin-bottom: 26px; border: 1px solid #d4e1e5; border-radius: 8px; background: white; scroll-margin-top: calc(var(--fpw-header-height, 110px) + 16px); }
 .fpw-manual-part { margin-top: 0 !important; padding-bottom: 10px; border-bottom: 1px solid #dbe6ea; }
 .fpw-manual ul, .fpw-manual ol { padding-left: 27px; margin: 14px 0 20px; }
 .fpw-manual li { margin: 7px 0; padding-left: 3px; }

@@ -211,6 +211,10 @@
   color: #ffffff;
 }
 
+.fpw-help-section {
+  scroll-margin-top: calc(var(--fpw-header-height, 110px) + 16px);
+}
+
 .fpw-help-content {
   display: grid;
   gap: 20px;

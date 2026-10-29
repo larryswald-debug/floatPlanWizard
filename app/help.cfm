@@ -21,7 +21,7 @@
 
   <cfinclude template="../includes/fpw_base_path.cfm">
   <cfinclude template="../includes/header_styles.cfm">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help.css?v=20261013-help-center">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help.css?v=20261028-help-anchors">
 </head>
 <body class="fpw-help-body">
 
@@ -472,7 +472,7 @@
 
 <cfinclude template="../includes/footer.cfm">
 <cfinclude template="../includes/footer_scripts.cfm">
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help.js?v=20261013-help-center"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help.js?v=20261028-help-anchors"></script>
 
 </body>
 </html>

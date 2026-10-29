@@ -100,8 +100,9 @@ async function expectClosedMenu(page) {
   await page.waitForTimeout(220);
   const metrics = await expectDocumentContained(page);
   expect(metrics.menuOpen).toBe(false);
-  expect(metrics.nav.display).toBe("none");
-  expect(metrics.nav.width).toBe(0);
+  await expect(nav).toBeHidden();
+  // A translated, hidden drawer may keep its width while remaining non-interactive.
+  expect(metrics.nav.visibility).toBe("hidden");
   return metrics;
 }
 
@@ -216,6 +217,26 @@ test("shared mobile navigation remains contained, usable, and accessible", async
   await page.goto(`${baseUrl}/app/pricing.cfm`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("[data-fpw-mobile-toggle]")).toBeHidden();
   await expect(page.locator("#fpwPrimaryNav")).toBeVisible();
+  for (const width of [1041, 1099, 1100, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator("[data-fpw-mobile-toggle]")).toBeHidden();
+    const controls = page.locator(".fpw-brand:visible, .fpw-primary-nav > .fpw-dropdown > button:visible, .fpw-primary-nav > a:visible, .fpw-nav-actions > a:visible, .fpw-nav-actions > .fpw-dropdown > button:visible");
+    const boxes = await controls.evaluateAll(nodes => nodes.map(node => {
+      const r = node.getBoundingClientRect();
+      return { text: node.textContent.trim(), left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    }));
+    for (const box of boxes) {
+      expect(box.left, box.text + " at " + width).toBeGreaterThanOrEqual(-1);
+      expect(box.right, box.text + " at " + width).toBeLessThanOrEqual(width + 1);
+    }
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      const overlaps = Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+        Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+      expect(overlaps, a.text + " / " + b.text + " at " + width).toBe(false);
+    }
+    await expectDocumentContained(page);
+  }
   const desktopMetrics = await expectDocumentContained(page);
   expect(desktopMetrics.nav.position).not.toBe("fixed");
   expect(runtimeFailures).toEqual([]);
