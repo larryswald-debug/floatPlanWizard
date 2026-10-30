@@ -4225,6 +4225,19 @@ body.dashboard-body[data-fpw-page="dashboard"]::before{
   padding: 26px 0 34px;
 }
 
+/* The Dashboard uses one content column beneath the shared horizontal navigation. */
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-shell{
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.dashboard-body[data-fpw-page="dashboard"] .fpw-dashboard-main.dashboard-main{
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding-inline: var(--fpw-page-gutter, 32px);
+}
+
 .fpw-dashboard-header{
   display: flex;
   align-items: flex-start;
@@ -6979,7 +6992,7 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .expedit
 
 .fpw-route-workspace{
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+  grid-template-columns: minmax(0, 18fr) minmax(260px, 7fr);
   min-height: 640px;
 }
 
@@ -6994,16 +7007,27 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-rou
 
 .fpw-routes-table-pane{
   min-width: 0;
-  padding: 20px;
+  padding: 12px;
   border-right: 1px solid rgba(84, 147, 205, 0.35);
 }
 
 .fpw-routes-table{
-  min-width: 780px;
+  --fpw-route-actions-width: 224px;
+  width: 100%;
+  min-width: min-content;
   border: 1px solid rgba(81, 144, 203, 0.42);
   border-radius: 3px;
   background: rgba(3, 18, 34, 0.54);
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Reserve room for the largest action group without widening every table to five buttons. */
+.fpw-routes-table:has(.fpw-route-icon-action):not(:has(.fpw-route-icon-action:nth-child(4))){
+  --fpw-route-actions-width: 132px;
+}
+
+.fpw-routes-table:has(.fpw-route-icon-action:nth-child(4)):not(:has(.fpw-route-icon-action:nth-child(5))){
+  --fpw-route-actions-width: 178px;
 }
 
 .fpw-routes-table-pane{
@@ -7013,15 +7037,15 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-rou
 .fpw-routes-table-head,
 .fpw-routes-table-row{
   display: grid !important;
-  grid-template-columns: minmax(150px, 1fr) 120px 74px 80px 54px 224px;
-  gap: 8px;
+  grid-template-columns: minmax(136px, 1fr) minmax(84px, 12%) 62px 64px 54px var(--fpw-route-actions-width, 224px);
+  gap: 5px;
   align-items: center;
 }
 
 .fpw-routes-table-head{
   text-align: center;
   min-height: 42px;
-  padding: 0 14px;
+  padding: 0 8px;
   color: rgba(223, 238, 255, 0.9);
   font-size: 12px;
   line-height: 1.2;
@@ -7037,7 +7061,7 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-rou
 body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-routes-table-row{
   min-height: 76px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 8px;
   border: 0;
   border-bottom: 1px solid rgba(83, 143, 199, 0.24);
   border-radius: 0;
@@ -7125,7 +7149,7 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-share-btn{
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 6px;
 }
 
 .fpw-route-cell--route > div{
@@ -7312,8 +7336,10 @@ body.dashboard-body[data-fpw-page="dashboard"] #expeditionTimelinePanel .fpw-rou
 body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-detail-pane{
   display: block;
   min-width: 0;
+  container: route-details / inline-size;
+  overflow-wrap: anywhere;
   margin: 0;
-  padding: 22px;
+  padding: 16px;
   border: 0;
   border-radius: 0;
   background: linear-gradient(180deg, rgba(5, 28, 51, 0.95), rgba(3, 18, 34, 0.98));
@@ -7375,7 +7401,7 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-d
 
 .fpw-route-detail-facts{
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 0 18px;
   border-top: 1px solid rgba(84, 147, 205, 0.28);
   border-bottom: 1px solid rgba(84, 147, 205, 0.28);
@@ -7412,7 +7438,7 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-d
   line-height: 1.25;
   font-weight: 700;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .fpw-route-detail-preview{
@@ -7471,8 +7497,22 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-d
 
 .fpw-route-detail-actions{
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+/* These buttons also inherit the dashboard's general no-wrap button rule. */
+#expeditionTimelinePanel .fpw-route-detail-actions .fpw-route-workspace-btn{
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.25;
+  padding: 6px 8px;
+}
+
+@container route-details (max-width: 300px){
+  #expeditionTimelinePanel .fpw-route-detail-actions{
+    grid-template-columns: 1fr;
+  }
 }
 
 .fpw-route-detail-actions--saved > .js-expedition-delete,
@@ -7516,9 +7556,9 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-d
   font-size: 13px;
 }
 
-@media (max-width: 1280px){
+@media (max-width: 1279px){
   .fpw-route-workspace{
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .fpw-routes-table-pane{
@@ -7546,7 +7586,7 @@ body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-workspace .fpw-route-d
   }
 
   .fpw-routes-table-pane{
-    padding: 14px;
+    padding: 12px;
   }
 
   body.dashboard-body[data-fpw-page="dashboard"] .fpw-route-active-subrow{

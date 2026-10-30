@@ -1,28 +1,7 @@
 <cfprocessingdirective pageencoding="utf-8">
-<div id="fpwRouteGen" class="fpw-routegen">
+<div id="fpwRouteGen" class="fpw-routegen fpw-cruise-timeline">
   <style>
     #fpwRouteGen {
-      --rg-bg: #07111c;
-      --rg-bg-2: #091827;
-      --rg-panel: rgba(16, 28, 42, 0.92);
-      --rg-panel-2: rgba(20, 35, 52, 0.88);
-      --rg-line: rgba(114, 159, 214, 0.16);
-      --rg-line-strong: rgba(91, 199, 255, 0.34);
-      --rg-text: #eef6ff;
-      --rg-muted: #9db1c8;
-      --rg-soft: #7f95ac;
-      --rg-accent: #52b9ff;
-      --rg-accent-2: #31d7b5;
-      --rg-warn: #ffcf67;
-      --rg-good: #34d183;
-      --rg-danger: #ff7171;
-      --rg-shadow: 0 16px 40px rgba(0, 0, 0, 0.34);
-      --rg-r-xl: 22px;
-      --rg-r-lg: 16px;
-      --rg-r-md: 12px;
-      --rg-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: var(--rg-text);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       height: 100%;
       min-height: 0;
       background:
@@ -267,19 +246,7 @@
       margin-bottom: 8px;
     }
 
-    #fpwRouteGen .rg-section-title {
-      color: #d8e7f6;
-      font-size: 13px;
-      font-weight: 850;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
 
-    #fpwRouteGen .rg-section-note {
-      color: var(--rg-soft);
-      font-size: 12px;
-      line-height: 1.35;
-    }
 
     #fpwRouteGen .rg-grid-1,
     #fpwRouteGen .rg-grid-2,
@@ -300,8 +267,7 @@
     #fpwRouteGen .rg-grid-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
     #fpwRouteGen .rg-field,
-    #fpwRouteGen .rg-mini-card,
-    #fpwRouteGen .rg-timeline-shell {
+    #fpwRouteGen .rg-mini-card {
       border: 1px solid rgba(114, 159, 214, 0.14);
       border-radius: 14px;
       background: rgba(255, 255, 255, 0.022);
@@ -814,323 +780,6 @@
       font-weight: 700;
     }
 
-    #fpwRouteGen .rg-timeline-wrap {
-      min-height: 0;
-      display: flex;
-      flex: 1 1 420px;
-      min-height: 420px;
-      gap: 8px;
-    }
-
-    #fpwRouteGen .rg-timeline-shell {
-      min-height: 0;
-      flex: 1 1 auto;
-      padding: 0;
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-      overflow: hidden;
-    }
-
-    #fpwRouteGen .rg-timeline-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      min-width: 0;
-      padding: 12px 12px 10px;
-      border-bottom: 1px solid rgba(114, 159, 214, 0.14);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
-    }
-
-    #fpwRouteGen .rg-timeline-headline {
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      flex: 1 1 auto;
-      white-space: nowrap;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    #fpwRouteGen .rg-timeline-headline .rg-section-title {
-      flex: 0 0 auto;
-    }
-
-    #fpwRouteGen .rg-timeline-headline .rg-section-note {
-      flex: 1 1 auto;
-      min-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    #fpwRouteGen .rg-timeline-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    #fpwRouteGen .rg-timeline-actions label {
-      margin: 0;
-      color: var(--rg-muted);
-      font-size: 12px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-
-    #fpwRouteGen .rg-timeline-actions .form-control {
-      width: 88px;
-      min-height: 36px;
-      padding: 0 10px;
-    }
-
-    #fpwRouteGen .rg-timeline-actions .btn-secondary {
-      min-height: 36px;
-      white-space: nowrap;
-    }
-
-    #fpwRouteGen .rg-leg-columns {
-      display: grid;
-      grid-template-columns: 32px minmax(0, 1fr) 62px 78px 110px;
-      gap: 8px;
-      align-items: center;
-      padding: 10px 12px;
-      border-bottom: 1px solid rgba(114, 159, 214, 0.14);
-      background: rgba(12, 20, 31, 0.98);
-      color: var(--rg-muted);
-      font-size: 11px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      font-weight: 900;
-    }
-
-    #fpwRouteGen .rg-leg-columns span:nth-child(1) { text-align: center; }
-    #fpwRouteGen .rg-leg-columns span:nth-child(3),
-    #fpwRouteGen .rg-leg-columns span:nth-child(4),
-    #fpwRouteGen .rg-leg-columns span:nth-child(5) { text-align: right; }
-
-    #fpwRouteGen .rg-leg-list {
-      min-height: 0;
-      overflow: auto;
-      padding: 0;
-      display: block;
-      background: rgba(255, 255, 255, 0.01);
-    }
-
-    #fpwRouteGen .fpw-routegen__legwrap {
-      display: block;
-      margin-bottom: 0;
-    }
-
-    #fpwRouteGen .fpw-routegen__leg {
-      display: grid;
-      grid-template-columns: 32px minmax(0, 1fr) 62px 78px 110px;
-      gap: 8px;
-      align-items: center;
-      padding: 12px;
-      border-bottom: 1px solid rgba(114, 159, 214, 0.08);
-      cursor: pointer;
-      transition: background 0.18s ease, border-color 0.18s ease;
-    }
-
-    #fpwRouteGen .fpw-routegen__leg:hover {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    #fpwRouteGen .fpw-routegen__leg.is-selected {
-      background: rgba(45, 212, 191, 0.12);
-      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.35);
-    }
-
-    #fpwRouteGen .fpw-routegen__leg.is-expanded {
-      border-color: rgba(45, 212, 191, 0.55);
-      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.2);
-    }
-
-    #fpwRouteGen .fpw-routegen__legidx {
-      text-align: center;
-      color: var(--rg-muted);
-      font-family: var(--rg-mono);
-      font-size: 12px;
-      font-weight: 800;
-    }
-
-    #fpwRouteGen .fpw-routegen__legroute {
-      min-width: 0;
-    }
-
-    #fpwRouteGen .fpw-routegen__legname {
-      font-size: 13px;
-      font-weight: 900;
-      line-height: 1.3;
-      overflow-wrap: anywhere;
-      color: #d7e7f8;
-      display: inline-flex;
-      gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    #fpwRouteGen .fpw-routegen__flag {
-      border: 1px solid rgba(82, 185, 255, 0.36);
-      background: rgba(82, 185, 255, 0.12);
-      color: #dff2ff;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 10px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      font-weight: 800;
-    }
-
-    #fpwRouteGen .fpw-routegen__flag--override {
-      border-color: rgba(245, 158, 11, 0.46);
-      background: rgba(245, 158, 11, 0.14);
-      color: #fde6b0;
-    }
-
-    #fpwRouteGen .fpw-routegen__leglocks,
-    #fpwRouteGen .fpw-routegen__legnm {
-      font-family: var(--rg-mono);
-      font-size: 13px;
-      color: #d7e7f8;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    #fpwRouteGen .fpw-routegen__legmapaction {
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    #fpwRouteGen .fpw-routegen__legmapbtn {
-      min-width: 110px;
-      font-size: 13px;
-      white-space: nowrap;
-      padding: 6px 10px;
-      line-height: 1.2;
-    }
-
-    #fpwRouteGen .fpw-routegen__leglockpanel {
-      margin: 6px 2px 0 40px;
-      border: 1px solid rgba(45, 212, 191, 0.22);
-      border-radius: 12px;
-      background: rgba(7, 16, 29, 0.92);
-      padding: 10px;
-    }
-
-    #fpwRouteGen .fpw-routegen__leglockhead {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-
-    #fpwRouteGen .fpw-routegen__leglockheadactions,
-    #fpwRouteGen .fpw-routegen__leglockinlineactions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockstate {
-      border: 1px solid rgba(114, 159, 214, 0.2);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.02);
-      padding: 8px;
-      color: var(--rg-muted);
-      font-size: 12px;
-      margin-bottom: 8px;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockstate--error {
-      border-color: rgba(251, 113, 133, 0.5);
-      background: rgba(251, 113, 133, 0.13);
-      color: #ffd4dc;
-    }
-
-    #fpwRouteGen .fpw-routegen__locksummary {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockchip {
-      border: 1px solid var(--rg-line);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.02);
-      padding: 8px;
-      display: grid;
-      gap: 4px;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockchip span {
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--rg-muted);
-      font-weight: 800;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockchip strong {
-      font-family: var(--rg-mono);
-      font-size: 14px;
-      color: #e5f2ff;
-    }
-
-    #fpwRouteGen .fpw-routegen__locklist {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockitem {
-      border: 1px solid var(--rg-line);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.02);
-      padding: 8px;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockitemhead {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockitemtitle {
-      font-size: 13px;
-      font-weight: 900;
-      color: #d7e7f8;
-    }
-
-    #fpwRouteGen .fpw-routegen__lockitemcode {
-      font-size: 11px;
-      font-family: var(--rg-mono);
-      color: var(--rg-muted);
-    }
-
-    #fpwRouteGen .fpw-routegen__lockitemmeta {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 4px 8px;
-      color: var(--rg-muted);
-      font-size: 12px;
-      line-height: 1.3;
-    }
-
-    #fpwRouteGen .fpw-routegen__legtimeline {
-      border-top: 1px dashed rgba(114, 159, 214, 0.2);
-      padding-top: 8px;
-      margin-top: 8px;
-    }
-
     #fpwRouteGen .fpw-routegen__stops {
       margin-top: 4px;
       display: grid;
@@ -1384,15 +1033,6 @@
       padding: 0 12px 12px;
     }
 
-    #fpwRouteGen .fpw-routegen__empty {
-      border: 1px dashed var(--rg-line);
-      border-radius: 10px;
-      padding: 12px;
-      color: var(--rg-muted);
-      font-style: italic;
-      font-size: 13px;
-      margin: 8px;
-    }
 
     #fpwRouteGen .rg-bottom-bar {
       padding: 8px 10px;
@@ -1450,14 +1090,10 @@
       #fpwRouteGen .rg-myroutes-grid,
       #fpwRouteGen .rg-grid-4,
       #fpwRouteGen .rg-config-grid,
-      #fpwRouteGen .rg-config-grid-bottom,
-      #fpwRouteGen .fpw-routegen__locksummary,
-      #fpwRouteGen .fpw-routegen__lockitemmeta { grid-template-columns: 1fr; }
+      #fpwRouteGen .rg-config-grid-bottom { grid-template-columns: 1fr; }
       #fpwRouteGen .rg-panel-sub { text-align: left; max-width: none; }
       #fpwRouteGen .rg-statusbar { flex-direction: column; align-items: flex-start; }
       #fpwRouteGen .rg-statusbar #routeGenStatusContext { text-align: left; }
-      #fpwRouteGen .rg-timeline-actions { justify-content: flex-start; }
-      #fpwRouteGen .fpw-routegen__leglockpanel { margin-left: 0; }
       #fpwRouteGen .fpw-routegen__legsearch { grid-template-columns: 1fr; }
     }
 
@@ -1477,14 +1113,6 @@
       #fpwRouteGen .rg-topbar { flex-direction: column; align-items: flex-start; }
       #fpwRouteGen .rg-topbar-right { width: 100%; justify-content: flex-start; }
       #fpwRouteGen .rg-mini-grid { grid-template-columns: 1fr; }
-      #fpwRouteGen .rg-leg-columns,
-      #fpwRouteGen .fpw-routegen__leg {
-        grid-template-columns: 26px minmax(0, 1fr) 52px 66px 90px;
-        gap: 6px;
-      }
-      #fpwRouteGen .rg-leg-columns { padding: 8px; }
-      #fpwRouteGen .fpw-routegen__leg { padding: 8px; }
-      #fpwRouteGen .fpw-routegen__legmapbtn { min-width: 84px; padding: 4px 6px; }
       #fpwRouteGen .fpw-routegen__legmap { min-height: 260px; }
       #fpwRouteGen .fpw-routegen__legoverlaydock { inset: 8px; }
       #fpwRouteGen .rg-actions { width: 100%; justify-content: flex-start; }
@@ -1492,6 +1120,7 @@
       #fpwRouteGen .rg-actions .btn-secondary { flex: 1 1 auto; }
     }
   </style>
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/cruise-timeline.css?v=20261029-shared-timeline">
 
   <div class="rg-modal">
     <div class="rg-topbar">

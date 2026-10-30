@@ -1,0 +1,17 @@
+.fpw-loop-guide .fpw-cruise-timeline--public{margin:22px 0 28px}
+.fpw-cruise-timeline--public .loop-timeline-settings{padding:14px 12px;border-bottom:1px solid var(--fpw-line);margin-bottom:12px}
+.fpw-cruise-timeline--public .loop-departure-row{display:flex;flex-wrap:wrap;align-items:end;gap:14px}
+.fpw-cruise-timeline--public label{display:grid;gap:6px;font-size:12px;color:var(--fpw-muted);min-width:0}
+.fpw-cruise-timeline--public input,.fpw-cruise-timeline--public select{box-sizing:border-box;width:100%;max-width:100%;min-height:44px;border:1px solid var(--fpw-line);border-radius:8px;padding:8px 10px;background:#101b2b;color:var(--fpw-text);font:inherit;font-size:14px;color-scheme:dark}
+.fpw-cruise-timeline--public input:focus-visible,.fpw-cruise-timeline--public select:focus-visible,.fpw-cruise-timeline--public summary:focus-visible{outline:2px solid var(--fpw-accent);outline-offset:3px}
+.fpw-cruise-timeline--public .loop-planning-inputs{margin:12px 0}
+.fpw-cruise-timeline--public .loop-planning-inputs>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:600}
+.fpw-cruise-timeline--public .loop-planning-inputs>summary:before{content:'▸'}
+.fpw-cruise-timeline--public .loop-planning-inputs[open]>summary:before{content:'▾'}
+.fpw-cruise-timeline--public .loop-planning-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.fpw-cruise-timeline--public #loopTimelineStatus{min-height:22px;padding:0 12px}
+.fpw-cruise-timeline--public #loopTimelineTable{min-height:160px}
+.fpw-cruise-timeline--public .loop-departure-row .rg-section-note{margin:0 0 8px}
+.fpw-cruise-timeline--public [hidden]{display:none!important}
+@media(max-width:700px){.fpw-cruise-timeline--public .loop-planning-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:430px){.fpw-cruise-timeline--public .loop-planning-grid{grid-template-columns:1fr}.fpw-cruise-timeline--public .loop-departure-row>label{width:100%}}

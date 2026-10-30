@@ -1,0 +1,95 @@
+ M about.cfm
+ M app/active-cruise.cfm
+ M app/great-loop-anchorage.cfm
+ M app/great-loop-anchorages.cfm
+ M app/great-loop-lock.cfm
+ M app/great-loop-locks.cfm
+ M app/great-loop-port.cfm
+ M app/great-loop-ports.cfm
+ M app/help.cfm
+ M app/user-manual.cfm
+ M assets/css/help.css
+ M assets/css/top-nav.css
+ M assets/css/user-manual.css
+ M assets/js/app/help.js
+ M assets/js/app/user-manual.js
+ M boat-fuel-calculator/boat-fuel-calculator.cfm
+ M boat-loan-calculator/index.cfm
+ M boating-guides/chesapeake-bay/index.cfm
+ M common-boating-emergencies.cfm
+ M faq/index.cfm
+ M fpw_great_loop_clockwise/README.txt
+ M fpw_great_loop_clockwise/assets/css/fpw_great_loop.css
+ M fpw_great_loop_clockwise/assets/js/fpw_great_loop.js
+ D fpw_great_loop_clockwise/index.html
+ M great-loop-bridge.cfm
+ M great-loop/bridges.cfm
+ M great-loop/trip-planning/index.cfm
+ M how-it-works.cfm
+ M includes/fpw_base_path.cfm
+ M includes/header_styles.cfm
+ M includes/top_nav.cfm
+ M index.cfm
+ M partials/fpw-conversion-landing.cfm
+ M shore-contact-overdue-boater.cfm
+ M sitemap.xml
+ M solo-boating-safety-guide.cfm
+ D test-results/codex-qa6-chromium/.last-run.json
+ D test-results/codex-qa6-chromium/tests-safety-language-phas-00e86-sible-on-desktop-and-mobile-chromium/error-context.md
+ D test-results/codex-qa6-chromium/tests-safety-language-phas-0fb99-rizontal-overflow-on-mobile-chromium/error-context.md
+ D test-results/codex-qa6-chromium/tests-safety-language-phas-8e169-ender-on-desktop-and-mobile-chromium/error-context.md
+ D test-results/codex-qa6-webkit/.last-run.json
+ D test-results/codex-qa6-webkit/tests-safety-language-phas-00e86-sible-on-desktop-and-mobile-webkit/error-context.md
+ D test-results/codex-qa6-webkit/tests-safety-language-phas-8e169-ender-on-desktop-and-mobile-webkit/error-context.md
+ D test-results/codex-qa6-webkit/tests-safety-language-phas-f7ba5-ware-safety-copy-on-desktop-webkit/error-context.md
+ M tests/global-help-browser-checks.js
+ M tests/public-resources-nav.spec.js
+ M tests/public-resources-nav.test.mjs
+ M tests/shared-mobile-nav-responsive.spec.js
+ M tests/solo-boating-safety-guide.test.mjs
+ M tests/unified-auth-modal.spec.js
+ M web.config
+ M why-use-a-float-plan.cfm
+?? api/v1/GreatLoopReferenceService.cfc
+?? assets/css/cruising-guides.css
+?? assets/images/navigation/great-loop-trawler.png
+?? assets/images/navigation/hero-chesapeake.jpg
+?? assets/images/navigation/icon-anchor.svg
+?? assets/images/navigation/icon-boat-vessel.svg
+?? assets/images/navigation/icon-bridge.svg
+?? assets/images/navigation/icon-calculator.svg
+?? assets/images/navigation/icon-chevron-right.svg
+?? assets/images/navigation/icon-clock.svg
+?? assets/images/navigation/icon-document.svg
+?? assets/images/navigation/icon-explore.svg
+?? assets/images/navigation/icon-float-plan.svg
+?? assets/images/navigation/icon-fuel-pump.svg
+?? assets/images/navigation/icon-help.svg
+?? assets/images/navigation/icon-learn.svg
+?? assets/images/navigation/icon-lock.svg
+?? assets/images/navigation/icon-marine-weather.svg
+?? assets/images/navigation/icon-mileage-override.svg
+?? assets/images/navigation/icon-pin.svg
+?? assets/images/navigation/icon-plan.svg
+?? assets/images/navigation/icon-route-planning.svg
+?? assets/images/navigation/icon-search.svg
+?? assets/images/navigation/icon-ship.svg
+?? assets/images/navigation/icon-tools.svg
+?? assets/images/navigation/icon-user.svg
+?? assets/images/navigation/icon-waves.svg
+?? assets/images/navigation/thumb-chesapeake.jpg
+?? assets/images/navigation/thumb-greatloop.jpg
+?? boating-guides/index.cfm
+?? fpw_great_loop_clockwise/index.cfm
+?? output/commit-review/scope.json
+?? test-results/.last-run.json
+?? test-results/tests-public-resources-nav-9699a-e-and-zoom-equivalent-sizes/tools-1280x720.png
+?? test-results/tests-public-resources-nav-9699a-e-and-zoom-equivalent-sizes/tools-1440x900.png
+?? test-results/tests-public-resources-nav-9699a-e-and-zoom-equivalent-sizes/tools-390x844.png
+?? test-results/tests-public-resources-nav-9699a-e-and-zoom-equivalent-sizes/tools-640x360.png
+?? tests/cruising-guides-navigation.spec.js
+?? tests/fixtures/great-loop-reference-20261028.json
+?? tests/great-loop-reference-page.spec.js
+?? tests/great-loop-reference-runner.cfm
+?? tests/navigation-anchor-arrival.spec.js
+?? tests/specs/GreatLoopReferenceServiceSpec.cfc

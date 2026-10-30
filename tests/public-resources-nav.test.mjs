@@ -68,7 +68,7 @@ test("approved menus retain real route, guide, and documentation destinations", 
     "/app/dashboard.cfm?recoveryAction=plans", "/app/active-cruise.cfm",
     "/boating-guides/", "/boating-guides/chesapeake-bay/", "/great-loop/trip-planning/",
     "/great-loop/ports/", "/great-loop/anchorages/", "/great-loop/bridges/", "/great-loop/locks/",
-    "/fpw_great_loop_clockwise/index.html", "/solo-boating-safety-guide/",
+    "/fpw_great_loop_clockwise/", "/solo-boating-safety-guide/",
     "/shore-contact-overdue-boater/", "/common-boating-emergencies/", "/why-use-a-float-plan/",
     "/boat-fuel-calculator/", "/boat-loan-calculator/", "/app/weather.cfm",
     "/app/user-manual.cfm", "/faq/", "/app/contact.cfm?mode=support", "/app/contact.cfm?mode=feedback"

@@ -24,7 +24,7 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20261027-route-row-centering">
+<link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/dashboard-console.css?v=20261030-dashboard-full-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/help-tour.css?v=20260526-cache-bump">
 </head>
 <body class="dashboard-body" data-fpw-page="dashboard" data-auth-wait-for-continue="<cfoutput>#request.fpwAuthWaitForContinue ? 'true' : 'false'#</cfoutput>" data-auth-overview="<cfoutput>#request.fpwAuthOverview ? 'true' : 'false'#</cfoutput>" data-auth-handoff="<cfoutput>#encodeForHTMLAttribute(serializeJSON(request.fpwAuthHandoff))#</cfoutput>" data-auth-created="<cfoutput>#len(request.fpwAuthCreatedEmail) ? 'true' : 'false'#</cfoutput>" data-recovery-intent="<cfoutput>#encodeForHtmlAttribute(serializeJSON(fpwRecoveryIntent))#</cfoutput>" data-recovery-login-url="<cfoutput>#encodeForHtmlAttribute(fpwRecoveryLoginUrl)#</cfoutput>">
@@ -34,39 +34,7 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 <cfinclude template="../includes/top_nav.cfm">
 
 
-<div class="fpw-dashboard-shell fpw-layout-rail">
-    <aside class="fpw-dashboard-sidebar" aria-label="Dashboard navigation">
-        <a class="fpw-dashboard-brand" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm">
-            <span class="fpw-dashboard-brand-mark" aria-hidden="true">
-                <svg viewBox="0 0 32 32" focusable="false">
-                    <circle cx="16" cy="16" r="12"></circle>
-                    <path d="M16 2v28M2 16h28"></path>
-                    <path d="M16 5l4 11-4 11-4-11z"></path>
-                    <path d="M5 16l11-4 11 4-11 4z"></path>
-                </svg>
-            </span>
-            <span class="fpw-dashboard-brand-text">
-                <span>FloatPlan</span>
-                <span>Wizard</span>
-            </span>
-        </a>
-
-        <nav class="fpw-dashboard-nav" aria-label="Mission Control sections">
-            <a class="fpw-dashboard-nav-item is-active" href="<cfoutput>#request.fpwBase#</cfoutput>/app/dashboard.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 13a8 8 0 0 1 16 0"></path><path d="M6 13v4a2 2 0 0 0 2 2h1v-8H8a2 2 0 0 0-2 2z"></path><path d="M18 13v4a2 2 0 0 1-2 2h-1v-8h1a2 2 0 0 1 2 2z"></path></svg></span><span>Dashboard</span></a>
-            <a class="fpw-dashboard-nav-item" href="#expeditionTimelinePanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="6" cy="7" r="2.5"></circle><circle cx="18" cy="5" r="2.5"></circle><circle cx="16" cy="18" r="2.5"></circle><path d="M8.4 6.5l7.2-1M7.9 8.7l6.3 7.1M6 9.5v5"></path><circle cx="6" cy="17" r="2.5"></circle></svg></span><span>Routes</span></a>
-            <a class="fpw-dashboard-nav-item" href="#expeditionTimelinePanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="7" y="4" width="10" height="16" rx="1.8"></rect><path d="M9.5 4a2.5 2.5 0 0 1 5 0M9.5 9h5M9.5 13h5M9.5 17h3"></path></svg></span><span>Float Plans</span></a>
-            <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/monitoring.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M6 17h12l-1.4-2V10a4.6 4.6 0 0 0-9.2 0v5z"></path><path d="M10 20h4M12 5V3"></path></svg></span><span>Monitoring</span></a>
-            <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/weather.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 16.5H6a3 3 0 1 1 .8-5.9A4.8 4.8 0 0 1 16 12h1a2.5 2.5 0 0 1 0 5h-2"></path><path d="M12 16l-2 3h3l-2 3M4 6l1.5 1.5M12 2v3M20 6l-1.5 1.5"></path></svg></span><span>Weather</span></a>
-            <a class="fpw-dashboard-nav-item" href="#vesselsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 18h10l3-5H4z"></path><path d="M9 13V7h6v6M11 7l1-3 1 3M5 20c1.2 0 1.2-1 2.4-1s1.2 1 2.4 1 1.2-1 2.4-1 1.2 1 2.4 1 1.2-1 2.4-1 1.2 1 2.4 1"></path></svg></span><span>Vessels</span></a>
-            <a class="fpw-dashboard-nav-item" href="#contactsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M14.5 17.2a4.5 4.5 0 0 1 6 1.8"></path></svg></span><span>Contacts</span></a>
-            <a class="fpw-dashboard-nav-item" href="#waypointsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21s7-6.1 7-12a7 7 0 0 0-14 0c0 5.9 7 12 7 12z"></path><circle cx="12" cy="9" r="2.4"></circle></svg></span><span>Waypoints</span></a>
-            <a class="fpw-dashboard-nav-item" href="#passengersPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="8" cy="8" r="2.8"></circle><circle cx="16" cy="8" r="2.8"></circle><path d="M3 19a5 5 0 0 1 10 0M11 19a5 5 0 0 1 10 0"></path></svg></span><span>Crew</span></a>
-            <a class="fpw-dashboard-nav-item" href="#operatorsPanel"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="7" r="3"></circle><path d="M6 20a6 6 0 0 1 12 0"></path><path d="M4 14a4 4 0 0 1 4-4M20 14a4 4 0 0 0-4-4"></path></svg></span><span>Operators</span></a>
-            <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/account.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M4.5 4.5l2.1 2.1M17.4 17.4l2.1 2.1M2.5 12h3M18.5 12h3M4.5 19.5l2.1-2.1M17.4 6.6l2.1-2.1"></path></svg></span><span>Settings</span></a>
-            <a class="fpw-dashboard-nav-item" href="<cfoutput>#request.fpwBase#</cfoutput>/app/help.cfm"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="9"></circle><path d="M9.8 9a2.3 2.3 0 1 1 3.8 1.8c-.9.6-1.6 1.2-1.6 2.4M12 17h.01"></path></svg></span><span>Help</span></a>
-            <button type="button" class="fpw-dashboard-nav-item fpw-dashboard-tour-trigger" data-tour-start="dashboard"><span class="fpw-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 5h9a5 5 0 0 1 0 10H9"></path><path d="M9 11 5 15l4 4"></path><path d="M17 5l2-2M20 9h3M18.5 13.5 21 16"></path></svg></span><span>Tour</span></button>
-        </nav>
-    </aside>
+<div class="fpw-dashboard-shell">
 
     <main class="fpw-dashboard-main dashboard-main">
         <div id="dashboardAlert" data-clarity-mask="True" class="alert d-none" role="alert"></div>
@@ -1619,8 +1587,9 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/operators.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/waypoints.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260815-reserve-mode"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/cruise-timeline-view.js?v=20261029-shared-timeline"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20261001-member-profile"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20260924-recovery-actions"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20261029-shared-timeline"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20261001-auth-overview"></script>

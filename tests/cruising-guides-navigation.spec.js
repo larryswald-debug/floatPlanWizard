@@ -88,7 +88,7 @@ test("guide tabs remain real anchors and reach unobscured existing sections at e
 });
 
 test("approved Great Loop leg search anchor reaches its existing filter", async ({ page }) => {
-  await page.goto(baseUrl + "/fpw_great_loop_clockwise/index.html#search", { waitUntil: "domcontentloaded" });
+  await page.goto(baseUrl + "/fpw_great_loop_clockwise/#search", { waitUntil: "domcontentloaded" });
   const search = page.locator("#search");
   await expect(search).toHaveCount(1);
   await expect(search).toBeVisible();

@@ -20,6 +20,12 @@ Disallow: /archive_09052021/
 Disallow: /archive_20210710/
 Disallow: /archive_20201227/
 Disallow: /archive/
+# Great Loop reference: allow the clean canonical URL, redirect aliases, and rendering assets.
+# Other files in this former static directory remain excluded.
+Allow: /fpw_great_loop_clockwise/$
+Allow: /fpw_great_loop_clockwise/index.cfm$
+Allow: /fpw_great_loop_clockwise/index.html$
+Allow: /fpw_great_loop_clockwise/assets/
 Disallow: /fpw_great_loop_clockwise/
 
 # Private/admin/application internals

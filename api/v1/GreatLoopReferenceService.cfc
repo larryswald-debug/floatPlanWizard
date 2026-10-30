@@ -4,7 +4,7 @@ component output="false" hint="Read-only Great Loop reference built from the act
         return this;
     }
 
-    public struct function getModel() {
+    private struct function getActiveTemplate() {
         // Same public-template eligibility as routeBuilder.routegenResolveTemplate,
         // restricted to the Great Loop family so a Gulf template cannot replace this page.
         var candidates = queryExecute("
@@ -18,7 +18,11 @@ component output="false" hint="Read-only Great Loop reference built from the act
             {userPrefix={value="USER_ROUTE_%",cfsqltype="cf_sql_varchar"},
              family={value="GREAT_LOOP_",cfsqltype="cf_sql_varchar"}},
             {datasource=variables.datasource});
-        var template = selectTemplate(candidates);
+        return selectTemplate(candidates);
+    }
+
+    public struct function getModel() {
+        var template = getActiveTemplate();
         // Endpoint precedence and stored CCW order match routeBuilder.routegenLoadMainLegs.
         var legs = queryExecute("
             SELECT rts.order_index AS leg_number,
@@ -51,6 +55,75 @@ component output="false" hint="Read-only Great Loop reference built from the act
             {routeCode={value=template.short_code,cfsqltype="cf_sql_varchar"}},
             {datasource=variables.datasource});
         return buildModel(template, legs, locks);
+    }
+
+    // Public planning is read-only and always uses this server-selected template.
+    // No caller-supplied member, route, template, geometry or distance is accepted.
+    public struct function getTimeline(required string startDate, struct inputs={}) {
+        var template = getActiveTemplate();
+        var planning = planningService();
+        var legs = planning.loadMainLegs(template.id, "CCW");
+        var engine = timelineService();
+        var timeline = engine.calculateCruiseTimeline(
+            legs=legs,
+            startDate=arguments.startDate,
+            inputs=validatePlanningInputs(arguments.inputs),
+            sourceMeta={route_type="public_template", distance_source="active_template"}
+        );
+        return {"success"=timeline.success, "timeline"=timeline, "legs"=legs,
+                "defaults"=engine.getPlanningDefaults(), "template_code"=template.short_code};
+    }
+
+    public struct function getTimelineLockDetails(required numeric legOrder) {
+        var template = getActiveTemplate();
+        var planning = planningService();
+        var legs = planning.loadMainLegs(template.id, "CCW");
+        for (var leg in legs) {
+            if (val(leg.ORDER_INDEX) EQ arguments.legOrder) {
+                var result = planning.loadLegLocks(templateCode=template.short_code,
+                    segmentId=leg.SEGMENT_ID, legOrder=leg.ORDER_INDEX, allowTemplateFallback=false);
+                if (structKeyExists(result, "DATA")) {
+                    result.DATA["start_name"] = leg.START_NAME;
+                    result.DATA["end_name"] = leg.END_NAME;
+                    result.DATA["expected_lock_count"] = leg.LOCK_COUNT;
+                }
+                return result;
+            }
+        }
+        throw(type="GreatLoopReference.InvalidInput", message="Select a valid Great Loop leg.");
+    }
+
+    private struct function validatePlanningInputs(required struct inputs) {
+        var numericFields = "cruising_speed,max_speed_kn,underway_hours_per_day,fuel_burn_gph,vessel_max_speed_kn,vessel_most_efficient_speed_kn,vessel_gph_at_most_efficient_speed,reserve_pct,weather_factor_pct";
+        var clean = {};
+        for (var key in arguments.inputs) {
+            var value = arguments.inputs[key];
+            if (!isSimpleValue(value)) throw(type="GreatLoopReference.InvalidInput", message="Invalid planning input.");
+            value = trim(toString(value));
+            if (listFindNoCase(numericFields, key)) {
+                if (len(value) AND (!isNumeric(value) OR val(value) LT 0 OR val(value) GT 10000)) {
+                    throw(type="GreatLoopReference.InvalidInput", message="Planning values must be nonnegative numbers.");
+                }
+                clean[lCase(key)] = value;
+            } else if (compareNoCase(key,"pace") EQ 0 AND listFindNoCase("RELAXED,BALANCED,AGGRESSIVE",value)) {
+                clean.pace = uCase(value);
+            } else if (compareNoCase(key,"reserve_mode") EQ 0 AND listFindNoCase("thirds,percentage",value)) {
+                clean.reserve_mode = lCase(value);
+            } else {
+                throw(type="GreatLoopReference.InvalidInput", message="Unsupported planning input.");
+            }
+        }
+        return clean;
+    }
+
+    private any function planningService() {
+        try { return createObject("component", "api.v1.RouteTemplatePlanningService").init(variables.datasource); }
+        catch (any componentPathError) { return createObject("component", "fpw.api.v1.RouteTemplatePlanningService").init(variables.datasource); }
+    }
+
+    private any function timelineService() {
+        try { return createObject("component", "api.v1.RouteTimelineService").init(variables.datasource); }
+        catch (any componentPathError) { return createObject("component", "fpw.api.v1.RouteTimelineService").init(variables.datasource); }
     }
 
     private struct function selectTemplate(required query candidates) {

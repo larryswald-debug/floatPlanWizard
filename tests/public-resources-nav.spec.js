@@ -105,7 +105,7 @@ test("approved shared navigation fits all required desktop, tablet, and mobile w
     await expect(explore.locator('a[href="' + href("/boating-guides/chesapeake-bay/") + '"]')).toBeVisible();
     await expect(explore.locator('a[href="' + href("/great-loop/trip-planning/") + '"]')).toBeVisible();
     await expect(explore.locator('a[href="' + href("/boating-guides/") + '"]')).toContainText("All Cruising Guides");
-    await expect(explore.locator('a[href="' + href("/fpw_great_loop_clockwise/index.html#search") + '"]')).toHaveCount(0);
+    await expect(explore.locator('a[href="' + href("/fpw_great_loop_clockwise/#search") + '"]')).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(toggleFor(page, "explore")).toHaveAttribute("aria-expanded", "false");
     if (width <= 1040) {

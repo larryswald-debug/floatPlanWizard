@@ -778,6 +778,7 @@
                     slice.slice_hours = roundTo2(val(structKeyExists(slice, "slice_hours") ? slice.slice_hours : 0));
                     slice.segment_dist_nm = roundTo2(val(structKeyExists(slice, "segment_dist_nm") ? slice.segment_dist_nm : 0));
                     slice.segment_hours = roundTo2(val(structKeyExists(slice, "segment_hours") ? slice.segment_hours : 0));
+                    slice.segment_cruising_hours = roundTo2(val(structKeyExists(slice, "segment_cruising_hours") ? slice.segment_cruising_hours : 0));
                     slice.lock_count = int(val(structKeyExists(slice, "lock_count") ? slice.lock_count : 0));
                     slice.order_index = int(val(structKeyExists(slice, "order_index") ? slice.order_index : 0));
                     slice.route_leg_id = int(val(structKeyExists(slice, "route_leg_id") ? slice.route_leg_id : 0));
@@ -833,7 +834,6 @@
             var startDateVal = trim(toString(arguments.startDate));
             var routeTypeVal = lCase(trim(toString(arguments.routeType)));
             var isMyRouteType = false;
-            var maxHoursVal = val(arguments.maxHoursPerDay);
             var currentDate = now();
             var hasInputsJsonCol = false;
             var qInstSql = "";
@@ -842,25 +842,6 @@
             var myRouteRow = {};
             var storedInputs = {};
             var effectiveInputs = {};
-            var paceVal = "RELAXED";
-            var paceDefaults = {};
-            var paceRatioVal = 0;
-            var maxSpeedVal = 0;
-            var effectiveSpeedVal = 0;
-            var fuelMeta = {
-                "fuel_burn_gph"=0,
-                "fuel_source"="missing",
-                "fuel_key"="",
-                "fuel_resolved"=false
-            };
-            var fuelBurnGphVal = 0;
-            var maxBurnForEstimateVal = 0;
-            var weatherFactorPctVal = 0;
-            var reservePctVal = 33;
-            var reserveModeVal = "thirds";
-            var timelineFuelEstimateMeta = {};
-            var performanceMeta = {};
-            var allowAnchoredBurnVal = false;
             var normalizedLegJoinSql = "";
             var normalizedSegJoinSql = "";
             var normalizedUsoJoinSql = "";
@@ -888,52 +869,6 @@
             var previewLeg = {};
             var segSource = "route_instance_legs";
             var i = 0;
-            var segIdVal = 0;
-            var segRouteLegIdVal = 0;
-            var segSegmentIdVal = 0;
-            var segOrderIndexVal = 0;
-            var segStartName = "";
-            var segEndName = "";
-            var segDistNm = 0;
-            var segLockCount = 0;
-            var segLockTimeMin = 0.0;
-            var segIsOffshoreVal = 0;
-            var segExposureOverrideVal = "";
-            var segBaseDistNm = 0;
-            var segStartLatRaw = "";
-            var segStartLngRaw = "";
-            var segEndLatRaw = "";
-            var segEndLngRaw = "";
-            var computedMyRouteDefaultNm = 0;
-            var exposureInfo = {};
-            var exposureSourceVal = "";
-            var exposureCoeffVal = 1;
-            var effectiveWeatherPctSegVal = 0;
-            var weatherAdjustedSpeedThisSegVal = 0;
-            var segHours = 0;
-            var exposureSourceCounts = {
-                "override"=0,
-                "auto_offshore"=0,
-                "auto_inshore"=0
-            };
-            var exposureMaxLevelVal = 0;
-            var exposureCoeffMaxVal = 0;
-            var effectiveWeatherPctMaxVal = 0;
-            var legIndex = 1;
-            var days = [];
-            var totalCruiseNm = 0;
-            var totalRequiredFuel = 0;
-            var currentDay = {};
-            var finalizedDay = {};
-            var remainingSegHours = 0;
-            var remainingSegDistNm = 0;
-            var remainingDayCapacity = 0;
-            var sliceHoursVal = 0;
-            var sliceDistNm = 0;
-            var sliceLockCount = 0;
-            var segmentLockAssigned = false;
-            var sliceMeta = {};
-            var sliceEpsilon = 0.0001;
             if (userIdVal LTE 0) {
                 out.message = "Unauthorized";
                 out.error = { "message"="No logged-in user session." };
@@ -1020,97 +955,6 @@
                 storedInputs = routegenParseStoredInputs(qInst.routegen_inputs_json[1]);
             }
             effectiveInputs = routegenBuildTimelineInputs(storedInputs, arguments.inputOverrides);
-            if (structKeyExists(effectiveInputs, "underway_hours_per_day")) {
-                maxHoursVal = routegenNormalizeUnderwayHours(effectiveInputs.underway_hours_per_day);
-            } else {
-                maxHoursVal = routegenNormalizeUnderwayHours(arguments.maxHoursPerDay);
-            }
-            performanceMeta = routegenResolvePerformanceModel(
-                effectiveInputs,
-                (structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED")
-            );
-            allowAnchoredBurnVal = routegenCanUseAnchoredBurn(performanceMeta);
-            fuelMeta = resolveTimelineFuelBurnFromInputs(effectiveInputs);
-            fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
-            maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
-            out.timeline_meta = {
-                "fuel_burn_gph"=roundTo2(fuelBurnGphVal),
-                "weather_adjusted_fuel_burn_gph"=0,
-                "fuel_source"=trim(toString(performanceMeta.fuel_source)),
-                "fuel_key"=trim(toString(performanceMeta.fuel_key)),
-                "fuel_resolved"=(fuelBurnGphVal GT 0),
-                "route_type"=(isMyRouteType ? "my_route" : "generated"),
-                "distance_source"=segSource,
-                "preview_legs_ignored"=previewLegsIgnored,
-                "hours_source"="weather_adjusted_speed",
-                "effective_speed_kn"=roundTo2(performanceMeta.effective_speed_kn),
-                "speed_source"=trim(toString(performanceMeta.speed_source)),
-                "most_efficient_speed_kn"=roundTo2(performanceMeta.most_efficient_speed_kn),
-                "most_efficient_burn_gph"=roundTo2(performanceMeta.most_efficient_burn_gph),
-                "pace_ratio"=roundTo2(performanceMeta.pace_ratio),
-                "burn_model"=trim(toString(performanceMeta.burn_model)),
-                "exposure_enabled"=true,
-                "exposure_max_level"=0,
-                "exposure_sources"={
-                    "override"=0,
-                    "auto_offshore"=0,
-                    "auto_inshore"=0
-                },
-                "exposure_coefficient_max"=0,
-                "effective_weather_pct_max"=0
-            };
-            paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED");
-            paceDefaults = routegenPaceDefaults(paceVal);
-            paceRatioVal = val(performanceMeta.pace_ratio);
-            if (paceRatioVal LTE 0) {
-                paceRatioVal = val(paceDefaults.PACE_FACTOR);
-            }
-            if (paceVal NEQ "BALANCED") {
-                if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
-                if (paceRatioVal GT 1) paceRatioVal = 1;
-            }
-            maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
-            effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(
-                maxSpeedVal,
-                paceVal,
-                performanceMeta.most_efficient_speed_kn
-            );
-            if (effectiveSpeedVal LTE 0) effectiveSpeedVal = 1;
-            weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
-                structKeyExists(effectiveInputs, "weather_factor_pct")
-                    ? effectiveInputs.weather_factor_pct
-                    : (structKeyExists(effectiveInputs, "weather_factor") ? effectiveInputs.weather_factor : "")
-            );
-            reservePctVal = routegenNormalizeReservePct(
-                structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
-                33
-            );
-            reserveModeVal = routegenNormalizeReserveMode(
-                structKeyExists(effectiveInputs, "reserve_mode") ? effectiveInputs.reserve_mode : "",
-                reservePctVal
-            );
-            out.timeline_meta.reserve_pct = reservePctVal;
-            out.timeline_meta.reserve_mode = reserveModeVal;
-            timelineFuelEstimateMeta = calculateFuelEstimate({
-                "distanceNm"=1,
-                "maxSpeedKnots"=maxSpeedVal,
-                "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
-                "efficientSpeedKnots"=performanceMeta.most_efficient_speed_kn,
-                "efficientBurnGph"=performanceMeta.most_efficient_burn_gph,
-                "pace"=paceVal,
-                "paceRatio"=paceRatioVal,
-                "weatherPct"=weatherFactorPctVal,
-                "idleFuelGallons"=0,
-                "reservePct"=reservePctVal,
-                "reserveMode"=reserveModeVal,
-                "allowAnchoredBurn"=allowAnchoredBurnVal
-            });
-            out.timeline_meta.weather_adjusted_fuel_burn_gph = roundTo2(
-                structKeyExists(timelineFuelEstimateMeta, "weatherAdjustedBurnGph")
-                    ? timelineFuelEstimateMeta.weatherAdjustedBurnGph
-                    : 0
-            );
-
             if (usePreviewLegs) {
                 qSegments = queryNew("id,route_leg_id,order_index,start_name,end_name,dist_nm,lock_count,lock_time_min_total,is_offshore,is_icw,exposure_level,segment_id,segment_dist_nm,start_lat,start_lng,end_lat,end_lng");
                 for (i = 1; i LTE arrayLen(normalizedPreviewLegs); i++) {
@@ -1299,6 +1143,296 @@
                     { datasource = variables.datasource }
                 );
             }
+            return calculateCruiseTimeline(
+                legs = qSegments,
+                startDate = arguments.startDate,
+                inputs = effectiveInputs,
+                maxHoursPerDay = arguments.maxHoursPerDay,
+                sourceMeta = {
+                    "route_type"=(isMyRouteType ? "my_route" : "generated"),
+                    "distance_source"=segSource,
+                    "preview_legs_ignored"=previewLegsIgnored
+                }
+            );
+        </cfscript>
+    </cffunction>
+
+<!--- Form defaults are derived from the same normalizers used by the calculation engine. --->
+<cffunction name="getPlanningDefaults" access="public" returntype="struct" output="false">
+        <cfscript>
+            var pace = routegenNormalizePace();
+            var paceDefaults = routegenPaceDefaults(pace);
+            var maxSpeed = routegenNormalizeCruisingSpeed("", paceDefaults.MAX_SPEED_KN);
+            var reservePct = routegenNormalizeReservePct();
+            return {
+                "pace"=pace,
+                "cruising_speed"=maxSpeed,
+                "max_speed_kn"=maxSpeed,
+                "underway_hours_per_day"=routegenNormalizeUnderwayHours(),
+                "weather_factor_pct"=routegenNormalizeWeatherFactorPct(),
+                "reserve_pct"=reservePct,
+                "reserve_mode"=routegenNormalizeReserveMode("", reservePct),
+                "fuel_burn_gph"=""
+            };
+        </cfscript>
+    </cffunction>
+
+
+<!--- One read-only calculation path for owned routes and server-selected public templates.
+      This method is deliberately public, not remote: callers must load/authorize source data.
+      Array legs use the existing preview contract; query legs preserve owned-route precision. --->
+<cffunction name="calculateCruiseTimeline" access="public" returntype="struct" output="false">
+        <cfargument name="legs" type="any" required="true">
+        <cfargument name="startDate" type="string" required="true">
+        <cfargument name="inputs" type="struct" required="false" default="#structNew()#">
+        <cfargument name="maxHoursPerDay" type="numeric" required="false" default="6.5">
+        <cfargument name="sourceMeta" type="struct" required="false" default="#structNew()#">
+        <cfscript>
+            var out = {
+                "success"=false,
+                "route_summary"={
+                    "total_days"=0,
+                    "total_nm"=0,
+                    "total_required_fuel"=0
+                },
+                "timeline_meta"={
+                    "fuel_burn_gph"=0,
+                    "fuel_source"="missing",
+                    "fuel_key"="",
+                    "fuel_resolved"=false,
+                    "distance_source"="route_instance_legs",
+                    "preview_legs_ignored"=false,
+                    "hours_source"="weather_adjusted_speed",
+                    "exposure_enabled"=true,
+                    "exposure_max_level"=0,
+                    "exposure_sources"={
+                        "override"=0,
+                        "auto_offshore"=0,
+                        "auto_inshore"=0
+                    },
+                    "exposure_coefficient_max"=0,
+                    "effective_weather_pct_max"=0
+                },
+                "days"=[]
+            };
+            var startDateVal = trim(toString(arguments.startDate));
+            var currentDate = now();
+            var routeTypeVal = lCase(trim(toString(structKeyExists(arguments.sourceMeta, "route_type") ? arguments.sourceMeta.route_type : "generated")));
+            var isMyRouteType = (routeTypeVal EQ "my_route" OR routeTypeVal EQ "my_routes" OR routeTypeVal EQ "custom");
+            var segSource = toString(structKeyExists(arguments.sourceMeta, "distance_source") ? arguments.sourceMeta.distance_source : "preview_legs");
+            var previewLegsIgnored = (structKeyExists(arguments.sourceMeta, "preview_legs_ignored") AND arguments.sourceMeta.preview_legs_ignored);
+            var maxHoursVal = val(arguments.maxHoursPerDay);
+            // Stored inputs have already been merged with validated overrides by the owned wrapper.
+            // Preserve that resolved struct and let the existing canonical helpers apply defaults.
+            var effectiveInputs = routegenBuildTimelineInputs(arguments.inputs, {});
+            var qSegments = queryNew("");
+            var normalizedPreviewLegs = [];
+            var previewLeg = {};
+            var i = 0;
+            var paceVal = "RELAXED";
+            var paceDefaults = {};
+            var paceRatioVal = 0;
+            var maxSpeedVal = 0;
+            var effectiveSpeedVal = 0;
+            var fuelMeta = {
+                "fuel_burn_gph"=0,
+                "fuel_source"="missing",
+                "fuel_key"="",
+                "fuel_resolved"=false
+            };
+            var fuelBurnGphVal = 0;
+            var maxBurnForEstimateVal = 0;
+            var weatherFactorPctVal = 0;
+            var reservePctVal = 33;
+            var reserveModeVal = "thirds";
+            var timelineFuelEstimateMeta = {};
+            var performanceMeta = {};
+            var allowAnchoredBurnVal = false;
+            var segIdVal = 0;
+            var segRouteLegIdVal = 0;
+            var segSegmentIdVal = 0;
+            var segOrderIndexVal = 0;
+            var segStartName = "";
+            var segEndName = "";
+            var segDistNm = 0;
+            var segLockCount = 0;
+            var segLockTimeMin = 0.0;
+            var segIsOffshoreVal = 0;
+            var segExposureOverrideVal = "";
+            var segBaseDistNm = 0;
+            var segStartLatRaw = "";
+            var segStartLngRaw = "";
+            var segEndLatRaw = "";
+            var segEndLngRaw = "";
+            var computedMyRouteDefaultNm = 0;
+            var exposureInfo = {};
+            var exposureSourceVal = "";
+            var exposureCoeffVal = 1;
+            var effectiveWeatherPctSegVal = 0;
+            var weatherAdjustedSpeedThisSegVal = 0;
+            var segHours = 0;
+            var segCruisingHours = 0;
+            var exposureSourceCounts = {
+                "override"=0,
+                "auto_offshore"=0,
+                "auto_inshore"=0
+            };
+            var exposureMaxLevelVal = 0;
+            var exposureCoeffMaxVal = 0;
+            var effectiveWeatherPctMaxVal = 0;
+            var legIndex = 1;
+            var days = [];
+            var totalCruiseNm = 0;
+            var totalRequiredFuel = 0;
+            var currentDay = {};
+            var finalizedDay = {};
+            var remainingSegHours = 0;
+            var remainingSegDistNm = 0;
+            var remainingDayCapacity = 0;
+            var sliceHoursVal = 0;
+            var sliceDistNm = 0;
+            var sliceLockCount = 0;
+            var segmentLockAssigned = false;
+            var sliceMeta = {};
+            var sliceEpsilon = 0.0001;
+            if (!len(startDateVal) OR !reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", startDateVal)) {
+                out.message = "Invalid startDate";
+                out.error = { "message"="startDate must be yyyy-mm-dd." };
+                return out;
+            }
+            try {
+                currentDate = parseDateTime(startDateVal);
+            } catch (any eDate) {
+                out.message = "Invalid startDate";
+                out.error = { "message"="Unable to parse startDate." };
+                return out;
+            }
+            if (structKeyExists(effectiveInputs, "underway_hours_per_day")) {
+                maxHoursVal = routegenNormalizeUnderwayHours(effectiveInputs.underway_hours_per_day);
+            } else {
+                maxHoursVal = routegenNormalizeUnderwayHours(arguments.maxHoursPerDay);
+            }
+            performanceMeta = routegenResolvePerformanceModel(
+                effectiveInputs,
+                (structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED")
+            );
+            allowAnchoredBurnVal = routegenCanUseAnchoredBurn(performanceMeta);
+            fuelMeta = resolveTimelineFuelBurnFromInputs(effectiveInputs);
+            fuelBurnGphVal = routegenNormalizeFuelBurnGph(performanceMeta.fuel_burn_gph);
+            maxBurnForEstimateVal = routegenNormalizeFuelBurnGph(performanceMeta.max_burn_for_estimate);
+            out.timeline_meta = {
+                "fuel_burn_gph"=roundTo2(fuelBurnGphVal),
+                "weather_adjusted_fuel_burn_gph"=0,
+                "fuel_source"=trim(toString(performanceMeta.fuel_source)),
+                "fuel_key"=trim(toString(performanceMeta.fuel_key)),
+                "fuel_resolved"=(fuelBurnGphVal GT 0),
+                "route_type"=(isMyRouteType ? "my_route" : "generated"),
+                "distance_source"=segSource,
+                "preview_legs_ignored"=previewLegsIgnored,
+                "hours_source"="weather_adjusted_speed",
+                "effective_speed_kn"=roundTo2(performanceMeta.effective_speed_kn),
+                "speed_source"=trim(toString(performanceMeta.speed_source)),
+                "most_efficient_speed_kn"=roundTo2(performanceMeta.most_efficient_speed_kn),
+                "most_efficient_burn_gph"=roundTo2(performanceMeta.most_efficient_burn_gph),
+                "pace_ratio"=roundTo2(performanceMeta.pace_ratio),
+                "burn_model"=trim(toString(performanceMeta.burn_model)),
+                "exposure_enabled"=true,
+                "exposure_max_level"=0,
+                "exposure_sources"={
+                    "override"=0,
+                    "auto_offshore"=0,
+                    "auto_inshore"=0
+                },
+                "exposure_coefficient_max"=0,
+                "effective_weather_pct_max"=0
+            };
+            paceVal = routegenNormalizePace(structKeyExists(effectiveInputs, "pace") ? effectiveInputs.pace : "RELAXED");
+            paceDefaults = routegenPaceDefaults(paceVal);
+            paceRatioVal = val(performanceMeta.pace_ratio);
+            if (paceRatioVal LTE 0) {
+                paceRatioVal = val(paceDefaults.PACE_FACTOR);
+            }
+            if (paceVal NEQ "BALANCED") {
+                if (paceRatioVal LT 0.05) paceRatioVal = 0.05;
+                if (paceRatioVal GT 1) paceRatioVal = 1;
+            }
+            maxSpeedVal = routegenNormalizeCruisingSpeed(performanceMeta.max_speed_kn, paceDefaults.MAX_SPEED_KN);
+            effectiveSpeedVal = routegenComputeEffectiveCruisingSpeed(
+                maxSpeedVal,
+                paceVal,
+                performanceMeta.most_efficient_speed_kn
+            );
+            if (effectiveSpeedVal LTE 0) effectiveSpeedVal = 1;
+            weatherFactorPctVal = routegenNormalizeWeatherFactorPct(
+                structKeyExists(effectiveInputs, "weather_factor_pct")
+                    ? effectiveInputs.weather_factor_pct
+                    : (structKeyExists(effectiveInputs, "weather_factor") ? effectiveInputs.weather_factor : "")
+            );
+            reservePctVal = routegenNormalizeReservePct(
+                structKeyExists(effectiveInputs, "reserve_pct") ? effectiveInputs.reserve_pct : "",
+                33
+            );
+            reserveModeVal = routegenNormalizeReserveMode(
+                structKeyExists(effectiveInputs, "reserve_mode") ? effectiveInputs.reserve_mode : "",
+                reservePctVal
+            );
+            out.timeline_meta.reserve_pct = reservePctVal;
+            out.timeline_meta.reserve_mode = reserveModeVal;
+            timelineFuelEstimateMeta = calculateFuelEstimate({
+                "distanceNm"=1,
+                "maxSpeedKnots"=maxSpeedVal,
+                "maxBurnGph"=(maxBurnForEstimateVal GT 0 ? maxBurnForEstimateVal : fuelBurnGphVal),
+                "efficientSpeedKnots"=performanceMeta.most_efficient_speed_kn,
+                "efficientBurnGph"=performanceMeta.most_efficient_burn_gph,
+                "pace"=paceVal,
+                "paceRatio"=paceRatioVal,
+                "weatherPct"=weatherFactorPctVal,
+                "idleFuelGallons"=0,
+                "reservePct"=reservePctVal,
+                "reserveMode"=reserveModeVal,
+                "allowAnchoredBurn"=allowAnchoredBurnVal
+            });
+            out.timeline_meta.weather_adjusted_fuel_burn_gph = roundTo2(
+                structKeyExists(timelineFuelEstimateMeta, "weatherAdjustedBurnGph")
+                    ? timelineFuelEstimateMeta.weatherAdjustedBurnGph
+                    : 0
+            );
+
+            if (isQuery(arguments.legs)) {
+                qSegments = arguments.legs;
+            } else if (isArray(arguments.legs)) {
+                normalizedPreviewLegs = routegenNormalizeTimelinePreviewLegs(arguments.legs);
+                qSegments = queryNew("id,route_leg_id,order_index,start_name,end_name,dist_nm,lock_count,lock_time_min_total,is_offshore,is_icw,exposure_level,segment_id,segment_dist_nm,start_lat,start_lng,end_lat,end_lng");
+                for (i = 1; i LTE arrayLen(normalizedPreviewLegs); i++) {
+                    previewLeg = normalizedPreviewLegs[i];
+                    queryAddRow(qSegments, 1);
+                    querySetCell(qSegments, "id", val(previewLeg.id));
+                    querySetCell(qSegments, "route_leg_id", val(previewLeg.route_leg_id));
+                    querySetCell(qSegments, "order_index", val(previewLeg.order_index));
+                    querySetCell(qSegments, "start_name", trim(toString(previewLeg.start_name)));
+                    querySetCell(qSegments, "end_name", trim(toString(previewLeg.end_name)));
+                    querySetCell(qSegments, "dist_nm", val(previewLeg.dist_nm));
+                    querySetCell(qSegments, "lock_count", val(previewLeg.lock_count));
+                    querySetCell(qSegments, "lock_time_min_total", val(previewLeg.lock_time_min_total));
+                    querySetCell(qSegments, "is_offshore", val(previewLeg.is_offshore));
+                    querySetCell(qSegments, "is_icw", val(previewLeg.is_icw));
+                    querySetCell(
+                        qSegments,
+                        "exposure_level",
+                        (isNumeric(previewLeg.exposure_level) ? int(val(previewLeg.exposure_level)) : "")
+                    );
+                    querySetCell(qSegments, "segment_id", val(previewLeg.segment_id));
+                    querySetCell(qSegments, "segment_dist_nm", val(previewLeg.dist_nm));
+                    querySetCell(qSegments, "start_lat", "");
+                    querySetCell(qSegments, "start_lng", "");
+                    querySetCell(qSegments, "end_lat", "");
+                    querySetCell(qSegments, "end_lng", "");
+                }
+            } else {
+                out.message = "Route has no segments";
+                out.error = { "message"="Timeline legs must be an array or query." };
+                return out;
+            }
             if (qSegments.recordCount EQ 0) {
                 out.message = "Route has no segments";
                 out.error = { "message"="No route segments are available for this route." };
@@ -1397,6 +1531,9 @@
                 );
                 weatherAdjustedSpeedThisSegVal = routegenComputeWeatherAdjustedSpeedKn(effectiveSpeedVal, effectiveWeatherPctSegVal);
                 segHours = (segDistNm GT 0 ? (segDistNm / weatherAdjustedSpeedThisSegVal) : 0);
+                // Expose the already-calculated cruising portion for shared presentation.
+                // Scheduling continues to use segHours including the lock allowance below.
+                segCruisingHours = segHours;
                 if (segLockTimeMin GT 0) {
                     segHours += (segLockTimeMin / 60);
                 }
@@ -1444,6 +1581,7 @@
                         "slice_hours"=0,
                         "segment_dist_nm"=segDistNm,
                         "segment_hours"=segHours,
+                        "segment_cruising_hours"=segCruisingHours,
                         "lock_count"=segLockCount,
                         "is_split"=false
                     });
@@ -1534,6 +1672,7 @@
                         "slice_hours"=sliceHoursVal,
                         "segment_dist_nm"=segDistNm,
                         "segment_hours"=segHours,
+                        "segment_cruising_hours"=segCruisingHours,
                         "lock_count"=sliceLockCount,
                         "is_split"=((segHours - sliceHoursVal) GT sliceEpsilon OR (segDistNm - sliceDistNm) GT sliceEpsilon)
                     };
@@ -1586,6 +1725,7 @@
             return out;
         </cfscript>
     </cffunction>
+
 
 <cffunction name="routegenNormalizePace" access="private" returntype="string" output="false">
         <cfargument name="pace" type="any" required="false" default="RELAXED">

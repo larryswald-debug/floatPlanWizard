@@ -282,7 +282,7 @@ test("loading, errors, and access changes remove visible tooltips", async ({ pag
   }
 });
 
-for (const width of [1440, 1024, 768, 390]) {
+for (const width of [1920, 1440, 1280, 1024, 768, 390]) {
   test("compact icons and state restrictions at " + width + "px", async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const routes = [
@@ -318,6 +318,26 @@ for (const width of [1440, 1024, 768, 390]) {
       expect((await rows.nth(i).boundingBox()).height).toBe(76);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const tableLayout = await page.evaluate(() => {
+      const table = document.querySelector(".fpw-routes-table");
+      const pane = document.querySelector(".fpw-routes-table-pane");
+      const header = document.querySelector(".fpw-routes-table-head");
+      const rows = [...document.querySelectorAll(".fpw-routes-table-row")];
+      return {
+        paneOverflow: pane.scrollWidth > pane.clientWidth,
+        tableOverflow: table.scrollWidth > table.clientWidth,
+        aligned: rows.every(row => [...row.children].every((cell, i) =>
+          Math.abs(cell.getBoundingClientRect().left - header.children[i].getBoundingClientRect().left) < 1)),
+        actionsContained: rows.every(row => [...row.querySelectorAll(".fpw-route-icon-action")].every(button => {
+          const b = button.getBoundingClientRect(), cell = row.querySelector(".fpw-route-cell--actions").getBoundingClientRect();
+          return b.left >= cell.left && b.right <= cell.right;
+        }))
+      };
+    });
+    expect(tableLayout.tableOverflow).toBe(false);
+    expect(tableLayout.aligned).toBe(true);
+    expect(tableLayout.actionsContained).toBe(true);
+    if (width >= 768) expect(tableLayout.paneOverflow).toBe(false);
     // The existing scrollable route table remains the mobile layout.
     const last = rows.first().getByRole("button", { name: "Cancel Float Plan", exact: true });
     await last.scrollIntoViewIfNeeded();
