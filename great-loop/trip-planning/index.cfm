@@ -152,6 +152,42 @@ fpwCtaConfig = {
     #main-content > .fpw-overdue-shell {
       width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
     }
+    /* Mirror only this guide's photo; keep the text and navy fade unflipped. */
+    .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      border-color: #04121f;
+      background: #04121f;
+    }
+    .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero::before,
+    .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero::before {
+      z-index: -2;
+      background-image: url("<cfoutput>#fpwLoopPlanningBasePath#</cfoutput>/assets/images/home/great-loop-guide.webp");
+      background-size: auto 115%;
+      background-position: left -180px center;
+      background-repeat: no-repeat;
+      transform: scaleX(-1);
+    }
+    .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero::after {
+      z-index: -1;
+      background: linear-gradient(90deg, #04121f 0%, #04121f 35%, #04121f 55%, rgba(4, 18, 31, 0.90) 65%, rgba(4, 18, 31, 0.75) 75%, rgba(4, 18, 31, 0.25) 88%, rgba(4, 18, 31, 0.12) 100%);
+    }
+    @media (max-width: 1200px) {
+      .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero::before {
+        background-size: cover;
+        background-position: center 60%;
+      }
+      .fpw-overdue-article[aria-labelledby="fpw-loop-planning-title"] > .fpw-overdue-hero::after {
+        background: linear-gradient(90deg, rgba(4, 18, 31, 0.98) 0%, rgba(4, 18, 31, 0.94) 40%, rgba(4, 18, 31, 0.88) 65%, rgba(4, 18, 31, 0.76) 100%);
+      }
+    }
     /* Keep TOC targets below the shared sticky header at all article breakpoints. */
     #main-content .fpw-overdue-content > section { scroll-margin-top: 165px; }
     .fpw-loop-planning-figure { margin: 20px 0; }

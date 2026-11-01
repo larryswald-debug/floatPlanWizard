@@ -1654,3 +1654,280 @@ body.fpw-home-page {
 
   .fpw-final-action .fpw-btn { min-width: 100%; }
 }
+
+/* Approved homepage guide, tool, and research-to-trip additions. */
+.fpw-home-guides {
+  padding: 32px 0 26px;
+  background: #eff9ff;
+}
+
+.fpw-home-discovery-heading {
+  margin: 0 auto 24px;
+  text-align: center;
+}
+
+.fpw-home-discovery-eyebrow {
+  margin: 0 0 8px;
+  color: #0064df;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.fpw-home-discovery-heading h2 {
+  margin: 0 0 8px;
+  color: var(--fpw-ink);
+  font-size: clamp(26px, 2.4vw, 32px);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+
+.fpw-home-discovery-intro {
+  max-width: 760px;
+  margin: 0 auto;
+  color: #344b6d;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.fpw-home-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.fpw-home-guide-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(8, 32, 67, .08);
+}
+
+.fpw-home-guide-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2.32 / 1;
+  object-fit: cover;
+  object-position: center;
+}
+
+.fpw-home-guide-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 22px 28px;
+}
+
+.fpw-home-guide-copy h3,
+.fpw-home-tool-card h3 {
+  margin: 0 0 10px;
+  color: var(--fpw-ink);
+  font-size: 21px;
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: -.035em;
+}
+
+.fpw-home-guide-copy p,
+.fpw-home-tool-card p {
+  margin: 0 0 16px;
+  color: #344b6d;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.fpw-home-guide-copy .fpw-btn {
+  margin-top: auto;
+}
+
+.fpw-home-guides .fpw-btn-primary,
+.fpw-home-research-cta .fpw-btn-primary {
+  color: #071529;
+  background: linear-gradient(180deg, #ffd439, #ffc20a);
+  box-shadow: none;
+}
+
+.fpw-home-guides-browse {
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.fpw-home-guides .fpw-btn-outline {
+  color: #0064df;
+  border-color: #267dff;
+  background: transparent;
+}
+
+.fpw-home-tools {
+  padding: 30px 0;
+  background: linear-gradient(180deg, #fff, #f8fcff);
+}
+
+.fpw-home-tools .fpw-container {
+  width: min(1180px, calc(100% - 44px));
+}
+
+.fpw-home-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.fpw-home-tool-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 22px 24px 12px;
+  border: 1px solid #dfedfa;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(8, 32, 67, .05);
+}
+
+.fpw-home-tool-icon {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 12px;
+}
+
+.fpw-home-tool-card h3 {
+  font-size: 20px;
+}
+
+.fpw-home-tool-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin-top: auto;
+  color: #0064df;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.fpw-home-tool-card a:hover {
+  text-decoration: underline;
+}
+
+.fpw-home-research-cta {
+  padding: 28px 0;
+  color: #fff;
+  background-color: #061a37;
+  background-image:
+    linear-gradient(90deg, rgba(3, 16, 38, .90), rgba(3, 16, 38, .72) 65%, rgba(3, 16, 38, .30)),
+    url("../images/home/research-to-trip-banner.webp");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+}
+
+.fpw-home-research-inner {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+}
+
+.fpw-home-research-icon {
+  display: block;
+  width: 64px;
+  height: 64px;
+}
+
+.fpw-home-research-copy h2 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 25px;
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -.03em;
+}
+
+.fpw-home-research-copy p {
+  max-width: 680px;
+  margin: 0;
+  color: #e1eaf5;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.fpw-home-research-cta .fpw-btn {
+  min-width: 230px;
+}
+
+.fpw-home-guides a:focus-visible,
+.fpw-home-tools a:focus-visible,
+.fpw-home-research-cta a:focus-visible {
+  outline: 3px solid #267dff;
+  outline-offset: 4px;
+}
+
+@media (max-width: 1050px) {
+  .fpw-home-tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fpw-home-research-inner {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .fpw-home-research-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .fpw-home-research-cta .fpw-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .fpw-home-guides,
+  .fpw-home-tools {
+    padding: 32px 0;
+  }
+
+  .fpw-home-tools .fpw-container {
+    width: calc(100% - 28px);
+  }
+
+  .fpw-home-discovery-heading {
+    margin-bottom: 22px;
+  }
+
+  .fpw-home-guide-grid,
+  .fpw-home-tool-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .fpw-home-guide-copy,
+  .fpw-home-tool-card {
+    padding: 22px;
+  }
+
+  .fpw-home-research-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .fpw-home-research-cta .fpw-btn {
+    grid-column: 1;
+    justify-self: stretch;
+    min-width: 0;
+  }
+}

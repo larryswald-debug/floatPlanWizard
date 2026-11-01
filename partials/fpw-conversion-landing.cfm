@@ -117,6 +117,84 @@
       </div>
     </section>
 
+    <section class="fpw-home-guides" aria-labelledby="fpwHomeGuidesTitle">
+      <div class="fpw-container">
+        <div class="fpw-home-discovery-heading">
+          <p class="fpw-home-discovery-eyebrow">Explore the Waterways</p>
+          <h2 id="fpwHomeGuidesTitle">Plan Your Next Boating Adventure</h2>
+          <p class="fpw-home-discovery-intro">Discover cruising destinations, detailed itineraries, route timing, fuel planning, and float plan guidance for popular waterways. Get inspired, plan with confidence, and make the most of your time on the water.</p>
+        </div>
+        <div class="fpw-home-guide-grid">
+          <article class="fpw-home-guide-card" aria-labelledby="fpwHomeChesapeakeTitle">
+            <img class="fpw-home-guide-photo" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/chesapeake-bay-guide.webp" width="739" height="419" alt="Illustrative scene of a lighthouse and sailboat at sunset" loading="lazy" decoding="async">
+            <div class="fpw-home-guide-copy">
+              <h3 id="fpwHomeChesapeakeTitle">Chesapeake Bay Cruising Guide</h3>
+              <p>Explore destinations, illustrative itineraries, fuel estimates, and travel-time planning for a Chesapeake Bay cruise.</p>
+              <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/boating-guides/chesapeake-bay/">Explore Chesapeake <span aria-hidden="true">&rarr;</span></a>
+            </div>
+          </article>
+          <article class="fpw-home-guide-card" aria-labelledby="fpwHomeGreatLoopTitle">
+            <img class="fpw-home-guide-photo" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/great-loop-guide.webp" width="732" height="419" alt="Illustrative scene of a cruising boat on a tree-lined waterway" loading="lazy" decoding="async">
+            <div class="fpw-home-guide-copy">
+              <h3 id="fpwHomeGreatLoopTitle">Great Loop Planning Guide</h3>
+              <p>Plan Great Loop legs with mileage, locks, bridges, fuel, and timing references, then review your route in FPW.</p>
+              <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/great-loop/trip-planning/">Explore the Great Loop <span aria-hidden="true">&rarr;</span></a>
+            </div>
+          </article>
+        </div>
+        <div class="fpw-home-guides-browse">
+          <a class="fpw-btn fpw-btn-outline" href="<cfoutput>#landingBasePath#</cfoutput>/boating-guides/">Browse All Cruising Guides <span aria-hidden="true">&rarr;</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="fpw-home-tools" aria-labelledby="fpwHomeToolsTitle">
+      <div class="fpw-container">
+        <div class="fpw-home-discovery-heading">
+          <p class="fpw-home-discovery-eyebrow">Free Boating Tools &amp; Resources</p>
+          <h2 id="fpwHomeToolsTitle">Helpful Tools for Every Boater</h2>
+          <p class="fpw-home-discovery-intro">Save time and boat with more confidence. Use our free tools and resources to plan fuel stops, check marine weather, build safer trips, and keep your shore contacts informed.</p>
+        </div>
+        <div class="fpw-home-tool-grid">
+          <article class="fpw-home-tool-card" aria-labelledby="fpwHomeFuelTitle">
+            <img class="fpw-home-tool-icon" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/icon-fuel-calculator.svg" width="56" height="56" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <h3 id="fpwHomeFuelTitle">Fuel Calculator</h3>
+            <p>Estimate fuel usage, range and cost based on your vessel, speed and route.</p>
+            <a href="<cfoutput>#landingBasePath#</cfoutput>/boat-fuel-calculator/">Calculate Fuel <span aria-hidden="true">&rarr;</span></a>
+          </article>
+          <article class="fpw-home-tool-card" aria-labelledby="fpwHomeWeatherTitle">
+            <img class="fpw-home-tool-icon" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/icon-marine-weather.svg" width="56" height="56" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <h3 id="fpwHomeWeatherTitle">Marine Weather</h3>
+            <p>Check marine forecasts, wind, seas, and conditions along your route.</p>
+            <a href="<cfoutput>#landingBasePath#</cfoutput>/app/weather.cfm">Check Weather <span aria-hidden="true">&rarr;</span></a>
+          </article>
+          <article class="fpw-home-tool-card" aria-labelledby="fpwHomeSafetyTitle">
+            <img class="fpw-home-tool-icon" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/icon-safety.svg" width="56" height="56" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <h3 id="fpwHomeSafetyTitle">Solo Boating Safety</h3>
+            <p>Get practical safety tips, checklists and resources for boating alone.</p>
+            <a href="<cfoutput>#landingBasePath#</cfoutput>/solo-boating-safety-guide/">View Safety Guide <span aria-hidden="true">&rarr;</span></a>
+          </article>
+          <article class="fpw-home-tool-card" aria-labelledby="fpwHomeShoreContactTitle">
+            <img class="fpw-home-tool-icon" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/icon-shore-contact.svg" width="56" height="56" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <h3 id="fpwHomeShoreContactTitle">Shore Contact Guide</h3>
+            <p>Learn how to set up shore contacts and keep them informed.</p>
+            <a href="<cfoutput>#landingBasePath#</cfoutput>/shore-contact-overdue-boater/">Read the Guide <span aria-hidden="true">&rarr;</span></a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="fpw-home-research-cta" aria-labelledby="fpwHomeResearchTitle">
+      <div class="fpw-container fpw-home-research-inner">
+        <img class="fpw-home-research-icon" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/home/icon-cta-compass.svg" width="56" height="56" alt="" aria-hidden="true" loading="lazy" decoding="async">
+        <div class="fpw-home-research-copy">
+          <h2 id="fpwHomeResearchTitle">Found a destination? Build your trip in FPW.</h2>
+          <p>Turn your cruise plans into a real trip with route planning, timing, fuel calculations, and a shareable float plan for family and friends.</p>
+        </div>
+        <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/app/join.cfm">Start Planning Free <span aria-hidden="true">&rarr;</span></a>
+      </div>
+    </section>
+
     <section class="fpw-origin-story" aria-labelledby="fpwOriginStoryTitle">
       <div class="fpw-container fpw-origin-story__inner">
         <div class="fpw-origin-story__content">
