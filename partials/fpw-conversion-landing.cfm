@@ -142,9 +142,6 @@
             </div>
           </article>
         </div>
-        <div class="fpw-home-guides-browse">
-          <a class="fpw-btn fpw-btn-outline" href="<cfoutput>#landingBasePath#</cfoutput>/boating-guides/">Browse All Cruising Guides <span aria-hidden="true">&rarr;</span></a>
-        </div>
       </div>
     </section>
 

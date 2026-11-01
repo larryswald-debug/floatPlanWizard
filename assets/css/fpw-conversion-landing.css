@@ -1745,6 +1745,7 @@ body.fpw-home-page {
 }
 
 .fpw-home-guide-copy .fpw-btn {
+  align-self: center;
   margin-top: auto;
 }
 
