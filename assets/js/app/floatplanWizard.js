@@ -330,6 +330,8 @@
     plan.ACTUAL_DEPARTURE_AT_UTC = String(plan.ACTUAL_DEPARTURE_AT_UTC == null ? "" : plan.ACTUAL_DEPARTURE_AT_UTC).trim();
     plan.HAS_ACTUAL_DEPARTURE = truthyAccessValue(plan.HAS_ACTUAL_DEPARTURE) || !!plan.ACTUAL_DEPARTURE_AT_UTC;
     plan.RETURN_TIME = toDateTimeLocal(plan.RETURN_TIME);
+    plan.REVISE_ARRIVAL_DEADLINE = false;
+    plan.EXPECTED_ARRIVAL_REVISION = numeric(plan.ARRIVAL_REVISION);
     return plan;
   }
 
@@ -713,7 +715,7 @@
     return "This field is required.";
   }
 
-  function getTimeZoneOffset(timeZone, date) {
+  function getTimeZoneOffset(timeZone, date, useZeroMidnight) {
     if (!timeZone || !date) return 0;
     try {
       var formatter = new Intl.DateTimeFormat("en-US", {
@@ -738,7 +740,7 @@
         parseInt(values.year, 10),
         parseInt(values.month, 10) - 1,
         parseInt(values.day, 10),
-        parseInt(values.hour, 10),
+        useZeroMidnight ? parseInt(values.hour, 10) % 24 : parseInt(values.hour, 10),
         parseInt(values.minute, 10),
         parseInt(values.second, 10)
       );
@@ -779,6 +781,23 @@
     return parsed && !isNaN(parsed.getTime()) ? parsed.toISOString() : "";
   }
 
+  // A datetime-local field needs one valid instant, including on DST change days.
+  function arrivalRevisionUtcIso(localValue, timeZone) {
+    var wall = Date.parse(toDateTimeLocal(localValue) + ":00Z");
+    if (!Number.isFinite(wall) || !timeZone) return "";
+    var oneDay = 24 * 60 * 60 * 1000;
+    var matches = [];
+    [wall - oneDay, wall + oneDay].forEach(function (sample) {
+      var offset = getTimeZoneOffset(timeZone, new Date(sample), true);
+      var candidate = new Date(wall - offset);
+      if (candidate.getTime() + getTimeZoneOffset(timeZone, candidate, true) === wall
+          && matches.indexOf(candidate.getTime()) < 0) {
+        matches.push(candidate.getTime());
+      }
+    });
+    return matches.length === 1 ? new Date(matches[0]).toISOString() : "";
+  }
+
   function hasActualDeparture(plan) {
     if (!plan) return false;
     return truthyAccessValue(plan.HAS_ACTUAL_DEPARTURE)
@@ -790,7 +809,13 @@
     if (!hasActualDeparture(plan)) {
       plan.DEPARTURE_TIME_UTC = toClientUtcIso(plan.DEPARTURE_TIME, plan.DEPARTURE_TIMEZONE);
     }
-    plan.RETURN_TIME_UTC = toClientUtcIso(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+    if (String(plan.STATUS).toUpperCase() === "ACTIVE") {
+      if (plan.REVISE_ARRIVAL_DEADLINE) {
+        plan.RETURN_TIME_UTC = arrivalRevisionUtcIso(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+      }
+    } else {
+      plan.RETURN_TIME_UTC = toClientUtcIso(plan.RETURN_TIME, plan.RETURN_TIMEZONE);
+    }
   }
 
   var STEP_VALIDATION_CONSTRAINTS = {
@@ -1346,7 +1371,7 @@
       requestRouteReturnSuggestion: function () {
         var state = this.routeReturnSuggestion;
         var plan = this.fp && this.fp.FLOATPLAN ? this.fp.FLOATPLAN : {};
-        if (!state || this.isLoading || !this.isFromRoutePlan()) {
+        if (!state || this.isLoading || !this.isFromRoutePlan() || String(plan.STATUS).toUpperCase() === "ACTIVE") {
           return;
         }
         if (!window.Api || typeof window.Api.suggestFloatPlanReturnTime !== "function") {
@@ -2326,6 +2351,15 @@
     closeButton.setAttribute("aria-disabled", disabled ? "true" : "false");
   }
 
+  // Both wizard mounts use these named form controls. Model hydration and route
+  // suggestions do not dispatch native field events and cannot authorize a revision.
+  function recordArrivalFieldEdit(event) {
+    if (!wizardAppInstance || !event.target ||
+        (event.target.name !== "RETURN_TIME" && event.target.name !== "RETURN_TIMEZONE")) return;
+    var plan = wizardAppInstance.fp.FLOATPLAN;
+    if (String(plan.STATUS).toUpperCase() === "ACTIVE") plan.REVISE_ARRIVAL_DEADLINE = true;
+  }
+
   function initWizard(options) {
     if (!Vue) {
       console.error("Vue is required for the float plan wizard.");
@@ -2351,6 +2385,8 @@
     }
     wizardApp = createWizardApp(options);
     wizardAppInstance = wizardApp.mount(mountEl);
+    mountEl.addEventListener("input", recordArrivalFieldEdit);
+    mountEl.addEventListener("change", recordArrivalFieldEdit);
     if (wizardAppInstance && options.startStep != null) {
       var startStep = numeric(options.startStep);
       if (startStep > 0) {
@@ -2365,6 +2401,10 @@
   }
 
   function destroyWizard() {
+    if (wizardMountEl) {
+      wizardMountEl.removeEventListener("input", recordArrivalFieldEdit);
+      wizardMountEl.removeEventListener("change", recordArrivalFieldEdit);
+    }
     if (wizardApp) {
       wizardApp.unmount();
     }

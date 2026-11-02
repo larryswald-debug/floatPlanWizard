@@ -204,6 +204,7 @@
                             legOrder = { value = activeLegOrder, cfsqltype = "cf_sql_integer" },
                             actionAtUtc = { value = out.ACTION_AT_UTC, cfsqltype = "cf_sql_varchar" }
                         }, { datasource = arguments.datasource });
+                        syncArrivalAfterLegCompletion(arguments.datasource, arguments.floatPlanId, arguments.userId);
                     }
                 }
                 if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
@@ -350,6 +351,7 @@
                         routeInstanceId = { value = routeInstanceIdClose, cfsqltype = "cf_sql_integer" },
                         legOrder = { value = activeLegOrderClose, cfsqltype = "cf_sql_integer" }
                     }, { datasource = arguments.datasource });
+                    syncArrivalAfterLegCompletion(arguments.datasource, arguments.floatPlanId, arguments.userId);
                 }
             }
             if (!structKeyExists(lockedTripAccessGate, "allowed") OR !lockedTripAccessGate.allowed) {
@@ -816,6 +818,23 @@
             out.LEG_ORDER = pendingLegOrder;
             out.MESSAGE = "Next pending leg started.";
             return out;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="syncArrivalAfterLegCompletion" access="private" returntype="void" output="false">
+        <cfargument name="datasource" type="string" required="true">
+        <cfargument name="floatPlanId" type="numeric" required="true">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfscript>
+            // The service checks all owned route legs inside this progress-write transaction.
+            var arrival = "";
+            try {
+                arrival = createObject("component", "fpw.api.v1.ArrivalOverdueService");
+            } catch (any mappingError) {
+                arrival = createObject("component", "api.v1.ArrivalOverdueService");
+            }
+            var result = arrival.init(arguments.datasource).syncPlan(arguments.floatPlanId, "FINAL_LEG_CHECK", arguments.userId);
+            if (!result.success) throw(type="FPW.ArrivalReconciliationFailed", message="Final arrival could not be reconciled.");
         </cfscript>
     </cffunction>
 

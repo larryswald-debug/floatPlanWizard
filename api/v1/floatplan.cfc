@@ -4308,6 +4308,11 @@
             var hasActualDeparture = false;
             var scheduledDepartureChanged = false;
             var preserveLockedDepartureSchedule = false;
+            var explicitArrivalRevision = booleanValue(pickValue(floatPlan, ["REVISE_ARRIVAL_DEADLINE"], false));
+            var expectedArrivalRevision = trim(pickValue(floatPlan, ["EXPECTED_ARRIVAL_REVISION"], ""));
+            var priorArrivalUtc = "";
+            var arrivalMonitoring = "";
+            var preserveArrivalSchedule = false;
 
             if (planId GT 0) {
                 existingPlanRow = queryExecute(
@@ -4453,7 +4458,7 @@
                 departureTzStore = departureTz;
             }
 
-            if (len(returnTime)) {
+            if (len(returnTime) AND existingStatus NEQ "ACTIVE") {
                 if (NOT len(returnTz)) {
                     result.ERROR = "VALIDATION";
                     result.MESSAGE = "Return time zone is required when return time is provided.";
@@ -4496,6 +4501,8 @@
                             route_instance_id,
                             DATE_FORMAT(departureTime, '%Y-%m-%d %H:%i:%s') AS departureTimeValue,
                             DATE_FORMAT(departureTimeUTC, '%Y-%m-%d %H:%i:%s') AS departureTimeUtcValue,
+                        DATE_FORMAT(returnTimeUTC, '%Y-%m-%d %H:%i:%s') AS returnTimeUtcValue,
+                        COALESCE(NULLIF(TRIM(returnTZ), ''), NULLIF(TRIM(returnTimezone), ''), '') AS priorReturnZone,
                             departTimezone,
                             departureTZ
                            FROM floatplans
@@ -4525,6 +4532,31 @@
                         result.ERROR = "HISTORICAL_GROUP_READ_ONLY";
                         result.MESSAGE = "Ended route-linked float plans are preserved as history and cannot be edited.";
                         return result;
+                    }
+
+                    if (existingStatus EQ "ACTIVE") {
+                        // A full-form save cannot replace the deadline from cached or suggested fields.
+                        preserveArrivalSchedule = !explicitArrivalRevision;
+                        priorArrivalUtc = isNull(lockedPlanRow.returnTimeUtcValue[1]) ? "" : trim(lockedPlanRow.returnTimeUtcValue[1]);
+                        if (len(priorArrivalUtc) AND (
+                            ((structKeyExists(floatPlan, "returnTime") OR structKeyExists(floatPlan, "RETURN_TIME")) AND !len(returnTime))
+                            OR ((structKeyExists(floatPlan, "returnTimeUtc") OR structKeyExists(floatPlan, "RETURN_TIME_UTC")) AND !len(returnTimeUtcInput))
+                        )) {
+                            return {SUCCESS=false, ERROR="INVALID_ARRIVAL_DEADLINE", MESSAGE="An active plan's final arrival deadline cannot be cleared."};
+                        }
+                        if (explicitArrivalRevision) {
+                            returnTimeLocal = normalizeLocalWallClockInput(returnTime);
+                            returnTimeUtcStore = validatedArrivalRevisionUtc(returnTimeLocal, returnTz, returnTimeUtcInput);
+                            if (!len(returnTimeUtcStore)) {
+                                return {SUCCESS=false, ERROR="INVALID_ARRIVAL_DEADLINE", MESSAGE="Enter a valid, unambiguous final arrival time and time zone."};
+                            }
+                            arrivalMonitoring = createObject("component", resolveApiV1ComponentPath("ArrivalOverdueService")).init(ds);
+                            if (!reFind("^(0|[1-9][0-9]{0,9})$", expectedArrivalRevision)
+                                OR val(expectedArrivalRevision) NEQ arrivalMonitoring.getRevision(planId)) {
+                                return {SUCCESS=false, ERROR="STALE_ARRIVAL_REVISION", MESSAGE="The arrival schedule changed. Reload the float plan before revising its deadline."};
+                            }
+                            preserveArrivalSchedule = compare(priorArrivalUtc, returnTimeUtcStore) EQ 0;
+                        }
                     }
 
                     lockedRouteInstanceId = isNull(lockedPlanRow.route_instance_id[1])
@@ -4713,10 +4745,10 @@
                                departTimezone      = CASE WHEN :preserveDepartureSchedule = 1 THEN departTimezone ELSE :departureTz END,
                                departureTZ         = CASE WHEN :preserveDepartureSchedule = 1 THEN departureTZ ELSE :departureSourceTz END,
                                `returning`         = :returningTo,
-                               returnTime          = :returnTime,
-                               returnTimeUTC       = :returnTimeUtc,
-                               returnTimezone      = :returnTz,
-                               returnTZ            = :returnSourceTz,
+                               returnTime          = CASE WHEN :preserveArrivalSchedule = 1 THEN returnTime ELSE :returnTime END,
+                               returnTimeUTC       = CASE WHEN :preserveArrivalSchedule = 1 THEN returnTimeUTC ELSE :returnTimeUtc END,
+                               returnTimezone      = CASE WHEN :preserveArrivalSchedule = 1 THEN returnTimezone ELSE :returnTz END,
+                               returnTZ            = CASE WHEN :preserveArrivalSchedule = 1 THEN returnTZ ELSE :returnSourceTz END,
                                food                = :foodDays,
                                water               = :waterDays,
                                notes               = :notes,
@@ -4742,6 +4774,7 @@
                         departureTz = { value = departureTzStore, cfsqltype = "cf_sql_varchar", null = NOT len(departureTzStore) },
                         departureSourceTz = { value = departureSourceTz, cfsqltype = "cf_sql_varchar", null = NOT len(departureSourceTz) },
                         preserveDepartureSchedule = { value = preserveLockedDepartureSchedule ? 1 : 0, cfsqltype = "cf_sql_integer" },
+                        preserveArrivalSchedule = { value = preserveArrivalSchedule ? 1 : 0, cfsqltype = "cf_sql_integer" },
                         returningTo = { value = returningTo, cfsqltype = "cf_sql_varchar", null = NOT len(returningTo) },
                         returnTime = { value = returnTimeLocal, cfsqltype = "cf_sql_varchar", null = NOT len(returnTimeLocal) },
                         returnTimeUtc = { value = returnTimeUtcStore, cfsqltype = "cf_sql_varchar", null = NOT len(returnTimeUtcStore) },
@@ -4754,6 +4787,10 @@
                         routeDayNumber = { value = routeDayNumber, cfsqltype = "cf_sql_integer", null = (routeDayNumber LTE 0) },
                         doNotSend = { value = doNotSend, cfsqltype = "cf_sql_bit" }
                     }, { datasource = ds });
+
+                    if (existingStatus EQ "ACTIVE" AND explicitArrivalRevision AND compare(priorArrivalUtc, returnTimeUtcStore) NEQ 0) {
+                        arrivalMonitoring.reviseDeadline(planId, arguments.userId, val(expectedArrivalRevision), priorArrivalUtc, returnTimeUtcStore, lockedPlanRow.priorReturnZone[1]);
+                    }
 
                     // remove existing selections
                     queryExecute("DELETE FROM floatplan_passengers WHERE floatplanId = :planId", { planId = { value = planId, cfsqltype = "cf_sql_integer" } }, { datasource = ds });
@@ -7802,6 +7839,8 @@
         <cfargument name="floatPlanId" type="numeric" required="true">
         <cfscript>
             var planStruct = {};
+            // Read the version first: a concurrent save may then cause a safe stale-form rejection.
+            var arrivalRevision = createObject("component", resolveApiV1ComponentPath("ArrivalOverdueService")).init("fpw").getRevision(arguments.floatPlanId);
             var qPlan = queryExecute("
                 SELECT
                     floatplanId,
@@ -7885,6 +7924,7 @@
                     RETURN_TIME          = returnDisplayTime,
                     RETURN_TIME_UTC      = isNull(qPlan.returnTimeUTC[1]) ? "" : trim(toString(qPlan.returnTimeUTC[1])),
                     RETURN_TIMEZONE      = returnDisplayTz,
+                    ARRIVAL_REVISION     = arrivalRevision,
                     FOOD_DAYS_PER_PERSON = qPlan.food,
                     WATER_DAYS_PER_PERSON= qPlan.water,
                     NOTES                = qPlan.notes,
@@ -9618,6 +9658,35 @@
             }
 
             return yearVal & "-" & right("0" & monthVal, 2) & "-" & right("0" & dayVal, 2) & " " & right("0" & hourVal, 2) & ":" & right("0" & minuteVal, 2) & ":" & right("0" & secondVal, 2);
+        </cfscript>
+    </cffunction>
+
+    <!--- For an explicit active-plan deadline change, require the UTC instant to
+          round-trip to the captain's local clock in a supported FPW time zone. --->
+    <cffunction name="validatedArrivalRevisionUtc" access="private" returntype="string" output="false">
+        <cfargument name="localTime" type="string" required="true">
+        <cfargument name="zone" type="string" required="true">
+        <cfargument name="utcInput" type="string" required="true">
+        <cfscript>
+            var zoneId = normalizeRouteSuggestionTimezone(arguments.zone);
+            var raw = trim(arguments.utcInput);
+            if (!len(zoneId) OR !len(arguments.localTime)
+                OR !reFindNoCase("^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}([.]0{1,6})?Z?$", raw)) {
+                return "";
+            }
+            var utcSql = replace(left(raw, 19), "T", " ");
+            try {
+                var instant = parseDateTime(replace(utcSql, " ", "T") & "Z");
+                var mask = "yyyy-mm-dd HH:nn:ss";
+                if (compare(dateTimeFormat(instant, mask, "UTC"), utcSql) NEQ 0
+                    OR compare(dateTimeFormat(instant, mask, zoneId), arguments.localTime) NEQ 0) return "";
+                // The wizard has no offset selector for a repeated local hour.
+                if (compare(dateTimeFormat(dateAdd("h", -1, instant), mask, zoneId), arguments.localTime) EQ 0
+                    OR compare(dateTimeFormat(dateAdd("h", 1, instant), mask, zoneId), arguments.localTime) EQ 0) return "";
+                return utcSql;
+            } catch (any invalidArrivalTime) {
+                return "";
+            }
         </cfscript>
     </cffunction>
 

@@ -47,7 +47,9 @@ try {
   response = {
     SUCCESS = structKeyExists(runResult, "SUCCESS") ? runResult.SUCCESS : false,
     PROCESSED_COUNT = structKeyExists(runResult, "PROCESSED_COUNT") ? runResult.PROCESSED_COUNT : 0,
-    FLOAT_PLAN_IDS = structKeyExists(runResult, "FLOAT_PLAN_IDS") ? runResult.FLOAT_PLAN_IDS : []
+    FLOAT_PLAN_IDS = structKeyExists(runResult, "FLOAT_PLAN_IDS") ? runResult.FLOAT_PLAN_IDS : [],
+        ARRIVAL_OBSERVATION = runResult.ARRIVAL_OBSERVATION,
+        ARRIVAL_DELIVERY = runResult.ARRIVAL_DELIVERY
   };
   writeOutput(serializeJSON(response));
 } catch (any err) {

@@ -61,7 +61,9 @@
                 response = {
                     SUCCESS = structKeyExists(runResult, "SUCCESS") ? runResult.SUCCESS : false,
                     PROCESSED_COUNT = structKeyExists(runResult, "PROCESSED_COUNT") ? runResult.PROCESSED_COUNT : 0,
-                    FLOAT_PLAN_IDS = structKeyExists(runResult, "FLOAT_PLAN_IDS") ? runResult.FLOAT_PLAN_IDS : []
+                    FLOAT_PLAN_IDS = structKeyExists(runResult, "FLOAT_PLAN_IDS") ? runResult.FLOAT_PLAN_IDS : [],
+                ARRIVAL_OBSERVATION = runResult.ARRIVAL_OBSERVATION,
+                ARRIVAL_DELIVERY = runResult.ARRIVAL_DELIVERY
                 };
                 writeOutput(serializeJSON(response));
             } catch (any err) {
@@ -173,6 +175,9 @@
             nextMonitorEvalAt = computeInitialNextMonitorEvalAt(context, expectedCheckinAt, monitoringBaseAt, expectedCheckinOptions);
 
             transaction {
+                // Lifecycle writers take the plan lock before monitoring and arrival rows.
+                queryExecute("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:id FOR UPDATE",
+                    {id={value=arguments.floatPlanId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
                 existing = lockMonitoringRowByFloatPlanId(arguments.floatPlanId);
                 if (existing.SUCCESS) {
                     if (uCase(trim(toString(existing.monitor_state))) EQ "CLOSED") {
@@ -289,6 +294,7 @@
                     expected_checkin_at = expectedCheckinAt,
                     grace_expires_at = graceExpiresAt
                 });
+                getArrivalOverdueService().syncPlan(arguments.floatPlanId, "ENROLL", context.user_id);
             }
 
             result.SUCCESS = true;
@@ -753,7 +759,40 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="getArrivalOverdueService" access="private" returntype="any" output="false">
+        <cfreturn createObject("component", "fpw.api.v1.ArrivalOverdueService").init(variables.datasource)>
+    </cffunction>
+
     <cffunction name="evaluateDueMonitoringRows" access="public" returntype="struct" output="false">
+        <cfargument name="limit" type="numeric" required="false" default="100">
+        <cfscript>
+            var routine = {};
+            var observation = {};
+            var arrivalDelivery = {};
+            try {
+                routine = evaluateDueRoutineCheckins(arguments.limit);
+            } finally {
+                try {
+                    observation = getArrivalOverdueService().evaluateDue(arguments.limit);
+                } catch (any observationError) {
+                    observation = {success=false, errors=1};
+                    writeLog(file="fpw-monitor", type="error", text="Independent arrival observation could not complete.");
+                }
+                try {
+                    arrivalDelivery = createObject("component","fpw.api.v1.ArrivalOverdueDeliveryService")
+                        .init(variables.datasource).runCycle(arguments.limit);
+                } catch (any deliveryError) {
+                    arrivalDelivery = {errors=1};
+                    writeLog(file="fpw-monitor",type="error",text="Initial arrival delivery pass could not complete.");
+                }
+            }
+            routine.ARRIVAL_OBSERVATION = observation;
+            routine.ARRIVAL_DELIVERY = arrivalDelivery;
+            return routine;
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="evaluateDueRoutineCheckins" access="private" returntype="struct" output="false">
         <cfargument name="limit" type="numeric" required="false" default="100">
         <cfscript>
             var result = { SUCCESS = true, PROCESSED_COUNT = 0, FLOAT_PLAN_IDS = [] };
@@ -825,7 +864,12 @@
             }
 
             transaction {
+                // Lifecycle writers take the plan lock before monitoring and arrival rows.
+                queryExecute("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:id FOR UPDATE",
+                    {id={value=arguments.floatPlanId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
                 monitoringRow = lockMonitoringRowByFloatPlanId(arguments.floatPlanId);
+                // Suppress arrival work in the same transaction as the canonical monitor stop.
+                getArrivalOverdueService().syncPlan(arguments.floatPlanId, closeReasonVal EQ "admin_dashboard" ? "ADMIN_STOP" : "MONITOR_STOPPED");
                 if (!monitoringRow.SUCCESS) {
                     result.SUCCESS = true;
                     result.CLOSED = false;

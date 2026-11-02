@@ -214,3 +214,42 @@ Verification files must identify the selected database, expected tables, columns
 MySQL and MariaDB DDL perform implicit commits. A rollback script cannot provide transactional rollback for table creation or removal. Every down migration must therefore be guarded and deterministic.
 
 A rollback must refuse to drop a populated application table unless that specific destructive operation and its data handling have been explicitly authorized. Disposable validation records must be removed before the guarded rollback is run.
+
+## Arrival monitoring (Phase 2, observation only)
+
+Use the four `20261101_001_arrival_overdue_monitoring` migration scripts. Run preflight on the intended development FPW database, then up and verify with a client that stops on SQL errors. MySQL DDL implicitly commits. Inspect a partial installation before retrying. The up script creates no trip revisions and starts in OFF.
+
+After verification, an authorized development operator can set `fpw_arrival_rollout.mode` on row 1 to `OBSERVE`; use `OFF` to stop independent evaluation. Enrollment, deadline revisions and terminal suppression are lifecycle records. They are maintained after installation so a restart or mode change cannot discard a revision or reopen a stopped trip. Observation alone never enables email.
+
+The migration records an immutable database UTC observation cutoff. Each revision retains its own historical-only classification. Treat all Phase 2 events as observations, including for trips that become overdue after the migration. A later live rollout requires a separate durable enablement watermark before it can classify any delivery. Do not reuse the observation cutoff as a live-mail cutoff.
+
+Use the guarded `tests/arrival-monitoring-phase2-runner.cfm` only in local development. The down migration is for an unused, OFF installation. After observations or history exist, turn evaluation OFF, preserve all rows and investigate before any separately approved schema removal.
+
+## Initial arrival-overdue email (Phase 3)
+
+Apply the dated `20261101_002_arrival_overdue_delivery` preflight, up and verify scripts in order after verifying Phase 2. The migration creates an OFF dispatch control with no activation timestamp, and empty notice, recipient delivery and attempt tables. The only supported business slot in Phase 3 is zero (initial notice). Hourly observations do not create hourly email.
+
+The canonical monitoring runner returns a separate `ARRIVAL_DELIVERY` summary. Live transport requires the production environment, the explicit server setting `FPW_ARRIVAL_EMAIL_ENABLED=true`, a stable secret of at least 32 characters in `FPW_ARRIVAL_RECIPIENT_KEY`, enabled arrival observation, and explicit database dispatch scope. Configure secrets through the deployment secret store. Rotating the HMAC secret requires reconciliation of outstanding recipient identities. A runtime key change cannot redirect a queued notice to a different address.
+
+Row zero of `fpw_arrival_dispatch_control` controls production exposure. ALLOWLIST also requires an authorized per-plan scope. The immutable first activation and database-stamped generation start protect historical trips when a scope is first enabled, resumed, or expanded. Every mode change advances its generation. A worker revalidates both generations, the effective deadline revision, actual final-leg proof and the currently selected recipient immediately before submission. CAPTURE requires a development environment, an injected in-process sink and a specific capture scope. Production enablement is a separate owner decision.
+
+Each valid, normalized, selected recipient receives one initial delivery identity. Missing/invalid selections and zero-valid-recipient incidents are recorded on the notice. The application stores a keyed, plan-bound fingerprint instead of an address. A native synchronous mail call runs outside SQL transactions. A bounded, connection-pinned DB named lock serializes handoff with conflicting lifecycle commits. Verify dedicated JDBC connections and named-lock support on the target ColdFusion/DB combination before enabling transport. A competing terminal action may briefly wait for a handoff already in flight. Submission to transport cannot be recalled or treated as proof of inbox delivery.
+
+For a definite retryable failure, retry after 5, then 15, then 30 minutes measured from the preceding failed attempt. Four attempts exhaust this notice. An abandoned pre-handoff claim can be reclaimed. If handoff may have started but the outcome was not durably recorded, mark it UNKNOWN for operator reconciliation. Do not manually replay UNKNOWN solely because the lease expired.
+
+Operators can review incidents and delivery outcomes without selecting addresses or tokens:
+
+```sql
+SELECT n.plan_id, n.revision_id, n.slot_no, n.state AS notice_state,
+       n.recipient_count, n.invalid_count, n.reason AS selection_reason,
+       d.id AS delivery_id, d.state AS delivery_state, d.attempt_count,
+       d.next_attempt_utc, d.submitted_at_utc, d.reason AS delivery_reason
+FROM fpw_arrival_notices n
+LEFT JOIN fpw_arrival_deliveries d ON d.notice_id = n.id
+WHERE n.state = 'NO_RECIPIENTS' OR n.invalid_count > 0
+   OR d.state IN ('FAILED_RETRYABLE', 'FAILED_PERMANENT', 'UNKNOWN')
+ORDER BY n.created_at_utc DESC, d.id
+LIMIT 100;
+```
+
+Use `fpw_arrival_attempts.delivery_id` for the numbered attempts and timestamps. An accepted transport handoff is SUBMITTED. Only external provider evidence can substantiate delivery. For rollback, disable arrival dispatch, advance the scope generation, and retain the ledgers. Preserve ambiguous in-flight attempts for reconciliation. The down migration refuses a used installation. The dedicated test harness is `python3 tests/support/run-arrival-delivery-phase3-isolated.py`. It uses disposable development containers and captured mail.
