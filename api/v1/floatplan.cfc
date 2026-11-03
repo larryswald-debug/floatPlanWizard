@@ -4802,6 +4802,7 @@
 
                     if (existingStatus EQ "ACTIVE" AND explicitArrivalRevision AND compare(priorArrivalUtc, returnTimeUtcStore) NEQ 0) {
                         var arrivalUpdate = arrivalMonitoring.reviseDeadline(planId, arguments.userId, val(expectedArrivalRevision), priorArrivalUtc, returnTimeUtcStore, lockedPlanRow.priorReturnZone[1]);
+                    createObject("component",resolveApiV1ComponentPath("monitor")).init(ds).reconcileArrivalEdit(planId, priorArrivalUtc);
                         if (len(priorArrivalUtc)) revisedArrivalNo = arrivalUpdate.revision;
                     }
 

@@ -258,6 +258,14 @@ After verifying Phase 3, select the target database explicitly (`USE fpw;` in pr
 
 When an authorized edit changes an active plan's saved return instant, the save queues **FloatPlanWizard Update: Expected Arrival Time Changed** for each distinct, valid shore-contact address on the newly saved plan. The email gives the previous and revised arrival in their respective local time zones and UTC. FPW attempts delivery immediately after the save commits, using the same site and trip permissions as arrival alerts. A draft, an unchanged instant, or a rejected save creates no update. The monitor retries outstanding deliveries and reports them under `ARRIVAL_DELIVERY.deadlineChanges`. Recipient removal, a superseding revision or trip completion suppresses a stale delivery. Enabling the feature does not replay past edits.
 
+### Routine evening checkpoints
+
+Before installing the matching monitor code, select the intended database (`USE FPW;` in development or `USE fpw;` in production) and run the `20261103_001_routine_checkpoint_kind` preflight, up and verify scripts in order. Each must report `PASS`. The nullable `floatplan_monitoring.checkpoint_kind` records how the current checkpoint was selected. The down script refuses to discard recorded reasons.
+
+On a started route, 6 PM is an evening checkpoint only on local dates before the saved expected arrival date of an overnight trip. FPW uses the departure time zone and calendar dates, including trips shorter than 24 hours. A Monday–Thursday trip can have evening checkpoints on Monday, Tuesday and Wednesday. Basic planned returns, earlier planned-return checkpoints and Daily Start have their own timing. A qualifying missed check-in still goes to the captain after grace, then to the selected contacts if escalation becomes due. The independent arrival notices use the saved arrival instant.
+
+An authorized arrival edit reconciles the pending evening in the save transaction. A same-day extension before 6 PM can arm that evening. An extension after 6 PM can arm the next eligible evening. The monitor rechecks the stored checkpoint date before either routine notice. Earlier rows whose source is uncertain retain their existing schedule until the next checkpoint is selected.
+
 ### Test a development trip in MailHog
 
 1. Run the local ColdFusion, MySQL, and MailHog containers. Use the development scheduler config with the email flag enabled and a stable development-only recipient key. The scheduled worker connects directly to `mailhog:1025`. Global `LIVE` does not enable this development transport.

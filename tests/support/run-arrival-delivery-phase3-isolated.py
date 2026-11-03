@@ -4,7 +4,7 @@
 From FPW: python3 tests/support/run-arrival-delivery-phase3-isolated.py
 Prerequisites: local Docker engine, cfdev-cf and cfdev-mysql, cached ColdFusion,
 MySQL and MailHog images listed below, and the installed FPW testbox/system.
-In-memory captures and one real SMTP submission to an isolated MailHog are
+In-memory captures and routine and arrival SMTP submissions to an isolated MailHog are
 verified. No external mail, image pulls or published ports. Drop the sandbox on exit.
 """
 from email import policy
@@ -22,7 +22,7 @@ import uuid
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATIONS = ("20261101_001_arrival_overdue_monitoring", "20261101_002_arrival_overdue_delivery",
-              "20261102_001_shore_arrival_time_change")
+              "20261102_001_shore_arrival_time_change", "20261103_001_routine_checkpoint_kind")
 TABLES = ("rollout", "watches", "revisions", "events", "dispatch_control", "notices", "deliveries", "attempts")
 CF_IMAGE = "cfdev-coldfusion-mysql:latest"
 DB_IMAGE = "mysql:8.0"
@@ -147,8 +147,8 @@ def main():
             if get("fpw/setup-db.cfm").stdout.strip()!=b"FPW":
                 raise RuntimeError("Private ColdFusion datasource setup failed")
             (app/"setup-db.cfm").unlink()
-            # Install Adobe's mail tag offline. The explicit development SMTP host
-            # is the private MailHog; no SMTP relay is configured in ColdFusion.
+            # Install Adobe's mail tag offline. Both explicit arrival SMTP and
+            # the routine cfmail default point to the sandbox's private MailHog.
             bundles=json.loads(call("docker","exec",cf,"cat","/opt/coldfusion/bundles/bundlesdependency.json").stdout)
             mail=next(b for b in bundles if b.get("bundle")=="mail")
             jar_names=["mail-"+mail["version"]+".jar"]
@@ -162,6 +162,13 @@ def main():
                 call("docker","cp","cfdev-cf:"+matches[0],str(temp/name))
                 call("docker","cp",str(temp/name),cf+":"+matches[0])
             call("docker","exec",cf,"/opt/coldfusion/cfusion/bin/cfpm.sh","install","mail:"+mail["version"])
+            mail_setup = app / "setup-mail.cfm"
+            mail_setup.write_text('<cfsetting showdebugoutput="false"><cfscript>'
+                'createObject("component","CFIDE.adminapi.administrator").login(createObject("java","java.lang.System").getenv("password"));'
+                'createObject("component","CFIDE.adminapi.mail").setMailServer("mailhog",1025);writeOutput("MAIL_READY");</cfscript>')
+            if get("fpw/setup-mail.cfm").stdout.strip() != b"MAIL_READY":
+                raise RuntimeError("Private ColdFusion mail setup failed")
+            mail_setup.unlink()
             mailbox_url = "http://mailhog:8025/api/v2/messages?limit=5"
             wait_for(lambda: call("docker","exec",cf,"curl","-fsS","--max-time","3",mailbox_url,
                                   required=False).returncode==0, "private MailHog")
@@ -181,7 +188,11 @@ def main():
                 "(SELECT COUNT(*) FROM fpw_arrival_dispatch_control WHERE plan_id>0 AND mode='OFF') AS retired_synthetic_scopes").splitlines()
             audit_counts=dict(zip(audit[0].split("\t"),audit[1].split("\t")))
             ok=ok and all(audit_counts[k]=="0" for k in ("watches","revisions","events"))
-            mailbox=json.loads(call("docker","exec",cf,"curl","-fsS","--max-time","5",mailbox_url).stdout)
+            def read_mailbox():
+                return json.loads(call("docker","exec",cf,"curl","-fsS","--max-time","5",mailbox_url).stdout)
+            if ok:
+                wait_for(lambda: read_mailbox()["total"] >= 5, "five private SMTP messages", timeout=60)
+            mailbox=read_mailbox()
             verified_notices={}
             for item in mailbox["items"]:
                 message=Parser(policy=policy.default).parsestr(item["Raw"]["Data"])
@@ -195,6 +206,12 @@ def main():
                 body=part.get_content()
                 if "Float Plan: "+fixture.group(1) not in body:
                     continue
+                if message["Subject"] == "FPW Automated Notice: Scheduled Check-In Not Recorded - "+fixture.group(1) and not fixture.group(2):
+                    verified_notices["routine_captain"]=fixture.group(1)
+                    continue
+                if message["Subject"] == "FPW Automated Notice: Check-In Still Unresolved - "+fixture.group(1) and fixture.group(2) == "-shore":
+                    verified_notices["routine_shore"]=fixture.group(1)
+                    continue
                 if fixture.group(2)=="-updated":
                     if (message["Subject"]=="FloatPlanWizard Update: Expected Arrival Time Changed"
                         and re.search(r"Previous expected arrival: .*3:00 PM \(America/New_York\).*19:00:00 UTC",body)
@@ -207,8 +224,9 @@ def main():
                     verified_notices["shore"]=fixture.group(1)
                 elif not fixture.group(2) and message["Subject"]=="FloatPlanWizard Reminder: Close Your Float Plan" and "close your float plan" in body:
                     verified_notices["captain"]=fixture.group(1)
-            verified_mail=(mailbox["total"]==3 and len(verified_notices)==3
-                           and verified_notices["captain"]==verified_notices["shore"])
+            verified_mail=(mailbox["total"]==5 and len(verified_notices)==5
+                           and verified_notices["captain"]==verified_notices["shore"]
+                           and verified_notices["routine_captain"]==verified_notices["routine_shore"])
             ok=ok and verified_mail
             print(json.dumps({"synthetic_capture_only":True,"mailhog_messages":mailbox["total"],
                               "mailhog_notice_verified":verified_mail,"mailhog_recipient_roles":sorted(verified_notices),

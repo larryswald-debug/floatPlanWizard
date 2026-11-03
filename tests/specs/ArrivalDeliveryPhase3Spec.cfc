@@ -149,7 +149,257 @@ component extends="testbox.system.BaseSpec" output=false {
     return deserializeJSON(response.fileContent);
   }
 
+  private any function routineMonitor(required struct clock) {
+    var monitor = new fpw.api.v1.monitor().init(variables.ds);
+    new testbox.system.util.MixerUtil().start(monitor);
+    var fixed = arguments.clock;
+    monitor.injectMixin("getCurrentUtcTimestamp", function(){ return parseDateTime(fixed.utc); });
+    return monitor;
+  }
+
+  private query function routineRow(required struct f) {
+    return sql("SELECT checkpoint_kind, monitor_state, is_monitoring_enabled,
+      COALESCE(DATE_FORMAT(expected_checkin_at,'%Y-%m-%d %H:%i:%s'),'') AS stamp,
+      COALESCE(DATE_FORMAT(next_monitor_eval_at,'%Y-%m-%d %H:%i:%s'),'') AS next_eval
+      FROM floatplan_monitoring WHERE float_plan_id=:p",{p=f.planId});
+  }
+
+  private void function routineSchedule(required struct f,required string depart,required string arrival) {
+    sql("UPDATE floatplans SET departureTimeUTC=:d,returnTimeUTC=:a,departureTZ='America/New_York',
+      departureTime=:wallD, returnTime=:wallA WHERE floatplanId=:p",
+      {p=f.planId,d=depart,a=arrival,
+       wallD=dateTimeFormat(parseDateTime(replace(depart," ","T") & "Z"),"yyyy-mm-dd HH:nn:ss","America/New_York"),
+       wallA=dateTimeFormat(parseDateTime(replace(arrival," ","T") & "Z"),"yyyy-mm-dd HH:nn:ss","America/New_York")});
+    sql("UPDATE route_instances SET started_at=:d WHERE id=:r",{r=f.routeId,d=depart});
+    sql("UPDATE route_instance_leg_progress SET leg_started_at=:d WHERE route_instance_id=:r",{r=f.routeId,d=depart});
+  }
+
   function run() {
+    describe("Routine evening checkpoints on started routes",function(){
+      it("selects every pre-arrival evening, including short overnights, using departure-zone calendar dates",function(){
+        var monitor=new fpw.api.v1.monitor().init(variables.ds);
+        makePublic(monitor,"computeNextExpectedCheckin","checkpointForTest");
+        var row={monitoring_mode="active_route",departure_timezone="America/New_York",departure_time="2026-11-02 13:00:00"};
+        for(var item in [
+          ["2026-11-02 20:00:00","2026-11-02 13:00:00","NO_EVENING",""],
+          ["2026-11-03 01:00:00","2026-11-02 13:00:00","NO_EVENING",""],
+          ["2026-11-03 13:00:00","2026-11-02 21:00:00","EVENING","2026-11-02 23:00:00"],
+          ["2026-11-06 01:00:00","2026-11-02 13:00:00","EVENING","2026-11-02 23:00:00"],
+          ["2026-11-06 01:00:00","2026-11-03 13:00:00","EVENING","2026-11-03 23:00:00"],
+          ["2026-11-06 01:00:00","2026-11-04 13:00:00","EVENING","2026-11-04 23:00:00"],
+          ["2026-11-06 01:00:00","2026-11-05 13:00:00","NO_EVENING",""]]){
+          row.return_time=item[1];
+          var picked=monitor.checkpointForTest(row,"",{baseAt=item[2]});
+          expect(picked.kind).toBe(item[3]);
+          expect(isDate(picked.at) ? dateTimeFormat(picked.at,"yyyy-mm-dd HH:nn:ss") : "").toBe(item[4]);
+        }
+        row.departure_time="2026-10-31 20:00:00";
+        row.return_time="2026-11-01 13:00:00";
+        var fall=monitor.checkpointForTest(row,"",{baseAt=row.departure_time});
+        expect(fall.kind).toBe("EVENING");
+        expect(dateTimeFormat(fall.at,"yyyy-mm-dd HH:nn:ss")).toBe("2026-10-31 22:00:00");
+        row.return_time="";
+        expect(monitor.checkpointForTest(row,"",{baseAt=row.departure_time}).kind).toBe("NO_EVENING");
+      });
+
+      it("keeps Basic returns, real planned returns and a configured 6 PM Daily Start distinct",function(){
+        var svc=new fpw.api.v1.monitor().init(variables.ds);
+        makePublic(svc,"computeNextExpectedCheckin","pickForTest");
+        var row={monitoring_mode="basic",departure_timezone="America/New_York",departure_time="2026-11-02 13:00:00",
+          return_time="2026-11-02 23:00:00",daily_start_local_time="18:00:00"};
+        var options={baseAt=row.departure_time,considerPlannedReturn=true};
+        expect(svc.pickForTest(row,"",options).kind).toBe("PLANNED_RETURN");
+        row.monitoring_mode="active_route";
+        expect(svc.pickForTest(row,"",options).kind).toBe("PLANNED_RETURN");
+        row.return_time="2026-11-03 23:00:00";
+        options.baseAt="2026-11-02 23:01:00";
+        var next=svc.pickForTest(row,"",options);
+        expect(next.kind).toBe("DAILY_START");
+        expect(dateTimeFormat(next.at,"yyyy-mm-dd HH:nn:ss")).toBe(row.return_time);
+      });
+
+      it("keeps arrival delivery armed on a same-day 3 PM trip without scheduling a 6 PM miss",function(){
+        withPlan(function(f){
+          var depart=shift(f.due,-360);
+          routineSchedule(f,depart,f.due);
+          var clock={utc=depart};
+          var monitor=routineMonitor(clock);
+          expect(monitor.startMonitoringForFloatPlan(f.planId,"active_route",{baseAt=depart}).SUCCESS).toBeTrue();
+          var row=routineRow(f);
+          expect(row.checkpoint_kind[1]).toBe("NO_EVENING");
+          expect(row.stamp[1]).toBe(""); expect(row.next_eval[1]).toBe(""); expect(val(row.is_monitoring_enabled[1])).toBe(1);
+          var capture=new fpw.tests.support.ArrivalCaptureTransport();
+          var sender=worker(f,capture);
+          sender.allowlistActivatedPlan(f.planId);
+          sender.evaluatePlan(f.planId,f.due); sender.dispatchPlan(f.planId,f.due);
+          expect(sender.dispatchCaptainReminder(f.planId,f.due).state).toBe("SUBMITTED");
+          var subjects=[]; for(var call in capture.calls()) arrayAppend(subjects,call.message.subject);
+          expect(subjects).toInclude("FloatPlanWizard Alert: Expected Arrival Time Has Passed");
+          expect(subjects).toInclude("FloatPlanWizard Reminder: Close Your Float Plan");
+          clock.utc=shift(f.due,240);
+          monitor.evaluateMonitoringCycle(f.planId);
+          expect(routineRow(f).monitor_state[1]).toBe("ACTIVE");
+          expect(val(sql("SELECT COUNT(*) AS n FROM floatplan_monitor_events WHERE float_plan_id=:p
+            AND event_type IN ('CAPTAIN_ALERTED','CONTACT_ALERTED')",{p=f.planId}).n[1])).toBe(0);
+          expect(monitor.recordMonitoringCheckin(f.planId,"ON_TRACK").SUCCESS).toBeTrue();
+        });
+      });
+
+      it("writes the same evening policy on ordinary check-in and leg start, and keeps a completed leg unscheduled",function(){
+        withPlan(function(f){
+          var depart="2026-11-02 14:00:00";
+          var clock={utc=depart}; var monitor=routineMonitor(clock);
+          routineSchedule(f,depart,"2026-11-03 01:00:00");
+          expect(monitor.recordMonitoringCheckin(f.planId,"ON_TRACK").SUCCESS).toBeTrue();
+          expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING");
+          sql("UPDATE route_instance_leg_progress SET leg_started_at=:d WHERE route_instance_id=:r",{r=f.routeId,d=depart});
+          expect(monitor.refreshActiveRouteCheckpointFromLegStart(f.planId,f.routeId,1).UPDATED).toBeTrue();
+          expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING");
+          routineSchedule(f,depart,"2026-11-03 13:00:00");
+          expect(monitor.refreshActiveRouteCheckpointFromLegStart(f.planId,f.routeId,1).UPDATED).toBeTrue();
+          expect(routineRow(f).checkpoint_kind[1]).toBe("EVENING");
+          sql("UPDATE route_instance_leg_progress SET status='COMPLETED',completed_at=:d WHERE route_instance_id=:r",{r=f.routeId,d=depart});
+          expect(monitor.refreshActiveRouteCheckpointFromLegCompletion(f.planId,f.routeId,1).UPDATED).toBeTrue();
+          transaction { monitor.reconcileArrivalEdit(f.planId,"2026-11-03 01:00:00"); }
+          expect(routineRow(f).stamp[1]).toBe("");
+        });
+      });
+
+      it("submits the overnight captain and shore notices once at the existing strict thresholds",function(){
+        withPlan(function(f){
+          // The missed checkpoint was Monday evening. The last evaluation below can also run after midnight.
+          var depart="2026-11-02 21:00:00"; var clock={utc=depart}; var monitor=routineMonitor(clock);
+          routineSchedule(f,depart,"2026-11-03 13:00:00");
+          expect(monitor.startMonitoringForFloatPlan(f.planId,"active_route",{baseAt=depart}).SUCCESS).toBeTrue();
+          expect(routineRow(f).stamp[1]).toBe("2026-11-02 23:00:00");
+          for(var step in [["2026-11-02 23:00:00","ACTIVE"],["2026-11-02 23:01:00","LATE"],
+            ["2026-11-03 00:00:00","LATE"],["2026-11-03 00:01:00","MISSED"],
+            ["2026-11-03 02:01:00","MISSED"],["2026-11-03 05:01:00","ESCALATED"]]){
+            clock.utc=step[1]; monitor.evaluateMonitoringCycle(f.planId);
+            expect(routineRow(f).monitor_state[1]).toBe(step[2]);
+          }
+          monitor.evaluateMonitoringCycle(f.planId);
+          expect(val(sql("SELECT COUNT(*) AS n FROM floatplan_alert_history WHERE floatPlanId=:p AND status='SENT'",{p=f.planId}).n[1])).toBe(2);
+        });
+      });
+
+      it("rechecks pending evenings before both notices and preserves ambiguous older 6 PM daily starts",function(){
+        withPlan(function(f){
+          routineSchedule(f,"2026-11-02 14:00:00","2026-11-03 01:00:00");
+          var clock={utc="2026-11-03 05:05:00"}; var monitor=routineMonitor(clock);
+          for(var state in ["ACTIVE","MISSED"]){
+            sql("UPDATE floatplan_monitoring SET checkpoint_kind=NULL, monitor_state=:state, secure_for_night=0,
+              expected_checkin_at='2026-11-02 23:00:00', grace_expires_at='2026-11-03 00:00:00',
+              missed_at='2026-11-03 00:01:00',next_monitor_eval_at='2026-11-03 02:01:00' WHERE float_plan_id=:p",{p=f.planId,state=state});
+            expect(monitor.evaluateMonitoringCycle(f.planId).REASON).toBe("EVENING_NOT_REQUIRED");
+            expect(routineRow(f).monitor_state[1]).toBe("ACTIVE"); expect(routineRow(f).next_eval[1]).toBe("");
+          }
+          expect(val(sql("SELECT COUNT(*) AS n FROM floatplan_alert_history WHERE floatPlanId=:p",{p=f.planId}).n[1])).toBe(0);
+          sql("UPDATE floatplans SET dailyStartLocalTime='18:00:00' WHERE floatPlanId=:p",{p=f.planId});
+          sql("UPDATE floatplan_monitoring SET checkpoint_kind=NULL,expected_checkin_at='2026-11-02 23:00:00' WHERE float_plan_id=:p",{p=f.planId});
+          clock.utc="2026-11-02 13:00:00"; monitor.evaluateMonitoringCycle(f.planId);
+          expect(routineRow(f).checkpoint_kind[1]).toBe("LEGACY");
+          expect(routineRow(f).stamp[1]).toBe("2026-11-02 23:00:00");
+          // No same-day scheduling action establishes what an older 18:00 timestamp meant.
+          routineSchedule(f,"2026-11-01 14:00:00","2026-11-03 01:00:00");
+          sql("UPDATE floatplans SET dailyStartLocalTime='08:00:00' WHERE floatPlanId=:p",{p=f.planId});
+          sql("UPDATE floatplan_monitoring SET checkpoint_kind=NULL WHERE float_plan_id=:p",{p=f.planId});
+          monitor.evaluateMonitoringCycle(f.planId);
+          expect(routineRow(f).checkpoint_kind[1]).toBe("LEGACY");
+        });
+      });
+
+      it("the scheduled batch retires an old future same-day evening and does not evaluate a different checkpoint early",function(){
+        withPlan(function(f){
+          var monitor=new fpw.api.v1.monitor().init(variables.ds);
+          var evening=shift(f.due,180);
+          routineSchedule(f,shift(f.due,-360),f.due);
+          sql("UPDATE floatplan_monitoring SET checkpoint_kind=NULL, expected_checkin_at=:t, next_monitor_eval_at=:t
+            WHERE float_plan_id=:p",{p=f.planId,t=evening});
+          monitor.evaluateDueMonitoringRows(10);
+          expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING");
+          expect(routineRow(f).next_eval[1]).toBe("");
+          sql("UPDATE floatplan_monitoring SET checkpoint_kind=NULL,expected_checkin_at=UTC_TIMESTAMP()-INTERVAL 2 HOUR,
+            grace_expires_at=UTC_TIMESTAMP()-INTERVAL 1 HOUR, secure_for_night=1, next_monitor_eval_at=:t
+            WHERE float_plan_id=:p",{p=f.planId,t=evening});
+          monitor.evaluateDueMonitoringRows(10);
+          expect(routineRow(f).checkpoint_kind[1]).toBe("DAILY_START");
+          expect(routineRow(f).monitor_state[1]).toBe("ACTIVE");
+          expect(val(sql("SELECT COUNT(*) AS n FROM floatplan_monitor_events WHERE float_plan_id=:p
+            AND event_type IN ('CAPTAIN_ALERTED','CONTACT_ALERTED')",{p=f.planId}).n[1])).toBe(0);
+        });
+      });
+
+      it("preserves a Secure for Night checkpoint at exactly 6 PM across an arrival edit",function(){
+        withPlan(function(f){
+          var depart="2026-11-02 14:00:00"; var clock={utc=depart}; var monitor=routineMonitor(clock);
+          routineSchedule(f,depart,"2026-11-05 14:00:00");
+          sql("UPDATE floatplans SET dailyStartLocalTime='18:00:00' WHERE floatPlanId=:p",{p=f.planId});
+          expect(monitor.recordMonitoringCheckin(f.planId,"SECURE_FOR_NIGHT",{baseAt=depart}).SUCCESS).toBeTrue();
+          var expected=routineRow(f).stamp[1];
+          expect(expected).toBe("2026-11-03 23:00:00");
+          routineSchedule(f,depart,"2026-11-03 01:00:00");
+          transaction { monitor.reconcileArrivalEdit(f.planId,"2026-11-05 14:00:00"); }
+          expect(routineRow(f).checkpoint_kind[1]).toBe("DAILY_START");
+          expect(routineRow(f).stamp[1]).toBe(expected);
+        });
+      });
+
+      it("a due monitor waits for a concurrent arrival edit and reads its committed checkpoint before mailing",function(){
+        withPlan(function(f){
+          var depart="2026-11-02 14:00:00"; var tomorrow="2026-11-03 13:00:00";
+          var clock={utc=depart}; var monitor=routineMonitor(clock);
+          routineSchedule(f,depart,tomorrow);
+          expect(monitor.startMonitoringForFloatPlan(f.planId,"active_route",{baseAt=depart}).SUCCESS).toBeTrue();
+          clock.utc="2026-11-03 01:05:00";
+          var name="routineRace" & replace(createUUID(),"-","","all");
+          var entered=createObject("java","java.util.concurrent.CountDownLatch").init(1);
+          var finished=createObject("java","java.util.concurrent.CountDownLatch").init(1);
+          var units=createObject("java","java.util.concurrent.TimeUnit");
+          try {
+            transaction {
+              sql("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:p FOR UPDATE",{p=f.planId});
+              thread name=name action="run" monitor=monitor id=f.planId entered=entered finished=finished {
+                attributes.entered.countDown();
+                try { thread.result=attributes.monitor.evaluateMonitoringCycle(attributes.id,true); }
+                finally { attributes.finished.countDown(); }
+              }
+              expect(entered.await(javaCast("long",5),units.SECONDS)).toBeTrue();
+              expect(finished.await(javaCast("long",200),units.MILLISECONDS)).toBeFalse();
+              sql("UPDATE floatplans SET returnTimeUTC='2026-11-03 01:00:00',returnTime='2026-11-02 20:00:00'
+                WHERE floatPlanId=:p",{p=f.planId});
+              monitor.reconcileArrivalEdit(f.planId,tomorrow);
+            }
+          } finally { thread action="join" name=name timeout=15000; }
+          expect(cfthread[name].result.REASON).toBe("NOT_DUE");
+          expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING");
+          expect(val(sql("SELECT COUNT(*) AS n FROM floatplan_alert_history WHERE floatPlanId=:p",{p=f.planId}).n[1])).toBe(0);
+        });
+      });
+
+      it("re-arms a future evening on extension and suppresses a pending escalation when arrival moves to today",function(){
+        withPlan(function(f){
+          var depart="2026-11-02 14:00:00"; var clock={utc=depart}; var monitor=routineMonitor(clock);
+          var today="2026-11-03 01:00:00"; var tomorrow="2026-11-03 13:00:00";
+          routineSchedule(f,depart,today);
+          expect(monitor.startMonitoringForFloatPlan(f.planId,"active_route",{baseAt=depart}).SUCCESS).toBeTrue();
+          routineSchedule(f,depart,tomorrow);
+          transaction { monitor.reconcileArrivalEdit(f.planId,today); }
+          expect(routineRow(f).stamp[1]).toBe("2026-11-02 23:00:00");
+          sql("UPDATE floatplan_monitoring SET monitor_state='MISSED',missed_at='2026-11-03 00:01:00' WHERE float_plan_id=:p",{p=f.planId});
+          routineSchedule(f,depart,today);
+          transaction { monitor.reconcileArrivalEdit(f.planId,tomorrow); }
+          expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING"); expect(routineRow(f).monitor_state[1]).toBe("ACTIVE");
+          clock.utc="2026-11-03 00:30:00";
+          routineSchedule(f,depart,tomorrow);
+          transaction { monitor.reconcileArrivalEdit(f.planId,today); }
+          expect(routineRow(f).stamp[1]).toBe("");
+          routineSchedule(f,depart,"2026-11-05 14:00:00");
+          transaction { monitor.reconcileArrivalEdit(f.planId,tomorrow); }
+          expect(routineRow(f).stamp[1]).toBe("2026-11-03 23:00:00");
+        });
+      });
+    });
     describe("Phase 3 initial arrival notices with isolated capture transports",function(){
       it("requires a private scheduler JSON boolean and a valid key at both production mail checks",function(){
         withSchedulerConfig(function(path){
@@ -821,6 +1071,11 @@ component extends="testbox.system.BaseSpec" output=false {
               var handler=new fpw.api.v1.floatplan();
               makePublic(handler,"loadFloatPlan","loadChangeTest");
               makePublic(handler,"saveFloatPlan","saveChangeTest");
+              // The revised instant crosses midnight in the route's departure zone.
+              sql("UPDATE floatplans SET departureTZ='Asia/Kolkata',departTimezone='Asia/Kolkata',
+                departureTime=DATE_ADD(departureTimeUTC,INTERVAL 330 MINUTE) WHERE floatPlanId=:p",{p=f.planId});
+              sql("UPDATE floatplan_monitoring SET checkpoint_kind='EVENING',expected_checkin_at=:t,
+                next_monitor_eval_at=:t WHERE float_plan_id=:p",{p=f.planId,t=shift(f.due,-390)});
               var model=handler.loadChangeTest(f.userId,f.planId);
               var revised=shift(f.due,-60);
               model.RETURN_TIME_UTC=revised;
@@ -833,6 +1088,7 @@ component extends="testbox.system.BaseSpec" output=false {
               model.EXPECTED_ARRIVAL_REVISION=99;
               expect(handler.saveChangeTest(f.userId,payload).SUCCESS).toBeFalse();
               expect(notices(f).recordCount).toBe(0);
+              expect(routineRow(f).checkpoint_kind[1]).toBe("EVENING");
               model.EXPECTED_ARRIVAL_REVISION=1;
               var inserted={};
               queryExecute("INSERT INTO contacts(userId,name,phone,email) VALUES(:u,'Updated recipient','5550100',:e)",
@@ -842,14 +1098,18 @@ component extends="testbox.system.BaseSpec" output=false {
                 try {
                   expect(handler.saveChangeTest(f.userId,payload).SUCCESS).toBeTrue();
                   expect(notices(f).recordCount).toBe(1);
+                  expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING");
                 } finally { transaction action="rollback"; }
               }
               expect(f.observer.getRevision(f.planId)).toBe(1);
               expect(notices(f).recordCount).toBe(0);
               expect(deliveries(f).recordCount).toBe(0);
+              expect(routineRow(f).checkpoint_kind[1]).toBe("EVENING");
               var saved=saveOverHttp(payload);
               expect(saved.SUCCESS).toBeTrue(saved.ERROR ?: saved.MESSAGE ?: "HTTP save failed");
               expect(val(saved.FLOATPLAN.ARRIVAL_REVISION)).toBe(2);
+              expect(routineRow(f).checkpoint_kind[1]).toBe("NO_EVENING");
+              expect(routineRow(f).next_eval[1]).toBe("");
               expect(notices(f).slot_no[1]).toBe(1);
               expect(deliveries(f).state[1]).toBe("SUBMITTED");
               expect(attempts(f)).toBe(1);
