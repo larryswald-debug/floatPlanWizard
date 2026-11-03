@@ -227,15 +227,62 @@ Use the guarded `tests/arrival-monitoring-phase2-runner.cfm` only in local devel
 
 ## Initial arrival-overdue email (Phase 3)
 
-Apply the dated `20261101_002_arrival_overdue_delivery` preflight, up and verify scripts in order after verifying Phase 2. The migration creates an OFF dispatch control with no activation timestamp, and empty notice, recipient delivery and attempt tables. The only supported business slot in Phase 3 is zero (initial notice). Hourly observations do not create hourly email.
+Apply the dated `20261101_002_arrival_overdue_delivery` preflight, up and verify scripts in order after verifying Phase 2. The migration creates an OFF dispatch control with no activation timestamp, and empty notice, recipient delivery and attempt tables. Notice slot zero records the initial overdue alert. Hourly observations do not create hourly email.
 
-The canonical monitoring runner returns a separate `ARRIVAL_DELIVERY` summary. Live transport requires the production environment, the explicit server setting `FPW_ARRIVAL_EMAIL_ENABLED=true`, a stable secret of at least 32 characters in `FPW_ARRIVAL_RECIPIENT_KEY`, enabled arrival observation, and explicit database dispatch scope. Configure secrets through the deployment secret store. Rotating the HMAC secret requires reconciliation of outstanding recipient identities. A runtime key change cannot redirect a queued notice to a different address.
+The monitoring runner returns a separate `ARRIVAL_DELIVERY` summary. The two top-level keys below belong in the site's existing `_fpw_private/scheduler-config.json`. Set `FPW_ARRIVAL_EMAIL_ENABLED` to the JSON boolean `true` and provide a stable string of at least 32 characters in `FPW_ARRIVAL_RECIPIENT_KEY` when ready. The worker and mail sender read the file at delivery checks. An edit takes effect without a ColdFusion restart. Production uses its configured SMTP transport. Local development sends eligible arrival emails to MailHog.
 
-Row zero of `fpw_arrival_dispatch_control` controls production exposure. ALLOWLIST also requires an authorized per-plan scope. The immutable first activation and database-stamped generation start protect historical trips when a scope is first enabled, resumed, or expanded. Every mode change advances its generation. A worker revalidates both generations, the effective deadline revision, actual final-leg proof and the currently selected recipient immediately before submission. CAPTURE requires a development environment, an injected in-process sink and a specific capture scope. Production enablement is a separate owner decision.
+```json
+{
+  "FPW_ARRIVAL_EMAIL_ENABLED": false,
+  "FPW_ARRIVAL_RECIPIENT_KEY": ""
+}
+```
+
+Keep these disabled defaults in version control. Provision each installation's own key in its protected working copy and preserve it during deployments. The file stays inside the web root. IIS uses the deny rule in `web.config`, and the standalone development Tomcat uses the equivalent rule in `wwwroot/WEB-INF/rewrite.config`. Before provisioning a host's key, verify that a direct request to `/_fpw_private/scheduler-config.json` returns 403 or 404. If migrating an active installation from environment variables, reuse the exact existing recipient key so queued recipients retain their identities. A key rotation requires reconciliation of outstanding deliveries.
+
+In development and production, activating a Basic or route-backed float plan creates its `ALLOWLIST` row in the same transaction. On each pass, **Run FPW Monitor** also enrolls a batch of already-active, open plans that have no row. Existing per-trip settings take precedence, including `OFF` and `CAPTURE`. Enrollment is independent of the site email flag and the global dispatch mode.
+
+On the first eligible pass at or after the saved return time, the monitor sends the captain **FloatPlanWizard Reminder: Close Your Float Plan** at the plan owner's account email. The reminder asks the captain to close the plan after arriving safely or update the return time if still underway. The eligible shore contacts receive their existing overdue alert on that same pass. Each message has its own recipients and delivery record.
+
+The captain receives at most one successful reminder per float plan. The existing `floatplan_alert_history` table stores its `CAPTAIN_CLOSEOUT` receipt. FPW registers it at activation, or on a monitor pass for existing active plans. A deadline that had already passed at registration gets no catch-up reminder. Before submission the worker checks the saved deadline, current plan and site permissions, and whether the plan is still open. A completed final leg can leave the plan open for captain closeout. Closing, cancelling, expiring, or stopping monitoring suppresses further sends. A definite transient failure follows the 5-, 15- and 30-minute retry intervals. An ambiguous submission is recorded as `UNKNOWN`. The scheduled-task response reports these outcomes under `ARRIVAL_DELIVERY.captainReminders`.
+
+Row zero of `fpw_arrival_dispatch_control` controls site-wide delivery. Production accepts `ALLOWLIST` or `LIVE`. New notices require observation to be on and the deadline to fall after both the site and per-trip activation cutoffs. An overdue trip first enrolled today gets no catch-up email for that deadline. A recipient delivery already queued legitimately under production `LIVE` can finish under its original authorization. Before submission, the worker rechecks both generations, the deadline revision, final arrival and selected recipient. `CAPTURE` requires a development environment, an injected in-process sink and a specific capture scope.
 
 Each valid, normalized, selected recipient receives one initial delivery identity. Missing/invalid selections and zero-valid-recipient incidents are recorded on the notice. The application stores a keyed, plan-bound fingerprint instead of an address. A native synchronous mail call runs outside SQL transactions. A bounded, connection-pinned DB named lock serializes handoff with conflicting lifecycle commits. Verify dedicated JDBC connections and named-lock support on the target ColdFusion/DB combination before enabling transport. A competing terminal action may briefly wait for a handoff already in flight. Submission to transport cannot be recalled or treated as proof of inbox delivery.
 
 For a definite retryable failure, retry after 5, then 15, then 30 minutes measured from the preceding failed attempt. Four attempts exhaust this notice. An abandoned pre-handoff claim can be reclaimed. If handoff may have started but the outcome was not durably recorded, mark it UNKNOWN for operator reconciliation. Do not manually replay UNKNOWN solely because the lease expired.
+
+### Shore-contact arrival time changes
+
+After verifying Phase 3, select the target database explicitly (`USE fpw;` in production or `USE FPW;` in local development). Run the `20261102_001_shore_arrival_time_change.preflight.sql`, `.up.sql` and `.verify.sql` scripts from `database/migrations/` in order. Check for `PASS` at each stage. The migration extends the existing notice constraint to accept slot one for schedule changes. Use the updated application for both saves and scheduled delivery. The down script permits rollback only while slot one is unused.
+
+When an authorized edit changes an active plan's saved return instant, the save queues **FloatPlanWizard Update: Expected Arrival Time Changed** for each distinct, valid shore-contact address on the newly saved plan. The email gives the previous and revised arrival in their respective local time zones and UTC. FPW attempts delivery immediately after the save commits, using the same site and trip permissions as arrival alerts. A draft, an unchanged instant, or a rejected save creates no update. The monitor retries outstanding deliveries and reports them under `ARRIVAL_DELIVERY.deadlineChanges`. Recipient removal, a superseding revision or trip completion suppresses a stale delivery. Enabling the feature does not replay past edits.
+
+### Test a development trip in MailHog
+
+1. Run the local ColdFusion, MySQL, and MailHog containers. Use the development scheduler config with the email flag enabled and a stable development-only recipient key. The scheduled worker connects directly to `mailhog:1025`. Global `LIVE` does not enable this development transport.
+2. For initial local setup, connect to the **development** database at `localhost:3307`, select `FPW`, and review the existing allowlist. Set observation and global dispatch as shown. All plans with a positive `ALLOWLIST` row are in scope.
+
+   ```sql
+   USE `FPW`;
+   SELECT plan_id, mode FROM fpw_arrival_dispatch_control WHERE plan_id = 0 OR mode = 'ALLOWLIST';
+   START TRANSACTION;
+   UPDATE fpw_arrival_rollout SET mode = 'OBSERVE' WHERE id = 1 AND mode = 'OFF';
+   UPDATE fpw_arrival_dispatch_control SET mode = 'ALLOWLIST', generation = generation + 1
+   WHERE plan_id = 0 AND mode <> 'ALLOWLIST';
+   COMMIT;
+   ```
+
+3. Create and activate a test float plan with a selected shore contact and a saved return time in the future. To verify automatic enrollment, replace `NULL` with its **Float Plan ID** in the same development connection.
+
+   ```sql
+   SET @plan_id = NULL;
+   SELECT plan_id, mode, activated_at_utc
+   FROM fpw_arrival_dispatch_control WHERE plan_id = @plan_id AND plan_id > 0;
+   ```
+
+4. Activate monitoring and start the trip if it is route-backed. Leave final arrival unconfirmed and the plan open. On the first eligible **Run FPW Monitor** pass at or after the deadline, look for **FloatPlanWizard Reminder: Close Your Float Plan** addressed to the owner and **FloatPlanWizard Alert: Expected Arrival Time Has Passed** addressed to the shore contact in [local MailHog](http://localhost:8025/).
+5. To remove the trip from the local allowlist, set its positive `plan_id` row to `OFF` and increment `generation` by one.
 
 Operators can review incidents and delivery outcomes without selecting addresses or tokens:
 

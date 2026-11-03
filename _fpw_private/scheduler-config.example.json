@@ -1,6 +1,8 @@
 {
   "environment": "dev",
   "enabled": true,
+  "FPW_ARRIVAL_EMAIL_ENABLED": false,
+  "FPW_ARRIVAL_RECIPIENT_KEY": "",
   "baseUrl": "http://localhost:8500/fpw",
   "schedulerTimezone": "GMT",
   "verifiedEngineVersion": "2025,0,06,331564",

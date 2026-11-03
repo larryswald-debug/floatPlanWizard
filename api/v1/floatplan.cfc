@@ -108,7 +108,17 @@
                 </cfcase>
 
                 <cfcase value="save">
-                    <cfset var saveResult = saveFloatPlan(userId, body)>
+                    <cfset var arrivalChangeMail = {}>
+                    <cfset var saveResult = saveFloatPlan(userId, body, arrivalChangeMail)>
+                    <cfif saveResult.SUCCESS AND structKeyExists(arrivalChangeMail,"noticeId")>
+                        <cftry>
+                            <cfset createObject("component",resolveApiV1ComponentPath("ArrivalOverdueDeliveryService"))
+                                .init("fpw").dispatchDeadlineChanges(noticeId=arrivalChangeMail.noticeId)>
+                            <cfcatch type="any">
+                                <cflog file="fpw-monitor" type="error" text="Immediate arrival time change dispatch was interrupted. The monitor will check outstanding deliveries.">
+                            </cfcatch>
+                        </cftry>
+                    </cfif>
                     <cfset saveResult.AUTH = true>
                     <cfoutput>#serializeJSON(saveResult)#</cfoutput>
                 </cfcase>
@@ -4247,6 +4257,7 @@
     <cffunction name="saveFloatPlan" access="private" returntype="struct" output="false">
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="payload" type="struct" required="true">
+        <cfargument name="arrivalChangeMail" type="struct" required="false">
         <cfscript>
             var result = { SUCCESS = false };
             if (NOT structKeyExists(arguments.payload, "FLOATPLAN")) {
@@ -4309,6 +4320,7 @@
             var scheduledDepartureChanged = false;
             var preserveLockedDepartureSchedule = false;
             var explicitArrivalRevision = booleanValue(pickValue(floatPlan, ["REVISE_ARRIVAL_DEADLINE"], false));
+            var revisedArrivalNo = 0;
             var expectedArrivalRevision = trim(pickValue(floatPlan, ["EXPECTED_ARRIVAL_REVISION"], ""));
             var priorArrivalUtc = "";
             var arrivalMonitoring = "";
@@ -4789,7 +4801,8 @@
                     }, { datasource = ds });
 
                     if (existingStatus EQ "ACTIVE" AND explicitArrivalRevision AND compare(priorArrivalUtc, returnTimeUtcStore) NEQ 0) {
-                        arrivalMonitoring.reviseDeadline(planId, arguments.userId, val(expectedArrivalRevision), priorArrivalUtc, returnTimeUtcStore, lockedPlanRow.priorReturnZone[1]);
+                        var arrivalUpdate = arrivalMonitoring.reviseDeadline(planId, arguments.userId, val(expectedArrivalRevision), priorArrivalUtc, returnTimeUtcStore, lockedPlanRow.priorReturnZone[1]);
+                        if (len(priorArrivalUtc)) revisedArrivalNo = arrivalUpdate.revision;
                     }
 
                     // remove existing selections
@@ -4851,6 +4864,14 @@
                         arrivalAt = { value = arrivalAt, cfsqltype = "cf_sql_timestamp", null = NOT len(arrivalAt) },
                         departAt = { value = departAt, cfsqltype = "cf_sql_timestamp", null = NOT len(departAt) }
                     }, { datasource = ds });
+                }
+                // Snapshot the contacts saved by this edit in the same transaction as its deadline.
+                if (revisedArrivalNo GT 1) {
+                    var changeNotice = createObject("component",resolveApiV1ComponentPath("ArrivalOverdueDeliveryService"))
+                        .init(ds).evaluatePlan(planId=planId,changedRevision=revisedArrivalNo);
+                    if (changeNotice.created AND changeNotice.recipientCount GT 0 AND structKeyExists(arguments,"arrivalChangeMail")) {
+                        arguments.arrivalChangeMail.noticeId = changeNotice.noticeId;
+                    }
                 }
                 var activityAfter = readDraftActivityProjection(arguments.userId,planId,false,ds);
                 if (activityBefore.draft AND activityAfter.draft
@@ -8800,6 +8821,8 @@
                 }, { datasource = ds });
 
                 markBasicOperationalFloatPlanScope(arguments.floatPlanId, ds);
+                createObject("component", resolveApiV1ComponentPath("ArrivalOverdueDeliveryService")).init(ds)
+                    .allowlistActivatedPlan(arguments.floatPlanId);
             }
 
             monitoringService = createObject("component", resolveApiV1ComponentPath("monitor")).init();
@@ -9173,6 +9196,9 @@
                     detail = serializeJSON(result)
                 );
             }
+
+            createObject("component", resolveApiV1ComponentPath("ArrivalOverdueDeliveryService")).init("fpw")
+                .allowlistActivatedPlan(arguments.floatPlanId);
 
             if (sendAccessSource EQ "premium_send_credit") {
                 creditConsumption = premiumSendCreditService.consumeLockedCredit(

@@ -34,7 +34,7 @@ component output="false" hint="Independent final-arrival observation. This compo
     }
 
     private query function lockedPlan(required numeric planId) {
-        return sql("SELECT floatPlanId, userId, UPPER(TRIM(status)) AS plan_status, route_instance_id,
+        return sql("SELECT floatPlanId, floatPlanName, userId, UPPER(TRIM(status)) AS plan_status, route_instance_id,
                 DATE_FORMAT(returnTimeUTC,'%Y-%m-%d %H:%i:%s') AS deadline,
                 COALESCE(NULLIF(TRIM(returnTZ),''), NULLIF(TRIM(returnTimezone),''),'UTC') AS zone,
                 closedAt IS NOT NULL AS has_close, expiredAt IS NOT NULL AS has_expiry
@@ -95,18 +95,22 @@ component output="false" hint="Independent final-arrival observation. This compo
         }
         var monitor=sql("SELECT monitoring_mode,is_monitoring_enabled,monitor_state FROM floatplan_monitoring
             WHERE float_plan_id=:p AND user_id=:owner",{p=p,owner=plan.userId[1]});
-        if (!monitor.recordCount) return result;
+        if (!monitor.recordCount) {
+            // An activated plan can be revised before its route monitoring starts.
+            result.eligible=(reason=="DEADLINE_CHANGE");
+            return result;
+        }
         if (!monitor.is_monitoring_enabled[1] || monitor.monitor_state[1]=="CLOSED") {
             result.terminal="MONITOR_STOPPED";
             return result;
         }
         result.eligible=(routeId<=0 && monitor.monitoring_mode[1]=="basic")
-            || (routeId>0 && routeStarted && monitor.monitoring_mode[1]=="active_route");
+            || (routeId>0 && (routeStarted || reason=="DEADLINE_CHANGE") && monitor.monitoring_mode[1]=="active_route");
         return result;
     }
 
     // Caller holds the transaction until the initial notice or handoff permit commits.
-    public struct function lockedDeliveryContext(required numeric planId) {
+    public struct function lockedDeliveryContext(required numeric planId,boolean deadlineChange=false) {
         var out={eligible=false,reason="INELIGIBLE"};
         var plan=lockedPlan(planId);
         var watch=lockedWatch(planId);
@@ -116,20 +120,34 @@ component output="false" hint="Independent final-arrival observation. This compo
             out.reason=watch.terminal_reason[1];
             return out;
         }
-        var proof=eligibility(plan,"DISPATCH");
+        var proof=eligibility(plan,deadlineChange ? "DEADLINE_CHANGE" : "DISPATCH");
         if (!proof.eligible) {
             if (len(proof.terminal)) out.reason=proof.terminal;
             return out;
         }
-        var revision=sql("SELECT id,state,historical_only,deadline_zone,
+        var revision=sql("SELECT id,revision_no,source,state,historical_only,deadline_zone,
+                DATE_FORMAT(created_at_utc,'%Y-%m-%d %H:%i:%s.%f') AS changed_at,
                 DATE_FORMAT(deadline_utc,'%Y-%m-%d %H:%i:%s') AS deadline,
                 DATE_FORMAT(deadline_utc,'%Y-%m-%d %H:%i:%s.%f') AS precise_deadline
             FROM fpw_arrival_revisions WHERE plan_id=:p AND revision_no=:r FOR UPDATE",
             {p=planId,r=watch.current_revision[1]});
         if (!revision.recordCount || !listFind("PENDING,OVERDUE",revision.state[1])
             || compare(plan.deadline[1] ?: "",revision.deadline[1])!=0) return out;
-        return {eligible=true,revisionId=revision.id[1],deadlineUtc=revision.precise_deadline[1],
+        var context={eligible=true,revisionId=revision.id[1],deadlineUtc=revision.precise_deadline[1],
             zone=revision.deadline_zone[1],historicalOnly=revision.historical_only[1]==1};
+        if (deadlineChange) {
+            if (revision.source[1]!="AUTHORIZED_REVISION" || revision.revision_no[1]<2) return out;
+            var prior=sql("SELECT DATE_FORMAT(deadline_utc,'%Y-%m-%d %H:%i:%s.%f') AS deadline,deadline_zone
+                FROM fpw_arrival_revisions WHERE plan_id=:p AND revision_no=:r",
+                {p=planId,r=revision.revision_no[1]-1});
+            if (!prior.recordCount || compare(prior.deadline[1],context.deadlineUtc)==0) return out;
+            context.revisionNo=revision.revision_no[1];
+            context.changedAtUtc=revision.changed_at[1];
+            context.previousUtc=prior.deadline[1];
+            context.previousZone=prior.deadline_zone[1];
+            context.planName=plan.floatPlanName[1] ?: "";
+        }
+        return context;
     }
 
     private void function stopUnsubmittedMail(required numeric planId,required numeric revision,required string reason) {
@@ -222,6 +240,11 @@ component output="false" hint="Independent final-arrival observation. This compo
         var plan=lockedPlan(planId);
         var watch=lockedWatch(planId);
         var revision=watch.recordCount ? val(watch.current_revision[1]) : 0;
+        // A closeout reminder can be in flight before departure or after the last leg.
+        // In those cases there may be no live revision for stopWatch() to fence.
+        if (listFind("ADMIN_STOP,MONITOR_STOPPED,CLOSED,CANCELLED,EXPIRED",reason) && (!revision || len(watch.terminal_reason[1] ?: ""))) {
+            new fpw.api.v1.ArrivalHandoffGate().awaitHandoff(planId,variables.ds);
+        }
         if (watch.recordCount && len(watch.terminal_reason[1] ?: "")) {
             return outcome(listFind("CLOSED,FINAL_ARRIVAL",watch.terminal_reason[1]) ? "RESOLVED" : "SUPPRESSED",revision);
         }

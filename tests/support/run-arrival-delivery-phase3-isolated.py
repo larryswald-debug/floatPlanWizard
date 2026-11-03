@@ -2,11 +2,13 @@
 """Run the Phase 3 TestBox suite in a private, disposable CF + MySQL sandbox.
 
 From FPW: python3 tests/support/run-arrival-delivery-phase3-isolated.py
-Prerequisites: local Docker engine, cfdev-cf and cfdev-mysql, locally cached
-cfdev-coldfusion-mysql:latest and mysql:8.0, and the installed FPW testbox/system.
-The output is a JSON summary. No production endpoints, shared-data mutations,
-live mail, image pulls or published ports. Drop the whole sandbox on exit.
+Prerequisites: local Docker engine, cfdev-cf and cfdev-mysql, cached ColdFusion,
+MySQL and MailHog images listed below, and the installed FPW testbox/system.
+In-memory captures and one real SMTP submission to an isolated MailHog are
+verified. No external mail, image pulls or published ports. Drop the sandbox on exit.
 """
+from email import policy
+from email.parser import Parser
 import hashlib
 import json
 import os
@@ -19,10 +21,12 @@ import time
 import uuid
 
 REPO = Path(__file__).resolve().parents[2]
-MIGRATIONS = ("20261101_001_arrival_overdue_monitoring", "20261101_002_arrival_overdue_delivery")
+MIGRATIONS = ("20261101_001_arrival_overdue_monitoring", "20261101_002_arrival_overdue_delivery",
+              "20261102_001_shore_arrival_time_change")
 TABLES = ("rollout", "watches", "revisions", "events", "dispatch_control", "notices", "deliveries", "attempts")
 CF_IMAGE = "cfdev-coldfusion-mysql:latest"
 DB_IMAGE = "mysql:8.0"
+MAILHOG_IMAGE = "mailhog/mailhog:v1.0.1"
 
 
 def call(*argv, data=None, env=None, required=True, timeout=150):
@@ -50,7 +54,7 @@ def main():
         raise RuntimeError("A local Unix-socket Docker engine is required")
     if not (REPO / "testbox/system").is_dir():
         raise RuntimeError("Install the local FPW TestBox framework first")
-    for image in (CF_IMAGE, DB_IMAGE):
+    for image in (CF_IMAGE, DB_IMAGE, MAILHOG_IMAGE):
         call("docker", "image", "inspect", image)
     for name, image in (("cfdev-cf", CF_IMAGE), ("cfdev-mysql", DB_IMAGE)):
         image_id = call("docker", "image", "inspect", image, "--format", "{{.Id}}").stdout.strip()
@@ -58,10 +62,10 @@ def main():
         if source_id != image_id:
             raise RuntimeError(f"{name} does not use the expected cached dev image {image}")
     tag = uuid.uuid4().hex[:12]
-    network, db, cf = ("fpw-arrival-" + kind + "-" + tag for kind in ("net", "db", "cf"))
+    network, db, cf, mailhog = ("fpw-arrival-" + kind + "-" + tag for kind in ("net", "db", "cf", "mailhog"))
     secret = uuid.uuid4().hex + uuid.uuid4().hex
     nonce = str(uuid.uuid4())
-    env = dict(os.environ, MYSQL_ROOT_PASSWORD=secret, password=secret)
+    env = dict(os.environ, MYSQL_ROOT_PASSWORD=secret, password=secret, FPW_ARRIVAL_RECIPIENT_KEY=uuid.uuid4().hex)
     sandbox_label = "fpw.arrival.test=" + tag
 
     def dbsql(statement):
@@ -89,8 +93,8 @@ def main():
             dest = app / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(REPO / rel, dest)
-        checked_files = ("api/v1/ArrivalHandoffGate.cfc","api/v1/ArrivalOverdueDeliveryService.cfc",
-                         "api/v1/ArrivalOverdueMailService.cfc","api/v1/ArrivalOverdueService.cfc","api/v1/monitor.cfc",
+        checked_files = ("api/v1/AdminScheduledTaskConfig.cfc","api/v1/ArrivalHandoffGate.cfc","api/v1/ArrivalOverdueDeliveryService.cfc",
+                         "api/v1/ArrivalOverdueMailService.cfc","api/v1/ArrivalOverdueService.cfc","api/v1/floatplan.cfc","api/v1/monitor.cfc",
                          "api/v1/RouteProgressService.cfc","tests/arrival-delivery-phase3-runner.cfm",
                          "tests/specs/ArrivalDeliveryPhase3Spec.cfc","tests/support/ArrivalCaptureTransport.cfc")
         digests = {rel:hashlib.sha256((app/rel).read_bytes()).hexdigest() for rel in checked_files}
@@ -112,11 +116,15 @@ def main():
         temp.chmod(0o755)
         call("docker", "network", "create", "--internal", "--label", sandbox_label, network)
         try:
+            call("docker","run","--pull","never","-d","--name",mailhog,"--network",network,
+                 "--network-alias","mailhog","--label",sandbox_label,MAILHOG_IMAGE)
             call("docker","run","--pull","never","-d","--name",db,"--network",network,"--network-alias","db",
                  "--label",sandbox_label,"--tmpfs","/var/lib/mysql","-e","MYSQL_ROOT_PASSWORD",
                  "-e","MYSQL_ROOT_HOST=%","-e","MYSQL_DATABASE=FPW",DB_IMAGE,env=env)
             call("docker","run","--pull","never","-d","--name",cf,"--network",network,"--label",sandbox_label,
                  "-e","acceptEULA=YES","-e","password","-e","enableSecureProfile=false",
+                 # Conflicting legacy process settings must never enable transport without the site's scheduler JSON.
+                 "-e","FPW_ARRIVAL_EMAIL_ENABLED=true","-e","FPW_ARRIVAL_RECIPIENT_KEY",
                  "-v",str(temp/"site")+":/app:ro","-v",str(REPO/"testbox")+":/app/testbox:ro",CF_IMAGE,env=env)
             wait_for(lambda: call("docker","exec",db,"sh","-c",
                 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -h127.0.0.1 -uroot FPW -e "SELECT 1"',
@@ -139,8 +147,8 @@ def main():
             if get("fpw/setup-db.cfm").stdout.strip()!=b"FPW":
                 raise RuntimeError("Private ColdFusion datasource setup failed")
             (app/"setup-db.cfm").unlink()
-            # Install Adobe's mail tag offline to compile production code. The only configured transport
-            # for the tests is an in-memory .test-address capture. This network has no SMTP server.
+            # Install Adobe's mail tag offline. The explicit development SMTP host
+            # is the private MailHog; no SMTP relay is configured in ColdFusion.
             bundles=json.loads(call("docker","exec",cf,"cat","/opt/coldfusion/bundles/bundlesdependency.json").stdout)
             mail=next(b for b in bundles if b.get("bundle")=="mail")
             jar_names=["mail-"+mail["version"]+".jar"]
@@ -154,6 +162,9 @@ def main():
                 call("docker","cp","cfdev-cf:"+matches[0],str(temp/name))
                 call("docker","cp",str(temp/name),cf+":"+matches[0])
             call("docker","exec",cf,"/opt/coldfusion/cfusion/bin/cfpm.sh","install","mail:"+mail["version"])
+            mailbox_url = "http://mailhog:8025/api/v2/messages?limit=5"
+            wait_for(lambda: call("docker","exec",cf,"curl","-fsS","--max-time","3",mailbox_url,
+                                  required=False).returncode==0, "private MailHog")
             response=get("fpw/tests/arrival-delivery-phase3-runner.cfm?confirm=RUN_ARRIVAL_DELIVERY_PHASE3_TESTS")
             document=json.loads(response.stdout)
             summary=document.get("RESULTS",{})
@@ -170,14 +181,45 @@ def main():
                 "(SELECT COUNT(*) FROM fpw_arrival_dispatch_control WHERE plan_id>0 AND mode='OFF') AS retired_synthetic_scopes").splitlines()
             audit_counts=dict(zip(audit[0].split("\t"),audit[1].split("\t")))
             ok=ok and all(audit_counts[k]=="0" for k in ("watches","revisions","events"))
-            print(json.dumps({"synthetic_capture_only":True,"cf_version":summary.get("CFVERSION"),
+            mailbox=json.loads(call("docker","exec",cf,"curl","-fsS","--max-time","5",mailbox_url).stdout)
+            verified_notices={}
+            for item in mailbox["items"]:
+                message=Parser(policy=policy.default).parsestr(item["Raw"]["Data"])
+                recipients=item["Raw"]["To"]
+                if len(recipients)!=1:
+                    continue
+                fixture=re.fullmatch(r"(ccv-[a-f0-9]+)(-shore|-updated)?@example\.test",recipients[0])
+                part=message.get_body(preferencelist=("plain",))
+                if not fixture or not part:
+                    continue
+                body=part.get_content()
+                if "Float Plan: "+fixture.group(1) not in body:
+                    continue
+                if fixture.group(2)=="-updated":
+                    if (message["Subject"]=="FloatPlanWizard Update: Expected Arrival Time Changed"
+                        and re.search(r"Previous expected arrival: .*3:00 PM \(America/New_York\).*19:00:00 UTC",body)
+                        and re.search(r"New expected arrival: .*1:00 PM \(America/Chicago\).*18:00:00 UTC",body)):
+                        verified_notices["arrival_change"]=fixture.group(1)
+                    continue
+                if "Scheduled final arrival:" not in body:
+                    continue
+                if fixture.group(2) and message["Subject"]=="FloatPlanWizard Alert: Expected Arrival Time Has Passed":
+                    verified_notices["shore"]=fixture.group(1)
+                elif not fixture.group(2) and message["Subject"]=="FloatPlanWizard Reminder: Close Your Float Plan" and "close your float plan" in body:
+                    verified_notices["captain"]=fixture.group(1)
+            verified_mail=(mailbox["total"]==3 and len(verified_notices)==3
+                           and verified_notices["captain"]==verified_notices["shore"])
+            ok=ok and verified_mail
+            print(json.dumps({"synthetic_capture_only":True,"mailhog_messages":mailbox["total"],
+                              "mailhog_notice_verified":verified_mail,"mailhog_recipient_roles":sorted(verified_notices),
+                              "cf_version":summary.get("CFVERSION"),
                               "source_sha256":digests,"disposable_db":audit_counts,"passed":summary.get("TOTALPASS"),"failed":summary.get("TOTALFAIL"),
                               "errors":summary.get("TOTALERROR"),"cases":cases,"residue":residue,"ok":ok},indent=2))
             if not ok:
                 raise RuntimeError("Isolated behavioral validation failed")
         finally:
             # Nothing in a named dev container or volume is removed.
-            for name in (cf,db):
+            for name in (cf,db,mailhog):
                 owner=call("docker","inspect",name,"--format",'{{index .Config.Labels "fpw.arrival.test"}}',required=False)
                 if owner.stdout.decode().strip()==tag:
                     call("docker","rm","-fv",name)

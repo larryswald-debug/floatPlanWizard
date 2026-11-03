@@ -4,26 +4,48 @@
         <cfargument name="recipientSecret" type="string" required="false" default="">
         <cfscript>
             variables.datasource = arguments.ds;
-            if (len(arguments.recipientSecret)) {
-                if (!listFindNoCase("dev,development,local,test", application.env ?: ""))
-                    throw(type="FPW.ArrivalMailConfiguration",message="Fixture keys require a local test environment.");
-                variables.secret = arguments.recipientSecret;
-            } else {
-                variables.secret = environmentValue("FPW_ARRIVAL_RECIPIENT_KEY");
-            }
+            if (len(arguments.recipientSecret) && !listFindNoCase("dev,development,local,test", application.env ?: ""))
+                throw(type="FPW.ArrivalMailConfiguration",message="Fixture keys require a local test environment.");
+            variables.fixtureKey = arguments.recipientSecret;
+            variables.schedulerConfig = new fpw.api.v1.AdminScheduledTaskConfig();
+            variables.captainSubject = "FloatPlanWizard Reminder: Close Your Float Plan";
+            variables.shoreSubject = "FloatPlanWizard Alert: Expected Arrival Time Has Passed";
+            variables.changeSubject = "FloatPlanWizard Update: Expected Arrival Time Changed";
             return this;
         </cfscript>
     </cffunction>
 
-    <cffunction name="environmentValue" access="private" returntype="string" output="false">
-        <cfargument name="name" type="string" required="true">
+    <cffunction name="readArrivalSettings" access="private" returntype="struct" output="false">
         <cfscript>
             try {
-                var value = createObject("java","java.lang.System").getenv(arguments.name);
-                return isNull(value) ? "" : toString(value);
-            } catch (any unavailable) {
-                return "";
+                var config = variables.schedulerConfig.load();
+                if (!isNull(config.FPW_ARRIVAL_RECIPIENT_KEY)
+                    && isInstanceOf(config.FPW_ARRIVAL_RECIPIENT_KEY, "java.lang.String")
+                    && len(trim(config.FPW_ARRIVAL_RECIPIENT_KEY)) >= 32) {
+                    return {
+                        recipientKey=config.FPW_ARRIVAL_RECIPIENT_KEY,
+                        liveEnabled=!isNull(config.FPW_ARRIVAL_EMAIL_ENABLED)
+                            && compare(serializeJSON(config.FPW_ARRIVAL_EMAIL_ENABLED), "true") == 0
+                    };
+                }
+            } catch (any invalidConfig) {
+                // Unreadable or malformed settings disable delivery without logging private data.
             }
+            return {recipientKey="", liveEnabled=false};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="liveTransportEnabled" access="public" returntype="boolean" output="false">
+        <cfreturn !len(variables.fixtureKey) && listFindNoCase("prod,production", application.env ?: "")
+            && readArrivalSettings().liveEnabled>
+    </cffunction>
+
+    <cffunction name="scheduledTransport" access="public" returntype="string" output="false">
+        <cfscript>
+            if (liveTransportEnabled()) return "PRODUCTION";
+            if (!len(variables.fixtureKey) && listFindNoCase("dev,development,local", application.env ?: "")
+                && readArrivalSettings().liveEnabled) return "MAILHOG";
+            return "";
         </cfscript>
     </cffunction>
 
@@ -36,8 +58,10 @@
     <!--- Addresses live only in this call's memory. Only the plan-bound HMAC is stored by the outbox. --->
     <cffunction name="selectedRecipients" access="public" returntype="struct" output="false">
         <cfargument name="planId" type="numeric" required="true">
+        <cfargument name="deadlineChange" type="boolean" required="false" default="false">
         <cfscript>
-            if (len(variables.secret) LT 32)
+            var recipientKey = len(variables.fixtureKey) ? variables.fixtureKey : readArrivalSettings().recipientKey;
+            if (len(recipientKey) LT 32)
                 throw(type="FPW.ArrivalMailConfiguration",message="A stable arrival recipient key is required.");
             var bundle = {valid=[],invalidCount=0,missingCount=0};
             var selected = queryExecute("
@@ -54,6 +78,7 @@
                 {p={value=arguments.planId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
             if (!selected.recordCount) bundle.missingCount=1;
             var seen={};
+            var keyPrefix=arguments.deadlineChange ? "arrival-change:v1:" : "arrival:v1:";
             for (var row in selected) {
                 var address=lCase(trim(row.address ?: ""));
                 if (!len(address)) {
@@ -61,8 +86,8 @@
                 } else if (!singleAddress(address)) {
                     bundle.invalidCount++;
                 } else {
-                    var key=lCase(hmac("arrival:v1:" & int(arguments.planId) & ":" & address,
-                        variables.secret,"HmacSHA256","utf-8"));
+                    var key=lCase(hmac(keyPrefix & int(arguments.planId) & ":" & address,
+                        recipientKey,"HmacSHA256","utf-8"));
                     if (!structKeyExists(seen,key)) {
                         seen[key]=true;
                         arrayAppend(bundle.valid,{recipientKey=key,address=address});
@@ -76,9 +101,10 @@
     <cffunction name="resolveRecipient" access="public" returntype="string" output="false">
         <cfargument name="planId" type="numeric" required="true">
         <cfargument name="recipientKey" type="string" required="true">
+        <cfargument name="deadlineChange" type="boolean" required="false" default="false">
         <cfscript>
             if (!reFind("^[a-f0-9]{64}$",arguments.recipientKey)) return "";
-            var selected=selectedRecipients(arguments.planId);
+            var selected=selectedRecipients(arguments.planId,arguments.deadlineChange);
             for (var recipient in selected.valid) {
                 if (compare(recipient.recipientKey,arguments.recipientKey)==0) return recipient.address;
             }
@@ -132,11 +158,41 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="arrivalTimeLabel" access="private" returntype="string" output="false">
+        <cfargument name="value" type="string" required="true">
+        <cfargument name="timeZone" type="string" required="true">
+        <cfscript>
+            var deadline=utcText(arguments.value);
+            var zone=trim(arguments.timeZone);
+            if (!len(zone) || reFind("[^A-Za-z0-9_+/:-]",zone))
+                throw(type="FPW.ArrivalMailContent",message="Arrival notice time zone unavailable.");
+            var instant=parseDateTime(replace(deadline," ","T") & "Z");
+            return dateTimeFormat(instant,"mmm d, yyyy h:nn tt",zone) & " (" & zone & "), " & deadline & " UTC";
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="buildDeadlineChangeNotice" access="public" returntype="struct" output="false">
+        <cfargument name="planId" type="numeric" required="true">
+        <cfargument name="context" type="struct" required="true">
+        <cfscript>
+            var tripName=safeLabel(arguments.context.planName);
+            if (!len(tripName)) tripName="Float Plan " & int(arguments.planId);
+            return {subject=variables.changeSubject,body=arrayToList([
+                "The captain updated the expected arrival time for this float plan.",
+                "Float Plan: " & tripName, "",
+                "Previous expected arrival: " & arrivalTimeLabel(arguments.context.previousUtc,arguments.context.previousZone),
+                "New expected arrival: " & arrivalTimeLabel(arguments.context.deadlineUtc,arguments.context.zone), "",
+                "Please use the new expected arrival time for this trip."
+            ],chr(10))};
+        </cfscript>
+    </cffunction>
+
     <cffunction name="buildNotice" access="public" returntype="struct" output="false">
         <cfargument name="planId" type="numeric" required="true">
         <cfargument name="deadlineUtc" type="string" required="true">
         <cfargument name="deadlineZone" type="string" required="true">
         <cfargument name="generatedUtc" type="string" required="true">
+        <cfargument name="captainCloseout" type="boolean" required="false" default="false">
         <cfscript>
             var trip=queryExecute("
                 SELECT p.floatPlanName,CASE WHEN COALESCE(p.route_instance_id,0)=0 THEN bd.vessel_name
@@ -146,15 +202,18 @@
                 WHERE p.floatPlanId=:p LIMIT 1",
                 {p={value=arguments.planId,cfsqltype="cf_sql_integer"}},{datasource=variables.datasource});
             if (trip.recordCount!=1) throw(type="FPW.ArrivalMailContent",message="Arrival notice plan unavailable.");
-            var deadline=utcText(arguments.deadlineUtc);
             var generated=utcText(arguments.generatedUtc);
-            var zone=trim(arguments.deadlineZone);
-            if (!len(zone) || reFind("[^A-Za-z0-9_+/:-]",zone))
-                throw(type="FPW.ArrivalMailContent",message="Arrival notice time zone unavailable.");
-            var instant=parseDateTime(replace(deadline," ","T") & "Z");
-            var localDeadline=dateTimeFormat(instant,"mmm d, yyyy h:nn tt",zone);
             var tripName=safeLabel(trip.floatPlanName[1] ?: "");
             if (!len(tripName)) tripName="Float Plan " & int(arguments.planId);
+            var arrivalLine="Scheduled final arrival: " & arrivalTimeLabel(arguments.deadlineUtc,arguments.deadlineZone);
+            if (arguments.captainCloseout) {
+                return {subject=variables.captainSubject,body=arrayToList([
+                    "Float Plan: " & tripName, arrivalLine, "",
+                    "Your expected arrival time has passed and your float plan is still open.",
+                    "If you have arrived safely, sign in to FloatPlanWizard and close your float plan.",
+                    "If you are still underway, open your float plan and update its Return Date & Time."
+                ],chr(10))};
+            }
             var vessel=safeLabel(trip.vessel_label[1] ?: "");
             var bodyLines=[
                 "Notice Source: FPW automated final-arrival monitoring",
@@ -162,7 +221,7 @@
                 "Float Plan: " & tripName
             ];
             if (len(vessel)) arrayAppend(bodyLines,"Vessel: " & vessel);
-            arrayAppend(bodyLines,"Scheduled final arrival: " & localDeadline & " (" & zone & "), " & deadline & " UTC");
+            arrayAppend(bodyLines,arrivalLine);
             arrayAppend(bodyLines,"Notice generated: " & generated & " UTC");
             arrayAppend(bodyLines,"");
             arrayAppend(bodyLines,"Attempt to contact the captain and follow the response plan you agreed upon.");
@@ -170,30 +229,39 @@
             arrayAppend(bodyLines,"Electronic-message delivery and receipt are not guaranteed.");
             var followUrl=existingPublicFollowUrl(arguments.planId);
             if (len(followUrl)) arrayAppend(bodyLines,"Public trip page: " & followUrl);
-            return {subject="FloatPlanWizard Alert: Expected Arrival Time Has Passed",body=arrayToList(bodyLines,chr(10))};
+            return {subject=variables.shoreSubject,body=arrayToList(bodyLines,chr(10))};
         </cfscript>
     </cffunction>
 
     <cffunction name="submit" access="public" returntype="struct" output="false">
         <cfargument name="address" type="string" required="true">
         <cfargument name="message" type="struct" required="true">
+        <cfargument name="mailHogOnly" type="boolean" required="false" default="false">
         <cfset var destination=lCase(trim(arguments.address))>
-        <cfif NOT listFindNoCase("prod,production",application.env ?: "")
-            OR compareNoCase(trim(environmentValue("FPW_ARRIVAL_EMAIL_ENABLED")),"true") NEQ 0>
+        <cfif scheduledTransport() NEQ (arguments.mailHogOnly ? "MAILHOG" : "PRODUCTION")>
             <cfreturn {status="FAILED_PERMANENT",reason="LIVE_TRANSPORT_DISABLED"}>
         </cfif>
         <cfif NOT singleAddress(destination)>
             <cfreturn {status="FAILED_PERMANENT",reason="INVALID_RECIPIENT"}>
         </cfif>
-        <cfif (arguments.message.subject ?: "") NEQ "FloatPlanWizard Alert: Expected Arrival Time Has Passed"
+        <cfset var subject = arguments.message.subject ?: "">
+        <cfif (compare(subject,variables.shoreSubject) NEQ 0 AND compare(subject,variables.captainSubject) NEQ 0
+                AND compare(subject,variables.changeSubject) NEQ 0)
             OR NOT len(trim(arguments.message.body ?: ""))>
             <cfreturn {status="FAILED_PERMANENT",reason="INVALID_MESSAGE"}>
         </cfif>
         <!--- Dispatcher owns the plan fence. Network I/O is outside its DB transactions. --->
         <cftry>
-            <cfmail to="#destination#" from="noreply@floatplanwizard.com"
-                subject="FloatPlanWizard Alert: Expected Arrival Time Has Passed"
-                type="text" charset="utf-8" spoolenable="false" timeout="10">#arguments.message.body#</cfmail>
+            <cfif arguments.mailHogOnly>
+                <cfmail server="mailhog" port="1025" useTLS="false" useSSL="false"
+                    to="#destination#" from="noreply@floatplanwizard.com"
+                    subject="#subject#"
+                    type="text" charset="utf-8" spoolenable="false" timeout="10">#arguments.message.body#</cfmail>
+            <cfelse>
+                <cfmail to="#destination#" from="noreply@floatplanwizard.com"
+                    subject="#subject#"
+                    type="text" charset="utf-8" spoolenable="false" timeout="10">#arguments.message.body#</cfmail>
+            </cfif>
             <cfreturn {status="SUBMITTED",reason="TRANSPORT_ACCEPTED"}>
             <cfcatch type="any">
                 <cfreturn classifyTransportException(cfcatch)>
