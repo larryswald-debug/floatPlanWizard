@@ -430,6 +430,12 @@ body.fpw-bridge-body {
   color: #02111d;
 }
 
+.fpw-bridge-btn[data-library-waypoint-save] {
+  border-color: rgba(69, 224, 220, 0.86);
+  background: linear-gradient(180deg, rgba(8, 31, 52, 0.98), rgba(3, 18, 32, 0.98));
+  color: #f2f8ff;
+}
+
 .fpw-bridge-filter-status {
   margin: 12px 0 0;
   color: #9ee8ef;

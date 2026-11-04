@@ -1,0 +1,55 @@
+{
+  "environment": "dev",
+  "enabled": true,
+  "FPW_ARRIVAL_EMAIL_ENABLED": true,
+  "FPW_ARRIVAL_RECIPIENT_KEY": "6ab40403c1348081cbdec017e131f2a01c251a16e5086174a3659436f5ad38bb",
+  "baseUrl": "http://localhost:8500/fpw",
+  "schedulerTimezone": "GMT",
+  "verifiedEngineVersion": "",
+  "pausedUpdateVerified": false,
+  "tasks": [
+    {
+      "id": "single-trip-expiration",
+      "name": "checkFor21dayTrips",
+      "mode": "server",
+      "group": "DEFAULT",
+      "application": "",
+      "endpointId": "single-trip-expiration",
+      "allowCreate": false,
+      "parameters": {}
+    },
+    {
+      "id": "monitor",
+      "name": "Run FPW Monitor",
+      "mode": "server",
+      "group": "default",
+      "application": "",
+      "endpointId": "monitor",
+      "allowCreate": false, 
+      "parameters": {}
+    },
+    {
+      "id": "inactive-member-recovery",
+      "name": "Run Recover User",
+      "mode": "server",
+      "group": "default",
+      "application": "",
+      "endpointId": "inactive-member-recovery",
+      "allowCreate": false,
+      "parameters": {
+        "dryRun": "true",
+        "batchSize": "25"
+      }
+    },
+    {
+      "id": "departure-reminders",
+      "name": "Schedule Reminders",
+      "mode": "server",
+      "group": "default",
+      "application": "",
+      "endpointId": "departure-reminders",
+      "allowCreate": false,
+      "parameters": {}
+    }
+  ]
+}

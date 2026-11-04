@@ -23,11 +23,16 @@ anchorageItem = detailModel.SUCCESS ? detailModel.ANCHORAGE : {};
 libraryUrl = request.fpwBase & "/great-loop/anchorages/";
 canonicalBase = "https://floatplanwizard.com/great-loop/anchorages/";
 canonicalUrl = detailModel.SUCCESS ? canonicalBase & anchorageItem.slug & "/" : canonicalBase;
-pageTitle = detailModel.SUCCESS ? anchorageItem.anchorage_name & " Anchorage Guide | FloatPlanWizard" : "Anchorage Guide Not Found | FloatPlanWizard";
+pageHeading = "Anchorage Guide Not Found";
+if (detailModel.SUCCESS) {
+  pageHeading = anchorageItem.anchorage_name;
+  if (!reFindNoCase("\banchorage\b", pageHeading)) pageHeading &= " Anchorage";
+}
+pageTitle = detailModel.SUCCESS ? pageHeading & " Guide | FloatPlanWizard" : "Anchorage Guide Not Found | FloatPlanWizard";
 pageDescription = detailModel.SUCCESS
   ? "Plan around " & anchorageItem.anchorage_name & " near " & anchorageItem.nearest_city & ", " & anchorageItem.state_province & ". View location, waterway, anchorage type, holding, protection, planning notes, and map reference. Always verify current charts and local rules before anchoring."
   : "The requested anchorage guide could not be found.";
-pageHeading = detailModel.SUCCESS ? anchorageItem.anchorage_name & " Anchorage" : "Anchorage Guide Not Found";
+isChesapeakeWaterway = detailModel.SUCCESS AND listFindNoCase("Chesapeake Bay,C&D Canal", trim(anchorageItem.waterway));
 hasValidCoordinates = detailModel.SUCCESS AND isNumeric(anchorageItem.latitude) AND isNumeric(anchorageItem.longitude);
 
 function displayText(any value, string fallback="Not listed") {
@@ -199,6 +204,7 @@ pageJsonLdText = serializeJSON(schemaRoot);
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20261028-approved-navigation">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-anchorages.css?v=20260707-noaa-layer-control">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-library-detail.css?v=20261104">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -245,6 +251,16 @@ pageJsonLdText = serializeJSON(schemaRoot);
     <section class="fpw-anchorage-detail fpw-anchorage-shell">
       <div class="fpw-anchorage-detail-main">
         <section class="fpw-anchorage-panel">
+          <h2>Anchorage Details</h2>
+          <dl class="fpw-anchorage-fact-grid">
+            <div><dt>Holding</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.holding))#</cfoutput></dd></div>
+            <div><dt>Protection</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.protection))#</cfoutput></dd></div>
+            <div><dt>Shore Access</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.shore_access))#</cfoutput></dd></div>
+            <div><dt>Great Loop Relevance</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.great_loop_relevance))#</cfoutput></dd></div>
+          </dl>
+        </section>
+
+        <section class="fpw-anchorage-panel">
           <h2>Map Reference</h2>
           <cfif hasValidCoordinates>
             <!-- NOAA chart layer control is provided inside the Leaflet map. -->
@@ -274,16 +290,6 @@ pageJsonLdText = serializeJSON(schemaRoot);
           <cfif hasText(anchorageItem.nav_warning)>
             <p class="fpw-anchorage-warning"><cfoutput>#encodeForHTML(anchorageItem.nav_warning)#</cfoutput></p>
           </cfif>
-        </section>
-
-        <section class="fpw-anchorage-panel">
-          <h2>Anchorage Details</h2>
-          <dl class="fpw-anchorage-fact-grid">
-            <div><dt>Holding</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.holding))#</cfoutput></dd></div>
-            <div><dt>Protection</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.protection))#</cfoutput></dd></div>
-            <div><dt>Shore Access</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.shore_access))#</cfoutput></dd></div>
-            <div><dt>Great Loop Relevance</dt><dd><cfoutput>#encodeForHTML(displayText(anchorageItem.great_loop_relevance))#</cfoutput></dd></div>
-          </dl>
         </section>
 
         <section class="fpw-anchorage-panel">
@@ -317,16 +323,27 @@ pageJsonLdText = serializeJSON(schemaRoot);
         </section>
 
         <section class="fpw-anchorage-panel">
+          <cfset fpwLibraryWaypointType = "anchorage">
+          <cfset fpwLibraryWaypointRecord = anchorageItem>
+          <cfinclude template="../partials/fpw-library-waypoint.cfm">
+        </section>
+
+        <section class="fpw-anchorage-panel">
           <h2>Plan With FPW</h2>
+          <p><a class="fpw-library-detail-link" href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/trip-planning/#overnight-stops">Plan overnight stops on the Great Loop</a>.</p>
+          <cfif isChesapeakeWaterway>
+            <p><a class="fpw-library-detail-link" href="<cfoutput>#request.fpwBase#</cfoutput>/boating-guides/chesapeake-bay/#overnight-alternatives">Compare Chesapeake overnight stops and alternatives</a>.</p>
+          </cfif>
           <p>Before you leave the dock, build a float plan that records your route, passengers, vessel details, and return plan.</p>
           <a class="fpw-anchorage-btn fpw-anchorage-btn--primary fpw-anchorage-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a Float Plan</a>
         </section>
 
         <section class="fpw-anchorage-panel">
           <h2>Source / Review Basis</h2>
-          <cfif hasText(anchorageItem.source_url)>
-            <p><cfoutput>#encodeForHTML(displayText(anchorageItem.source_name, "Public source"))#</cfoutput></p>
-            <a href="<cfoutput>#encodeForHTMLAttribute(anchorageItem.source_url)#</cfoutput>" rel="nofollow noopener" target="_blank">Open source reference</a>
+          <cfif reFindNoCase("^https?://", anchorageItem.source_url) AND isValid("url", anchorageItem.source_url)>
+            <cfoutput><a class="fpw-library-detail-link" href="#encodeForHTMLAttribute(anchorageItem.source_url)#" rel="nofollow noopener" target="_blank">#encodeForHTML(displayText(anchorageItem.source_name, "Anchorage reference source"))#</a></cfoutput>
+          <cfelseif hasText(anchorageItem.source_name)>
+            <p><cfoutput>#encodeForHTML(anchorageItem.source_name)#</cfoutput></p>
           <cfelse>
             <p>Source information is not listed for this published anchorage yet.</p>
           </cfif>

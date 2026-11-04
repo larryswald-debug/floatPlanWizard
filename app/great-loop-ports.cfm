@@ -314,7 +314,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20261028-approved-navigation">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-ports.css?v=20260707-noaa-charts">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-ports.css?v=20261104-library-waypoints">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -497,6 +497,6 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 <script id="fpwPortsMapData" type="application/json"><cfoutput>#serializeJSON(mapRows)#</cfoutput></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260619-nautical-charts"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-remove-tag-filter"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20261104-waypoint-coordinates"></script>
 </body>
 </html>

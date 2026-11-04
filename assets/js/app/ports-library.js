@@ -197,7 +197,8 @@
       source: row
     };
     item.url = row.URL || row.url || detailUrl(item);
-    item.canSave = item.mapReady && item.lat !== null && item.lng !== null && item.lat !== 0 && item.lng !== 0;
+    item.canSave = item.lat !== null && item.lng !== null && item.lat !== 0 && item.lng !== 0
+      && Math.abs(item.lat) <= 90 && Math.abs(item.lng) <= 180;
     return item;
   }
 
@@ -264,7 +265,7 @@
 
   function addButtonHtml(item) {
     if (!item.canSave) {
-      return '<p class="fpw-ports-add-status is-error">This port does not have map-ready coordinates yet.</p>';
+      return '<p class="fpw-ports-add-status is-error">Latitude or longitude is missing or invalid for this port.</p>';
     }
     return '<button type="button" class="fpw-ports-btn fpw-ports-btn--small fpw-ports-member-only" data-port-add data-port-id="' + escapeHtml(item.id) + '">' + (addedPortIds[String(item.id)] ? "Added" : "Add to My Waypoints") + "</button>";
   }
@@ -625,27 +626,14 @@
     });
   }
 
-  function waypointName(item) {
-    var name = String(item.name || "Great Loop Port").trim();
-    return name.length > 45 ? name.slice(0, 45) : name;
-  }
-
   function savePortToWaypoints(item) {
     if (!authState.loggedIn) {
       return Promise.reject({ MESSAGE: "Sign in to add this port to your custom waypoints." });
     }
     if (!item || !item.canSave) {
-      return Promise.reject({ MESSAGE: "This port does not have map-ready coordinates yet." });
+      return Promise.reject({ MESSAGE: "Latitude or longitude is missing or invalid for this port." });
     }
-    return saveWaypoint({
-      waypoint: {
-        WAYPOINTID: 0,
-        WAYPOINTNAME: waypointName(item),
-        LATITUDE: String(item.lat),
-        LONGITUDE: String(item.lng),
-        NOTES: "Added from Great Loop Ports Library: " + item.name
-      }
-    });
+    return saveWaypoint({ library: "port", portId: item.id });
   }
 
   function cssEscape(value) {
@@ -706,7 +694,7 @@
         target.disabled = true;
         target.textContent = "Added";
       });
-      setPortStatus(portId, "Added to your custom waypoints.", false);
+      setPortStatus(portId, data.ALREADY_SAVED ? "Already in your custom waypoints." : "Added to your custom waypoints.", false);
     }).catch(function (err) {
       button.disabled = false;
       button.textContent = "Add to My Waypoints";

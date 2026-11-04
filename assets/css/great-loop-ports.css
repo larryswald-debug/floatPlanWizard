@@ -351,7 +351,6 @@ body.is-ports-image-modal-open {
   text-align: center;
 }
 
-.fpw-ports-add-waypoint-panel [data-port-add],
 .is-ports-logged-in .fpw-ports-add-waypoint-panel [data-port-add] {
   display: flex;
   width: auto;
@@ -820,7 +819,6 @@ body.is-ports-image-modal-open {
     padding: 16px;
   }
 
-  .fpw-ports-add-waypoint-panel [data-port-add],
   .is-ports-logged-in .fpw-ports-add-waypoint-panel [data-port-add],
   .fpw-ports-plan-panel .fpw-ports-btn {
     margin-top: 16px;

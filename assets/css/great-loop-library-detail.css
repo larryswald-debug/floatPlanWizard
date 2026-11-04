@@ -1,0 +1,18 @@
+/* Planning and source links on the four Great Loop detail templates. */
+.fpw-library-detail-link,
+[data-library-waypoint] a {
+  color: #9ee8ef;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.fpw-library-detail-link:focus-visible,
+[data-library-waypoint] a:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 3px;
+}
+
+[data-library-waypoint-member] a {
+  display: block;
+  margin-top: 0.75rem;
+}

@@ -345,7 +345,8 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20261028-approved-navigation">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-ports.css?v=20260707-noaa-charts">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-ports.css?v=20261104-library-waypoints">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-library-detail.css?v=20261104">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -419,6 +420,18 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
     <section class="fpw-ports-detail fpw-ports-shell">
       <div class="fpw-ports-detail-main">
         <section class="fpw-ports-panel">
+          <h2>Overview</h2>
+          <p><cfoutput>#encodeForHTML(safeText(portItem.SHORT_DESCRIPTION, "Overview details have not been verified yet."))#</cfoutput></p>
+          <dl class="fpw-ports-fact-grid">
+            <div><dt>Loop Segment</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.LOOP_SEGMENT, "Not listed"))#</cfoutput></dd></div>
+            <div><dt>Waterway</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.WATERWAY, "Not listed"))#</cfoutput></dd></div>
+            <div><dt>Mile Marker</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.MILE_MARKER, "Not listed"))#</cfoutput></dd></div>
+            <div><dt>Port Type</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.PORT_TYPE, "Not listed"))#</cfoutput></dd></div>
+          </dl>
+        </section>
+
+        <section class="fpw-ports-panel">
+          <h2>Map Reference</h2>
           <cfif hasMap>
             <cfoutput>
               <div
@@ -435,17 +448,6 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
           <cfelse>
             <p>Map is unavailable because this port is not map-ready yet.</p>
           </cfif>
-        </section>
-
-        <section class="fpw-ports-panel">
-          <h2>Overview</h2>
-          <p><cfoutput>#encodeForHTML(safeText(portItem.SHORT_DESCRIPTION, "Overview details have not been verified yet."))#</cfoutput></p>
-          <dl class="fpw-ports-fact-grid">
-            <div><dt>Loop Segment</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.LOOP_SEGMENT, "Not listed"))#</cfoutput></dd></div>
-            <div><dt>Waterway</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.WATERWAY, "Not listed"))#</cfoutput></dd></div>
-            <div><dt>Mile Marker</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.MILE_MARKER, "Not listed"))#</cfoutput></dd></div>
-            <div><dt>Port Type</dt><dd><cfoutput>#encodeForHTML(safeText(portItem.PORT_TYPE, "Not listed"))#</cfoutput></dd></div>
-          </dl>
         </section>
 
         <section class="fpw-ports-panel">
@@ -511,6 +513,7 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 
         <section class="fpw-ports-panel fpw-ports-plan-panel">
           <h2>Plan With FPW</h2>
+          <p>Select a saved waypoint when you <a class="fpw-library-detail-link" href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/trip-planning/#generate-route">build a route from waypoints</a> in the Route Generator.</p>
           <p>Create a free float plan that records your route, passengers, vessel details, and return plan.</p>
           <a class="fpw-ports-btn fpw-ports-btn--primary fpw-ports-btn--full" href="<cfoutput>#request.fpwBase#</cfoutput>/app/join.cfm">Create a free float plan</a>
         </section>
@@ -523,6 +526,13 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
             <a href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/anchorages/">Great Loop Anchorages</a>
           </div>
         </section>
+
+        <cfif reFindNoCase("^https?://", portItem.SOURCE_URL) AND isValid("url", portItem.SOURCE_URL)>
+          <section class="fpw-ports-panel">
+            <h2>Reference Source</h2>
+            <cfoutput><a class="fpw-library-detail-link" href="#encodeForHTMLAttribute(portItem.SOURCE_URL)#" rel="nofollow noopener" target="_blank">Source for #encodeForHTML(portItem.NAME)#</a></cfoutput>
+          </section>
+        </cfif>
 
         <section class="fpw-ports-panel fpw-ports-safety">
           <h2>Planning-Only Notice</h2>
@@ -560,6 +570,6 @@ pageJsonLdText = replace(serializeJSON(schemaRoot), "</", "<\/", "all");
 </cfif>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260619-nautical-charts"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20260707-noaa-charts"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/ports-library.js?v=20261104-waypoint-coordinates"></script>
 </body>
 </html>

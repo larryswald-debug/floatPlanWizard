@@ -66,7 +66,21 @@
 
             <cfif action EQ "save">
                 <cfset waypoint = {}>
-                <cfif structKeyExists(body, "waypoint")>
+                <cfset local.librarySave = structKeyExists(body, "library")>
+                <cfset local.alreadySaved = false>
+                <cfif local.librarySave>
+                    <cfif cgi.request_method NEQ "POST" OR listFirst(cgi.content_type, ";") NEQ "application/json">
+                        <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="VALIDATION", MESSAGE="Use the library save button."})#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+                    <!--- Resolve the public source on the server. Ignore any client-supplied waypoint or owner. --->
+                    <cfset local.source = new fpw.api.v1.LibraryWaypointService().resolve(body)>
+                    <cfif NOT local.source.eligible>
+                        <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="INELIGIBLE", MESSAGE=local.source.message})#</cfoutput>
+                        <cfreturn>
+                    </cfif>
+                    <cfset waypoint = local.source.waypoint>
+                <cfelseif structKeyExists(body, "waypoint")>
                     <cfset waypoint = body.waypoint>
                 <cfelseif structKeyExists(body, "WAYPOINT")>
                     <cfset waypoint = body.WAYPOINT>
@@ -109,6 +123,27 @@
                     <cfif local.activityOwner.recordCount NEQ 1>
                         <cfthrow type="FPW.MemberActivity.Ownership" message="The saved item is unavailable.">
                     </cfif>
+                    <!--- Library replays are serialized by the member row lock already held above. --->
+                    <cfif local.librarySave>
+                        <cfquery name="local.savedSource" datasource="fpw">
+                            SELECT wpId FROM waypoints
+                            WHERE userId = <cfqueryparam cfsqltype="cf_sql_varchar" value="#userId#">
+                            <cfif local.source.library EQ "port">
+                                AND notes = <cfqueryparam cfsqltype="cf_sql_varchar" value="#notes#">
+                                AND CAST(latitude AS DECIMAL(18,10)) = <cfqueryparam cfsqltype="cf_sql_decimal" scale="10" value="#latitude#">
+                                AND CAST(longitude AS DECIMAL(18,10)) = <cfqueryparam cfsqltype="cf_sql_decimal" scale="10" value="#longitude#">
+                            <cfelse>
+                                AND LEFT(notes, <cfqueryparam cfsqltype="cf_sql_integer" value="#len(local.source.prefix)#">)
+                                    = <cfqueryparam cfsqltype="cf_sql_varchar" value="#local.source.prefix#">
+                            </cfif>
+                            ORDER BY wpId LIMIT 1 FOR UPDATE
+                        </cfquery>
+                        <cfif local.savedSource.recordCount>
+                            <cfset waypointId = local.savedSource.wpId[1]>
+                            <cfset local.alreadySaved = true>
+                        </cfif>
+                    </cfif>
+                    <cfif NOT local.alreadySaved>
                     <cfquery name="local.activityBefore" datasource="fpw">
                         SELECT JSON_ARRAY(name,latitude,longitude,notes) AS projection
                         FROM waypoints
@@ -160,6 +195,7 @@
                             userId, local.activityWasCreate ? "waypoint_created" : "waypoint_updated", waypointId
                         )>
                     </cfif>
+                    </cfif>
                 </cftransaction>
 
                 <cfset response = {
@@ -167,6 +203,7 @@
                     AUTH    = true,
                     WAYPOINTID = waypointId
                 }>
+                <cfif local.librarySave><cfset response.ALREADY_SAVED = local.alreadySaved></cfif>
                 <cfoutput>#serializeJSON(response)#</cfoutput>
                 <cfreturn>
             </cfif>

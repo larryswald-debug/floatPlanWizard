@@ -16,11 +16,11 @@ function count(value, pattern) {
 test("lock detail keeps the sidebar resources in order after the Trip Planner card", () => {
   const planIndex = page.indexOf("<h3>Plan your Great Loop trip</h3>");
   const resourcesIndex = page.indexOf("<h3 id=\"fpwLockRelatedResourcesTitle\">Related Safety Resources</h3>");
-  const officialIndex = page.indexOf("<h3>Official Source</h3>");
+  const sourceIndex = page.indexOf("<h3>Reference Source</h3>");
 
   assert.ok(planIndex >= 0);
   assert.ok(resourcesIndex > planIndex);
-  assert.ok(officialIndex > resourcesIndex);
+  assert.ok(sourceIndex > resourcesIndex);
   assert.equal(count(page, /id="fpwLockRelatedResourcesTitle"/g), 1);
   assert.match(page, /aria-labelledby="fpwLockRelatedResourcesTitle"/);
 });
@@ -101,7 +101,7 @@ test("Continue planning is immediately before the pager and uses confirmed desti
 test("contextual resource links remain ordinary untracked links", () => {
   const resourcesBlock = page.slice(
     page.indexOf("class=\"fpw-lock-panel fpw-lock-related-resources\""),
-    page.indexOf("<h3>Official Source</h3>")
+    page.indexOf("<h3>Reference Source</h3>")
   );
   const continueBlock = page.slice(
     page.indexOf("class=\"fpw-lock-continue-planning\""),

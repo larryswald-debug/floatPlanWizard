@@ -152,7 +152,8 @@ if (bridgeResult.SUCCESS) {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20261028-approved-navigation">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20260624-bridge-eyebrow-cascade">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-bridges.css?v=20261104-waypoint-color">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-library-detail.css?v=20261104">
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
 </head>
@@ -198,15 +199,6 @@ if (bridgeResult.SUCCESS) {
     <cfelse>
       <section class="fpw-bridge-detail-layout">
         <article class="fpw-bridge-panel fpw-bridge-detail-main">
-          <cfif hasCoordinates>
-            <div id="fpwBridgeDetailMap" class="fpw-bridge-map fpw-bridge-detail-map fpw-bridge-detail-map--main" data-lat="<cfoutput>#encodeForHTMLAttribute(bridgeItem.latitude)#</cfoutput>" data-lng="<cfoutput>#encodeForHTMLAttribute(bridgeItem.longitude)#</cfoutput>" data-name="<cfoutput>#encodeForHTMLAttribute(bridgeItem.bridge_name)#</cfoutput>"></div>
-            <p class="fpw-bridge-detail-coordinates"><cfoutput>#encodeForHTML(bridgeItem.latitude)#, #encodeForHTML(bridgeItem.longitude)#</cfoutput></p>
-          <cfelse>
-            <div class="fpw-bridge-detail-map fpw-bridge-detail-map--main fpw-bridge-detail-map--empty">
-              <p>Coordinates are not verified for this bridge yet.</p>
-            </div>
-          </cfif>
-
           <div class="fpw-bridge-badges fpw-bridge-detail-badges">
             <cfif val(bridgeItem.is_drawbridge) EQ 1><span class="fpw-bridge-badge fpw-bridge-badge--warn">Drawbridge / movable</span></cfif>
             <cfif val(bridgeItem.is_fixed) EQ 1><span class="fpw-bridge-badge">Fixed bridge</span></cfif>
@@ -223,6 +215,16 @@ if (bridgeResult.SUCCESS) {
             <div><span>Bridge Type</span><strong><cfoutput>#encodeForHTML(displayText(bridgeItem.bridge_type))#</cfoutput></strong></div>
             <div><span>Source Confidence</span><strong><cfoutput>#encodeForHTML(displayText(bridgeItem.source_confidence))#</cfoutput></strong></div>
           </div>
+
+          <h2>Map Reference</h2>
+          <cfif hasCoordinates>
+            <div id="fpwBridgeDetailMap" class="fpw-bridge-map fpw-bridge-detail-map fpw-bridge-detail-map--main" data-lat="<cfoutput>#encodeForHTMLAttribute(bridgeItem.latitude)#</cfoutput>" data-lng="<cfoutput>#encodeForHTMLAttribute(bridgeItem.longitude)#</cfoutput>" data-name="<cfoutput>#encodeForHTMLAttribute(bridgeItem.bridge_name)#</cfoutput>"></div>
+            <p class="fpw-bridge-detail-coordinates"><cfoutput>#encodeForHTML(bridgeItem.latitude)#, #encodeForHTML(bridgeItem.longitude)#</cfoutput></p>
+          <cfelse>
+            <div class="fpw-bridge-detail-map fpw-bridge-detail-map--main fpw-bridge-detail-map--empty">
+              <p>Coordinates are not verified for this bridge yet.</p>
+            </div>
+          </cfif>
 
           <h2>What Boaters Should Know</h2>
           <p><cfoutput>#encodeForHTML(displayText(bridgeItem.short_description, "Use this bridge record as a planning reference for location, clearance fields, bridge type, contact fields, and source notes. Verify current conditions before transit."))#</cfoutput></p>
@@ -267,8 +269,15 @@ if (bridgeResult.SUCCESS) {
         </article>
 
         <aside class="fpw-bridge-panel fpw-bridge-detail-side">
+          <section>
+            <cfset fpwLibraryWaypointType = "bridge">
+            <cfset fpwLibraryWaypointRecord = bridgeItem>
+            <cfinclude template="partials/fpw-library-waypoint.cfm">
+          </section>
+          <h2>Plan With FPW</h2>
+          <p><a class="fpw-library-detail-link" href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/trip-planning/#boat-limits">Review your boat’s air draft and limits</a> before choosing a route.</p>
           <h2>Bridge Image</h2>
-          <img class="fpw-bridge-detail-image fpw-bridge-detail-side-image" src="<cfoutput>#encodeForHTMLAttribute(bridgeImage.url)#</cfoutput>" alt="" loading="lazy" decoding="async">
+          <img class="fpw-bridge-detail-image fpw-bridge-detail-side-image" src="<cfoutput>#encodeForHTMLAttribute(bridgeImage.url)#</cfoutput>" alt="<cfoutput>#bridgeImage.hasImage ? encodeForHTMLAttribute(bridgeItem.bridge_name) : ''#</cfoutput>" loading="lazy" decoding="async">
 
           <h2>Related Bridges</h2>
           <ul class="fpw-bridge-source-list">
@@ -282,6 +291,20 @@ if (bridgeResult.SUCCESS) {
               <li><a href="<cfoutput>#request.fpwBase#/great-loop/bridges/route/#encodeForURL(bridgeSvc.normalizeSlug(bridgeItem.route_segment))#/</cfoutput>"><cfoutput>#encodeForHTML(bridgeItem.route_segment)#</cfoutput> bridges</a></li>
             </cfif>
           </ul>
+          <cfset bridgeSources = []>
+          <cfloop array="#[bridgeItem.source_primary_url, bridgeItem.source_secondary_url]#" index="sourceValue">
+            <cfif reFindNoCase("^https?://", sourceValue) AND isValid("url", sourceValue) AND !arrayFind(bridgeSources, sourceValue)>
+              <cfset arrayAppend(bridgeSources, sourceValue)>
+            </cfif>
+          </cfloop>
+          <cfif arrayLen(bridgeSources)>
+            <h2>Reference Sources</h2>
+            <ul class="fpw-bridge-source-list">
+              <cfloop array="#bridgeSources#" index="sourceValue">
+                <cfoutput><li><a class="fpw-library-detail-link" href="#encodeForHTMLAttribute(sourceValue)#" rel="nofollow noopener" target="_blank">#encodeForHTML(listFirst(listRest(sourceValue, "/"), "/"))# bridge reference</a></li></cfoutput>
+              </cfloop>
+            </ul>
+          </cfif>
         </aside>
       </section>
     </cfif>

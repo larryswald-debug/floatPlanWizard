@@ -40,7 +40,7 @@ test("rail placement, copy, destinations, and decorative icons match the contrac
     "Before You Arrive",
     ctaCopy.sidebarHeading,
     "Related Safety Resources",
-    "Official Source",
+    "Reference Source",
     "Navigation Safety Note"
   ]);
 
@@ -115,6 +115,7 @@ test("Continue planning precedes the pager and preserves existing controls", asy
   await page.goto(detailUrl("lock-and-dam-12"), { waitUntil: "domcontentloaded" });
 
   const planning = page.locator(".fpw-lock-continue-planning");
+  await expect(planning.getByRole("link", { name: "Allow time for locks in your daily route plan" })).toHaveAttribute("href", "/fpw/great-loop/trip-planning/#lock-timing");
   await expect(planning).toContainText("Continue planning: Check Marine Weather, estimate your trip with the Boat Fuel Calculator, or review the Solo Boating Safety Guide.");
   await expect(planning.getByRole("link", { name: "Marine Weather" })).toHaveAttribute("href", "/fpw/app/weather.cfm");
   await expect(planning.getByRole("link", { name: "Boat Fuel Calculator" })).toHaveAttribute("href", "/fpw/boat-fuel-calculator/");
@@ -137,9 +138,13 @@ test("Continue planning precedes the pager and preserves existing controls", asy
     "Call / monitor lock",
     "Check current notices"
   ]);
-  await expect(page.getByRole("heading", { name: "Official Source" })).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "Open official source" })).toHaveAttribute("target", "_blank");
-  await expect(page.getByRole("link", { name: "Open official source" })).toHaveAttribute("rel", "nofollow noopener");
+  await expect(page.getByRole("heading", { name: "Reference Source" })).toHaveCount(1);
+  const referenceLink = page.locator(".fpw-lock-panel")
+    .filter({ has: page.getByRole("heading", { name: "Reference Source", exact: true }) })
+    .getByRole("link");
+  await expect(referenceLink).toHaveAccessibleName(/.+/);
+  await expect(referenceLink).toHaveAttribute("target", "_blank");
+  await expect(referenceLink).toHaveAttribute("rel", "nofollow noopener");
   await expect(page.getByRole("heading", { name: "Navigation Safety Note" })).toHaveCount(1);
   await expect(page.locator(".fpw-lock-nav-pager a")).toHaveCount(2);
 });
@@ -319,8 +324,8 @@ for (const width of requiredWidths) {
       const sidebarStyle = getComputedStyle(sidebarCta);
       const mainNoteStyle = getComputedStyle(mainNote);
       const mainBodyStyle = getComputedStyle(mainCta.querySelector(".fpw-lock-detail-trip-cta__content p"));
-      const officialSourcePanel = [...rail.querySelectorAll(".fpw-lock-panel")]
-        .find((panel) => panel.querySelector("h3")?.textContent.trim() === "Official Source");
+      const referenceSourcePanel = [...rail.querySelectorAll(".fpw-lock-panel")]
+        .find((panel) => panel.querySelector("h3")?.textContent.trim() === "Reference Source");
       return {
         documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         mainOverflow: main.scrollWidth > document.documentElement.clientWidth + 1,
@@ -337,7 +342,7 @@ for (const width of requiredWidths) {
         sidebarCtaVisible: sidebarStyle.display !== "none" && sidebarCta.getBoundingClientRect().height > 0,
         resourcesVisible: getComputedStyle(resourceCard).display !== "none" && resourceBox.height > 0,
         beforeArrivalVisible: getComputedStyle(rail.firstElementChild).display !== "none",
-        officialSourceVisible: Boolean(officialSourcePanel) && getComputedStyle(officialSourcePanel).display !== "none",
+        referenceSourceVisible: Boolean(referenceSourcePanel) && getComputedStyle(referenceSourcePanel).display !== "none",
         mainCtaFits: mainCta.scrollWidth <= mainCta.clientWidth + 1,
         mainCtaFollowsMap: mainCtaBox.top >= mapCardBox.bottom - 1 && mainCtaBox.top >= mapBox.bottom - 1,
         mainCtaStaysInColumn: mainCtaBox.left >= document.querySelector(".fpw-lock-detail-main").getBoundingClientRect().left - 1
@@ -369,7 +374,7 @@ for (const width of requiredWidths) {
     expect(result.sidebarCtaVisible).toBe(width > 1180);
     expect(result.resourcesVisible).toBe(true);
     expect(result.beforeArrivalVisible).toBe(true);
-    expect(result.officialSourceVisible).toBe(true);
+    expect(result.referenceSourceVisible).toBe(true);
     expect(result.mainCtaFits).toBe(true);
     expect(result.mainCtaFollowsMap).toBe(true);
     expect(result.mainCtaStaysInColumn).toBe(true);
@@ -421,6 +426,6 @@ test("resource links work without JavaScript and public destinations return expe
   await expect(page.locator(".fpw-lock-detail-trip-cta")).toContainText(ctaCopy.mainBody);
   await expect(page.locator(".fpw-lock-detail-trip-cta").getByRole("link", { name: ctaCopy.accessibleName })).toHaveAttribute("href", "/fpw/app/join.cfm");
   await expect(page.locator(".fpw-lock-related-resource")).toHaveCount(2);
-  await expect(page.locator(".fpw-lock-continue-planning a")).toHaveCount(3);
+  await expect(page.locator(".fpw-lock-continue-planning a")).toHaveCount(4);
   await context.close();
 });

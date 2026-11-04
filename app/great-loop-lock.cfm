@@ -227,6 +227,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
 <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/top-nav.css?v=20261028-approved-navigation">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-locks.css?v=20260825-lock-detail-trip-planner-cta">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-library-detail.css?v=20261104">
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
   <cfinclude template="../includes/trustedsite.cfm">
@@ -387,6 +388,7 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
             <p class="fpw-lock-continue-planning">
               <strong>Continue planning:</strong>
               Check <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/app/weather.cfm')#</cfoutput>">Marine Weather</a>, estimate your trip with the <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/boat-fuel-calculator/')#</cfoutput>">Boat Fuel Calculator</a>, or review the <a href="<cfoutput>#encodeForHTMLAttribute(request.fpwBase & '/solo-boating-safety-guide/')#</cfoutput>">Solo Boating Safety Guide</a>.
+              <a class="fpw-library-detail-link" href="<cfoutput>#request.fpwBase#</cfoutput>/great-loop/trip-planning/#lock-timing">Allow time for locks in your daily route plan</a>.
             </p>
 
             <section class="fpw-lock-panel fpw-lock-nav-pager">
@@ -415,6 +417,12 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
             <li>Call / monitor lock</li>
             <li>Check current notices</li>
           </ul>
+        </section>
+
+        <section class="fpw-lock-panel">
+          <cfset fpwLibraryWaypointType = "lock">
+          <cfset fpwLibraryWaypointRecord = lockItem>
+          <cfinclude template="../partials/fpw-library-waypoint.cfm">
         </section>
 
         <section class="fpw-lock-panel fpw-lock-plan-panel">
@@ -463,12 +471,13 @@ if (isCleanLockRoute AND detailModel.SUCCESS) {
         </section>
 
         <section class="fpw-lock-panel">
-          <h3>Official Source</h3>
-          <cfif len(lockItem.source_url)>
-            <p><cfoutput>#encodeForHTML(displayText(lockItem.source_name, "Official source"))#</cfoutput></p>
-            <a href="<cfoutput>#encodeForHTMLAttribute(lockItem.source_url)#</cfoutput>" rel="nofollow noopener" target="_blank">Open official source</a>
+          <h3>Reference Source</h3>
+          <cfif reFindNoCase("^https?://", lockItem.source_url) AND isValid("url", lockItem.source_url)>
+            <cfoutput><a class="fpw-library-detail-link" href="#encodeForHTMLAttribute(lockItem.source_url)#" rel="nofollow noopener" target="_blank">#encodeForHTML(displayText(lockItem.source_name, "Source for " & lockItem.lock_name))#</a></cfoutput>
+          <cfelseif len(trim(lockItem.source_name))>
+            <p><cfoutput>#encodeForHTML(lockItem.source_name)#</cfoutput></p>
           <cfelse>
-            <p>Official source information is not listed for this reviewed row yet.</p>
+            <p>No reference source is listed for this lock.</p>
           </cfif>
         </section>
 
