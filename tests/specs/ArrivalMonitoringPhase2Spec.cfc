@@ -328,6 +328,73 @@ component extends="testbox.system.BaseSpec" output=false {
         });
       });
 
+      it("compares saved UTC instants independently of host time zone, DST and numeric input offsets",function(){
+        var handler=createObject("component","fpw.api.v1.floatplan");
+        makePublic(handler,"normalizeTimestampInput","utcTextForTest");
+        makePublic(handler,"parseUtcTimestampInput","utcInstantForTest");
+        makePublic(handler,"getReturnTimeComparisonValues","returnComparisonForTest");
+        var previousZone=getTimeZone().timezone;
+        try {
+          for (var zone in ["UTC","America/Chicago"]) {
+            setTimeZone(zone);
+            expect(handler.utcTextForTest("2026-11-03T19:57:00-05:00")).toBe("2026-11-04 00:57:00");
+            expect(handler.utcTextForTest("2026-07-10T15:00:00-04:00")).toBe("2026-07-10 19:00:00");
+            // 02:30 UTC exists even when 02:30 on a Chicago wall clock is skipped.
+            var stamp="2026-03-08 02:30:00";
+            var instant=parseDateTime("2026-03-08T02:30:00Z");
+            expect(dateCompare(handler.utcInstantForTest(stamp),instant)).toBe(0);
+            var comparison=handler.returnComparisonForTest(stamp,"UTC");
+            expect(dateCompare(comparison.returnValue,instant)).toBe(0);
+            expect(abs(dateDiff("s",comparison.nowValue,now()))).toBeLTE(2);
+          }
+        } finally {
+          setTimeZone(previousZone);
+        }
+      });
+
+      it("persists the same Basic and route draft schedule on UTC and Chicago ColdFusion hosts",function(){
+        var previousZone=getTimeZone().timezone;
+        try {
+          for (var requestZone in ["UTC","America/Chicago"]) {
+            setTimeZone(requestZone);
+            isolated(function(c){
+              var f=new fpw.tests.support.CompletedContactFixture().create();
+              sql("UPDATE route_instances SET started_at=NULL,status='PLANNED' WHERE id=:r",{r=f.routeId});
+              sql("UPDATE floatplans SET status='DRAFT',activatedAt=NULL WHERE floatPlanId=:p",{p=f.planId});
+              var handler=createObject("component","fpw.api.v1.floatplan");
+              makePublic(handler,"saveBasicFloatPlan","saveBasicForTest");
+              makePublic(handler,"saveFloatPlan","saveRouteForTest");
+              var schedule={
+                DEPARTURE_TIME="2026-11-03T19:50",DEPARTURE_TIMEZONE="America/New_York",
+                DEPARTURE_TIME_UTC="2026-11-04T00:50:00.000Z",
+                RETURN_TIME="2026-11-03T19:57",RETURN_TIMEZONE="America/New_York",
+                RETURN_TIME_UTC="2026-11-04T00:57:00.000Z"
+              };
+              var basic=duplicate(schedule);
+              basic.NAME="Basic UTC save";
+              var basicResult=handler.saveBasicForTest(f.userId,{FLOATPLAN=basic,BASIC_DETAILS={
+                VESSEL_NAME="Test",OPERATOR_NAME="Test",CAPTAIN_NAME="Test",CAPTAIN_EMAIL=f.email,
+                NOTIFICATION_CONTACT_NAME="Test shore",NOTIFICATION_CONTACT_EMAIL=f.contactEmail,
+                LAUNCH_LOCATION="A",DESTINATION_LOCATION="B",AUTHORITY_ID=-1
+              }});
+              var route=duplicate(schedule);
+              route.NAME="Route UTC save"; route.FLOATPLANID=f.planId;
+              route.ROUTE_INSTANCE_ID=f.routeId; route.VESSELID=f.vesselId;
+              var routeResult=handler.saveRouteForTest(f.userId,{FLOATPLAN=route,CONTACTS=[{CONTACTID=f.contactId}]});
+              for (var saved in [basicResult,routeResult]) {
+                expect(saved.SUCCESS).toBeTrue(toString(saved.MESSAGE ?: "Draft save failed"));
+                expect(saved.FLOATPLAN.DEPARTURE_TIME).toBe("2026-11-03 19:50:00");
+                expect(saved.FLOATPLAN.RETURN_TIME).toBe("2026-11-03 19:57:00");
+                expect(saved.FLOATPLAN.DEPARTURE_TIME_UTC).toBe("2026-11-04 00:50:00");
+                expect(saved.FLOATPLAN.RETURN_TIME_UTC).toBe("2026-11-04 00:57:00");
+              }
+            });
+          }
+        } finally {
+          setTimeZone(previousZone);
+        }
+      });
+
       it("requires explicit intent, owner and current revision in the canonical active Premium wizard save",function(){
         isolated(function(c){
           var f=new fpw.tests.support.CompletedContactFixture().create();

@@ -118,8 +118,9 @@ component output="false" hint="Final-arrival and arrival-time change notices. Al
         if (planId<=0) return {state="INELIGIBLE"};
         var t=clock(asOfUtc);
         var holder={};
-        try {
-            transaction {
+        if (!variables.gate.canStartSubmission(variables.ds)) return {state="BUSY"};
+        transaction {
+            try {
                 sql("SELECT floatPlanId FROM floatplans WHERE floatPlanId=:p FOR UPDATE",{p=planId});
                 var due=dueCaptainReminders(1,t,planId);
                 if (!due.recordCount) return {state="INELIGIBLE"};
@@ -132,30 +133,28 @@ component output="false" hint="Final-arrival and arrival-time change notices. Al
                     return {state="FAILED_PERMANENT"};
                 }
                 var message=variables.mail.buildNotice(planId,due.deadline[1],due.zone[1],t,true);
-                holder.gate=variables.gate.acquire(planId,variables.ds);
+                holder.gate=variables.gate.acquireInTransaction(planId,variables.ds);
                 var attempt=val(due.attemptCount[1])+1;
                 // A worker lost across SMTP may have submitted the message. Only a
                 // definite transient outcome below may reopen this receipt for retry.
                 sql("UPDATE floatplan_alert_history SET status='UNKNOWN',lastError='HANDOFF_UNCONFIRMED',
                     lastAttemptAtUTC=:t,attemptCount=:attempt WHERE id=:id",{id=due.id[1],t=t,attempt=attempt});
+                var result=submitMail(holder.gate,address,message,policy.mailHogOnly);
+                var state=uCase(result.status ?: "UNKNOWN");
+                if (!listFind("SUBMITTED,FAILED_RETRYABLE,FAILED_PERMANENT,UNKNOWN",state)) state="UNKNOWN";
+                var exhausted=state=="FAILED_RETRYABLE" && attempt>=4;
+                if (exhausted) state="FAILED_PERMANENT";
+                var reason=exhausted ? "RETRIES_EXHAUSTED" : (state=="UNKNOWN" ? "HANDOFF_UNCONFIRMED" : state);
+                sql("UPDATE floatplan_alert_history SET status=:state,lastAttemptAtUTC=:t,
+                    sentAtUTC=CASE WHEN :state='SENT' THEN :t ELSE NULL END,
+                    lastError=CASE WHEN :state='SENT' THEN NULL ELSE :reason END
+                    WHERE id=:id AND status='UNKNOWN' AND attemptCount=:attempt",
+                    {id=due.id[1],state=state=="SUBMITTED" ? "SENT" : state,t=clock(asOfUtc),reason=reason,attempt=attempt});
+                transaction action="commit";
+                return {state=state};
+            } finally {
+                if (structKeyExists(holder,"gate")) variables.gate.release(holder.gate);
             }
-            try {
-                var result=variables.captureMode ? variables.capture.submit(address,message)
-                    : variables.mail.submit(address,message,policy.mailHogOnly);
-            } catch (any uncertainHandoff) { var result={status="UNKNOWN"}; }
-            var state=uCase(result.status ?: "UNKNOWN");
-            if (!listFind("SUBMITTED,FAILED_RETRYABLE,FAILED_PERMANENT,UNKNOWN",state)) state="UNKNOWN";
-            var exhausted=state=="FAILED_RETRYABLE" && attempt>=4;
-            if (exhausted) state="FAILED_PERMANENT";
-            var reason=exhausted ? "RETRIES_EXHAUSTED" : (state=="UNKNOWN" ? "HANDOFF_UNCONFIRMED" : state);
-            sql("UPDATE floatplan_alert_history SET status=:state,lastAttemptAtUTC=:t,
-                sentAtUTC=CASE WHEN :state='SENT' THEN :t ELSE NULL END,
-                lastError=CASE WHEN :state='SENT' THEN NULL ELSE :reason END
-                WHERE id=:id AND status='UNKNOWN' AND attemptCount=:attempt",
-                {id=due.id[1],state=state=="SUBMITTED" ? "SENT" : state,t=clock(asOfUtc),reason=reason,attempt=attempt});
-            return {state=state};
-        } finally {
-            if (structKeyExists(holder,"gate")) variables.gate.release(holder.gate);
         }
     }
 
@@ -314,7 +313,7 @@ component output="false" hint="Final-arrival and arrival-time change notices. Al
         }
     }
 
-    // The plan and watch are locked before the outbox. The dedicated advisory lock
+    // The plan and watch are locked before the outbox. The session advisory lock
     // outlives this short transaction and is held only until transport returns.
     private struct function prepareHandoff(required numeric id,required string token,required string t,required struct holder) {
         var found=delivery(id);
@@ -334,7 +333,7 @@ component output="false" hint="Final-arrival and arrival-time change notices. Al
             if (!len(address)) return suppress(id,"RECIPIENT_CHANGED",t);
             var message=deadlineChange ? variables.mail.buildDeadlineChangeNotice(row.plan_id[1],ctx)
                 : variables.mail.buildNotice(row.plan_id[1],ctx.deadlineUtc,ctx.zone,t);
-            holder.gate=variables.gate.acquire(row.plan_id[1],variables.ds);
+            holder.gate=variables.gate.acquireInTransaction(row.plan_id[1],variables.ds);
             var n=val(row.attempt_count[1])+1;
             sql("INSERT INTO fpw_arrival_attempts(delivery_id,attempt_no,status,started_at_utc)
                 VALUES (:id,:n,'SUBMITTING',:t)",{id=id,n=n,t=t});
@@ -383,23 +382,36 @@ component output="false" hint="Final-arrival and arrival-time change notices. Al
         return {state=status,reason=reason,attempt=attempt};
     }
 
+    // The configuration and transport are the same for all arrival messages.
+    // Only a transport exception can mean that the email may already have left FPW.
+    private struct function submitMail(required struct handle,required string address,required struct message,required boolean mailHogOnly) {
+        var payload=arguments;
+        return variables.gate.submit(handle,function(){
+            try {
+                return variables.captureMode ? variables.capture.submit(payload.address,payload.message)
+                    : variables.mail.submit(payload.address,payload.message,payload.mailHogOnly);
+            } catch (any uncertainHandoff) {
+                return {status="UNKNOWN",reason="HANDOFF_UNCONFIRMED"};
+            }
+        });
+    }
+
     public struct function submitClaim(required numeric deliveryId,required string token,string asOfUtc="") {
         var t=clock(asOfUtc);
         var holder={};
-        try {
-            var prepared=prepareHandoff(deliveryId,token,t,holder);
-            if (prepared.state!="SUBMITTING") return prepared;
+        if (!variables.gate.canStartSubmission(variables.ds)) return {state="BUSY"};
+        transaction {
             try {
-                var sent=variables.captureMode ? variables.capture.submit(prepared.address,prepared.message)
-                    : variables.mail.submit(prepared.address,prepared.message,prepared.mailHogOnly);
-            } catch (any ignoredTransportError) {
-                var sent={status="UNKNOWN",reason="HANDOFF_UNCONFIRMED"};
+                var prepared=prepareHandoff(deliveryId,token,t,holder);
+                if (prepared.state!="SUBMITTING") return prepared;
+                var sent=submitMail(holder.gate,prepared.address,prepared.message,prepared.mailHogOnly);
+                // Publish the result before a waiting closure or revision can proceed.
+                var outcome=finishHandoff(deliveryId,token,prepared.attempt,sent,clock(asOfUtc));
+                transaction action="commit";
+                return outcome;
+            } finally {
+                if (structKeyExists(holder,"gate")) variables.gate.release(holder.gate);
             }
-            // Make a failed attempt visible to a waiting lifecycle writer so it
-            // can suppress the retry before committing closure or supersession.
-            return finishHandoff(deliveryId,token,prepared.attempt,sent,clock(asOfUtc));
-        } finally {
-            if (structKeyExists(holder,"gate")) variables.gate.release(holder.gate);
         }
     }
 

@@ -1,134 +1,108 @@
-component output="false" hint="Internal plan-specific fence between checked arrival handoff and lifecycle changes." {
-    // DATABASE() must be evaluated by the same datasource, never inferred from an application URL.
+component output="false" hint="Plan-specific fence between arrival email handoff and lifecycle changes." {
     private string function keyExpression() {
         return "CONCAT('fpw:arrival:', LEFT(SHA2(DATABASE(),256),24), ':', ";
     }
 
-    // An opaque handle owns one independent JDBC session until release. queryExecute
-    // by itself is not a session pin across the transaction/SMTP boundary.
-    public struct function acquire(required numeric planId, string ds="fpw", numeric waitSeconds=20) {
+    // A sender must never commit a surrounding plan save or a caller's other work.
+    public boolean function canStartSubmission(required string ds) {
+        var row=queryExecute("SELECT @@session.autocommit AS enabled",{},{datasource=ds,timeout=5});
+        return row.enabled[1]==1;
+    }
+
+    // The caller's outer CF transaction pins this ordinary datasource connection.
+    // MySQL and MariaDB named locks belong to the connection and survive COMMIT.
+    public struct function acquireInTransaction(required numeric planId,string ds="fpw",numeric waitSeconds=20) {
         if (planId<=0 || fix(planId)!=planId || waitSeconds<0 || waitSeconds>30 || fix(waitSeconds)!=waitSeconds)
             throw(type="FPW.ArrivalHandoffUnavailable",message="Invalid arrival handoff parameters.");
-        var conn="";
-        var stmt="";
-        var rows="";
-        var sessionId=0;
-        var mayOwn=false;
-        var acquired=false;
+        var sessionRow=queryExecute("SELECT CONNECTION_ID() AS id,@@session.autocommit AS auto_commit,"
+            & keyExpression() & ":p) AS lock_name",{p={value=planId,cfsqltype="cf_sql_bigint"}},{datasource=ds,timeout=5});
+        if (sessionRow.auto_commit[1]!=0 || !len(sessionRow.lock_name[1] ?: ""))
+            throw(type="FPW.ArrivalHandoffUnavailable",message="The arrival handoff requires a pinned datasource connection.");
+        var handle={ds=ds,connectionId=sessionRow.id[1],lockName=sessionRow.lock_name[1]};
+        var params={name=handle.lockName};
+        var prior=queryExecute("SELECT IS_USED_LOCK(:name) AS owner",params,{datasource=ds,timeout=5});
+        if (val(prior.owner[1] ?: 0)==handle.connectionId) {
+            discardOwner(handle);
+            throw(type="FPW.ArrivalHandoffUnavailable",message="An abandoned arrival handoff was detected.");
+        }
+        params.wait={value=waitSeconds,cfsqltype="cf_sql_integer"};
         try {
-            var source=createObject("java","coldfusion.server.ServiceFactory").getDataSourceService().getDatasource(ds);
-            conn=source.getConnection();
-            if (!conn.getAutoCommit())
-                throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff requires an independent autocommit connection.");
-            stmt=conn.prepareStatement("SELECT CONNECTION_ID(), " & keyExpression() & "?)");
-            stmt.setQueryTimeout(javaCast("int",5));
-            stmt.setLong(javaCast("int",1),javaCast("long",planId));
-            rows=stmt.executeQuery();
-            if (!rows.next()) throw(type="FPW.ArrivalHandoffUnavailable",message="No arrival handoff session.");
-            sessionId=rows.getLong(javaCast("int",1));
-            var key=rows.getString(javaCast("int",2));
-            if (!len(key) || sessionId<=0) throw(type="FPW.ArrivalHandoffUnavailable",message="No arrival handoff identity.");
-            rows.close();
-            stmt.close();
-
-            // Fail closed if a pooled session was returned with a stale ownership count.
-            stmt=conn.prepareStatement("SELECT IS_USED_LOCK(?)");
-            stmt.setQueryTimeout(javaCast("int",5));
-            stmt.setString(javaCast("int",1),key);
-            rows=stmt.executeQuery();
-            if (!rows.next()) throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff ownership unavailable.");
-            if (rows.getLong(javaCast("int",1))==sessionId) {
-                mayOwn=true;
-                throw(type="FPW.ArrivalHandoffUnavailable",message="An abandoned arrival handoff session was detected.");
-            }
-            rows.close();
-            stmt.close();
-
-            stmt=conn.prepareStatement("SELECT GET_LOCK(?,?)");
-            stmt.setQueryTimeout(javaCast("int",waitSeconds+3));
-            stmt.setString(javaCast("int",1),key);
-            stmt.setInt(javaCast("int",2),javaCast("int",waitSeconds));
-            mayOwn=true;
-            rows=stmt.executeQuery();
-            if (!rows.next()) throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff acquisition unavailable.");
-            var granted=rows.getInt(javaCast("int",1));
-            if (rows.wasNull()) throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff acquisition unavailable.");
-            if (granted!=1) {
-                mayOwn=false;
+            var lockRow=queryExecute("SELECT GET_LOCK(:name,:wait) AS granted",params,{datasource=ds,timeout=waitSeconds+3});
+            if (isNull(lockRow.granted[1]) || !len(toString(lockRow.granted[1])))
+                throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff acquisition was not confirmed.");
+            if (val(lockRow.granted[1])!=1)
                 throw(type="FPW.ArrivalHandoffBusy",message="Arrival submission is busy. Retry the operation.");
-            }
-            acquired=true;
-            return {connection=conn,lockName=key,connectionId=sessionId};
+            return handle;
         } catch (FPW.ArrivalHandoffBusy busy) {
             rethrow;
         } catch (any failure) {
-            throw(type="FPW.ArrivalHandoffUnavailable",message="The arrival handoff fence is unavailable.");
+            discardOwner(handle);
+            throw(type="FPW.ArrivalHandoffUnavailable",message="The arrival handoff could not be acquired.");
+        }
+    }
+
+    // Commit the attempt before SMTP and leave no SQL transaction open during transport.
+    // The surrounding CF scope keeps the physical connection checked out until release.
+    public struct function submit(required struct handle,required any transport) {
+        var options={datasource=handle.ds,timeout=5};
+        transaction action="commit";
+        try {
+            queryExecute("SET SESSION autocommit=1",{},options);
+            var state=queryExecute("SELECT CONNECTION_ID() AS id, IS_USED_LOCK(:name) AS owner,
+                @@session.autocommit AS auto_commit",{name=handle.lockName},options);
+            if (state.id[1]!=handle.connectionId || val(state.owner[1] ?: 0)!=handle.connectionId || state.auto_commit[1]!=1)
+                throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff ownership could not be verified before sending.");
+            return arguments.transport();
         } finally {
-            closeQuietly(rows);
-            closeQuietly(stmt);
-            if (!acquired && isObject(conn)) {
-                if (mayOwn && sessionId>0) discardSession(conn,sessionId);
-                closeQuietly(conn);
+            try {
+                queryExecute("SET SESSION autocommit=0",{},options);
+            } catch (any restoreError) {
+                discardOwner(handle);
+                rethrow;
             }
         }
     }
 
     public void function release(required struct handle) {
-        var stmt="";
-        var rows="";
-        var verified=false;
         try {
-            stmt=handle.connection.prepareStatement("SELECT RELEASE_LOCK(?), CONNECTION_ID()");
-            stmt.setQueryTimeout(javaCast("int",5));
-            stmt.setString(javaCast("int",1),handle.lockName);
-            rows=stmt.executeQuery();
-            verified=rows.next() && rows.getInt(javaCast("int",1))==1 && rows.getLong(javaCast("int",2))==handle.connectionId;
-        } catch (any failure) {
-            verified=false;
-        } finally {
-            closeQuietly(rows);
-            closeQuietly(stmt);
-            if (!verified) discardSession(handle.connection,handle.connectionId);
-            closeQuietly(handle.connection);
+            // Only the session originally granted this lock may release it.
+            var row=queryExecute("SELECT IF(CONNECTION_ID()=:id,RELEASE_LOCK(:name),NULL) AS released",
+                {id=handle.connectionId,name=handle.lockName},{datasource=handle.ds,timeout=5});
+            if (val(row.released[1] ?: 0)==1) return;
+        } catch (any releaseError) {
+            // A lost connection may already have released its lock.
         }
-        if (!verified) throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff release could not be verified.");
+        discardOwner(handle);
+        throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff release could not be verified.");
     }
 
-    public boolean function isFree(required numeric planId, string ds="fpw") {
+    public boolean function isFree(required numeric planId,string ds="fpw") {
         if (planId<=0 || fix(planId)!=planId) throw(type="FPW.ArrivalHandoffUnavailable",message="Invalid arrival handoff plan.");
         var probe=queryExecute("SELECT IS_FREE_LOCK(" & keyExpression() & ":p)) AS is_free",
             {p={value=planId,cfsqltype="cf_sql_bigint"}},{datasource=ds,timeout=5});
-        if (probe.recordCount!=1 || isNull(probe.is_free[1]))
+        if (probe.recordCount!=1 || isNull(probe.is_free[1]) || !len(toString(probe.is_free[1])))
             throw(type="FPW.ArrivalHandoffUnavailable",message="Arrival handoff availability could not be established.");
         return val(probe.is_free[1])==1;
     }
 
-    // Caller holds the canonical plan row lock, so another compliant dispatcher
-    // cannot pass its final check and acquire this gate during the fast path.
-    public void function awaitHandoff(required numeric planId, string ds="fpw", numeric waitSeconds=20) {
+    // Lifecycle writers hold the plan row. Once a current sender releases this lock,
+    // another dispatcher cannot pass its final plan check ahead of the writer.
+    public void function awaitHandoff(required numeric planId,string ds="fpw",numeric waitSeconds=20) {
         if (this.isFree(planId,ds)) return;
-        var handle=this.acquire(planId,ds,waitSeconds);
-        this.release(handle);
-    }
-
-    private void function closeQuietly(required any value) {
-        if (isObject(value)) {
-            try { value.close(); } catch (any ignoredClose) {}
+        transaction {
+            var handle=this.acquireInTransaction(planId,ds,waitSeconds);
+            this.release(handle);
         }
     }
 
-    // A pool close alone may retain a named lock. If release is uncertain,
-    // disconnect only this server session, never an id taken from request data.
-    private void function discardSession(required any connection,required numeric sessionId) {
-        var discard="";
+    private void function discardOwner(required struct handle) {
         try {
-            discard=connection.createStatement();
-            discard.setQueryTimeout(javaCast("int",5));
-            discard.execute("KILL CONNECTION " & int(sessionId));
+            var row=queryExecute("SELECT CONNECTION_ID() AS id, IS_USED_LOCK(:name) AS owner",
+                {name=handle.lockName},{datasource=handle.ds,timeout=5});
+            if (row.id[1]==handle.connectionId && val(row.owner[1] ?: 0)==handle.connectionId)
+                queryExecute("KILL CONNECTION " & int(handle.connectionId),{},{datasource=handle.ds,timeout=5});
         } catch (any disconnected) {
             // Killing one's own connection can itself raise a connection-closed error.
-        } finally {
-            closeQuietly(discard);
         }
     }
 }

@@ -8680,17 +8680,14 @@
 
             plan = loadFloatPlan(arguments.userId, arguments.floatPlanId);
 
-            if (NOT structKeyExists(plan, "RETURN_TIME_UTC") OR NOT isDate(plan.RETURN_TIME_UTC)) {
+            var returnComparison = getReturnTimeComparisonValues(plan.RETURN_TIME_UTC ?: "", "UTC");
+            if (!isDate(returnComparison.returnValue)) {
                 result.ERROR = "RETURN_TIME_REQUIRED";
                 result.MESSAGE = "Return time is required before sending a float plan.";
                 return result;
             }
 
-            var returnComparison = getReturnTimeComparisonValues(plan.RETURN_TIME_UTC, "UTC");
-            var nowLocal = returnComparison.nowValue;
-            var returnLocal = returnComparison.returnValue;
-
-            if (dateCompare(nowLocal, returnLocal) GTE 0) {
+            if (dateCompare(returnComparison.nowValue, returnComparison.returnValue) GTE 0) {
                 result.ERROR = "RETURN_TIME_PAST";
                 result.MESSAGE = "Return time must be in the future before sending a float plan.";
                 return result;
@@ -9011,17 +9008,14 @@
             }
 
             storedPlanTimes = loadStoredFloatPlanTimes(arguments.userId, arguments.floatPlanId);
-            if (NOT structKeyExists(storedPlanTimes, "returnTimeUTC") OR NOT isDate(storedPlanTimes.returnTimeUTC)) {
+            var returnComparison = getReturnTimeComparisonValues(storedPlanTimes.returnTimeUTC ?: "", "UTC");
+            if (!isDate(returnComparison.returnValue)) {
                 result.ERROR = "RETURN_TIME_REQUIRED";
                 result.MESSAGE = "Return time is required before sending a float plan.";
                 return result;
             }
 
-            var returnComparison = getReturnTimeComparisonValues(storedPlanTimes.returnTimeUTC, "UTC");
-            var nowLocal = returnComparison.nowValue;
-            var returnLocal = returnComparison.returnValue;
-
-            if (dateCompare(nowLocal, returnLocal) GTE 0) {
+            if (dateCompare(returnComparison.nowValue, returnComparison.returnValue) GTE 0) {
                 result.ERROR = "RETURN_TIME_PAST";
                 result.MESSAGE = "Return time must be in the future before sending a float plan.";
                 return result;
@@ -9598,6 +9592,17 @@
         <cfargument name="value" required="true">
         <cfscript>
             var normalized = trim(toString(arguments.value));
+            // Browser instants have an explicit offset. Stored ISO/SQL clock fields
+            // without an offset must keep their digits across request time zones.
+            if (reFindNoCase("^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}([.]\d+)?)?(Z|[+-]\d{2}:?\d{2})?$", normalized)) {
+                var iso = replace(normalized, " ", "T", "one");
+                if (!reFindNoCase("(Z|[+-]\d{2}:?\d{2})$", iso)) iso &= "Z";
+                try {
+                    return dateTimeFormat(parseDateTime(iso), "yyyy-mm-dd HH:nn:ss", "UTC");
+                } catch (any invalidTimestamp) {
+                    return "";
+                }
+            }
             if (isDate(arguments.value)) {
                 return dateFormat(arguments.value, "yyyy-mm-dd") & " " & timeFormat(arguments.value, "HH:mm:ss");
             }
@@ -9721,10 +9726,12 @@
         <cfargument name="value" required="true">
         <cfscript>
             var normalizedInput = normalizeTimestampInput(arguments.value);
-            if (!len(normalizedInput) OR !isDate(normalizedInput)) {
+            if (!len(normalizedInput)) return "";
+            try {
+                return parseDateTime(replace(normalizedInput, " ", "T", "one") & "Z");
+            } catch (any invalidUtcInput) {
                 return "";
             }
-            return parseDateTime(normalizedInput);
         </cfscript>
     </cffunction>
 
@@ -9740,8 +9747,8 @@
             if (isDate(clientUtc)) {
                 return clientUtc;
             }
-            if (listFindNoCase("UTC,Etc/UTC,GMT", sourceZone) AND len(normalizedLocal) AND isDate(normalizedLocal)) {
-                return parseDateTime(normalizedLocal);
+            if (listFindNoCase("UTC,Etc/UTC,GMT", sourceZone)) {
+                return parseUtcTimestampInput(normalizedLocal);
             }
             return "";
         </cfscript>
@@ -9799,18 +9806,10 @@
         <cfargument name="returnTime" required="true">
         <cfargument name="returnTimeZone" type="string" required="false" default="">
         <cfscript>
-            var comparison = {
+            return {
                 nowValue = now(),
-                returnValue = arguments.returnTime
+                returnValue = parseUtcTimestampInput(arguments.returnTime)
             };
-            var nowUtc = "";
-
-            nowUtc = currentTimestampForTimeZone("UTC");
-            if (isDate(arguments.returnTime) AND isDate(nowUtc)) {
-                comparison.nowValue = nowUtc;
-                comparison.returnValue = arguments.returnTime;
-            }
-            return comparison;
         </cfscript>
     </cffunction>
 
