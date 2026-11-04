@@ -8,10 +8,11 @@ component output="false" {
     variables.catalogLabels = {};
     variables.catalogAvailable = false;
 
-    public any function init(struct config={}, any gateway) output="false" {
+    public any function init(struct config={}, any gateway, any history) output="false" {
         variables.registry = [];
         variables.config = structIsEmpty(arguments.config) ? new fpw.api.v1.AdminScheduledTaskConfig().load() : duplicate(arguments.config);
         variables.gateway = structKeyExists(arguments, "gateway") ? arguments.gateway : new fpw.api.v1.AdminScheduledTaskGateway();
+        variables.history = structKeyExists(arguments,"history") ? arguments.history : new fpw.api.v1.ScheduledTaskRunHistory();
         variables.engine = structKeyExists(server, "coldfusion") ? toString(server.coldfusion.productVersion) : "Unknown";
         refreshCatalog();
         validateConfig();
@@ -261,6 +262,24 @@ component output="false" {
         return {};
     }
 
+    // Called on an observer-owned service instance, never the instance processing admin actions.
+    public boolean function ownsObservedExecution(required struct row) output="false" {
+        var base=variables.config.baseUrl;
+        var nativeKey=identityKey({mode=row.mode,group=row.group,name=row.task});
+        var configuredEndpoint="";
+        for (var entry in variables.configuredRegistry) {
+            if (nativeKey==identityKey(entry)) { configuredEndpoint=entry.endpointId; break; }
+        }
+        var target=schedulerTargetUrl(row);
+        if (!len(configuredEndpoint) AND (!len(base) OR compare(left(target,len(base)+1),base & "/") NEQ 0)) return false;
+        lock name="FPW.ScheduledTaskRunCatalog.#hash(base)#" type="exclusive" timeout=5 {
+            refreshCatalog();
+            // readState also lists an explicitly registered identity with a broken/read-only binding.
+            if (len(configuredEndpoint)) return structKeyExists(variables.catalog,configuredEndpoint);
+            return !structIsEmpty(discoverEntry(row));
+        }
+    }
+
     private struct function readState() output="false" {
         var state = {scopes={}, rows={}, identities={}, seconds={}, diagnostics=[]};
         var q = queryNew("");
@@ -392,14 +411,23 @@ component output="false" {
         return compare(cron, expected) EQ 0;
     }
 
-    private struct function present(required struct row, required struct entry) output="false" {
+    private struct function present(required struct row, required struct entry, struct lastRuns={}) output="false" {
         var interval = lCase(value(arguments.row, "interval"));
         var item = {id=arguments.entry.id, name=arguments.entry.name, mode=arguments.entry.mode, group=arguments.entry.group,
             endpointId=arguments.entry.endpointId, endpoint=variables.catalog[arguments.entry.endpointId], endpointUrl=variables.config.baseUrl & variables.catalog[arguments.entry.endpointId], frequency="Unavailable",
             endDate="", endTime="", repeat=value(arguments.row, "repeat"), intervalHours="0", intervalMinutes="0", intervalSeconds="0",
             startDate="", startTime="", timeout=value(arguments.row, "requesttimeout", value(arguments.row, "timeout", "Unavailable")),
             paused=pausedStatus(arguments.row), editable=false, actionable=false, reason="", revision=revision(arguments.row),
-            scheduleType="", seconds="", secondsSupported=true};
+            scheduleType="", seconds="", secondsSupported=true,lastRun="Never"};
+        var historyKey=lCase(entry.mode & "|" & entry.application & "|" & entry.group & "|" & entry.name);
+        var stamp=lastRuns[historyKey] ?: "";
+        if (reFind("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$",stamp)
+            AND compare(stamp,"1970-01-01T00:00:00.000Z") GT 0 AND isDate(stamp)) {
+            var lastDate=parseDateTime(stamp);
+            item.lastRun=len(variables.config.schedulerTimezone)
+                ? dateTimeFormat(lastDate,"mmm d, yyyy h:nn tt",variables.config.schedulerTimezone)
+                : dateTimeFormat(lastDate,"mmm d, yyyy h:nn tt");
+        }
         if (isDate(value(arguments.row, "startdate"))) item.startDate = dateFormat(arguments.row.startdate, "yyyy-mm-dd");
         if (isDate(value(arguments.row, "starttime"))) item.startTime = timeFormat(arguments.row.starttime, "HH:nn:ss");
         if (isDate(value(arguments.row, "enddate"))) item.endDate = dateFormat(arguments.row.enddate, "yyyy-mm-dd");
@@ -481,10 +509,15 @@ component output="false" {
         view.canCreate = mutationsEnabled() AND arrayLen(view.scopes) GT 0 AND arrayLen(view.endpoints) GT 0;
         if (!arrayLen(variables.registry)) view.message = "No verified FPW schedules were found. Create a task below, or register an existing FPW identity in the private configuration if its target needs review.";
         if (!view.available) view.message = "Native scheduler listing is unavailable. The manager cannot verify ownership or change schedules.";
+        var lastRuns={};
+        if (arrayLen(variables.registry)) {
+            try { lastRuns=variables.history.latest(variables.config.environment); }
+            catch (any historyUnavailable) { arrayAppend(view.diagnostics,"Recorded execution times are unavailable."); }
+        }
         for (var entry in variables.registry) {
             if (!state.scopes[entry.mode] OR !structKeyExists(variables.catalog,entry.endpointId)) continue;
             var row = findRow(state, entry);
-            if (!structIsEmpty(row)) arrayAppend(view.tasks, present(row, entry));
+            if (!structIsEmpty(row)) arrayAppend(view.tasks, present(row, entry,lastRuns));
             else if (mutationsEnabled() AND flag(entry, "allowCreate")) {
                 try {
                     targetUrl(entry);
@@ -673,9 +706,15 @@ component output="false" {
                 }
                 // Audit availability is proved before scheduling. Never put form/URL/exception data in audit.
                 audit(entry, action, true, "REQUEST_VALIDATED");
+                var creationBoundary = action EQ "create" ? now() : 0;
                 nativeAttempted = true;
                 variables.gateway.execute(attrs);
                 nativeSucceeded = true;
+                if (action EQ "create") {
+                    try { variables.history.resetForCreate(variables.config.environment,
+                        {mode=entry.mode,application=entry.application,group=entry.group,task=entry.name},creationBoundary); }
+                    catch (any historyUnavailable) {} // A history outage cannot change a scheduler action.
+                }
                 result.success = true;
                 result.message = action EQ "run" ? "Run requested. This does not confirm job completion or notification delivery." : "Scheduler change accepted.";
                 audit(entry, action, true, action EQ "run" ? "RUN_REQUESTED" : "CHANGE_ACCEPTED");

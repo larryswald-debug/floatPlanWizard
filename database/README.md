@@ -215,6 +215,10 @@ MySQL and MariaDB DDL perform implicit commits. A rollback script cannot provide
 
 A rollback must refuse to drop a populated application table unless that specific destructive operation and its data handling have been explicitly authorized. Disposable validation records must be removed before the guarded rollback is run.
 
+## Scheduled task execution timestamps
+
+Select `FPW` in development or `fpw` in production. Before deploying the Last Run column, run the `20261103_002_scheduled_task_last_run` preflight, up and verify scripts from `database/migrations/` in order. Each should report `PASS`. The table keeps the most recent observed UTC fire time for each native FPW task identity. Read the [scheduled-task runbook](../docs/admin-scheduled-tasks.md#last-run) for startup and verification. The down script refuses to discard recorded executions.
+
 ## Arrival monitoring (Phase 2, observation only)
 
 Use the four `20261101_001_arrival_overdue_monitoring` migration scripts. Run preflight on the intended development FPW database, then up and verify with a client that stops on SQL errors. MySQL DDL implicitly commits. Inspect a partial installation before retrying. The up script creates no trip revisions and starts in OFF.

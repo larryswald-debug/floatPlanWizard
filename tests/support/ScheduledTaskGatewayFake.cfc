@@ -2,6 +2,9 @@ component output="false" hint="In-memory scheduler adapter for service tests. Ne
     variables.rows = [];
     variables.executed = [];
     variables.listCount = 0;
+    variables.historyReads = 0;
+    variables.history = {};
+    variables.historyUnavailable = false;
     variables.denyList = false;
     variables.denyExecute = false;
 
@@ -95,6 +98,25 @@ component output="false" hint="In-memory scheduler adapter for service tests. Ne
 
     public numeric function getListCount() output="false" {
         return variables.listCount;
+    }
+
+    public void function setRunHistory(struct rows={}, boolean unavailable=false) {
+        variables.history=duplicate(rows);
+        variables.historyUnavailable=unavailable;
+    }
+
+    public struct function latest(required string environment) {
+        variables.historyReads++;
+        if (variables.historyUnavailable) throw(type="Test.HistoryUnavailable");
+        return variables.history;
+    }
+
+    public void function resetForCreate(required string environment,required struct row,required date createdAt) {
+        structDelete(variables.history,lCase(row.mode & "|" & row.application & "|" & row.group & "|" & row.task));
+    }
+
+    public numeric function getHistoryReads() {
+        return variables.historyReads;
     }
 
     public void function replaceRows(required array rows) output="false" {

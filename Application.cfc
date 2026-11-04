@@ -48,6 +48,7 @@
         <cfset application.oneTripCheckoutAvailable = application.premiumSendCreditModelEnabled AND len(stripeConfigService.getOneTripPriceId()) GT 0 AND len(application.oneTripDisplayAmount) GT 0>
         <cfset productEventFailureConfig = new fpw.includes.ProductEventService().init("fpw").validateForcedFailureConfiguration()>
         <cfset application.productEventsForceFailure = productEventFailureConfig.ENABLED>
+        <cfset new fpw.api.v1.ScheduledTaskRunHistory().ensureInstalled(true)>
 
         <cfreturn true>
     </cffunction>

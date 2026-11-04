@@ -14,7 +14,7 @@ component extends="testbox.system.BaseSpec" output="false" {
         var fixtureRows = structKeyExists(arguments, "rows") ? arguments.rows : [baseRow()];
         var gateway = new fpw.tests.support.ScheduledTaskGatewayFake().init(fixtureRows, arguments.denyList, arguments.denyExecute);
         return {config=config, gateway=gateway,
-            service=new fpw.api.v1.AdminScheduledTaskService().init(config=config, gateway=gateway)};
+            service=new fpw.api.v1.AdminScheduledTaskService().init(config=config, gateway=gateway, history=gateway)};
     }
 
     private struct function inputFor(required struct fixture, string action="edit") output="false" {
@@ -56,6 +56,83 @@ component extends="testbox.system.BaseSpec" output="false" {
 
     function run() {
         describe("Admin scheduled task service with an isolated in-memory scheduler", function() {
+            it("reads Last Run once, scopes identical names, and formats paused tasks in the configured timezone", function() {
+                var row=baseRow(); row.status="Paused"; row.lastfire=now();
+                var appRow=duplicate(row); appRow.mode="application"; appRow.application="FPW";
+                var f=fixture(rows=[row,appRow],configChanges={tasks=[],schedulerTimezone="America/New_York"});
+                // Nov 3 at 15:42 UTC is 10:42 AM in the scheduler timezone.
+                var stamp="2026-11-03T15:42:00.023Z";
+                var key="server||" & row.group & "|" & row.task;
+                var times={}; times[key]=stamp; f.gateway.setRunHistory(times);
+                var view=f.service.getView();
+                expect(arrayLen(view.tasks)).toBe(2);
+                for (var task in view.tasks) {
+                    expect(task.lastRun).toBe(task.mode=="server" ? "Nov 3, 2026 10:42 AM" : "Never");
+                    expect(task.paused).toBe("Yes");
+                }
+                expect(f.gateway.getHistoryReads()).toBe(1); expect(f.gateway.getListCount()).toBe(2);
+            });
+
+            it("formats UTC instants in the scheduler timezone across midnight and daylight saving",function(){
+                var f=fixture(configChanges={schedulerTimezone="America/New_York"}); var row=baseRow();
+                var times={}; times["server||" & row.group & "|" & row.task]="2026-07-04T02:15:00.000Z";
+                f.gateway.setRunHistory(times);
+                expect(f.service.getView().tasks[1].lastRun).toBe("Jul 3, 2026 10:15 PM");
+            });
+
+            it("does not turn Run Now acceptance or missing history into a timestamp",function(){
+                var f=fixture();
+                var input=inputFor(f,"run"); input.confirmation=baseRow().task;
+                expect(f.service.mutate(input).success).toBeTrue();
+                expect(f.service.getView().tasks[1].lastRun).toBe("Never");
+                f.gateway.setRunHistory(unavailable=true);
+                var view=f.service.getView();
+                expect(view.tasks[1].lastRun).toBe("Never"); expect(view.tasks[1].canRun).toBeTrue();
+                expect(arrayFind(view.diagnostics,"Recorded execution times are unavailable.")).toBeGT(0);
+            });
+
+            it("renders Never for missing and invalid historical timestamps",function(){
+                var f=fixture(); var row=baseRow(); var key="server||" & row.group & "|" & row.task;
+                for (var invalid in ["", "invalid", 0, "1900-01-01T00:00:00.000Z", "1970-01-01T00:00:00.000Z"]) {
+                    var times={}; times[key]=invalid; f.gateway.setRunHistory(times);
+                    expect(f.service.getView().tasks[1].lastRun).toBe("Never");
+                }
+            });
+
+            it("uses registered identities and the same approved site bindings for execution observation",function(){
+                var f=fixture(); var row=baseRow();
+                expect(f.service.ownsObservedExecution(row)).toBeTrue();
+                row.task="FPW_DEV_DISCOVERED_EXECUTION";
+                expect(f.service.ownsObservedExecution(row)).toBeTrue();
+                row.url="https://unrelated.invalid/fpw/tests/scheduled-task-target.cfm";
+                expect(f.service.ownsObservedExecution(row)).toBeFalse();
+                row=baseRow(); row.url="https://unrelated.invalid/changed";
+                expect(f.service.ownsObservedExecution(row)).toBeTrue(); // Explicit read-only identity is still listed.
+                row.group="OTHER_GROUP";
+                expect(f.service.ownsObservedExecution(row)).toBeFalse();
+            });
+
+            it("stores the newest actual UTC fire and fences older executions after identity reuse",function(){
+                var store=new fpw.api.v1.ScheduledTaskRunHistory();
+                var tag="FPW_DEV_HISTORY_" & replace(createUUID(),"-","","all");
+                var row={mode="server",application="",group="FPW_DEV_TEST",task=tag};
+                var key="server||" & row.group & "|" & tag;
+                var stamp=parseDateTime("2026-11-03T15:42:00.023Z");
+                transaction {
+                    try {
+                        store.recordStart("dev",row,stamp);
+                        store.recordStart("dev",row,dateAdd("s",-1,stamp));
+                        store.recordStart("dev",row,stamp);
+                        expect(store.latest("dev")[key]).toBe("2026-11-03T15:42:00.023Z");
+                        store.resetForCreate("dev",row,dateAdd("s",1,stamp));
+                        store.recordStart("dev",row,stamp);
+                        expect(structKeyExists(store.latest("dev"),key)).toBeFalse();
+                        store.recordStart("dev",row,dateAdd("n",1,stamp));
+                        store.resetForCreate("dev",row,dateAdd("s",2,stamp));
+                        expect(store.latest("dev")[key]).toBe("2026-11-03T15:43:00.023Z");
+                    } finally { transaction action="rollback"; }
+                }
+            });
             it("lists verified FPW identities without returning unrelated tasks or raw targets", function() {
                 var owned = baseRow();
                 var samePrefix = duplicate(owned);
@@ -281,9 +358,11 @@ component extends="testbox.system.BaseSpec" output="false" {
                 var result = f.service.mutate(inputFor(f));
                 expect(result.success).toBeTrue();
                 var attrs = f.gateway.getExecuted()[1];
-                for (var key in ["enddate", "endtime", "port", "proxyport", "publish", "resolveurl", "overwrite", "priority", "retrycount"]) {
+                for (var key in ["enddate", "endtime", "proxyport", "publish", "resolveurl", "overwrite", "priority", "retrycount"]) {
                     expect(toString(attrs[key])).toBe(toString(row[key]));
                 }
+                expect(structKeyExists(attrs,"port")).toBeFalse();
+                expect(attrs.url).toBe(row.url);
                 expect(attrs.requesttimeout).toBe(23);
                 expect(attrs.starttime).toBe("13:15");
                 expect(f.service.getView().tasks[1].paused).toBe("Yes");
@@ -373,7 +452,7 @@ component extends="testbox.system.BaseSpec" output="false" {
                 expect(structKeyExists(attrs, "isdaily")).toBeFalse();
                 expect(dateFormat(attrs.enddate, "yyyy-mm-dd")).toBe(dateFormat(row.enddate, "yyyy-mm-dd"));
                 expect(timeFormat(attrs.endtime, "HH:nn:ss")).toBe(timeFormat(row.endtime, "HH:nn:ss"));
-                expect(toString(attrs.port)).toBe(toString(row.port));
+                expect(structKeyExists(attrs,"port")).toBeFalse();
                 expect(attrs.url).toBe(row.url);
             });
 

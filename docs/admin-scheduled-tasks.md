@@ -34,6 +34,14 @@ The monitor token comes from `FPW_MONITOR_TOKEN`. Recovery reads `FPW_INACTIVE_R
 
 Existing runner logs are `fpw-monitor`, `fpw-departure-reminders`, `fpw-single-trip-expiration`, and `fpw-inactive-recovery`. Delivery and lifecycle ledgers record individual outcomes. They do not currently correlate an administrator's Run Now request with a completed scheduler execution. A successful native `run` response means **Run requested**. It does not prove completion, successful delivery, or successful processing of every record.
 
+### Last Run
+
+**Last Run** shows the latest recorded execution start, including an execution whose target later failed. FPW stores the native fire instant in UTC for the exact environment, scope, application, group, and task name. The list reads those timestamps once and formats them in the configured scheduler timezone, using the CF request timezone if none is configured. **Never** means no execution start was recorded for that identity. Tracking begins when the observer is installed. Earlier manual runs cannot be reliably backfilled.
+
+The FPW application registers a passive job listener with the running Adobe ColdFusion Quartz schedulers at application startup. Opening Scheduled Tasks retries registration and refreshes the observer's ownership rules. In-flight FPW jobs are picked up on registration. The observer also sees externally created tasks that match the manager's existing discovery rules. Task actions and runner code keep their existing execution paths. Creating a replacement through this manager resets the previous identity's history. An external delete and recreate with the identical scope, application, group and name uses the same history identity.
+
+Apply the `20261103_002_scheduled_task_last_run` migration before deploying the application. After deployment or a ColdFusion restart, warm FPW on every scheduler node and refresh Scheduled Tasks. If the page reports unavailable observation or history, resolve that condition before using **Never** as evidence. For Hostek, verify that the deployed ColdFusion version and sandbox permit the Quartz listener and the `fpw` datasource write. A harmless scheduled task should go from **Never** to a date and time after a confirmed Run Now and refresh.
+
 ## Configuration and ownership
 
 Mutations are disabled by default. Leave the manager in this read-only mode for the first Hostek verification.

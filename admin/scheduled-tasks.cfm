@@ -39,7 +39,10 @@ try {
         flashResult = schedulerService.mutate(form);
     } else {
         schedulerStage = "LIST";
+        historyReady = new fpw.api.v1.ScheduledTaskRunHistory().ensureInstalled();
         schedulerView = schedulerService.getView();
+        if (!historyReady AND schedulerView.environment NEQ "unconfigured")
+            arrayAppend(schedulerView.diagnostics,"Execution observation is unavailable on this scheduler.");
     }
 } catch (any schedulerPageError) {
     // Temporary diagnostic: never log messages, details, URLs, request data or raw traces.
@@ -376,7 +379,7 @@ if (showEdit OR showCreate) {
     </div>
     <div class="table-responsive">
       <table class="table table-bordered scheduler-table">
-        <thead class="table-light"><tr><th scope="col">Task / scope</th><th scope="col">Approved endpoint</th><th scope="col">Frequency</th><th scope="col">Start date / time</th><th scope="col">Timeout</th><th scope="col">Paused</th><th scope="col">Actions</th></tr></thead>
+        <thead class="table-light"><tr><th scope="col">Task / scope</th><th scope="col">Approved endpoint</th><th scope="col">Frequency</th><th scope="col">Start date / time</th><th scope="col">Last Run</th><th scope="col">Timeout</th><th scope="col">Paused</th><th scope="col">Actions</th></tr></thead>
         <tbody>
           <cfloop array="#schedulerView.tasks#" index="listedTask">
             <tr>
@@ -384,6 +387,7 @@ if (showEdit OR showCreate) {
               <td><code>#encodeForHTML(listedTask.endpoint)#</code></td>
               <td>#encodeForHTML(listedTask.frequency)#</td>
               <td><cfif len(listedTask.startDate)>#encodeForHTML(listedTask.startDate)#<cfelse>Unavailable</cfif><br><cfif len(listedTask.startTime)>#encodeForHTML(listedTask.startTime)#<cfelse>Unavailable</cfif></td>
+              <td>#encodeForHTML(listedTask.lastRun)#</td>
               <td><cfif isNumeric(listedTask.timeout)>#encodeForHTML(toString(listedTask.timeout))# s<cfelse>Unavailable</cfif></td>
               <td>#encodeForHTML(listedTask.paused)#</td>
               <td>
@@ -418,7 +422,7 @@ if (showEdit OR showCreate) {
             </tr>
           </cfloop>
           <cfif NOT arrayLen(schedulerView.tasks)>
-            <tr><td colspan="7" class="text-muted"><cfif schedulerView.available>No owned FPW tasks were returned by the scheduler.<cfelse>The FPW task listing is unavailable.</cfif></td></tr>
+            <tr><td colspan="8" class="text-muted"><cfif schedulerView.available>No owned FPW tasks were returned by the scheduler.<cfelse>The FPW task listing is unavailable.</cfif></td></tr>
           </cfif>
         </tbody>
       </table>
