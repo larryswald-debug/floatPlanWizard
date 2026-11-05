@@ -96,3 +96,39 @@ test('a failed recalculation hides stale dates and retains the chosen departure 
   await expect(page.locator('#loopTimelineTable')).toBeVisible();
   await expect(page.locator('#loopTimelineLegs')).toContainText('Day 1 - 2027-01-01');
 });
+
+test('user interactions track once and only the expanded leg offers waypoint saving', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.loopEvents = [];
+    window.FPWAnalytics = { track: (name, fields) => window.loopEvents.push({ name, fields }) };
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-fpw-action-cta]')) event.preventDefault();
+    }, true);
+  });
+  await page.goto(base + route);
+  const list = page.locator('#loopTimelineLegs');
+  const prompt = list.getByRole('button', { name: 'Add to Waypoints' });
+  const events = () => page.evaluate(() => window.loopEvents.filter(event => event.name.startsWith('great_loop_')));
+  await expect(list).toContainText('Chicago Harbor Lock');
+  await expect(prompt).toHaveCount(1);
+  expect(await events()).toEqual([]);
+
+  const second = list.locator('.fpw-routegen__leg[data-leg-order="2"]');
+  await second.focus();
+  await page.keyboard.press('Enter');
+  await expect(second).toHaveAttribute('aria-expanded', 'true');
+  await expect(list.locator('.fpw-routegen__leglockpanel[data-leg-order="2"]').getByRole('button', { name: 'Add to Waypoints' })).toBeVisible();
+  await prompt.click();
+  await expect(page.locator('#loopWaypointAuthDialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Close sign-in message' }).click();
+  await expect(second).toHaveAttribute('aria-expanded', 'true');
+  await second.click();
+  await expect(prompt).toHaveCount(0);
+  await page.getByRole('button', { name: 'Recalculate timeline' }).click();
+  await expect.poll(async () => (await events()).map(event => event.name)).toEqual([
+    'great_loop_leg_expanded', 'great_loop_timeline_recalculated'
+  ]);
+  const captured = await events();
+  expect(captured[0].fields).toEqual({ source_page: 'great_loop_legs', section: 'leg_list' });
+  expect(captured[1].fields).toEqual({ source_page: 'great_loop_legs', section: 'timeline' });
+});

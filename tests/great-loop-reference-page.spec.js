@@ -36,8 +36,8 @@ for (const width of [1440, 1100, 768, 390]) {
       count: Number(row.querySelector(".fpw-routegen__leglocks").textContent)
     })));
     expect(rendered).toEqual(legs.map(leg => ({number: leg.number, title: leg.title, count: leg.lockcount})));
-    await expect(page.locator(".fpw-loop-guide h1")).toContainText("COUNTERCLOCKWISE");
-    await expect(page.locator(".meta")).toContainText("Counterclockwise");
+    await expect(page.locator(".fpw-loop-guide h1")).toHaveText("Great Loop Waterway Legs, Distances & Lock Times");
+    await expect(page.locator(".loop-direction")).toHaveText("Counterclockwise Great Loop Route");
     await expect(page.locator("#totalCount")).toHaveText(String(reference.totallegs));
     await expect(page.locator("#totalLocks")).toHaveText(String(reference.totallocks));
     await expect(page.locator("#totalLockTime")).toHaveText(reference.locktimelabel);

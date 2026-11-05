@@ -93,6 +93,48 @@ component output="false" hint="Read-only Great Loop reference built from the act
         throw(type="GreatLoopReference.InvalidInput", message="Select a valid Great Loop leg.");
     }
 
+    // Resolve only the selected public template leg; callers cannot supply locations or owners.
+    // Both sources are checked before the existing waypoint writer may save either endpoint.
+    public struct function getLegWaypointSources(required string templateCode, required numeric legOrder, required numeric segmentId) {
+        var out = {eligible=false, message="This leg is no longer available. Refresh the list and try again.", endpoints=[]};
+        if (arguments.legOrder LT 1 OR arguments.legOrder NEQ int(arguments.legOrder)
+            OR arguments.segmentId LT 1 OR arguments.segmentId NEQ int(arguments.segmentId)) return out;
+        var template = getActiveTemplate();
+        if (compareNoCase(trim(arguments.templateCode), trim(template.short_code)) NEQ 0) return out;
+        var legs = planningService().loadMainLegs(template.id, "CCW");
+        var selected = {};
+        for (var leg in legs) {
+            if (val(leg.ORDER_INDEX) EQ arguments.legOrder AND val(leg.SEGMENT_ID) EQ arguments.segmentId) {
+                selected = leg;
+                break;
+            }
+        }
+        if (!structCount(selected)) return out;
+        var resolver = libraryWaypointService();
+        var unresolved = [];
+        for (var side in ["START", "END"]) {
+            var endpointName = trim(toString(selected[side & "_NAME"]));
+            if (!len(endpointName)) endpointName = side EQ "START" ? "Starting stop" : "Ending stop";
+            var source = resolver.resolve({library="port", portId=selected[side & "_PORT_ID"]});
+            source.endpointName = endpointName;
+            arrayAppend(out.endpoints, source);
+            if (!source.eligible) arrayAppend(unresolved, endpointName);
+        }
+        if (arrayLen(unresolved)) {
+            out.message = "Location details or valid coordinates are unavailable for " & arrayToList(unresolved, " and ")
+                & ". No waypoints were added.";
+            return out;
+        }
+        out.eligible = true;
+        out.message = "";
+        return out;
+    }
+
+    private any function libraryWaypointService() {
+        try { return createObject("component", "api.v1.LibraryWaypointService"); }
+        catch (any componentPathError) { return createObject("component", "fpw.api.v1.LibraryWaypointService"); }
+    }
+
     private struct function validatePlanningInputs(required struct inputs) {
         var numericFields = "cruising_speed,max_speed_kn,underway_hours_per_day,fuel_burn_gph,vessel_max_speed_kn,vessel_most_efficient_speed_kn,vessel_gph_at_most_efficient_speed,reserve_pct,weather_factor_pct";
         var clean = {};

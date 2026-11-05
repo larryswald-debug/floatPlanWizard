@@ -66,6 +66,102 @@ component extends="testbox.system.BaseSpec" output="false" {
                 expect(function(){ build(legs([]),locks([])); }).toThrow();
                 expect(function(){ build(legs([[1,"A","B","X",0,0,0],[1,"B","C","X",0,0,0]]),locks([])); }).toThrow();
             });
+            it("rejects missing starting coordinates before returning saveable endpoints", function() {
+                var fixture = mockLegSources({id=3101,name="Starting Stop",lat="",lng=-87},{id=3102,name="Ending Stop",lat=42,lng=-88});
+                var result = fixture.service.getLegWaypointSources("GL_TEST",1,999);
+                expect(result.eligible).toBeFalse();
+                expect(result.message).toInclude("Starting Stop");
+                expect(result.message).toInclude("No waypoints were added.");
+                expect(result.endpoints[1].eligible).toBeFalse();
+                expect(result.endpoints[2].eligible).toBeTrue();
+                expect(fixture.resolver.$count("resolve")).toBe(2);
+            });
+            it("rejects missing ending coordinates after validating both sources", function() {
+                var fixture = mockLegSources({id=3101,name="Starting Stop",lat=41,lng=-87},{id=3102,name="Ending Stop",lat=42,lng=""});
+                var result = fixture.service.getLegWaypointSources("GL_TEST",1,999);
+                expect(result.eligible).toBeFalse();
+                expect(result.message).toInclude("Ending Stop");
+                expect(result.message).toInclude("No waypoints were added.");
+                expect(result.endpoints[1].eligible).toBeTrue();
+                expect(result.endpoints[2].eligible).toBeFalse();
+                expect(fixture.resolver.$count("resolve")).toBe(2);
+            });
+            it("does not invent a source identity when a stop has only a name", function() {
+                var fixture = mockLegSources({id="",name="Starting Stop",lat=41,lng=-87},{id=3102,name="Ending Stop",lat=42,lng=-88});
+                var result = fixture.service.getLegWaypointSources("GL_TEST",1,999);
+                expect(result.eligible).toBeFalse();
+                expect(result.endpoints[1].recordId).toBe("");
+                expect(result.message).toInclude("Starting Stop");
+                expect(result.message).toInclude("No waypoints were added.");
+            });
+            it("keeps the existing port bounds and zero-coordinate validation", function() {
+                for (var invalid in [{lat=91,lng=-87},{lat=41,lng=-181},{lat=0,lng=-87},{lat=41,lng=0}]) {
+                    var fixture = mockLegSources({id=3101,name="Starting Stop",lat=invalid.lat,lng=invalid.lng},{id=3102,name="Ending Stop",lat=42,lng=-88});
+                    expect(fixture.service.getLegWaypointSources("GL_TEST",1,999).eligible).toBeFalse();
+                }
+            });
+            it("rejects an empty template or nonnumeric identity without resolving any sources", function() {
+                var fixture = mockLegSources({id=3101,name="Starting Stop",lat=41,lng=-87},{id=3102,name="Ending Stop",lat=42,lng=-88});
+                expect(fixture.service.getLegWaypointSources("",1,999).eligible).toBeFalse();
+                expect(fixture.service.getLegWaypointSources("   ",1,999).eligible).toBeFalse();
+                for (var invalid in ["", "one", "1x"]) {
+                    var caught = false;
+                    try { fixture.service.getLegWaypointSources("GL_TEST",invalid,999); }
+                    catch (any badNumericInput) { caught = true; }
+                    expect(caught).toBeTrue();
+                    caught = false;
+                    try { fixture.service.getLegWaypointSources("GL_TEST",1,invalid); }
+                    catch (any badNumericInput) { caught = true; }
+                    expect(caught).toBeTrue();
+                }
+                expect(fixture.resolver.$count("resolve")).toBe(0);
+            });
+            it("resolves the selected leg endpoints in order through the existing port source", function() {
+                var snapshot = variables.service.getTimeline("2026-11-04");
+                var checked = 0;
+                for (var leg in snapshot.legs) {
+                    var expectedStart = new fpw.api.v1.LibraryWaypointService().resolve({library="port",portId=leg.START_PORT_ID});
+                    var expectedEnd = new fpw.api.v1.LibraryWaypointService().resolve({library="port",portId=leg.END_PORT_ID});
+                    var actual = variables.service.getLegWaypointSources(snapshot.template_code,leg.ORDER_INDEX,leg.SEGMENT_ID);
+                    expect(arrayLen(actual.endpoints)).toBe(2);
+                    expect(actual.eligible).toBe(expectedStart.eligible && expectedEnd.eligible);
+                    expect(actual.endpoints[1].endpointName).toBe(leg.START_NAME);
+                    expect(actual.endpoints[2].endpointName).toBe(leg.END_NAME);
+                    if (actual.eligible) {
+                        expect(serializeJSON(actual.endpoints[1].waypoint)).toBe(serializeJSON(expectedStart.waypoint));
+                        expect(serializeJSON(actual.endpoints[2].waypoint)).toBe(serializeJSON(expectedEnd.waypoint));
+                        expect(actual.endpoints[1].recordId).toBe(expectedStart.recordId);
+                        expect(actual.endpoints[2].recordId).toBe(expectedEnd.recordId);
+                    } else {
+                        if (!expectedStart.eligible) expect(actual.message).toInclude(leg.START_NAME);
+                        if (!expectedEnd.eligible) expect(actual.message).toInclude(leg.END_NAME);
+                        expect(actual.message).toInclude("No waypoints were added.");
+                    }
+                    checked++;
+                }
+                expect(checked).toBe(arrayLen(snapshot.legs));
+                expect(checked).toBeGT(0);
+            });
+            it("rejects stale template and segment identities rather than saving another leg", function() {
+                var snapshot = variables.service.getTimeline("2026-11-04");
+                var first = snapshot.legs[1];
+                var wrongTemplate = variables.service.getLegWaypointSources("STALE_TEMPLATE",first.ORDER_INDEX,first.SEGMENT_ID);
+                expect(wrongTemplate.eligible).toBeFalse();
+                expect(arrayLen(wrongTemplate.endpoints)).toBe(0);
+                var wrongSegment = variables.service.getLegWaypointSources(snapshot.template_code,first.ORDER_INDEX,2147483647);
+                expect(wrongSegment.eligible).toBeFalse();
+                expect(arrayLen(wrongSegment.endpoints)).toBe(0);
+                var wrongOrder = variables.service.getLegWaypointSources(snapshot.template_code,2147483647,first.SEGMENT_ID);
+                expect(wrongOrder.eligible).toBeFalse();
+                expect(arrayLen(wrongOrder.endpoints)).toBe(0);
+            });
+            it("rejects fractional and nonpositive leg identifiers before endpoint resolution", function() {
+                for (var inputs in [[0,1],[1,0],[-1,1],[1,-1],[1.5,1],[1,1.5]]) {
+                    var rejected = variables.service.getLegWaypointSources("UNUSED",inputs[1],inputs[2]);
+                    expect(rejected.eligible).toBeFalse();
+                    expect(arrayLen(rejected.endpoints)).toBe(0);
+                }
+            });
             it("matches every live template leg and planner lock aggregate without database writes", function() {
                 var model = variables.service.getModel();
                 var q = queryExecute("
@@ -102,6 +198,24 @@ component extends="testbox.system.BaseSpec" output="false" {
                 }
             });
         });
+    }
+    private struct function mockLegSources(required struct startRecord, required struct endRecord) {
+        var sourceRecords = [duplicate(arguments.startRecord),duplicate(arguments.endRecord)];
+        var validator = new fpw.api.v1.LibraryWaypointService();
+        var resolver = createStub().$("resolve").$callback(function(input) {
+            return validator.describe("port",sourceRecords[val(input.portId) EQ 3102 ? 2 : 1]);
+        });
+        var planner = createStub().$("loadMainLegs",[
+            {ORDER_INDEX=1,SEGMENT_ID=999,START_PORT_ID=3101,END_PORT_ID=3102,START_NAME="Starting Stop",END_NAME="Ending Stop"}
+        ]);
+        var service = prepareMock(new fpw.api.v1.GreatLoopReferenceService().init("fpw"));
+        makePublic(service,"getActiveTemplate");
+        makePublic(service,"planningService");
+        makePublic(service,"libraryWaypointService");
+        service.$("getActiveTemplate",{id=999,short_code="GL_TEST"});
+        service.$("planningService",planner);
+        service.$("libraryWaypointService",resolver);
+        return {service=service,resolver=resolver};
     }
     private query function legs(required array rows) {
         return queryNew("leg_number,start_name,end_name,region,fallback_lock_count,is_offshore,is_icw",

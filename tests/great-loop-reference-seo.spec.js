@@ -10,11 +10,11 @@ test("Great Loop SEO is server-rendered and matches the active template and time
     const response = await page.goto(baseUrl + path);
     expect(response.status()).toBe(200);
     expect(response.headers()["x-robots-tag"] || "").not.toMatch(/noindex/i);
-    await expect(page).toHaveTitle("Great Loop Waterway Legs & Lock Times | FloatPlanWizard");
+    await expect(page).toHaveTitle("Great Loop Distances, Legs & Lock Times | FloatPlanWizard");
     await expect(page.locator("h1")).toHaveCount(1);
     await expect(page.locator('meta[name="description"]')).toHaveCount(1);
     const description = await page.locator('meta[name="description"]').getAttribute("content");
-    expect(description).toContain("lock names, lock counts, and estimated lock times");
+    expect(description).toBe("Explore Great Loop cruising legs, nautical mileages, locks and estimated travel times. Review an interactive cruise timeline and plan your route with FPW.");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index,follow,max-image-preview:large");
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", canonical);
@@ -48,6 +48,7 @@ test("Great Loop SEO is server-rendered and matches the active template and time
       name: leg.title, count: leg.lockcount, time: leg.locktimelabel
     }));
     expect(list.numberOfItems).toBe(cards.length);
+    await expect(page.locator(".loop-faq")).toContainText(cards.length + " reference legs");
     expect(list.itemListElement).toEqual(cards.map((card, i) => ({
       "@type": "ListItem", position: i + 1, name: card.name,
       description: card.count + (card.count === 1 ? " lock" : " locks") + "; estimated lock time: " + card.time + "."
