@@ -556,6 +556,15 @@
             </cfif>
 
             <cfcatch>
+                <cfscript>
+                try {
+                    if(isDefined("userId") AND isNumeric(userId) AND userId GT 0 AND isDefined("act") AND act EQ "routegen_generate") {
+                        new fpw.includes.ProductEventService().init(application.dsn).recordExplicitOperationFailure(
+                            userId,"route_generate",cfcatch.type,
+                            structKeyExists(request,"fpwRequestId") ? toString(request.fpwRequestId) : "");
+                    }
+                } catch(any betaTelemetryUnavailable) {}
+                </cfscript>
                 <cfoutput>#serializeJSON({
                     "SUCCESS"=false,
                     "AUTH"=true,

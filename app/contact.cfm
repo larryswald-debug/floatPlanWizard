@@ -8,6 +8,7 @@ contactIntro = contactMode EQ "support" ? "Describe the problem and the steps th
 contactSubmitLabel = contactMode EQ "support" ? "Submit Support Request" : (contactMode EQ "feedback" ? "Send Suggestion" : "Send Message");
 contactCategories = ["Account and Login","Trip Planning","Float Plans","Active Cruise and Monitoring","Companion App","Billing and Subscriptions","Bug Report","Other"];
 contactCsrf = new fpw.api.v1.AuthRequestGuardService().getOrCreateCsrfToken();
+contactFeedbackKey = lCase(createUUID());
 request.fpwTopNavActive = "help-" & contactMode;
 alertClass = "";
 alertMessage = "";
@@ -154,7 +155,7 @@ lock scope="session" type="exclusive" timeout=5 {
             </div>
 
             <form id="contactForm" class="fpw-contact-form" method="post" action="<cfoutput>#request.fpwBase#</cfoutput>/api/v1/contactUs.cfc?method=handle">
-                <cfoutput><input type="hidden" name="csrfToken" value="#encodeForHTMLAttribute(contactCsrf)#"><input type="hidden" name="mode" value="#encodeForHTMLAttribute(contactMode)#"></cfoutput>
+                <cfoutput><input type="hidden" name="csrfToken" value="#encodeForHTMLAttribute(contactCsrf)#"><input type="hidden" name="mode" value="#encodeForHTMLAttribute(contactMode)#"><input type="hidden" name="feedbackSubmissionKey" value="#encodeForHTMLAttribute(contactFeedbackKey)#"></cfoutput>
                 <div class="fpw-contact-honeypot" aria-hidden="true">
                     <label for="website">Website</label>
                     <input

@@ -32,6 +32,7 @@ if (!len(currentAdminFile) AND structKeyExists(cgi, "CF_TEMPLATE_PATH")) {
     currentAdminFile = lCase(listLast(replace(toString(cgi.CF_TEMPLATE_PATH), "\\", "/", "all"), "/"));
 }
 adminReportPages = [
+    { "file" = "beta-program.cfm", "label" = "Founding Beta" },
     { "file" = "floatplan-cleanup.cfm", "label" = "FloatPlan Cleanup" },
     { "file" = "fuel-calculator.cfm", "label" = "Fuel Calculator" },
     { "file" = "great-loop-anchorages.cfm", "label" = "Great Loop Anchorages" },

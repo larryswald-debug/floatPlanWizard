@@ -106,6 +106,13 @@
                     <cfset local.result.LEG_ID = val(body.segmentId)>
                     <cfoutput>#serializeJSON(local.result)#</cfoutput>
                     <cfcatch type="any">
+                        <cfscript>
+                        try {
+                            new fpw.includes.ProductEventService().init("fpw").recordExplicitOperationFailure(
+                                userId,"waypoint_savelegstops",cfcatch.type,
+                                structKeyExists(request,"fpwRequestId") ? toString(request.fpwRequestId) : "");
+                        } catch(any betaTelemetryUnavailable) {}
+                        </cfscript>
                         <cflog file="fpw" type="error" text="FPW_ERROR Great Loop waypoint save: #cfcatch.type#">
                         <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="SERVER_ERROR", RESULT="error", MESSAGE="The stops could not be saved. No new waypoints were added. Please try again.", ADDED_COUNT=0, EXISTING_COUNT=0})#</cfoutput>
                     </cfcatch>
@@ -288,6 +295,16 @@
             <cfoutput>#serializeJSON(response)#</cfoutput>
 
             <cfcatch type="any">
+                <cfscript>
+                try {
+                    if(isDefined("userId") AND isNumeric(userId) AND userId GT 0 AND isDefined("action")
+                        AND isSimpleValue(action) AND listFindNoCase("save,savelegstops",action)) {
+                        new fpw.includes.ProductEventService().init("fpw").recordExplicitOperationFailure(
+                            userId,"waypoint_" & lCase(action),cfcatch.type,
+                            structKeyExists(request,"fpwRequestId") ? toString(request.fpwRequestId) : "");
+                    }
+                } catch(any betaTelemetryUnavailable) {}
+                </cfscript>
                 <cfif isDefined("action") AND isSimpleValue(action) AND action EQ "savelegstops">
                     <cflog file="fpw" type="error" text="FPW_ERROR Great Loop waypoint request: #cfcatch.type#">
                     <cfoutput>#serializeJSON({SUCCESS=false, AUTH=true, ERROR="SERVER_ERROR", RESULT="error", MESSAGE="The stops could not be saved. Please refresh and try again."})#</cfoutput>

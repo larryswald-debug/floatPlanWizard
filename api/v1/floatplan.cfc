@@ -800,6 +800,16 @@
             </cfswitch>
 
         <cfcatch type="any">
+            <cfscript>
+            try {
+                if(isDefined("userId") AND isNumeric(userId) AND userId GT 0 AND isDefined("actionName")
+                    AND listFind("save,savebasic",actionName)) {
+                    new fpw.includes.ProductEventService().init("fpw").recordExplicitOperationFailure(
+                        userId,"floatplan_" & actionName,cfcatch.type,
+                        structKeyExists(request,"fpwRequestId") ? toString(request.fpwRequestId) : "");
+                }
+            } catch(any betaTelemetryUnavailable) {}
+            </cfscript>
             <cfset var errDetail = {
                 message = cfcatch.message,
                 detail  = structKeyExists(cfcatch, "detail") ? cfcatch.detail : "",

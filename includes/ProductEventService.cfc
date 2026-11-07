@@ -71,6 +71,45 @@ component output="false" {
     }
   }
 
+
+  // Best effort only, called by authenticated API catches after the business transaction exits.
+  // No exception message, SQL, payload, route identity, coordinate or contact data is accepted.
+  public struct function recordExplicitOperationFailure(
+    required numeric userId, required string operation, required string exceptionType, string requestId=""
+  ) output="false" {
+    var result={SUCCESS=false,RECORDED=false,DUPLICATE=false,SKIPPED=true};
+    var operationName=lCase(trim(arguments.operation));
+    var errorType=lCase(trim(arguments.exceptionType));
+    var errorCode="";
+    var correlation=lCase(trim(arguments.requestId));
+    if(arguments.userId LTE 0 OR arguments.userId NEQ fix(arguments.userId)
+      OR !listFind("waypoint_save,waypoint_savelegstops,route_generate,floatplan_save,floatplan_savebasic",operationName)) return result;
+    if(errorType EQ "database") errorCode="database_error";
+    else if(listFind("fpw.memberactivity.persistencefailed,fpw.memberactivity.unconfirmed",errorType)) errorCode="activity_persistence_failed";
+    else return result;
+    if(!len(correlation)) correlation=lCase(createUUID());
+    if(!reFind("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-([a-f0-9]{16}|[a-f0-9]{4}-[a-f0-9]{12})$",correlation)) return result;
+    result.SKIPPED=false;
+    try {
+      result=recordEvent(userId=arguments.userId,eventName="critical_operation_failed",
+        entityType="user",entityId=arguments.userId,eventSource="member_api",
+        metadata={operation=operationName,error_code=errorCode},
+        idempotencyKey="critical_failure:" & correlation & ":" & operationName,
+        requestCorrelationId=correlation);
+      result.SKIPPED=false;
+      if(result.SUCCESS AND (result.RECORDED OR result.DUPLICATE)) return result;
+    } catch(any telemetryError) {
+      result={SUCCESS=false,RECORDED=false,DUPLICATE=false,SKIPPED=false};
+    }
+    // Keep a bounded diagnostic if the event store itself is unavailable; never change the API response.
+    try {
+      writeProductEventLog("error","FPW_CRITICAL_OPERATION_FAILED | user_id=" & int(arguments.userId)
+        & " | operation=" & operationName & " | error_code=" & errorCode & " | request_id=" & correlation
+        & " | event_persisted=false");
+    } catch(any logUnavailable) {}
+    return result;
+  }
+
   private struct function memberActivityTypes() output="false" {
     return {
       vessel_created = "vessel", vessel_updated = "vessel",
@@ -316,6 +355,13 @@ component output="false" {
   private struct function buildEventDefinitions() output="false" {
     var definitions = {};
 
+    definitions["critical_operation_failed"] = {
+      entityType="user",eventSources=["member_api"],
+      metadata={
+        operation=["waypoint_save","waypoint_savelegstops","route_generate","floatplan_save","floatplan_savebasic"],
+        error_code=["database_error","activity_persistence_failed"]
+      }
+    };
     definitions["sign_up"] = {
       entityType = "user",
       eventSources = [ "member_signup" ],
@@ -504,6 +550,12 @@ component output="false" {
       if (len(arguments.requestCorrelationId) GT 64 OR !reFind("^[A-Za-z0-9-]+$", arguments.requestCorrelationId)) {
         return failureResponse("INVALID_REQUEST_CORRELATION_ID", "The request correlation id is invalid.");
       }
+    }
+
+    if (arguments.eventName EQ "critical_operation_failed" AND
+      (arguments.entityId NEQ arguments.userId OR structCount(arguments.metadata) NEQ 2
+       OR !structKeyExists(arguments.metadata,"operation") OR !structKeyExists(arguments.metadata,"error_code"))) {
+      return failureResponse("INVALID_FAILURE_CONTEXT","Failure evidence requires its member and bounded operation context.");
     }
 
     for (metadataKey in arguments.metadata) {

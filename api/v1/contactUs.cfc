@@ -11,6 +11,7 @@
         <cfargument name="category" type="any" required="false">
         <cfargument name="mode" type="any" required="false">
         <cfargument name="csrfToken" type="any" required="false">
+        <cfargument name="feedbackSubmissionKey" type="any" required="false">
         <cfsetting enablecfoutputonly="true" showdebugoutput="false">
         <cfcontent type="text/html; charset=utf-8" reset="true">
         <cfheader name="Cache-Control" value="no-store">
@@ -28,7 +29,7 @@
         <cfset local.description = "">
         <cfset local.website = "">
         <cfset var invalid = false>
-        <cfset var limits = {firstName=80,lastName=80,email=254,subject=180,category=60,description=5000,website=200,mode=20}>
+        <cfset var limits = {firstName=80,lastName=80,email=254,subject=180,category=60,description=5000,website=200,mode=20,feedbackSubmissionKey=36}>
         <cfset var values = {}>
         <cfset var field = "">
         <cfset var status = "error">
@@ -65,6 +66,9 @@
                     </cfif>
                 </cfif>
             </cfloop>
+            <cfif len(values.feedbackSubmissionKey) AND NOT reFindNoCase("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-([a-f0-9]{16}|[a-f0-9]{4}-[a-f0-9]{12})$",values.feedbackSubmissionKey)>
+                <cfset invalid = true>
+            </cfif>
             <cfif NOT len(values.mode)><cfset values.mode = "contact"></cfif>
             <cfif listFind("contact,support,feedback", values.mode)>
                 <cfset local.mode = values.mode>
@@ -104,6 +108,14 @@
                     <cfset outcome = "success">
                 <cfelse>
                     <cftry>
+                        <!--- Only genuine, validated submissions from enrolled sessions become beta feedback. --->
+                        <cftry>
+                            <cfset local.betaFeedback = createObject("component", componentPath("BetaFeedbackService")).init("fpw").recordForCurrentSession(category,description,values.feedbackSubmissionKey)>
+                            <cfcatch type="any">
+                                <cflog file="fpw" type="error" text="FPW_BETA_FEEDBACK_STORE_FAILED">
+                                <cfrethrow>
+                            </cfcatch>
+                        </cftry>
                         <cfmail
                             to="support@floatplanwizard.com"
                             from="noreply@floatplanwizard.com"
