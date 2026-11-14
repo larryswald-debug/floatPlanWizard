@@ -1,0 +1,283 @@
+{
+  "checked_at": "2026-11-09",
+  "local_only": true,
+  "after_approved_clob_fix": true,
+  "TOTAL": 68,
+  "CHECKS": [
+    {
+      "PASSED": true,
+      "NAME": "Source mileage remains missing"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Retired template rejects new imports"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Retired template leaves existing copy editable with immutable published snapshot"
+    },
+    {
+      "PASSED": true,
+      "NAME": "A positive estimate cannot retain the imported missing-mileage explanation"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Import retry reuses same copy"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Ordinary second selection preserves current copy"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Explicit another copy creates a distinct route"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Cross-owner draft rejected"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Explicit member mileage method replaces the missing prompt"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Draft retry preserves null input without another revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Draft UUID with changed content conflicts"
+    },
+    {
+      "PASSED": true,
+      "NAME": "New draft UUID does not bypass stale revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "No-op draft save does not advance revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "My Route reopen retains null and partial estimates"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Incomplete draft cannot generate saved trip"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Complete estimate saves through existing generated-trip path"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Saved map retains schematic lines and120nm estimate"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Unreviewed complete trip cannot enter float-plan workflow"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Direct Float Plan save rejects unreviewed mileage"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Activation preparation rejects unreviewed mileage before cloning"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Float-plan creation uses shared review gate"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Lost-response save retry returns same result"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Saved edit reopens source draft and notes"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Newer draft is visible and blocks stale saved snapshot"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Same save UUID with changed draft conflicts"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Later save updates owned generated trip"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Save A retry remains durable after save B"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Current member review permits float-plan entry"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Export snapshot preserves estimate/review distinction and strips reviewer ID"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Member plotted geometry saves"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Geometry change advances draft revision and newer-draft status"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Geometry revision invalidates mileage review"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Changed geometry blocks previously reviewed saved trip"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Reconfirmed geometry persists into updated trip"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Member geometry copied to normalized saved trip"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Saved map distinguishes member geometry and schematic leg"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Explicit member mileage takes precedence over plotted length"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Reviewed guide creates a real draft Float Plan"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Operational clone retains fractional mileage and current reviewed identity"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Operational copy map retains estimate total and mixed geometry provenance"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Endpoint change clears mileage and review"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Endpoint change advances draft revision and clears stale source references"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide can append an owned waypoint leg"
+    },
+    {
+      "PASSED": true,
+      "NAME": "New guide leg starts missing and unreviewed and advances draft revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Appending guide leg preserves unchanged mileage reviews"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide can append a return leg to its owned start waypoint"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide supports a connected leg reorder"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Connected reorder preserves stable leg mappings and reviews while advancing revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide destination order with consecutive duplicate stops is rejected"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Rejected reorder preserves guide order and revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide middle-leg removal reconnects the following endpoint pair"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Reconnected guide leg loses stale mileage provenance and review"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide removal preserves unchanged neighboring reviews"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Terminal guide leg removal advances revision without inventing mileage"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Edited guide planning draft reopens with stable mapping and missing mileage"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Complete edited guide saves and reopens stable reviewed leg mapping"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Destination reorder fixture is A-B-C-A"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide destination controls reorder A-B-C-A into A-C-B-A"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Reordered destination starts are rewired from the original origin"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Changed reorder pairs clear mileage, sources, review and plotted overrides and advance revision"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Reordered incomplete draft saves and reopens stable mapping"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Adjacent duplicate origin is rejected atomically without revision or order mutation"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Distinct destination at identical coordinates is rejected without mutation"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Unchanged reorder pair retains its review and member-plotted geometry"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Guide snapshots over64000characters are retrieved completely for saved reopen"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Reordered complete guide saves and reopens reviewed destination mapping"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Deleted import retry does not recreate copy"
+    },
+    {
+      "PASSED": true,
+      "NAME": "Deleted copy cannot be recreated by a previously reused request alias"
+    }
+  ],
+  "SUCCESS": true,
+  "CLEANED_UP": true,
+  "ERROR": {}
+}

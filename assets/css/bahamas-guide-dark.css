@@ -1,0 +1,284 @@
+/* Bahamas hub only. Shared FPW guide tokens, panels, and navigation load first.
+   This screen-only sheet leaves the worked itinerary and existing print styles intact. */
+body.bh-dark-guide {
+  --fpw-nav-teal: #19e6ee;
+  --fpw-nav-teal-2: #20cfd8;
+  --fpw-nav-border-strong: rgba(68, 226, 235, .62);
+}
+.bh-dark-guide .bh-page {
+  --bh-ink: var(--fpw-overdue-text);
+  --bh-muted: var(--fpw-overdue-muted);
+  --bh-line: var(--fpw-overdue-line);
+  --bh-soft: var(--fpw-overdue-panel-soft);
+  --bh-accent: var(--fpw-overdue-cyan);
+  line-height: 1.68;
+}
+.bh-dark-guide .bh-shell {
+  width: min(var(--fpw-public-layout-max), calc(100% - (var(--fpw-page-gutter, 32px) * 2)));
+  max-width: none;
+  padding: 0 0 72px;
+}
+.bh-dark-guide .bh-guide-hero {
+  width: 100vw;
+  min-height: 390px;
+  margin-inline: calc(50% - 50vw);
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, #001d2d 0%, rgba(0, 29, 45, .96) 28%, rgba(0, 29, 45, .72) 42%, rgba(0, 29, 45, .2) 62%, transparent 78%),
+    url("../images/boating-guides/bahamas/bahamas-guide-hero.webp") right center / cover no-repeat,
+    #001d2d;
+}
+.bh-dark-guide .bh-guide-hero-inner {
+  max-width: 1510px;
+  margin-inline: auto;
+  padding: 24px 50px 28px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.bh-dark-guide .bh-breadcrumbs {
+  gap: 10px;
+  margin: 0 0 28px;
+  color: #d0e1eb;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.bh-dark-guide .bh-page .bh-breadcrumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+.bh-dark-guide .bh-hero {
+  max-width: 560px;
+  padding: 0;
+  border: 0;
+}
+.bh-dark-guide .bh-hero .bh-eyebrow {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0 0 12px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: #04273b;
+  color: #16d9eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  line-height: 1.4;
+}
+.bh-dark-guide .bh-hero h1 {
+  margin: 0;
+  color: #f7fbff;
+  font-size: clamp(34px, 3.8vw, 48px);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -1.4px;
+}
+.bh-dark-guide .bh-hero .bh-lede {
+  max-width: 540px;
+  margin: 20px 0 0;
+  color: #d3e2ee;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.bh-dark-guide .bh-hero .bh-meta {
+  max-width: 540px;
+  margin: 14px 0 0;
+  color: #d0e1eb;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.bh-dark-guide .bh-status {
+  margin-top: 14px;
+  border-color: rgba(255, 209, 138, .58);
+  background: rgba(89, 58, 13, .32);
+  color: #f3dfb9;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bh-dark-guide .bh-nav {
+  margin: 24px auto;
+}
+.bh-dark-guide .bh-nav .fpw-guide-section-links {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.bh-dark-guide .bh-nav a {
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #f7fbff;
+}
+.bh-dark-guide .bh-nav a:hover,
+.bh-dark-guide .bh-nav a:active,
+.bh-dark-guide .bh-nav a[aria-current] {
+  background: #063047;
+  color: #16d9eb;
+}
+.bh-dark-guide .bh-shell > section {
+  margin-top: 18px;
+}
+.bh-dark-guide .bh-page section,
+.bh-dark-guide .bh-region {
+  scroll-margin-top: calc(var(--fpw-header-height, 140px) + 20px);
+}
+.bh-dark-guide .bh-page h3 {
+  margin: 24px 0 10px;
+}
+.bh-dark-guide .bh-page h3 + p {
+  margin-top: 10px;
+}
+.bh-dark-guide .bh-panel {
+  padding: 22px;
+  border-color: var(--bh-line);
+  background: var(--bh-soft);
+}
+.bh-dark-guide .bh-panel > :first-child {
+  margin-top: 0;
+}
+.bh-dark-guide .bh-panel > :last-child {
+  margin-bottom: 0;
+}
+.bh-dark-guide .bh-page a:not(.fpw-cta):not(.fpw-secondary-cta):not(.bh-nav a):not(.bh-region-links a):not(.bh-breadcrumbs a) {
+  color: #8ceae5;
+}
+.bh-dark-guide .bh-page a:not(.fpw-cta):not(.fpw-secondary-cta):hover {
+  color: #c7fffb;
+}
+.bh-dark-guide .bh-region-links a {
+  background: rgba(5, 19, 32, .94);
+  color: #bcd0df;
+}
+.bh-dark-guide .bh-region-links a:hover,
+.bh-dark-guide .bh-region-links a[aria-current="true"] {
+  border-color: var(--bh-accent);
+  background: #063047;
+  color: var(--bh-accent);
+}
+.bh-dark-guide .bh-region {
+  border-left-color: var(--bh-line);
+}
+.bh-dark-guide .bh-region:target,
+.bh-dark-guide .bh-region.is-selected {
+  border-left-color: var(--bh-accent);
+  background: rgba(69, 222, 215, .08);
+}
+.bh-dark-guide .bh-note {
+  border-left-color: var(--fpw-overdue-amber);
+  background: rgba(89, 58, 13, .32);
+}
+.bh-dark-guide .bh-page table {
+  background: rgba(5, 19, 32, .94);
+  color: var(--bh-muted);
+}
+.bh-dark-guide .bh-page caption,
+.bh-dark-guide .bh-page thead th {
+  background: #0a1f32;
+  color: var(--bh-ink);
+}
+.bh-dark-guide .bh-page tbody th {
+  color: var(--bh-ink);
+}
+.bh-dark-guide .bh-map,
+.bh-dark-guide .bh-figure {
+  padding: 16px;
+  border: 1px solid var(--bh-line);
+  border-radius: 12px;
+  background: var(--bh-soft);
+}
+.bh-dark-guide .bh-map-help {
+  margin: 0 0 10px;
+}
+.bh-dark-guide .bh-map figcaption,
+.bh-dark-guide .bh-figure figcaption {
+  color: var(--bh-muted);
+  font-size: .9rem;
+  line-height: 1.6;
+}
+.bh-dark-guide .bh-checklist li::before {
+  border-color: var(--bh-accent);
+}
+.bh-dark-guide .bh-page .fpw-cta,
+.bh-dark-guide .bh-page .fpw-secondary-cta {
+  font-family: inherit;
+  cursor: pointer;
+}
+.bh-dark-guide .bh-page .fpw-cta-primary {
+  color: #01141c;
+}
+.bh-dark-guide .bh-page .fpw-secondary-cta {
+  color: var(--fpw-nav-teal);
+}
+.bh-dark-guide .bh-page .fpw-secondary-cta:hover,
+.bh-dark-guide .bh-page .fpw-secondary-cta:focus-visible {
+  color: #01141c;
+}
+.bh-dark-guide .bh-page a:focus-visible,
+.bh-dark-guide .bh-page button:focus-visible,
+.bh-dark-guide .bh-map-scroll:focus-visible,
+.bh-dark-guide .bh-table-wrap:focus-visible {
+  outline: 3px solid #f6c45b;
+  outline-offset: 3px;
+}
+.bh-dark-guide .bh-footer-note {
+  margin-top: 42px;
+  color: var(--bh-muted);
+}
+@media (max-width: 1040px) {
+  .bh-dark-guide .bh-guide-hero-inner {
+    padding-inline: 24px;
+  }
+}
+@media (min-width: 801px) and (max-width: 1100px) {
+  .bh-dark-guide .bh-guide-hero {
+    background-image:
+      linear-gradient(90deg, #001d2d 0%, rgba(0, 29, 45, .96) 44%, rgba(0, 29, 45, .8) 57%, rgba(0, 29, 45, .25) 74%, transparent 90%),
+      url("../images/boating-guides/bahamas/bahamas-guide-hero.webp");
+  }
+}
+@media (max-width: 800px) {
+  .bh-dark-guide .bh-guide-hero {
+    background-image:
+      linear-gradient(90deg, rgba(0, 29, 45, .98), rgba(0, 29, 45, .88)),
+      url("../images/boating-guides/bahamas/bahamas-guide-hero.webp");
+  }
+  .bh-dark-guide .bh-hero {
+    max-width: 560px;
+  }
+}
+@media (max-width: 600px) {
+  .bh-dark-guide .bh-shell {
+    padding-bottom: 48px;
+  }
+  .bh-dark-guide .bh-guide-hero-inner {
+    padding: 22px 20px 26px;
+  }
+  .bh-dark-guide .bh-breadcrumbs {
+    margin-bottom: 26px;
+    font-size: 13px;
+  }
+  .bh-dark-guide .bh-hero h1 {
+    font-size: 34px;
+    letter-spacing: -1px;
+  }
+  .bh-dark-guide .bh-hero .bh-lede {
+    font-size: 14px;
+  }
+  .bh-dark-guide .bh-shell > section,
+  .bh-dark-guide .bh-panel {
+    padding: 20px;
+  }
+  .bh-dark-guide .bh-map,
+  .bh-dark-guide .bh-figure {
+    padding: 12px;
+  }
+  .bh-dark-guide .bh-page .fpw-cta,
+  .bh-dark-guide .bh-page .fpw-secondary-cta {
+    justify-content: center;
+    min-height: 44px;
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(.bh-dark-guide) {
+    scroll-behavior: auto;
+  }
+}

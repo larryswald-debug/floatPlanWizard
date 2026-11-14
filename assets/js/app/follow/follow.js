@@ -1501,6 +1501,7 @@
     var payload = (timelinePayload && typeof timelinePayload === "object") ? timelinePayload : {};
     var summary = (payload.summary && typeof payload.summary === "object") ? payload.summary : {};
     var meta = (payload.meta && typeof payload.meta === "object") ? payload.meta : {};
+    var guideEstimate = !!meta.guide_estimates;
     var order = toInt(leg.leg_order, 0);
     var legText = String(leg.label || (String(leg.start_name || "Start") + " -> " + String(leg.end_name || "End"))).trim();
     var progress = (leg.progress && typeof leg.progress === "object") ? leg.progress : {};
@@ -1520,12 +1521,12 @@
     var legFuelBurnGph = timelineValueText(
       authoritativeLegBurn !== null ? authoritativeLegBurn : summary.fuel_burn_gph,
       1,
-      "gph"
+      guideEstimate ? "US gal/h" : "gph"
     );
     var legFuelEst = timelineValueText(
       authoritativeLegFuel !== null ? authoritativeLegFuel : fallbackLegFuel,
       1,
-      "gal"
+      guideEstimate ? "US gal" : "gal"
     );
     var lockDetailsHtml = renderLegLockDetailsHtml(leg);
 
@@ -1542,8 +1543,8 @@
       + '  </div>'
       + '  <div class="follow-timeline-legpanelroute">' + escapeHtml(legText) + '</div>'
       + '  <div class="follow-timeline-legpanelgrid">'
-      + '    <div class="follow-timeline-legpanelchip"><span>Leg distance</span><strong>' + timelineValueText(leg.dist_nm, 1, "nm") + '</strong></div>'
-      + '    <div class="follow-timeline-legpanelchip"><span>Leg hours</span><strong>' + timelineValueText(leg.hours, 2, "h") + '</strong></div>'
+      + '    <div class="follow-timeline-legpanelchip"><span>' + (guideEstimate ? "Estimated leg distance" : "Leg distance") + '</span><strong>' + timelineValueText(leg.dist_nm, 1, "nm") + '</strong></div>'
+      + '    <div class="follow-timeline-legpanelchip"><span>' + (guideEstimate ? "Estimated leg hours" : "Leg hours") + '</span><strong>' + timelineValueText(leg.hours, 2, "h") + '</strong></div>'
       + '    <div class="follow-timeline-legpanelchip"><span>Leg locks</span><strong>' + timelineValueText(leg.locks, 0, "") + '</strong></div>'
       + '    <div class="follow-timeline-legpanelchip"><span>Progress</span><strong>' + progressPct + '</strong></div>'
       + '  </div>'
@@ -1572,6 +1573,7 @@
     var list = Array.isArray(legs) ? legs : [];
     var html = "";
     var expandedOrder = toInt(state.timeline.expandedLegOrder, 0);
+    var guideEstimate = !!(state.timeline.payload && state.timeline.payload.meta && state.timeline.payload.meta.guide_estimates);
 
     if (!dom.followTimelineLegList) return;
     state.timeline.legs = list;
@@ -1587,7 +1589,7 @@
     }
 
     html += '<div class="follow-timeline-legcols">'
-      + '<span>#</span><span>Leg</span><span>Locks</span><span>NM</span><span>Hours</span><span>Cum h</span>'
+      + '<span>#</span><span>Leg</span><span>Locks</span><span>' + (guideEstimate ? 'Est. nm' : 'NM') + '</span><span>' + (guideEstimate ? 'Est. hours' : 'Hours') + '</span><span>' + (guideEstimate ? 'Est. cum h' : 'Cum h') + '</span>'
       + '</div>';
 
     html += list.map(function (leg, idx) {
@@ -1838,6 +1840,7 @@
     updateSidebarLastCheckinFromPosts(list);
     renderPhase6LowerCards(state.bootstrap || {}, list);
     renderOwnerPreviewState(state.bootstrap || {});
+    renderGuideEstimateLabels(state.bootstrap || {});
     if (!dom.postsContainer) return;
 
     if (!list.length) {
@@ -2361,6 +2364,35 @@
     if (heading) heading.focus();
   }
 
+  function isGuideEstimate(payload) {
+    var map = payload && payload.map;
+    var timeline = payload && payload.timeline;
+    return !!((map && map.routeGeo && map.routeGeo.guide_estimates)
+      || (timeline && timeline.meta && timeline.meta.guide_estimates));
+  }
+
+  function renderGuideEstimateLabels(payload) {
+    if (!isGuideEstimate(payload)) return;
+    var summary = (payload.timeline || {}).summary || {};
+    var complete = summary.complete !== false;
+    var label = complete ? "Planning estimate" : "Incomplete estimate";
+    setHookText("trip-summary-metric", timelineValueText(summary.total_hours, 1, "h") + " estimated");
+    setHookText("trip-summary-distance", formatTimelineNumber(summary.total_nm, 1) + " nm estimated");
+    setHookText("trip-summary-confidence", label);
+    setHookCardKicker("timeline-route-total", label);
+    setHookCardBody("timeline-route-total", timelineValueText(summary.total_hours, 1, "h") + " estimated", formatTimelineNumber(summary.total_nm, 1) + " nm estimated");
+    setHookCardKicker("timeline-eff-speed", "Confirmed planning speed");
+    setHookCardBody("timeline-eff-speed", formatTimelineNumber(summary.effective_speed_kn, 1) + " kn", formatTimelineNumber(summary.fuel_burn_gph, 1) + " US gal/h");
+    setHookCardKicker("timeline-fuel-reserve", "Estimated fuel + reserve");
+    setHookCardBody("timeline-fuel-reserve",
+      formatTimelineNumber(summary.fuel_est, 1) + " + " + formatTimelineNumber(summary.reserve_est, 1) + " US gal",
+      formatTimelineNumber(summary.required_fuel_est, 1) + " US gal estimated requirement" + (complete ? "" : " — incomplete"));
+    setHookText("map-panel-subtitle", "Planning connections: dashed schematic lines; solid member-created plots. Member review is not independent navigation verification.");
+    setHookText("timeline-subtitle", "Mileage, movement time and fuel are planning estimates. Member review does not independently verify a route.");
+    var badges = getHookField("map-badges");
+    if (badges) badges.innerHTML = '<div class="map-badge">Planning estimates</div>';
+  }
+
   function renderOwnerPreviewState(payload) {
     if (!state.isPreview) return;
     var preview = payload.preview || {};
@@ -2460,6 +2492,7 @@
     renderCruiseTimelineLegs(res.timeline && Array.isArray(res.timeline.legs) ? res.timeline.legs : []);
     setComposerMode();
     renderOwnerPreviewState(res);
+    renderGuideEstimateLabels(res);
   }
 
   function bootstrapOwnerPreview() {

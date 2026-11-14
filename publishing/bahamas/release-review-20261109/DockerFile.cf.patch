@@ -1,0 +1,14 @@
+--- DockerFile.cf
++++ DockerFile.cf
+@@ -4,6 +4,12 @@
+ # Accept EULA at build-time so container will run
+ ENV acceptEULA=YES
+ 
++# PDF rendering: Java AWT requires FreeType and a discoverable font family.
++RUN apt-get update \
++ && apt-get install -y --no-install-recommends libfreetype6 fontconfig fonts-dejavu-core \
++ && fc-cache -f \
++ && rm -rf /var/lib/apt/lists/*
++
+ # Copy MySQL JDBC driver into CF lib
+ COPY drivers/mysql-connector-j.jar /opt/coldfusion/cfusion/lib/

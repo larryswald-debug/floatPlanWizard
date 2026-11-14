@@ -1,0 +1,132 @@
+{
+  "checked_at": "2026-11-09",
+  "status": "APPLIED LOCALLY WITH EXPLICIT USER APPROVAL; post-change long snapshot and integration PASS",
+  "source": "https://guides.adobe.com/coldfusion/en/docs/develop-coldfusion-applications/__references__/data-source-management-for-coldfusion.html",
+  "evidence": {
+    "table": "route_instances",
+    "column": "routegen_inputs_json",
+    "column_type": "longtext",
+    "database_character_length": 64071,
+    "database_byte_length": 64267,
+    "database_json_valid": true,
+    "coldfusion_returned_characters": 64000,
+    "coldfusion_is_json": false,
+    "disposable_fixtures_cleaned": true,
+    "read_only_configuration": "cfdev-cf:/opt/coldfusion/cfusion/lib/neo-datasource.xml",
+    "datasource": "fpw",
+    "disable_clob": true,
+    "long_text_buffer": 64000,
+    "credential_values_read_out": false,
+    "raw_evidence": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/backend/reorder-invalid-snapshot.json",
+    "metadata_evidence": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/backend/reorder-snapshot-check.before-clob.json",
+    "failure_evidence": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/backend/integration-result-clob-truncation.json"
+  },
+  "best_fix": "Enable full long-text/CLOB retrieval for the existing local fpw datasource (disable_clob=false). This corrects all existing JSON consumers, including edit, readiness, clones, maps and PDF, without a partial guide-only reader workaround.",
+  "safest_fix": "Keep publication/imports disabled and report local verification blocked until this exact runtime correction is approved. Do not trim source provenance or snapshots to fit the limit.",
+  "exact_change": {
+    "component": "ColdFusion Administrator > Data Sources > fpw > Advanced Settings",
+    "setting": "CLOB — Enable long text retrieval",
+    "from": "unchecked / disable_clob=true",
+    "to": "checked / disable_clob=false",
+    "xml_selector": "var[@name='fpw']//var[@name='disable_clob']/boolean/@value",
+    "xml_value": "false",
+    "preserve": [
+      "Datasource credentials and connection string",
+      "BLOB and blob_buffer",
+      "Long text buffer (unused when CLOB enabled)",
+      "Every other datasource",
+      "All SQL data",
+      "Application source other than diagnostic test assertions"
+    ]
+  },
+  "procedure": [
+    "Obtain explicit approval for this external datasource change and any needed ColdFusion restart. Do not apply the prepared instructions automatically.",
+    "Capture a protected pre-change configuration backup outside every webroot with restrictive permissions using the established administrative method. It contains credentials: never print, commit, publish or include it in the release payload.",
+    "In the existing fpw datasource advanced settings, enable CLOB long text retrieval and save. Prefer the established CF Administrator/bootstrap mechanism; if an offline XML edit is used, stop ColdFusion before editing so it cannot overwrite the change, update only the exact fpw flag, preserve every other value and reload/restart appropriately.",
+    "Persist equivalent disable_clob=false in the approved environment bootstrap/configuration source or retained cfusion/lib volume. A one-off live change alone does not prove container recreation.",
+    "Read back only the safe datasource flag/buffer values. Verify a deliberately >64000-character guide snapshot has equal DB and application lengths and valid JSON.",
+    "Rerun all guide integration checks, actual saved reopen/review, shared map/PDF and nonguide regressions. Record the new result separately from the preserved failing evidence.",
+    "Verify the same requirement in the actual deployment datasource before production publication; do not infer production settings from local correction."
+  ],
+  "rollback": "Reverting this setting to disable_clob=true restores truncation for existing long snapshots. Do not label that as a safe rollback while those copies remain usable. The valid database JSON has not been lost and must not be deleted or rewritten merely to avoid the error.",
+  "prepared_tool": {
+    "path": "publishing/bahamas/release-review-20261109/deployment-prepare-clob.py",
+    "self_test": "4/4 passed",
+    "real_configuration_dry_run": "PASS: only fpw disable_clob true→false; every other byte unchanged; no write",
+    "before_sha256": "ce14cab03ff6a691592d4fee193115f190209f2f7545e248e98f09bde732b77e",
+    "after_sha256": "42b5c2c28fafb5bd1f7a34aac1cbeed78448344b39242af800d52e26b10f1b60",
+    "non_clob_bytes_sha256": "304c632a778aebcd21b9f1b6ecce6a265545fc72d642442f510af7b390c4b46a",
+    "before_bytes": 3788,
+    "after_bytes": 3789
+  },
+  "runtime_metadata": {
+    "persistent_volume": "cf-mysql-dev_cfusion_lib",
+    "destination": "/opt/coldfusion/cfusion/lib",
+    "xml_uid": 999,
+    "xml_gid": 2,
+    "xml_mode": "0755",
+    "mysql_container": "Not stopped, recreated or modified by this procedure"
+  },
+  "offline_apply_prepared": {
+    "authorization": "DO NOT RUN until explicit external datasource/restart approval and coordination with active browser QA. Commands change the CF container's persistent configuration volume. They do not recreate the container, pull an image or touch MySQL.",
+    "backup_path": "/Users/lawrencewald/Docker/cf-mysql-dev/.codex-snapshots/bahamas-guide-20261107/readiness-20261109/cf-clob",
+    "steps": [
+      "Record running status and safe fpw CLOB flags; coordinate frontend pause. Verify uid999/gid2/mode0755 again before stop. Any metadata drift requires review.",
+      "Stop only cfdev-cf to prevent live configuration caching from overwriting the offline change. Copy neo-datasource.xml from the stopped container to the protected external backup path. Set backup directory0700/files0600.",
+      "Run deployment-prepare-clob.py prepare with that before file, a new after file and safe JSON report; it refuses absent/duplicate/wrong-state targets and verifies all non-CLOB bytes unchanged.",
+      "Create a tar containing only neo-datasource.xml from the prepared after file with recorded uid999/gid2/mode0755. Keep the archive0600 outside webroot because it contains credentials. Use docker cp --archive - to the stopped container's existing cfusion/lib directory so recorded ownership is retained.",
+      "Copy the resulting XML back outside webroot and run deployment-prepare-clob.py verify against the before file. Require only-approved-value-changed=true before starting CF. If verification fails, restore the exact before file with original metadata while CF remains stopped.",
+      "Start cfdev-cf, verify it is healthy, read back only safe CLOB flags/metadata and rerun the long snapshot test and full integration. Inspect normal frontend/PDF paths. No full config or credential values may appear in logs/output.",
+      "Retain before/after/report/archive outside delivery paths. Keep datasource long-text support in approved persistent bootstrap instructions; do not remove the named cfusion/lib volume during recreation."
+    ],
+    "commands_before_apply": "set -euo pipefail\numask 077\nFPW_CLOB_DIR='/Users/lawrencewald/Docker/cf-mysql-dev/.codex-snapshots/bahamas-guide-20261107/readiness-20261109/cf-clob'\nmkdir -p \"$FPW_CLOB_DIR\"\nchmod 700 \"$FPW_CLOB_DIR\"\ndocker stop cfdev-cf\ndocker cp cfdev-cf:/opt/coldfusion/cfusion/lib/neo-datasource.xml \"$FPW_CLOB_DIR/neo-datasource.before.xml\"\nchmod 600 \"$FPW_CLOB_DIR/neo-datasource.before.xml\"\npython3 publishing/bahamas/release-review-20261109/deployment-prepare-clob.py prepare --input \"$FPW_CLOB_DIR/neo-datasource.before.xml\" --output \"$FPW_CLOB_DIR/neo-datasource.after.xml\" --report \"$FPW_CLOB_DIR/one-field-change.json\"",
+    "archive_creation": "Use Python tarfile with exactly one TarInfo named neo-datasource.xml; set uid=999,gid=2,mode=0o755,size to prepared bytes. Write archive using exclusive create/mode0600. Do not tar the surrounding backup directory.",
+    "commands_apply_then_verify": "docker cp --archive - cfdev-cf:/opt/coldfusion/cfusion/lib/ < \"$FPW_CLOB_DIR/neo-datasource.after.tar\"\ndocker cp cfdev-cf:/opt/coldfusion/cfusion/lib/neo-datasource.xml \"$FPW_CLOB_DIR/neo-datasource.installed.xml\"\nchmod 600 \"$FPW_CLOB_DIR/neo-datasource.installed.xml\"\npython3 publishing/bahamas/release-review-20261109/deployment-prepare-clob.py verify --input \"$FPW_CLOB_DIR/neo-datasource.before.xml\" --candidate \"$FPW_CLOB_DIR/neo-datasource.installed.xml\"\ndocker start cfdev-cf",
+    "docker_reference": "https://docs.docker.com/reference/cli/docker/container/cp/",
+    "commands_post_restart": "python3 publishing/bahamas/release-review-20261109/deployment-prepare-clob.py verify-runtime --input \"$FPW_CLOB_DIR/neo-datasource.before.xml\" --candidate \"$FPW_CLOB_DIR/neo-datasource.runtime.xml\""
+  },
+  "applied": {
+    "scope": "Only existing local fpw disable_clob true→false; stopped/started cfdev-cf, no container recreation/image pull/MySQL/Tomcat/PDF-template edit.",
+    "backup_directory": "/Users/lawrencewald/Docker/cf-mysql-dev/.codex-snapshots/bahamas-guide-20261107/readiness-20261109/cf-clob",
+    "permissions": "Backup directory0700; before/after/installed XML, tar and report0600; runtime XML ownership999:2 and0755 preserved.",
+    "installed_before_start": "Exact byte comparison passed; only the approved true→false literal changed, every other byte matched baseline.",
+    "runtime_after_start": "ColdFusion reordered serialized XML struct keys at startup. Complete XML semantic comparison against the reviewed after-file passes, including all other datasource values and credentials; no credential values printed.",
+    "runtime_sha256": "c25dc72617cc115c83c43d22e44ee1283bc5377d963195f1c4422b7415af4f8e",
+    "all_settings_semantic_sha256": "2785d397d711f0e456822c60505f0bee71931f96ca72406696a2a7d84764eac4",
+    "safe_values": {
+      "disable_clob": false,
+      "disable_blob": true,
+      "buffer": 64000,
+      "blob_buffer": 64000
+    },
+    "guide_http_status": 200,
+    "session_restart_effect": "Previous authenticated QA session correctly returned401; normal login refresh required.",
+    "persistence": "Configuration lives in the existing named cf-mysql-dev_cfusion_lib volume. This verified stop/start persistence, not recreation from an empty configuration volume.",
+    "regression": {
+      "guide_integration": {
+        "total": 68,
+        "passed": 68,
+        "cleaned_up": true,
+        "http_status": 200,
+        "content_type": "application/json;charset=utf-8"
+      },
+      "long_snapshot": {
+        "db_characters": 74834,
+        "cf_characters": 74834,
+        "db_bytes": 75030,
+        "db_json_valid": true,
+        "cf_is_json": true
+      },
+      "nonguide_continuity": {
+        "passed": 4,
+        "total": 4
+      },
+      "reserve_mode": {
+        "passed": 9,
+        "total": 9
+      },
+      "failure_preserved": true
+    },
+    "failure_note": "Before-change metadata is retained from the actual MCPCF read observation. The diagnostic current metadata file was overwritten by the successful post-change run; separate before/after evidence files are now retained."
+  }
+}

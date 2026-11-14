@@ -2,6 +2,7 @@
 
     <cffunction name="handle" access="remote" returntype="void" output="true">
         <cfargument name="action" type="string" required="false" default="getTimeline">
+        <cfargument name="route_id" type="numeric" required="false" default="0">
         <cfargument name="routeCode" type="string" required="false" default="">
         <cfargument name="segmentId" type="numeric" required="false" default="0">
         <cfargument name="direction" type="string" required="false" default="">
@@ -38,7 +39,18 @@
                 </cfif>
             </cfif>
 
-            <cfif act EQ "generateroute">
+            <!--- Guide mutations share the existing POST/origin/CSRF guard; ordinary routes retain their path. --->
+            <cfset var guidePreflight = guideActionPreflight(userId, act, body) />
+            <cfif NOT guidePreflight.allowed>
+                <cfheader statuscode="#guidePreflight.status#" />
+                <cfoutput>#serializeJSON({"SUCCESS"=false,"AUTH"=true,"MESSAGE"=guidePreflight.message,"ERROR"={"CODE"=guidePreflight.code,"MESSAGE"=guidePreflight.message}})#</cfoutput>
+                <cfreturn>
+            </cfif>
+            <cfif listFindNoCase("guide_import,guide_getdraft,guide_savedraft,guide_savetrip",act)>
+                <cfset var guideResult = handleGuideAction(userId,act,body) />
+                <cfoutput>#getGuideTripService().serializeResponse(guideResult)#</cfoutput>
+                <cfreturn>
+            <cfelseif act EQ "generateroute">
                 <cfoutput>#serializeJSON({
                     "SUCCESS"=false,
                     "AUTH"=true,
@@ -113,7 +125,7 @@
                     userId = userId,
                     routeId = getUserRouteId
                 ) />
-                <cfoutput>#serializeJSON(gotUserRoute)#</cfoutput>
+                <cfoutput>#getGuideTripService().serializeResponse(gotUserRoute)#</cfoutput>
                 <cfreturn>
 
             <cfelseif act EQ "listuserwaypoints">
@@ -556,6 +568,11 @@
             </cfif>
 
             <cfcatch>
+                <cfif left(cfcatch.type,10) EQ "FPW.Guide.">
+                    <cfheader statuscode="409" />
+                    <cfoutput>#serializeJSON({"SUCCESS"=false,"AUTH"=true,"MESSAGE"=cfcatch.message,"ERROR"={"CODE"=listLast(cfcatch.type,"."),"MESSAGE"=cfcatch.message}})#</cfoutput>
+                    <cfreturn>
+                </cfif>
                 <cfscript>
                 try {
                     if(isDefined("userId") AND isNumeric(userId) AND userId GT 0 AND isDefined("act") AND act EQ "routegen_generate") {
@@ -1196,6 +1213,37 @@
                     "DELETE_BLOCK_CODE"=deleteBlockCode,
                     "DELETE_BLOCK_MESSAGE"=deleteBlockMessage
                 });
+                var guideContext=getGuideTripService().getInstanceContext(arguments.userId,routeInstanceIdVal);
+                if (!structIsEmpty(guideContext)) {
+                    var guideSummary={totals=guideContext.totals,has_newer_draft=true,draft_complete=false,
+                        source_user_route_id=guideContext.source_user_route_id,draft_revision=guideContext.draft_revision,
+                        generated_revision=guideContext.draft_revision};
+                    try {
+                        var guideDraft=getGuideTripService().getDraft(arguments.userId,val(guideContext.source_user_route_id));
+                        guideSummary.has_newer_draft=guideDraft.has_newer_draft;
+                        guideSummary.draft_complete=guideDraft.totals.complete;
+                        guideSummary.draft_revision=guideDraft.revision;
+                        guideSummary.generated_revision=guideDraft.generated_revision;
+                    } catch (any unavailableGuideDraft) {}
+                    out.ROUTES[arrayLen(out.ROUTES)]["GUIDE_SUMMARY"]=guideSummary;
+                }
+            }
+            // Planning-only guide copies do not yet have a generated route/instance.
+            // Keep them separate from saved/operational routes and expose owned summaries only.
+            out.PLANNING_DRAFTS=[];
+            if (getGuideTripService().isInstalled()) {
+                var qGuideDrafts=queryExecute(
+                    "SELECT g.user_route_id FROM guide_route_imports g INNER JOIN user_routes ur ON ur.id=g.user_route_id AND ur.user_id=g.user_id WHERE g.user_id=:uid AND g.deleted_at IS NULL AND ur.is_active=1 AND COALESCE(g.generated_route_id,0)=0 ORDER BY ur.updated_at DESC,ur.id DESC",
+                    {uid={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource=application.dsn});
+                for (var draftRow=1;draftRow LTE qGuideDrafts.recordCount;draftRow++) {
+                    var planningDraft=getGuideTripService().getDraft(arguments.userId,val(qGuideDrafts.user_route_id[draftRow]));
+                    arrayAppend(out.PLANNING_DRAFTS,{
+                        "ROUTE_ID"=planningDraft.user_route_id,"NAME"=planningDraft.route_name,
+                        "LEG_COUNT"=arrayLen(planningDraft.legs),"TOTALS"=planningDraft.totals,
+                        "START_LABEL"=arrayLen(planningDraft.legs) ? planningDraft.legs[1].start_name : "",
+                        "END_LABEL"=arrayLen(planningDraft.legs) ? planningDraft.legs[arrayLen(planningDraft.legs)].end_name : ""
+                    });
+                }
             }
             out.ACTIVE_TRIP = resolveCanonicalDashboardActiveTrip(arguments.userId);
             return out;
@@ -1778,7 +1826,7 @@
             if (hasCoordinateError) {
                 coordinateError = "Missing waypoint coordinates for this leg. Add latitude/longitude to both waypoints.";
             }
-            return {
+            var result = {
                 "ROUTE_LEG_ID"=val(q.route_leg_id[1]),
                 "ROUTE_ID"=val(q.user_route_id[1]),
                 "ORDER_INDEX"=(isNull(q.order_index[1]) ? 0 : val(q.order_index[1])),
@@ -1806,6 +1854,17 @@
                 "HAS_COORDINATE_ERROR"=hasCoordinateError,
                 "COORDINATE_ERROR"=coordinateError
             };
+            if (getGuideTripService().isGuideRoute(arguments.userId,arguments.routeId)) {
+                var guideDraft=getGuideTripService().getDraft(arguments.userId,arguments.routeId);
+                for (var guideLeg in guideDraft.legs) {
+                    if (guideLeg.user_route_leg_id EQ arguments.routeLegId) {
+                        result.DIST_NM_DEFAULT=guideLeg.distance_nm;
+                        result["DISTANCE_MISSING"]=guideLeg.distance_missing;
+                        result["GEOMETRY_KIND"]=guideLeg.geometry_kind;
+                    }
+                }
+            }
+            return result;
         </cfscript>
     </cffunction>
 
@@ -2342,6 +2401,7 @@
                 { datasource = application.dsn }
             );
 
+            getGuideTripService().markDeleted(arguments.userId,routeIdVal);
             out.SUCCESS = true;
             out.MESSAGE = "Route deleted";
             out.DATA = { "route_id"=routeIdVal };
@@ -2540,6 +2600,20 @@
                 );
             }
 
+            if (getGuideTripService().isGuideRoute(arguments.userId,routeIdVal)) {
+                var guideDraft=getGuideTripService().getDraft(arguments.userId,routeIdVal);
+                out.DATA["GUIDE_CONTEXT"]=guideDraft;
+                for (var guideIndex=1;guideIndex LTE arrayLen(out.DATA.legs);guideIndex++) {
+                    var guideLeg=guideDraft.legs[guideIndex];
+                    out.DATA.legs[guideIndex].dist_nm=guideLeg.distance_nm;
+                    out.DATA.legs[guideIndex].dist_nm_default=guideLeg.distance_nm;
+                    out.DATA.legs[guideIndex]["distance_missing"]=guideLeg.distance_missing;
+                    out.DATA.legs[guideIndex]["geometry_kind"]=guideLeg.geometry_kind;
+                    out.DATA.legs[guideIndex]["distance_kind"]=guideLeg.distance_kind;
+                    out.DATA.legs[guideIndex]["distance_method"]=guideLeg.distance_method;
+                    out.DATA.legs[guideIndex]["review_status"]=guideLeg.review_status;
+                }
+            }
             out.SUCCESS = true;
             out.MESSAGE = "OK";
             return out;
@@ -2801,6 +2875,7 @@
         <cfargument name="routeId" type="numeric" required="true">
         <cfargument name="input" type="struct" required="true">
         <cfscript>
+            if (getGuideTripService().isGuideRoute(arguments.userId,arguments.routeId)) return getGuideTripService().buildPreview(arguments.userId,arguments.routeId);
             var out = {
                 "SUCCESS"=false,
                 "AUTH"=true,
@@ -3305,6 +3380,8 @@
             var i = 0;
             var legIdVal = 0;
             var getRes = {};
+            var guideService = new fpw.api.v1.GuideTripService().init(application.dsn);
+            var isGuideRoute = false;
 
             if (!routegenHasUserRouteTables()) {
                 out.MESSAGE = "User routes unavailable";
@@ -3365,8 +3442,56 @@
                 seen[toString(legIdVal)] = true;
             }
 
+            isGuideRoute = guideService.isGuideRoute(arguments.userId,routeIdVal);
             try {
                 transaction {
+                    if (isGuideRoute) {
+                        guideService.lockOwner(arguments.userId);
+                        // Guide controls reorder destinations. Keep the original origin and stable
+                        // leg identity; a changed start invalidates its copied planning evidence.
+                        var guideRows=queryExecute(
+                            "SELECT l.id,l.start_waypoint_id,l.end_waypoint_id,ws.latitude AS start_lat,ws.longitude AS start_lng,
+                                    we.latitude AS end_lat,we.longitude AS end_lng
+                             FROM user_route_legs l
+                             INNER JOIN waypoints ws ON ws.wpId=l.start_waypoint_id AND ws.userId=:uid
+                             INNER JOIN waypoints we ON we.wpId=l.end_waypoint_id AND we.userId=:uid
+                             WHERE l.user_route_id=:rid ORDER BY l.order_index,l.id FOR UPDATE",
+                            {uid={value=toString(arguments.userId),cfsqltype="cf_sql_varchar"},
+                             rid={value=routeIdVal,cfsqltype="cf_sql_integer"}},{datasource=application.dsn});
+                        if (guideRows.recordCount NEQ arrayLen(arguments.routeLegIds))
+                            throw(type="FPW.RouteContinuity",message="The guide stops changed. Reload the planning draft before reordering.");
+                        var guideById={};
+                        for (var guideRow in guideRows) guideById[toString(guideRow.id)]=guideRow;
+                        var priorWaypoint=val(guideRows.start_waypoint_id[1]);
+                        var priorLat=guideRows.start_lat[1];
+                        var priorLng=guideRows.start_lng[1];
+                        var changedStarts=[];
+                        for (var requestedId in arguments.routeLegIds) {
+                            if (!structKeyExists(guideById,toString(val(requestedId))))
+                                throw(type="FPW.RouteContinuity",message="The guide stops changed. Reload the planning draft before reordering.");
+                            var destination=guideById[toString(val(requestedId))];
+                            if (priorWaypoint EQ val(destination.end_waypoint_id)
+                                OR (isNumeric(priorLat) AND isNumeric(priorLng) AND isNumeric(destination.end_lat)
+                                  AND isNumeric(destination.end_lng) AND val(priorLat) EQ val(destination.end_lat)
+                                  AND val(priorLng) EQ val(destination.end_lng)))
+                                throw(type="FPW.RouteContinuity",message="This stop order creates consecutive stops at the same location. Choose a different order.");
+                            if (priorWaypoint NEQ val(destination.start_waypoint_id))
+                                arrayAppend(changedStarts,{id=val(requestedId),start_waypoint_id=priorWaypoint});
+                            priorWaypoint=val(destination.end_waypoint_id);
+                            priorLat=destination.end_lat; priorLng=destination.end_lng;
+                        }
+                        // Validate the whole destination sequence before modifying any row.
+                        for (var changedLeg in changedStarts) {
+                            queryExecute("UPDATE user_route_legs SET start_waypoint_id=:start,updated_at=NOW() WHERE id=:leg AND user_route_id=:rid",
+                                {start={value=changedLeg.start_waypoint_id,cfsqltype="cf_sql_integer"},
+                                 leg={value=changedLeg.id,cfsqltype="cf_sql_integer"},rid={value=routeIdVal,cfsqltype="cf_sql_integer"}},
+                                {datasource=application.dsn});
+                            if (routegenHasLegOverrideTable()) queryExecute(
+                                "DELETE FROM route_leg_user_overrides WHERE user_id=:uid AND route_id=:rid AND route_leg_id=:leg",
+                                {uid={value=arguments.userId,cfsqltype="cf_sql_integer"},rid={value=routeIdVal,cfsqltype="cf_sql_integer"},
+                                 leg={value=changedLeg.id,cfsqltype="cf_sql_integer"}},{datasource=application.dsn});
+                        }
+                    }
                     var activityBefore = memberRouteActivityProjection(arguments.userId, routeIdVal, "user_route");
                     for (i = 1; i LTE arrayLen(arguments.routeLegIds); i++) {
                         legIdVal = val(arguments.routeLegIds[i]);
@@ -3887,6 +4012,12 @@
             }
 
             routeInstanceIdVal = val(qRouteInstance.id[1]);
+            var guideReady=getGuideTripService().validateReadiness(arguments.userId,routeInstanceIdVal);
+            if (!guideReady.allowed) {
+                out.MESSAGE=guideReady.message;
+                out.ERROR={CODE=guideReady.code,MESSAGE=guideReady.message};
+                return out;
+            }
             sourceRouteInstanceIdVal = routeInstanceIdVal;
             out.SOURCE_ROUTE_INSTANCE_ID = sourceRouteInstanceIdVal;
             generatedRouteId = val(qRouteInstance.generated_route_id[1]);
@@ -5192,6 +5323,35 @@
             "END_LABEL"=dashboardRouteEndLabel
         } />
         <cfset resp.SECTIONS = filteredSections />
+        <cfscript>
+        var guideSnapshot=getGuideTripService().getSnapshotForInstance(routeInstanceIdVal);
+        if (!structIsEmpty(guideSnapshot)) {
+            resp["GUIDE_CONTEXT"]=guideSnapshot;
+            resp.TOTALS.TOTAL_NM=guideSnapshot.totals.known_distance_nm;
+            resp.TOTALS.ESTIMATED_HOURS=guideSnapshot.totals.known_run_hours;
+            resp.TOTALS.ESTIMATED_TIME_HOURS=guideSnapshot.totals.known_run_hours;
+            resp.TOTALS.FUEL_ESTIMATE_GALLONS=guideSnapshot.totals.required_fuel_us_gal;
+            resp.TOTALS.FUEL_ESTIMATE_LABEL=toString(roundTo2(guideSnapshot.totals.required_fuel_us_gal)) & " US gal estimated";
+            resp.TOTALS["GUIDE_PERFORMANCE_MODE"]=true;
+            resp.TOTALS["ESTIMATE_LABEL"]="Planning estimates";
+            var guideLegIndex=0;
+            for (var guideSection in resp.SECTIONS) {
+                guideSection.TOTALS.NM=0;
+                for (var guideSegment in guideSection.SEGMENTS) {
+                    guideLegIndex++;
+                    if (guideLegIndex LTE arrayLen(guideSnapshot.legs)) {
+                        var guideLeg=guideSnapshot.legs[guideLegIndex];
+                        guideSegment.DIST_NM=guideLeg.distance_nm;
+                        guideSegment["GEOMETRY_KIND"]=guideLeg.geometry_kind;
+                        guideSegment["DISTANCE_KIND"]=guideLeg.distance_kind;
+                        guideSegment["DISTANCE_METHOD"]=guideLeg.distance_method;
+                        guideSegment["REVIEW_STATUS"]=guideLeg.review_status;
+                        guideSection.TOTALS.NM+=val(guideLeg.distance_nm);
+                    }
+                }
+            }
+        }
+        </cfscript>
         <cfreturn resp />
     </cffunction>
 
@@ -7454,6 +7614,7 @@
         <cfargument name="userId" type="numeric" required="true">
         <cfargument name="routeInputs" type="any" required="false" default="#structNew()#">
         <cfscript>
+            if (isStruct(arguments.routeInputs) AND structKeyExists(arguments.routeInputs,"guide_context") AND isStruct(arguments.routeInputs.guide_context)) return duplicate(arguments.routeInputs);
             var merged = (isStruct(arguments.routeInputs) ? duplicate(arguments.routeInputs) : {});
             var defaults = routegenLoadPreferredVesselDefaults(arguments.userId);
             var maxVal = roundTo2(val(structKeyExists(merged, "vessel_max_speed_kn") ? merged.vessel_max_speed_kn : 0));
@@ -9721,6 +9882,15 @@
                 return out;
             }
 
+            var guideDraft=getGuideTripService().findByGeneratedCode(arguments.userId,arguments.routeCode);
+            if (!structIsEmpty(guideDraft)) {
+                var guideInputs=getGuideTripService().legacyInputs(guideDraft);
+                guideInputs.route_code=routeInfo.ROUTE_CODE;
+                return {SUCCESS=true,AUTH=true,MESSAGE="Guide planning draft",DATA={
+                    route={route_id=routeInfo.ROUTE_ID,route_code=routeInfo.ROUTE_CODE,route_name=guideDraft.route_name},
+                    template={id=0,code="MY_ROUTE",name=guideDraft.route_name,description="Guide planning estimates"},
+                    inputs=guideInputs,GUIDE_CONTEXT=guideDraft}};
+            }
             var hasInputsJsonCol = routegenHasInputsJsonColumn();
             var qInstSql = "SELECT id, template_route_code, direction, trip_type, start_location, end_location, created_at";
             if (hasInputsJsonCol) {
@@ -13679,7 +13849,7 @@
         <cfscript>
             var actionValue = lCase(trim(arguments.actionName));
             var routeType = "";
-            var gatedActions = "listuserroutes,createuserroute,deleteuserroute,getuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,previewuserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,getroutelegoverridegeometry,saveroutelegoverridegeometry,clearroutelegoverridegeometry,routegen_geteditcontext,routegen_generate,routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride,routegen_listlegoverrides,buildfloatplansfromroute,setactiveroute,deleteroute,archiveroute,gettimeline";
+            var gatedActions = "guide_import,guide_getdraft,guide_savedraft,guide_savetrip,listuserroutes,createuserroute,deleteuserroute,getuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,previewuserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,getroutelegoverridegeometry,saveroutelegoverridegeometry,clearroutelegoverridegeometry,routegen_geteditcontext,routegen_generate,routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride,routegen_listlegoverrides,buildfloatplansfromroute,setactiveroute,deleteroute,archiveroute,gettimeline";
 
             if (listFindNoCase(gatedActions, actionValue) GT 0) {
                 return true;
@@ -13806,4 +13976,86 @@
         <cfargument name="datasource" type="string" required="true">
         <cfreturn createObject("component","fpw.includes.ProductEventService").init(arguments.datasource)>
     </cffunction>
+
+    <!--- Guide imports use owned persisted inputs; public requests cannot manufacture guide_context. --->
+    <cffunction name="getGuideTripService" access="private" returntype="any" output="false">
+        <cfreturn new fpw.api.v1.GuideTripService().init(application.dsn)>
+    </cffunction>
+
+    <cffunction name="guideActionPreflight" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="actionName" type="string" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var act=arguments.actionName;
+            var svc=getGuideTripService();
+            var routeId=val(pickArg(arguments.body,"route_id","routeId",0));
+            var code=trim(toString(pickArg(arguments.body,"route_code","routeCode","")));
+            var sourceMutations="deleteuserroute,setuserroutestartwaypoint,addwaypointlegtouserroute,addlegtouserroute,removelegfromuserroute,reorderuserroutelegs,saveroutelegoverridegeometry,clearroutelegoverridegeometry";
+            var generatedMutations="routegen_update,routegen_savelegoverride,routegen_clearlegoverride,routegen_savesegmentoverride,routegen_clearsegmentoverride";
+            var guideSource=(routeId GT 0 AND svc.isGuideRoute(arguments.userId,routeId));
+            var needsGuard=listFindNoCase("guide_import,guide_savedraft,guide_savetrip",act) GT 0
+                OR (guideSource AND listFindNoCase(sourceMutations,act) GT 0);
+            if (needsGuard) {
+                var guard=new fpw.api.v1.AuthRequestGuardService().init().validateMutation(arguments.body);
+                if (!guard.allowed) return {allowed=false,status=guard.statusCode,code=guard.code,message=guard.message};
+            }
+            if (guideSource AND listFindNoCase("routegen_generate,routegen_update",act))
+                return {allowed=false,status=409,code="GUIDE_SAVE_REQUIRED",message="Use Save trip in the guide planning workspace to preserve its estimates and review record."};
+            if (len(code) AND listFindNoCase(generatedMutations,act) AND !structIsEmpty(svc.findByGeneratedCode(arguments.userId,code)))
+                return {allowed=false,status=409,code="GUIDE_WORKSPACE_REQUIRED",message="Edit this guide trip through its planning draft, then save the complete trip."};
+            return {allowed=true,status=200,code="",message=""};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="handleGuideAction" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="actionName" type="string" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var svc=getGuideTripService();
+            var routeId=val(pickArg(arguments.body,"route_id","routeId",0));
+            var data={};
+            if (arguments.actionName EQ "guide_import") data=svc.importTrip(arguments.userId,arguments.body);
+            else if (arguments.actionName EQ "guide_getdraft") data=svc.getDraft(arguments.userId,routeId);
+            else if (arguments.actionName EQ "guide_savedraft") data=svc.saveDraft(arguments.userId,routeId,arguments.body);
+            else return saveGuideTrip(arguments.userId,routeId,arguments.body);
+            return {SUCCESS=true,AUTH=true,MESSAGE="OK",DATA=data};
+        </cfscript>
+    </cffunction>
+
+    <cffunction name="saveGuideTrip" access="private" returntype="struct" output="false">
+        <cfargument name="userId" type="numeric" required="true">
+        <cfargument name="routeId" type="numeric" required="true">
+        <cfargument name="body" type="struct" required="true">
+        <cfscript>
+            var svc=getGuideTripService(); var result={};
+            transaction {
+                svc.lockOwner(arguments.userId);
+                var prepared=svc.prepareSave(arguments.userId,arguments.routeId,arguments.body);
+                var draft=prepared.draft;
+                var existing=queryExecute("SELECT ri.id,ri.generated_route_id,ri.generated_route_code FROM route_instances ri INNER JOIN loop_routes lr ON lr.id=ri.generated_route_id WHERE ri.id=:id AND ri.user_id=:uid",
+                    {id={value=draft.generated_route_instance_id,cfsqltype="cf_sql_integer"},uid={value=toString(arguments.userId),cfsqltype="cf_sql_varchar"}},{datasource=application.dsn});
+                if (draft.generated_route_instance_id GT 0 AND !existing.recordCount)
+                    throw(type="FPW.Guide.SAVE_UNAVAILABLE",message="The saved trip is unavailable. This planning draft will not silently create a replacement.");
+                if (prepared.reused) {
+                    result={SUCCESS=true,AUTH=true,MESSAGE="Trip already saved",DATA={
+                        route_id=val(existing.generated_route_id[1]),route_instance_id=val(existing.id[1]),
+                        route_code=existing.generated_route_code[1],route_name=draft.route_name,reused=true}};
+                } else {
+                    var input=svc.legacyInputs(draft);
+                    if (existing.recordCount) {
+                        input.route_code=existing.generated_route_code[1];
+                        result=routegenUpdate(arguments.userId,input.route_code,input);
+                    } else result=routegenGenerate(arguments.userId,input);
+                    if (!result.SUCCESS) throw(type="FPW.Guide.SAVE_FAILED",message=result.MESSAGE);
+                    svc.copyGeometryToInstance(arguments.userId,arguments.routeId,val(result.DATA.route_id),val(result.DATA.route_instance_id));
+                    svc.finishSave(arguments.userId,arguments.routeId,prepared,val(result.DATA.route_id),val(result.DATA.route_instance_id));
+                }
+                result.DATA["GUIDE_CONTEXT"]=svc.getDraft(arguments.userId,arguments.routeId);
+            }
+            return result;
+        </cfscript>
+    </cffunction>
+
 </cfcomponent>

@@ -98,7 +98,17 @@
     ["source_page","section","cta_type","label"].forEach(function (key) {
       if (source[key] || source[key.toUpperCase()]) clean[key] = source[key] || source[key.toUpperCase()];
     });
-    return {token:token,destinationKey:raw.destinationKey || raw.DESTINATIONKEY || "",source:clean};
+    var guide = raw.guideContext || raw.GUIDECONTEXT || {};
+    var guideContext = {};
+    var templateKey = guide.template_key || guide.TEMPLATE_KEY || "";
+    var templateVersion = guide.template_version || guide.TEMPLATE_VERSION;
+    var importRequestId = guide.import_request_id || guide.IMPORT_REQUEST_ID || "";
+    if (/^[a-z0-9][a-z0-9-]{0,63}$/.test(templateKey) &&
+        /^[1-9][0-9]{0,5}$/.test(String(templateVersion)) &&
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(importRequestId)) {
+      guideContext = {template_key:templateKey,template_version:Number(templateVersion),import_request_id:importRequestId};
+    }
+    return {token:token,destinationKey:raw.destinationKey || raw.DESTINATIONKEY || "",source:clean,guideContext:guideContext};
   }
 
   var continuationCompletion = null;

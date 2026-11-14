@@ -48,10 +48,11 @@ fpwGuidesSchemaList = structNew("ordered");
 structInsert(fpwGuidesSchemaList, fpwGuidesSchemaType, "ItemList", true);
 structInsert(fpwGuidesSchemaList, fpwGuidesSchemaId, fpwGuidesCanonicalUrl & "##guides", true);
 fpwGuidesSchemaList["name"] = "FPW Cruising Guides";
-fpwGuidesSchemaList["numberOfItems"] = 2;
+fpwGuidesSchemaList["numberOfItems"] = 3;
 fpwGuidesSchemaList["itemListElement"] = [
   fpwGuidesListItem(1, "Chesapeake Bay Cruising Guide", "https://floatplanwizard.com/boating-guides/chesapeake-bay/"),
-  fpwGuidesListItem(2, "Great Loop Planning Guide", "https://floatplanwizard.com/great-loop/trip-planning/")
+  fpwGuidesListItem(2, "Great Loop Planning Guide", "https://floatplanwizard.com/great-loop/trip-planning/"),
+  fpwGuidesListItem(3, "Bahamas Cruising Guide", "https://floatplanwizard.com/boating-guides/bahamas/")
 ];
 
 fpwGuidesSchemaPage = structNew("ordered");
@@ -99,7 +100,7 @@ fpwGuidesJsonLdText = replace(serializeJSON(fpwGuidesJsonLd), "</", "<\/", "all"
   <link rel="icon" type="image/svg+xml" href="#fpwGuidesBasePath#/assets/images/landing/fpw-logo.svg">
   <link rel="stylesheet" href="#fpwGuidesBasePath#/assets/css/layout.css?v=20260620-page-width">
   <link rel="stylesheet" href="#fpwGuidesBasePath#/assets/css/top-nav.css?v=20261028-approved-navigation">
-  <link rel="stylesheet" href="#fpwGuidesBasePath#/assets/css/cruising-guides.css?v=20261028-approved-navigation">
+  <link rel="stylesheet" href="#fpwGuidesBasePath#/assets/css/cruising-guides.css?v=20261114-three-guide-library">
   </cfoutput>
   <cfinclude template="../includes/analytics_ga4.cfm">
   <cfinclude template="../includes/analytics_clarity.cfm">
@@ -109,38 +110,55 @@ fpwGuidesJsonLdText = replace(serializeJSON(fpwGuidesJsonLd), "</", "<\/", "all"
 <cfinclude template="../includes/top_nav.cfm">
 <main class="fpw-cruising-index" id="main-content">
   <div class="fpw-cruising-index-shell">
-    <nav class="fpw-cruising-breadcrumbs" aria-label="Breadcrumb">
-      <a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/">FloatPlanWizard</a>
-      <span aria-hidden="true">&rsaquo;</span>
-      <span aria-current="page">Cruising Guides</span>
-    </nav>
     <header class="fpw-cruising-index-intro">
-      <p class="fpw-cruising-eyebrow">Cruising and Trip Planning</p>
+      <p class="fpw-cruising-eyebrow">CRUISING AND TRIP PLANNING</p>
       <h1>Cruising Guides</h1>
-      <p>Research destinations, shape realistic daily legs, and prepare for the details of your cruise. FPW's guides connect that research to the Route Generator and the Float Plan Wizard, helping you turn a reviewed route into a float plan to share with your shore contact.</p>
+      <p>In-depth guides for popular cruising destinations and trips. Research destinations, plan realistic daily legs, and prepare the details of your cruise — then bring it all together in FloatPlanWizard.</p>
     </header>
-    <div class="fpw-cruising-card-grid">
-      <article class="fpw-cruising-card" aria-labelledby="fpwChesapeakeCardTitle">
-        <a class="fpw-cruising-card-image" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/chesapeake-bay/" aria-label="Read the Chesapeake Bay Cruising Guide">
-          <img src="<cfoutput>#fpwGuidesBasePath#</cfoutput>/assets/images/navigation/thumb-chesapeake.jpg" width="420" height="320" alt="Lighthouse on Chesapeake Bay at sunset" decoding="async">
-        </a>
-        <div class="fpw-cruising-card-copy">
-          <h2 id="fpwChesapeakeCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/chesapeake-bay/">Chesapeake Bay Cruising Guide</a></h2>
-          <p>Explore destinations, illustrative itineraries, fuel estimates, and travel-time planning for a Chesapeake Bay cruise.</p>
-          <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/chesapeake-bay/">Explore the Chesapeake guide <span aria-hidden="true">&rarr;</span></a>
-        </div>
-      </article>
-      <article class="fpw-cruising-card" aria-labelledby="fpwGreatLoopCardTitle">
-        <a class="fpw-cruising-card-image" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/" aria-label="Read the Great Loop Planning Guide">
-          <img src="<cfoutput>#fpwGuidesBasePath#</cfoutput>/assets/images/navigation/great-loop-trawler.png" width="1536" height="1024" alt="Cruising boat on a tree-lined waterway" decoding="async">
-        </a>
-        <div class="fpw-cruising-card-copy">
-          <h2 id="fpwGreatLoopCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/">Great Loop Planning Guide</a></h2>
-          <p>Plan Great Loop legs with mileage, locks, bridges, fuel, and timing references, then review your route in FPW.</p>
-          <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/">Explore the Great Loop guide <span aria-hidden="true">&rarr;</span></a>
-        </div>
-      </article>
-    </div>
+    <section class="fpw-cruising-featured" aria-labelledby="fpwFeaturedGuidesTitle">
+      <div class="fpw-cruising-featured-header">
+        <h2 id="fpwFeaturedGuidesTitle"><span class="fpw-cruising-icon fpw-cruising-icon--book" aria-hidden="true"></span>Featured Guides</h2>
+        <span class="fpw-cruising-featured-divider" aria-hidden="true"></span>
+        <ul class="fpw-cruising-categories" aria-label="Guide categories">
+          <li class="fpw-cruising-category fpw-cruising-category--active">All Guides</li>
+          <li class="fpw-cruising-category"><span class="fpw-cruising-icon fpw-cruising-icon--star" aria-hidden="true"></span>Featured</li>
+          <li class="fpw-cruising-category"><span class="fpw-cruising-icon fpw-cruising-icon--pin" aria-hidden="true"></span>Regional</li>
+          <li class="fpw-cruising-category"><span class="fpw-cruising-icon fpw-cruising-icon--calendar" aria-hidden="true"></span>Planning</li>
+        </ul>
+      </div>
+      <div class="fpw-cruising-card-grid">
+        <article class="fpw-cruising-card" aria-labelledby="fpwChesapeakeCardTitle">
+          <a class="fpw-cruising-card-image" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/chesapeake-bay/" aria-label="Read the Chesapeake Bay Cruising Guide">
+            <img src="<cfoutput>#fpwGuidesBasePath#</cfoutput>/assets/images/boating-guides/cruising-guides/02-chesapeake-bay-card.jpg" width="477" height="206" alt="Chesapeake Bay lighthouse at sunset over calm water" decoding="async">
+          </a>
+          <div class="fpw-cruising-card-copy">
+            <h3 id="fpwChesapeakeCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/chesapeake-bay/">Chesapeake Bay Cruising Guide</a></h3>
+            <p>Explore destinations, sample itineraries, fuel planning, and travel-time estimates for a Chesapeake Bay cruise.</p>
+            <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/chesapeake-bay/">Explore the Chesapeake guide <span aria-hidden="true">&rarr;</span></a>
+          </div>
+        </article>
+        <article class="fpw-cruising-card" aria-labelledby="fpwGreatLoopCardTitle">
+          <a class="fpw-cruising-card-image" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/" aria-label="Read the Great Loop Planning Guide">
+            <img src="<cfoutput>#fpwGuidesBasePath#</cfoutput>/assets/images/boating-guides/cruising-guides/03-great-loop-card.jpg" width="467" height="206" alt="Cruising boat underway on a tree-lined waterway" decoding="async">
+          </a>
+          <div class="fpw-cruising-card-copy">
+            <h3 id="fpwGreatLoopCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/">Great Loop Planning Guide</a></h3>
+            <p>Plan Great Loop legs with mileage, locks, bridges, fuel, and timing references, then review your route in FPW.</p>
+            <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/">Explore the Great Loop guide <span aria-hidden="true">&rarr;</span></a>
+          </div>
+        </article>
+        <article class="fpw-cruising-card" aria-labelledby="fpwBahamasCardTitle">
+          <a class="fpw-cruising-card-image" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/bahamas/" aria-label="Read the Bahamas Cruising Guide">
+            <img src="<cfoutput>#fpwGuidesBasePath#</cfoutput>/assets/images/boating-guides/cruising-guides/04-bahamas-card.jpg" width="479" height="206" alt="Cruising yacht in clear turquoise Bahamas water beside a tropical island" decoding="async">
+          </a>
+          <div class="fpw-cruising-card-copy">
+            <h3 id="fpwBahamasCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/bahamas/">Bahamas Cruising Guide</a></h3>
+            <p>Prepare for Gulf Stream crossings, Bahamas route options, anchorages, marina stops, fuel planning, weather windows, and island-by-island trip strategy.</p>
+            <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/bahamas/">Explore the Bahamas guide <span aria-hidden="true">&rarr;</span></a>
+          </div>
+        </article>
+      </div>
+    </section>
   </div>
 </main>
 <cfinclude template="../includes/footer.cfm">

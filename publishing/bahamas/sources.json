@@ -1,0 +1,573 @@
+{
+  "accessed_at": "2026-11-09",
+  "sources": [
+    {
+      "id": "S1",
+      "topic": "Entry and clearance",
+      "authority": "Bahamas Ministry of Tourism",
+      "url": "https://www.bahamas.com/getting-here/boating/boat-regulations",
+      "accessed_at": "2026-11-07",
+      "effective_date": "No reliable page-level revision date",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "Current documents, ports and boating requirements; verify before departure.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S2",
+      "topic": "Permit fee changes",
+      "authority": "Bahamas Ministry of Tourism",
+      "url": "https://www.bahamas.com/it/pressroom/statement-from-the-bahamas-ministry-of-tourism-investments--aviation",
+      "accessed_at": "2026-11-07",
+      "effective_date": "2026-04-01 effective; statement published 2026-04-06",
+      "verification_status": "retrieved_with_conflict",
+      "review_frequency": "monthly",
+      "claim": "April statement and August Customs tutorial use different change-date language. No fee table/history is published.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S3",
+      "topic": "Pleasure-vessel clearance",
+      "authority": "Bahamas Customs",
+      "url": "https://www.bahamascustoms.gov.bs/visitor-info/marine-vessel-declarations-cruising-permits/",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Current page retrieved; legacy/manual section conflicts with newer permit/outbound sections",
+      "verification_status": "retrieved_with_conflict",
+      "review_frequency": "monthly",
+      "claim": "Click2Clear submission/payment does not replace in-person approval. Confirm current outbound requirements directly.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S3a",
+      "topic": "2026 recent changes",
+      "authority": "Bahamas Customs",
+      "url": "https://www.bahamascustoms.gov.bs/wp-content/uploads/2026/08/Pleasure-Vessel-Clearance-Recent-Updates-Revised.pdf",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Linked official recent-updates notice dated 2026-08-25",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "Current permit periods and in-person inbound approval described. No precise fee table republished.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S4",
+      "topic": "Fishing rules",
+      "authority": "Bahamas Ministry of Tourism",
+      "url": "https://www.bahamas.com/plan-your-trip/fishing/fishing-faq",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Unknown",
+      "verification_status": "linked_not_fully_reverified",
+      "review_frequency": "monthly",
+      "claim": "Obtain current rules and permit applicability before fishing.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S5",
+      "topic": "United States arrival reporting",
+      "authority": "U.S. Customs and Border Protection",
+      "url": "https://www.help.cbp.gov/s/article/Article-1029?language=en_US",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Published 2026-02-27",
+      "verification_status": "primary_index_text_rechecked_full_page_unavailable",
+      "review_frequency": "monthly",
+      "claim": "CBP primary indexed Article 1029 states that arrivals from foreign places must be reported immediately. Full page returns a CSS-error shell in this environment; no claim of verified ROAM eligibility or port-specific alternative.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S5a",
+      "topic": "ROAM procedure",
+      "authority": "U.S. Customs and Border Protection",
+      "url": "https://www.cbp.gov/travel/pleasure-boats/pleasure-boat-overview/roam",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Unknown",
+      "verification_status": "unavailable_403",
+      "review_frequency": "before_launch",
+      "claim": "Detailed ROAM guidance remains inaccessible (HTTP 403) through current and legacy CBP paths. Confirm vessel/crew eligibility, inspection procedure and the intended arrival port’s alternative directly; no app-clearance promise.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "before publication",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S6",
+      "topic": "Florida marine weather",
+      "authority": "National Weather Service Miami",
+      "url": "https://www.weather.gov/mfl/marine",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Live products; check each issuance/validity time",
+      "verification_status": "retrieved",
+      "review_frequency": "quarterly",
+      "claim": "Official marine forecasts and hazards.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-02-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S6a",
+      "topic": "Offshore marine products",
+      "authority": "National Hurricane Center",
+      "url": "https://www.nhc.noaa.gov/abouttafbprod.shtml",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Live products",
+      "verification_status": "retrieved",
+      "review_frequency": "quarterly",
+      "claim": "Use the relevant zone and product times; no timeless forecast is embedded.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-02-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S6b",
+      "topic": "Bahamas forecasts",
+      "authority": "Bahamas Department of Meteorology",
+      "url": "https://met.gov.bs/forecasts",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Live",
+      "verification_status": "portal_verified_live_content_not_extracted",
+      "review_frequency": "quarterly",
+      "claim": "Use current issued forecasts rather than an archived PDF.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-02-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S7",
+      "topic": "Gulf Stream education",
+      "authority": "National Weather Service Melbourne",
+      "url": "https://www.weather.gov/mlb/gulfstream",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Live",
+      "verification_status": "retrieved",
+      "review_frequency": "quarterly",
+      "claim": "Current and wind context; no automatic heading compensation.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-02-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S7a",
+      "topic": "Gulf Stream imagery",
+      "authority": "NOAA Ocean Prediction Center",
+      "url": "https://ocean.weather.gov/gulf_stream.php",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Time-sensitive imagery",
+      "verification_status": "retrieved",
+      "review_frequency": "quarterly",
+      "claim": "Show product date when consulting the imagery.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-02-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S8",
+      "topic": "Historical approach-distance comparison",
+      "authority": "Bimini Big Game Club",
+      "url": "https://biggameclubbimini.com/marina/coordinates/",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Linked Explorer chart copyright 2009; HTML revision unknown",
+      "verification_status": "retrieved_historical_reference",
+      "review_frequency": "before_template_release",
+      "claim": "47.6 nm is a published approach-segment comparison, not berth-to-berth validated mileage. Ambiguous Florida coordinate typography is not imported.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S9",
+      "topic": "Bimini services",
+      "authority": "Bimini Big Game Club",
+      "url": "https://biggameclubbimini.com/resort/faq/",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Undated",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "The club states that its marina has no fuel. Confirm a separate supplier.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S10",
+      "topic": "Port Everglades buoy PE",
+      "authority": "U.S. Coast Guard",
+      "url": "https://www.navcen.uscg.gov/sites/default/files/pdf/lightLists/LightList_V3_2025.pdf",
+      "accessed_at": "2026-11-07",
+      "effective_date": "2025 edition; current weekly notices require review",
+      "verification_status": "published_reference_latest_notice_pending",
+      "review_frequency": "before_template_release",
+      "claim": "Light List 10305: 26°05′30.307″N 080°04′45.886″W. Reference point is not a verified crossing route.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S10a",
+      "topic": "Light List changes",
+      "authority": "U.S. Coast Guard",
+      "url": "https://www.navcen.uscg.gov/sites/default/files/pdf/lightLists/weeklyUpdates/v3d07WeeklyChanges.pdf",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Rolling weekly source",
+      "verification_status": "primary_index_text_verified",
+      "review_frequency": "before_template_release",
+      "claim": "Latest applicable notices must be reviewed.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S11",
+      "topic": "Bimini arrival reference",
+      "authority": "NGA Sailing Directions Pub.147",
+      "url": "https://msi.nga.mil/api/publications/download?key=16694491%2FSFH00000%2FPub147bk.pdf",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Current edition not established",
+      "verification_status": "unavailable_503",
+      "review_frequency": "before_template_release",
+      "claim": "Indexed island-group locator is not an arrival waypoint. Template Bimini coordinates remain null.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S11a",
+      "topic": "Bimini wharf light candidate",
+      "authority": "NGA List of Lights Pub.110",
+      "url": "https://msi.nga.mil/api/publications/download?key=16694312%2FSFH00000%2FUpdatedPub110bk.pdf&type=view",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Indexed text dated 2022",
+      "verification_status": "unavailable_current_503",
+      "review_frequency": "before_template_release",
+      "claim": "Historical listed wharf-head coordinates are not accepted as a current verified endpoint.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S12",
+      "topic": "Chub Cay access",
+      "authority": "Chub Cay",
+      "url": "https://chubcay.com/visit",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Terms referenced 2026-09-12",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "Confirm permission and access; do not assume an overnight visit.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S13",
+      "topic": "Exumas service research",
+      "authority": "Staniel Cay Yacht Club",
+      "url": "https://stanielcay.com/marina/",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Undated",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "Published services are not evidence of current stock or availability.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S14",
+      "topic": "Exuma park visits",
+      "authority": "Bahamas National Trust",
+      "url": "https://bnt.bs/payexumapark/",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Current effective date not shown",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "No guaranteed mooring from payment; use BNT over conflicting operator reservation advice.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S14a",
+      "topic": "Park restrictions",
+      "authority": "Bahamas National Trust",
+      "url": "https://bnt.bs/bylaws/",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Current effective date not shown",
+      "verification_status": "retrieved",
+      "review_frequency": "monthly",
+      "claim": "Consult current protected-area restrictions.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2026-12-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S15",
+      "topic": "Northern Exumas example",
+      "authority": "The Moorings",
+      "url": "https://www.moorings.com/uk/destinations/americas/bahamas/exumas-yacht-charters/itinerary/5-day-exumas-power-itinerary",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Undated",
+      "verification_status": "retrieved_operator_estimates",
+      "review_frequency": "quarterly",
+      "claim": "Operator itinerary estimates; no route geometry or navigation validation.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-02-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S16",
+      "topic": "Natural Earth10m country geography",
+      "authority": "Natural Earth",
+      "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Repository master dataset retrieved November9,2026; source version is tracked by SHA256 in asset register.",
+      "verification_status": "downloaded",
+      "review_frequency": "annual",
+      "claim": "Public-domain context shapes for USA, The Bahamas and Cuba, clipped to regional bounds; minor-island features retained separately. Includes major Bahamas islands absent at110m. No navigational geometry.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ],
+      "http_etag": "e2d9d73e03bb65f28bbc4b83cc136b667337ec9e6316d7e58d6334916b70dacb",
+      "source_sha256": "239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255",
+      "source_http_etag": "W/\"aa4f64d7493ba1c971b0c6c9a7a3efab33de77e479613982bd89a806b6297c1a\""
+    },
+    {
+      "id": "S16a",
+      "topic": "Minor islands",
+      "authority": "Natural Earth",
+      "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_minor_islands.geojson",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Master download 2026-11-07",
+      "verification_status": "downloaded",
+      "review_frequency": "annual",
+      "claim": "Public-domain minor-island geometry, not hydrographic data.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S16b",
+      "topic": "Geographic names",
+      "authority": "GeoNames",
+      "url": "https://www.geonames.org/export/",
+      "accessed_at": "2026-11-07",
+      "effective_date": "2026-11-07 extract",
+      "verification_status": "retrieved",
+      "review_frequency": "annual",
+      "claim": "CC BY geographic locators only, never arrival waypoints.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S17",
+      "topic": "Bimini regional locator",
+      "authority": "GeoNames",
+      "url": "https://www.geonames.org/3572807/bimini-district.html",
+      "accessed_at": "2026-11-07",
+      "effective_date": "Undated record",
+      "verification_status": "retrieved",
+      "review_frequency": "annual",
+      "claim": "25.70444,-79.28889; administrative locator for overview only.",
+      "reviewer": "FPW editorial review pending",
+      "next_review_date": "2027-11-07",
+      "associated_pages": [
+        "/boating-guides/bahamas/"
+      ]
+    },
+    {
+      "id": "S18",
+      "topic": "Brown’s Marina destination coordinates",
+      "authority": "Brown’s Marina",
+      "url": "https://www.brownsmarinabimini.com/browns-marina-in-bimini-location/",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Coordinate revision and datum unspecified by source",
+      "verification_status": "retrieved_destination_reference",
+      "review_frequency": "before template release and before arrival",
+      "claim": "First-party marina location 25°43’19.9″N – 79°17’53.8″W. Accepted as candidate marina destination reference only; no current route, offshore approach, berth, depth or mileage validation. Page describes shifting sandbar conditions and advises direct contact.",
+      "reviewer": "FPW source retrieval; member approach review required",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "id": "S10b",
+      "topic": "Current Port Everglades PE buoy reference",
+      "authority": "NOAA U.S. Coast Pilot 4, chapter 10",
+      "url": "https://nauticalcharts.noaa.gov/publications/coast-pilot/files/cp4/CPB4_C10_WEB.pdf",
+      "accessed_at": "2026-11-09",
+      "effective_date": "Publication revision November 1, 2026; paragraph 346, page 338",
+      "verification_status": "retrieved_current_reference",
+      "review_frequency": "before template release; current notices before use",
+      "claim": "PE buoy published at rounded 26°05′30″N., 80°04′46″W. No additional precision inferred. Paragraph 326 advises small craft not to anchor near PE/entrance and to anticipate large-vessel traffic. This is not a berth or approach validation.",
+      "reviewer": "FPW source retrieval; member route review required",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ]
+    },
+    {
+      "accessed_at": "2026-11-09",
+      "review_frequency": "monthly and before travel",
+      "reviewer": "FPW source retrieval; operational confirmation remains the member’s task",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ],
+      "id": "S3b",
+      "topic": "Current Customs offices and ports contacts",
+      "authority": "Bahamas Customs",
+      "url": "https://www.bahamascustoms.gov.bs/customs-offices-ports/",
+      "effective_date": "Official directory linked September 14, 2026",
+      "verification_status": "retrieved",
+      "claim": "Bimini office contacts are listed for confirming the entry location, arrival arrangements and conflicting legacy permit/outbound text. Listing does not confirm office availability for a planned arrival."
+    },
+    {
+      "accessed_at": "2026-11-09",
+      "review_frequency": "monthly and before travel",
+      "reviewer": "FPW source retrieval; operational confirmation remains the member’s task",
+      "next_review_date": "2026-12-09",
+      "associated_pages": [
+        "/boating-guides/bahamas/",
+        "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+      ],
+      "associated_templates": [
+        "fort-lauderdale-bimini:v1"
+      ],
+      "id": "S5b",
+      "topic": "CBP information and predeparture questions",
+      "authority": "U.S. Customs and Border Protection",
+      "url": "https://www.help.cbp.gov/s/article/Article-1476?language=en_US",
+      "effective_date": "Published March 29, 2026",
+      "verification_status": "primary_index_text_retrieved",
+      "claim": "CBP publishes general inquiry channels. Use them before travel to obtain the intended port’s reporting instructions if its web guidance is inaccessible. A general inquiry is not an arrival report or clearance."
+    }
+  ]
+}
+

@@ -1,0 +1,124 @@
+{
+  "task": "Repair guide saved-route loading, verify planner controls, and show planning drafts in the dashboard Routes panel",
+  "date": "2026-11-09",
+  "scope": "Local development only; Bahamas release candidate remains draft",
+  "snapshot": ".codex-snapshots/bahamas-guide-20261107/controls-20261109/before/",
+  "best_fix": "Reload the whole owned My Route and guide context; expose unsaved owned guide drafts as a separate dashboard Planning drafts section.",
+  "safest_fix": "Fixing Load alone would be narrower but would leave planning drafts absent from the dashboard; the complete requested fix was implemented.",
+  "root_causes": [
+    "Same-route Load only called the guide preview calculation, so unsaved values were not replaced by the stored route.",
+    "The dashboard queried generated loop_routes only; guide planning drafts remain user_routes until Save trip.",
+    "Guide refresh alone reloaded mileage without updating the left-hand stop list when the stored route changed elsewhere.",
+    "Create another copy remained enabled even though the current draft template could not be imported."
+  ],
+  "files_changed": [
+    {
+      "path": "api/v1/routeBuilder.cfc",
+      "block": "listUserRoutes",
+      "change": "Return a separate PLANNING_DRAFTS array of active, owned, nondeleted guide copies without a generated route. Existing saved-route payload remains intact."
+    },
+    {
+      "path": "api/v1/GuideTripService.cfc",
+      "block": "getDraft",
+      "change": "Expose can_create_another_copy from current template availability; preserve immutable source snapshot and existing copies."
+    },
+    {
+      "path": "assets/js/app/dashboard.js",
+      "block": "modules.expeditionTimeline",
+      "change": "Render planning draft summaries with incomplete labels and missing inputs; Open planning draft and Print planning summary actions."
+    },
+    {
+      "path": "assets/js/app/dashboard/routebuilder.js",
+      "block": "setGuideContext / loadMyRoute / loadSelectedMyRouteIntoPreview / deleteSelectedMyRoute / guide return-focus helpers",
+      "change": "Use the full owned route loader for all guide reload controls, propagate reload errors, update dashboard after deletion, and restore focus to the current draft/saved-route opener."
+    },
+    {
+      "path": "assets/js/app/dashboard/guide-planner.js",
+      "block": "setBusy / render / refresh / syncFooter",
+      "change": "Show reload completion/errors, keep reload controls disabled during requests, and disable another-copy action with an explanation while source is unavailable."
+    },
+    {
+      "path": "app/dashboard.cfm",
+      "block": "Routes panel and dashboard script includes",
+      "change": "Add Planning drafts container and refresh the three affected JS asset cache keys."
+    },
+    {
+      "path": "tests/guide-saved-editor.spec.js",
+      "change": "Focused regressions for reload, stop synchronization, keyboard focus, unavailable copy state, dashboard draft visibility, ownership, saved transition and deletion."
+    },
+    {
+      "path": "tests/guide-planner.spec.js",
+      "change": "Focused regressions for reload, stop synchronization, keyboard focus, unavailable copy state, dashboard draft visibility, ownership, saved transition and deletion."
+    },
+    {
+      "path": "tests/dashboard-route-actions.spec.js",
+      "change": "Focused regressions for reload, stop synchronization, keyboard focus, unavailable copy state, dashboard draft visibility, ownership, saved transition and deletion."
+    },
+    {
+      "path": "tests/specs/GuideTripIntegrationSpec.cfc",
+      "change": "Focused regressions for reload, stop synchronization, keyboard focus, unavailable copy state, dashboard draft visibility, ownership, saved transition and deletion."
+    }
+  ],
+  "verification": {
+    "backend": {
+      "passed": 98,
+      "total": 98,
+      "disposable_fixture_cleaned": true,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/controls-20261109/backend-results.json"
+    },
+    "browser_regressions": {
+      "passed": 42,
+      "total": 42,
+      "specs": [
+        "tests/guide-saved-editor.spec.js",
+        "tests/guide-planner.spec.js",
+        "tests/dashboard-route-actions.spec.js"
+      ],
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/controls-20261109/frontend-tests",
+      "runner": "MCPCF runner unavailable because Node/npx are absent; previously approved local Node fallback completed outside macOS Chromium sandbox."
+    },
+    "live_browser": [
+      "Fresh normally registered disposable account imported 50.3 NM each leg / 100.6 NM total and displayed Planning draft on the dashboard.",
+      "Load replaces unsaved mileage with stored mileage and reports completion visibly.",
+      "All three reload controls refresh both guide panel and left stop list; separate-request stop change reproduced the stale-list bug and post-fix both lists matched.",
+      "20 kn and 18 US gal/h recalculated the edited 105.3 NM example to 5 h 16 min, 94.8 US gal underway fuel, 113.7 US gal including 20 percent reserve.",
+      "Edited 55 NM return with blank method saved as incomplete draft, appeared on dashboard and reopened with blank attribution and review requirement.",
+      "Missing method prevented leg confirmation; entering a method and reviewing both legs enabled the complete save flow.",
+      "Save trip removed its planning-only card and displayed a normal Saved route. Edit Route reopened 50.3/55 mileage, member method and review status.",
+      "Set Start, Add Leg, Remove, reorder rejection, Create ordinary My Route, Delete, header/footer Close, inline/footer Reload and dropdown selection exercised.",
+      "Map Edit Route, empty-save guard, Search (Nominatim returned HTTP 200), Clear Pin, Clear Draw, polyline Finish, Save Overrides, Revert to Default and Close exercised on disposable copy. Revert restored schematic labeling and unset removed plotted mileage.",
+      "Guide and dashboard planning-summary links opened the owned print page; 100.6 estimate, owner provenance, incomplete state and private/no-store headers retained.",
+      "Draft focus restored after dashboard rerender; 390 and 1440 pixel dashboard views inspected, no page horizontal overflow; three planner viewport regressions passed.",
+      "Deleted draft disappeared from dashboard and My Routes without affecting the separately saved QA trip."
+    ],
+    "snapshots": [
+      ".codex-snapshots/bahamas-guide-20261107/controls-20261109/dashboard-1440.png",
+      ".codex-snapshots/bahamas-guide-20261107/controls-20261109/dashboard-390.png"
+    ],
+    "static": "git diff --check passed; changed JavaScript exercised by the 42-test suite.",
+    "browser_console": "No errors after final dashboard navigation."
+  },
+  "preserved": [
+    "Template remains draft; public import publication gate unchanged.",
+    "50.3 NM source data, owner-supplied attribution and immutable snapshots unchanged.",
+    "Member mileage/source review and float-plan readiness guards unchanged.",
+    "Existing member trips and edits untouched; live mutations limited to disposable QA account.",
+    "No schema, production configuration, deployment, activation, sending or monitoring change.",
+    "Existing generated-route action behavior retained and covered by dashboard regression suite."
+  ],
+  "limitations": [
+    "Local verification only; no production checks or deployment.",
+    "Create another copy is intentionally disabled for draft/retired sources. The approved local test launcher remains the route for creating a draft-template test copy.",
+    "Existing USCG PDF date-field clipping remains unchanged; PDF rendering was not repeated in this button/dashboard task.",
+    "Existing saved-route table shows tight duration/status text at desktop width; it predates this task and its layout was not changed."
+  ],
+  "test_url": "http://localhost:8500/fpw/tests/bahamas-itinerary-test.cfm",
+  "dashboard_url": "http://localhost:8500/fpw/app/dashboard.cfm",
+  "instructions": [
+    "Refresh the local dashboard.",
+    "Under Routes, find Planning drafts and click Open planning draft.",
+    "Use Load saved route or Reload saved draft to restore saved values.",
+    "Save planning draft retains incomplete inputs. Save trip moves a complete copy into the normal saved-route list."
+  ],
+  "source_control": "Uncommitted local changes; no commit or push."
+}

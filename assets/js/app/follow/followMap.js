@@ -6,6 +6,7 @@
     routeLayer: null,
     pinLayer: null,
     boatMarker: null,
+    guideLegend: null,
     defaultView: [39.5, -95.5],
     defaultZoom: 4
   };
@@ -178,9 +179,39 @@
     if (!state.map || !state.routeLayer) return coords;
 
     state.routeLayer.clearLayers();
+    var guideEstimates = !!(routeGeo && routeGeo.guide_estimates);
+    var guideSources = guideEstimates && Array.isArray(routeGeo.guide_geometry_sources) ? routeGeo.guide_geometry_sources : [];
+    if (state.guideLegend) {
+      state.guideLegend.remove();
+      state.guideLegend = null;
+    }
+    if (guideEstimates && typeof window.L.control === "function") {
+      state.guideLegend = window.L.control({ position: "bottomleft" });
+      state.guideLegend.onAdd = function () {
+        var note = document.createElement("div");
+        note.setAttribute("role", "note");
+        note.style.cssText = "background:#fff;color:#163044;padding:8px;max-width:230px;font:12px/1.4 sans-serif;border:1px solid #9aadb9;";
+        note.textContent = "Planning estimates. Dashed: schematic connection. Solid: member-created plot. Member review is not independent route verification.";
+        return note;
+      };
+      state.guideLegend.addTo(state.map);
+    }
 
     for (i = 0; i < segments.length; i += 1) {
-      window.L.polyline(segments[i], routeLineStyle).addTo(state.routeLayer);
+      var guideStyle = guideEstimates ? Object.assign({}, routeLineStyle, {
+        dashArray: guideSources[i] === "member_plotted" ? null : "8 7"
+      }) : routeLineStyle;
+      var displayPoints = segments[i];
+      if (guideEstimates && guideSources[i] !== "member_plotted" && displayPoints.length > 1) {
+        // Reciprocal schematic legs share a dash phase instead of filling one another's gaps.
+        displayPoints = displayPoints.slice();
+        var firstPoint = displayPoints[0], lastPoint = displayPoints[displayPoints.length - 1];
+        if (firstPoint[0] > lastPoint[0] || (firstPoint[0] === lastPoint[0] && firstPoint[1] > lastPoint[1])) displayPoints.reverse();
+      }
+      var line = window.L.polyline(displayPoints, guideStyle).addTo(state.routeLayer);
+      if (guideEstimates && typeof line.bindTooltip === "function") {
+        line.bindTooltip(guideSources[i] === "member_plotted" ? "Member-created plot; not independently verified" : "Schematic connection; not a navigational route");
+      }
       for (j = 0; j < segments[i].length; j += 1) {
         coords.push(segments[i][j]);
       }

@@ -18,10 +18,10 @@
   var active = null;
   var generation = 0;
   var busy = false;
-  var SOURCE_PAGES = { top_nav: true, footer: true, great_loop_trip_planning: true };
-  var SECTIONS = { top_nav: true, footer: true, account: true, great_loop_menu: true, daily_decisions: true, after_planning_guide: true };
+  var SOURCE_PAGES = { top_nav: true, footer: true, great_loop_trip_planning: true, bahamas_guide: true };
+  var SECTIONS = { top_nav: true, footer: true, account: true, great_loop_menu: true, daily_decisions: true, after_planning_guide: true, worked_itinerary: true };
   var CTA_TYPES = { account: true, dashboard: true, plan_trip: true };
-  var LABELS = { Account: true, Dashboard: true, "My Account": true, "Start Free": true, "Start Planning": true, "open FPW\'s Trip Planner workspace": true };
+  var LABELS = { Account: true, Dashboard: true, "My Account": true, "Start Free": true, "Start Planning": true, "open FPW\'s Trip Planner workspace": true, "Use this itinerary": true };
 
   function normalizedSource(value) {
     value = value || {};
@@ -189,6 +189,17 @@
   dialog.addEventListener("cancel", function (event) { event.preventDefault(); dismiss(); });
   dialog.addEventListener("close", function () { if (active) dismiss(); });
 
+  function showGuideSelectionError(target, message) {
+    var status = document.getElementById("fpwGuideSelectionError");
+    if (!status) {
+      status = document.createElement("p");
+      status.id = "fpwGuideSelectionError";
+      status.setAttribute("role", "alert");
+      target.insertAdjacentElement("afterend", status);
+    }
+    status.textContent = message;
+  }
+
   document.addEventListener("click", function (event) {
     var target = event.target && event.target.closest ? event.target.closest("[data-fpw-auth-intent]") : null;
     if (!target || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -196,9 +207,25 @@
     if (["planner", "account", "dashboard"].indexOf(intent) === -1) return;
     if (!window.AppAuth || typeof window.AppAuth.requireAuth !== "function" || typeof dialog.showModal !== "function") return;
     event.preventDefault();
+    var context = {};
+    var templateKey = target.getAttribute("data-fpw-guide-template") || "";
+    if (templateKey) {
+      var version = target.getAttribute("data-fpw-guide-version") || "";
+      if (intent !== "planner" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(templateKey) || !/^[1-9][0-9]{0,5}$/.test(version)) return;
+      var requestId = target.getAttribute("data-fpw-guide-import-id");
+      if (!requestId) {
+        if (!window.crypto || typeof window.crypto.randomUUID !== "function") {
+          showGuideSelectionError(target, "Your browser cannot prepare this itinerary. Use a current browser and try again.");
+          return;
+        }
+        requestId = window.crypto.randomUUID();
+        target.setAttribute("data-fpw-guide-import-id", requestId);
+      }
+      context = {template_key:templateKey,template_version:Number(version),import_request_id:requestId};
+    }
     window.AppAuth.requireAuth({
       destinationKey: intent,
-      context: {},
+      context: context,
       source: normalizedSource({
         source_page: target.getAttribute("data-fpw-auth-source-page"),
         section: target.getAttribute("data-fpw-auth-section"),
@@ -206,8 +233,12 @@
         label: target.getAttribute("data-fpw-auth-label")
       }),
       trigger: target
-    }).catch(function () {
-      window.location.assign(target.href);
+    }).catch(function (error) {
+      if (templateKey) {
+        showGuideSelectionError(target, error && error.MESSAGE ? error.MESSAGE : "Unable to retain this itinerary selection. Please try again.");
+      } else {
+        window.location.assign(target.href);
+      }
     });
   });
 

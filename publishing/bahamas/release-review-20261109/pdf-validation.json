@@ -1,0 +1,94 @@
+{
+  "checked_at": "2026-11-09",
+  "runner_checks": {
+    "CHECKS": {
+      "NEARESTMINUTE": true,
+      "NOCOMPLETESUFFICIENCY": true,
+      "PUBLICSOURCELINK": true,
+      "PARTIALSUBTOTAL": true,
+      "MISSINGINPUTS": true,
+      "NONGUIDEHASNOSUPPLEMENT": true,
+      "ACTUALNONGUIDEPDF": true,
+      "THIRDSRESERVEDESCRIPTION": true,
+      "ESTIMATELABEL": true,
+      "SOURCEMETHOD": true,
+      "CONFIRMATIONNOTVERIFICATION": true,
+      "COPIEDSOURCERECORD": true,
+      "GEOGRAPHYESCAPED": true,
+      "ACTUALFLOATPLANPDF": true,
+      "SCHEMATICLABEL": true,
+      "SOURCEDATE": true,
+      "THIRDSRESERVEVALUES": true,
+      "COORDINATEGLYPHSINHTML": true,
+      "MISSINGNOTZERO": true,
+      "FUELONEDECIMAL": true,
+      "NOTESESCAPED": true
+    },
+    "SUCCESS": true
+  },
+  "pdfs": [
+    {
+      "name": "guide-official-form-with-supplement.pdf",
+      "pages": 5,
+      "fields": 346,
+      "widgets": 350,
+      "widgets_with_normal_appearance": 350,
+      "has_guide_supplement": true,
+      "has_incomplete_label": false,
+      "canonical_departure_date": null,
+      "literal_script_is_text": false,
+      "contains_pe_original_coordinate": true,
+      "contains_browns_original_coordinate": true,
+      "fonts": "name                                 type              encoding         emb sub uni object ID\n------------------------------------ ----------------- ---------------- --- --- --- ---------\nDVKZWT+Calibri                       CID TrueType      Identity-H       yes yes yes     18  0\nSKVDVH+Calibri                       TrueType          WinAnsi          yes yes yes     24  0\nGNAJJI+Verdana-Bold                  TrueType          MacRoman         yes yes no      28  0\nEOWHZX+Verdana                       TrueType          MacRoman         yes yes no      31  0\nHVBDYH+Arial-BoldMT                  TrueType          MacRoman         yes yes no      34  0\nPJFGFF+ArialMT                       TrueType          MacRoman         yes yes no      37  0\nHelvetica                            Type 1            WinAnsi          no  no  no      64  0\nHelvetica                            Type 1            WinAnsi          no  no  no     112  0\nHelvetica                            Type 1            WinAnsi          no  no  no     131  0\nHelvetica                            Type 1            WinAnsi          no  no  no     180  0\nHelvetica                            Type 1            WinAnsi          no  no  no     199  0\nHelvetica                            Type 1            WinAnsi          no  no  no     253  0\nHelvetica                            Type 1            WinAnsi          no  no  no     350  0\nHelvetica                            Type 1            WinAnsi          no  no  no     931  0\nHelvetica                            Type 1            WinAnsi          no  no  no     984  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1111  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1173  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1235  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1297  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1359  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1421  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1483  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1545  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1607  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1669  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1731  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1793  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1956  0\nHelvetica                            Type 1            WinAnsi          no  no  no    1965  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2060  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2104  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2188  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3656  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3665  0\nIGCVXY+DejaVuSans-Bold               CID TrueType      Identity-H       yes yes yes   3693  0\nOPVSNB+DejaVuSans                    CID TrueType      Identity-H       yes yes yes   3700  0\nDVKZWT+Calibri                       CID TrueType      Identity-H       yes yes yes   3736  0\nSKVDVH+Calibri                       TrueType          WinAnsi          yes yes yes   3742  0\nHVBDYH+Arial-BoldMT                  TrueType          MacRoman         yes yes no    3746  0\nPJFGFF+ArialMT                       TrueType          MacRoman         yes yes no    3749  0\nEHVDNU+Arial-BoldItalicMT            TrueType          MacRoman         yes yes no    3752  0\nAVMUAY+TimesNewRomanPSMT             TrueType          MacRoman         yes yes no    3755  0\nEOWHZX+Verdana                       TrueType          MacRoman         yes yes no    3758  0\nHelvetica-Bold                       Type 1            WinAnsi          no  no  no    4004  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4007  0\nHelvetica-Oblique                    Type 1            WinAnsi          no  no  no    4010  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4019  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4028  0\n"
+    },
+    {
+      "name": "standard-nonguide-float-plan.pdf",
+      "pages": 3,
+      "fields": 346,
+      "widgets": 350,
+      "widgets_with_normal_appearance": 350,
+      "has_guide_supplement": false,
+      "has_incomplete_label": false,
+      "canonical_departure_date": "12/01/2026",
+      "literal_script_is_text": false,
+      "contains_pe_original_coordinate": false,
+      "contains_browns_original_coordinate": false,
+      "fonts": "name                                 type              encoding         emb sub uni object ID\n------------------------------------ ----------------- ---------------- --- --- --- ---------\nDVKZWT+Calibri                       CID TrueType      Identity-H       yes yes yes   1718  0\nSKVDVH+Calibri                       TrueType          WinAnsi          yes yes yes   1720  0\nGNAJJI+Verdana-Bold                  TrueType          MacRoman         yes yes no    1722  0\nEOWHZX+Verdana                       TrueType          MacRoman         yes yes no    1724  0\nHVBDYH+Arial-BoldMT                  TrueType          MacRoman         yes yes no    1726  0\nPJFGFF+ArialMT                       TrueType          MacRoman         yes yes no    1728  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2364  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2393  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2407  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2474  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2488  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2507  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2426  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2445  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2953  0\nHelvetica                            Type 1            WinAnsi          no  no  no    2987  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3020  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3106  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3149  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3192  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3235  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3278  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3321  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3364  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3407  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3450  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3493  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3536  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3579  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4520  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4547  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3667  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3691  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3705  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3714  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3722  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3745  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3754  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3778  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3787  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3796  0\nHelvetica                            Type 1            WinAnsi          no  no  no    3804  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4529  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4556  0\nEHVDNU+Arial-BoldItalicMT            TrueType          MacRoman         yes yes no    1262  0\nAVMUAY+TimesNewRomanPSMT             TrueType          MacRoman         yes yes no    1255  0\nHelvetica-Bold                       Type 1            WinAnsi          no  no  no    4755  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4758  0\nHelvetica-Oblique                    Type 1            WinAnsi          no  no  no    4761  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4538  0\nHelvetica                            Type 1            WinAnsi          no  no  no    4565  0\n"
+    },
+    {
+      "name": "guide-incomplete-estimates.pdf",
+      "pages": 2,
+      "fields": 0,
+      "widgets": 0,
+      "widgets_with_normal_appearance": 0,
+      "has_guide_supplement": true,
+      "has_incomplete_label": true,
+      "canonical_departure_date": null,
+      "literal_script_is_text": true,
+      "contains_pe_original_coordinate": true,
+      "contains_browns_original_coordinate": false,
+      "fonts": "name                                 type              encoding         emb sub uni object ID\n------------------------------------ ----------------- ---------------- --- --- --- ---------\nLKYEMW+DejaVuSans-Bold               CID TrueType      Identity-H       yes yes yes      2  0\nXYKLJI+DejaVuSans                    CID TrueType      Identity-H       yes yes yes      3  0\n"
+    }
+  ],
+  "visual_review": {
+    "pages_rendered": 10,
+    "pages_inspected": "All10 regenerated pages visually inspected after final reserve wording change: guide5, standard3 and incomplete2.",
+    "findings": [
+      "Guide supplement is present; DejaVu Sans regular/bold embed Unicode coordinate punctuation correctly.",
+      "Estimate, source/method, member-review and schematic labels are readable; copied source records and source dates remain.",
+      "Incomplete example retains missing return mileage and incomplete subtotal; escaped script text is literal.",
+      "Existing standard date-year clipping remains. Owner directed official PDF template unchanged.",
+      "Adobe Developer/Trial watermark remains; production licensing is unverified."
+    ],
+    "actual_thirds_pdf_rendered": false,
+    "thirds_boundary": "Actual complete guide float-plan PDF used percentage reserve. Actual incomplete planning-summary browser PDF used thirds; wording and arithmetic assertions pass, and thirds complete save/reopen passed separately."
+  },
+  "browser_planning_summary": {
+    "path": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/evidence/incomplete-planning-summary.pdf",
+    "pages": 1,
+    "normal_link_http_status": 200,
+    "cache": "private, no-store, no-cache, must-revalidate",
+    "visual_review": "Actual browser planning-summary PDF rendered with Poppler and inspected; missing return leg, source/method, member-review meaning, trip notes and40nm/2h/36USgal incomplete subtotal remain. No complete fuel sufficiency result. Thirds reserve wording is visible."
+  }
+}
+

@@ -61,6 +61,17 @@
                 preparationStage = "output-path-build";
                 planName = getString(plan, "floatPlanName", "floatplan");
                 safePlanName = reReplace(planName, "[^A-Za-z0-9_-]+", "_", "all");
+                // Guide PDFs are delivered only by the existing authorized download handlers.
+                // The reserved prefix also protects transient supplement and assembly files.
+                var guidePdfService = "";
+                try {
+                    guidePdfService = createObject("component", "fpw.api.v1.GuideTripService").init(ds);
+                } catch (any guidePdfPathError) {
+                    guidePdfService = createObject("component", "api.v1.GuideTripService").init(ds);
+                }
+                var guideFileContext = guidePdfService.getSnapshotForInstance(getNumeric(plan, "route_instance_id", 0));
+                if (!structIsEmpty(guideFileContext))
+                    safePlanName = "fpw-guide-estimate-" & left(safePlanName, 150);
                 stamp = dateFormat(now(), "yyyymmdd") & "_" & timeFormat(now(), "HHmmss");
                 requestToken = left(lCase(replace(createUUID(), "-", "", "all")), 12);
                 fileName = safePlanName & "_" & stamp & "_" & requestToken & ".pdf";
@@ -425,7 +436,18 @@
                 </cfpdfform>
                 <cfset arrayAppend(continuationPaths, continuationPath)>
             </cfloop>
+        </cfif>
 
+        <!--- Guide provenance is appended even when the official itinerary needs no overflow page. --->
+        <cfif structKeyExists(routeItinerary, "guideSupplementHtml") AND len(routeItinerary.guideSupplementHtml)>
+            <cfset continuationPath = outputDir & "/." & safePlanName & "_" & replace(createUUID(), "-", "", "all") & "_guide_estimates.pdf">
+            <cfset arrayAppend(continuationPaths, continuationPath)>
+            <cfdocument format="PDF" filename="#continuationPath#" overwrite="true" pagetype="letter" marginleft="0.55" marginright="0.55" margintop="0.55" marginbottom="0.55" localurl="true">
+                <cfoutput>#routeItinerary.guideSupplementHtml#</cfoutput>
+            </cfdocument>
+        </cfif>
+
+        <cfif arrayLen(continuationPaths)>
             <cfset assembledPath = outputDir & "/." & safePlanName & "_" & replace(createUUID(), "-", "", "all") & "_assembled.pdf">
             <cfpdf action="merge" destination="#assembledPath#" overwrite="true">
                 <cfpdfparam source="#destinationPath#" pages="1-2">

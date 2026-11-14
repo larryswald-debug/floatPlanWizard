@@ -1,0 +1,209 @@
+{
+  "checked_at_utc": "2026-11-09T13:23:06.901098+00:00",
+  "local_only": true,
+  "http_checks": [
+    {
+      "name": "anonymous_guide-trip-runner.cfm",
+      "status": 401,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-runner.cfm?confirm=RUN_LOCAL_GUIDE_CALCULATION_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "TEST_AUTH_REQUIRED"
+      }
+    },
+    {
+      "name": "anonymous_guide-trip-integration-runner.cfm",
+      "status": 401,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-integration-runner.cfm?confirm=RUN_DISPOSABLE_GUIDE_TESTS",
+      "cache_control": "no-store, private",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "TEST_AUTH_REQUIRED"
+      }
+    },
+    {
+      "name": "anonymous_guide-trip-ui-fixture.cfm",
+      "status": 401,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-ui-fixture.cfm?confirm=LOCAL_GUIDE_UI_FIXTURE",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "TEST_AUTH_REQUIRED"
+      }
+    },
+    {
+      "name": "anonymous_guide-export-runner.cfm",
+      "status": 401,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-export-runner.cfm?confirm=RUN_LOCAL_GUIDE_EXPORT_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "TEST_AUTH_REQUIRED"
+      }
+    },
+    {
+      "name": "anonymous_guide-saved-view-runner.cfm",
+      "status": 401,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-saved-view-runner.cfm?confirm=RUN_LOCAL_GUIDE_SAVED_VIEW_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "TEST_AUTH_REQUIRED"
+      }
+    },
+    {
+      "name": "authenticated_get",
+      "status": 405,
+      "method": "GET",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-runner.cfm?confirm=RUN_LOCAL_GUIDE_CALCULATION_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "METHOD_NOT_ALLOWED"
+      }
+    },
+    {
+      "name": "missing_csrf",
+      "status": 403,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-runner.cfm?confirm=RUN_LOCAL_GUIDE_CALCULATION_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "CSRF_INVALID"
+      }
+    },
+    {
+      "name": "unsafe_origin",
+      "status": 403,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-runner.cfm?confirm=RUN_LOCAL_GUIDE_CALCULATION_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "SUCCESS": false,
+        "ERROR": "ORIGIN_INVALID"
+      }
+    },
+    {
+      "name": "authenticated_calculations_and_access",
+      "status": 200,
+      "method": "POST",
+      "url": "http://localhost:8500/fpw/tests/guide-trip-runner.cfm?confirm=RUN_LOCAL_GUIDE_CALCULATION_TESTS",
+      "cache_control": "no-store",
+      "body": {
+        "TOTAL": 21,
+        "TESTS": [
+          {
+            "PASSED": true,
+            "NAME": "Authenticated local development access is eligible"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Nondevelopment environment denied: production"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Nondevelopment environment denied: prod"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Nondevelopment environment denied: "
+          },
+          {
+            "PASSED": true,
+            "NAME": "Anonymous tests denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Production Host denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Nonlocal port denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Missing confirmation denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Exact IPv6 local development host supported"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Authenticated GET denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Missing CSRF denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Unsafe origin denied"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Same-origin authenticated POST with CSRF accepted"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Explicit movement arithmetic"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Percentage reserve applied once"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Usable fuel compared to requirement"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Thirds differs from 33 percent"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Missing distance is incomplete, not zero/full sufficiency"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Performance confirmation required"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Missing numeric wire value is null"
+          },
+          {
+            "PASSED": true,
+            "NAME": "Draft template cannot import"
+          }
+        ],
+        "SUCCESS": true,
+        "PASSED": 21
+      }
+    },
+    {
+      "name": "original_auto_backup_removed",
+      "status": 404,
+      "method": "HEAD",
+      "url": "http://localhost:8500/fpw/.codex-snapshots/fpw-patches/20261109-131809-84971502/tests/guide-export-runner.cfm.bak",
+      "cache_control": null,
+      "body": null
+    },
+    {
+      "name": "protected_backup",
+      "status": 403,
+      "method": "HEAD",
+      "url": "http://localhost:8500/fpw/.codex-snapshots/bahamas-guide-20261107/readiness-20261109/backend/automatic-patches/20261109-131809-84971502/tests/guide-export-runner.cfm.bak",
+      "cache_control": null,
+      "body": null
+    }
+  ]
+}
+

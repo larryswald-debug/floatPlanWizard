@@ -1,0 +1,86 @@
+{
+  "checked_at": "2026-11-07",
+  "scope": "Local source/runtime evidence only, no production validation",
+  "sources": {
+    "browns_marina": {
+      "retrieved": true,
+      "datum": "unspecified_by_source",
+      "coordinate_revision": "unspecified_by_source"
+    },
+    "noaa_coast_pilot": {
+      "retrieved": true,
+      "revision": "2026-11-01",
+      "section": "Coast Pilot4 chapter10 paragraph346,page338",
+      "coords_original": "26°05′30″N., 80°04′46″W."
+    },
+    "uscg_current": {
+      "retrieved": false,
+      "response_status": 403
+    },
+    "cbp_roam": {
+      "retrieved": false,
+      "response_status": 403
+    },
+    "customs_recent_notice": {
+      "retrieved": true,
+      "pdf_url": "https://www.bahamascustoms.gov.bs/wp-content/uploads/2026/08/Pleasure-Vessel-Clearance-Recent-Updates-Revised.pdf",
+      "limitation": "Legacy page text conflicts; fees/history omitted"
+    }
+  },
+  "local_routes": [
+    {
+      "path": "assets/images/boating-guides/bahamas/regional-overview.svg",
+      "status": 200,
+      "contentType": "image/svg+xml",
+      "location": null
+    },
+    {
+      "path": "assets/images/boating-guides/bahamas/bimini-context.svg",
+      "status": 200,
+      "contentType": "image/svg+xml",
+      "location": null
+    },
+    {
+      "path": "assets/images/boating-guides/bahamas/crossing-decisions.svg",
+      "status": 200,
+      "contentType": "image/svg+xml",
+      "location": null
+    },
+    {
+      "path": "assets/images/boating-guides/bahamas/time-fuel-comparison.svg",
+      "status": 200,
+      "contentType": "image/svg+xml",
+      "location": null
+    },
+    {
+      "path": "assets/css/bahamas-guide.css",
+      "status": 200,
+      "contentType": "text/css",
+      "location": null
+    },
+    {
+      "path": "assets/js/bahamas-guide.js",
+      "status": 200,
+      "contentType": "application/javascript",
+      "location": null
+    },
+    {
+      "path": "boating-guides/bahamas/index.cfm",
+      "status": 301,
+      "location": "/fpw/boating-guides/bahamas/"
+    },
+    {
+      "path": "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+      "status": 301,
+      "location": "/fpw/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+    }
+  ],
+  "public_schema": "Runtime JSON-LD parsed; case-preserving WebPage,Article,BreadcrumbList",
+  "privacy": {
+    "manifest_endpoint_status": 403,
+    "unknown_page_status": 404,
+    "internal_head_status": 404
+  },
+  "visual_verification": "Parent/frontend agents own Playwright evidence; frontend reported source-text overflow fixed at390/768/1440. This record does not claim PDF or production rendering proof."
+}
+

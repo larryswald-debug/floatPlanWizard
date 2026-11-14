@@ -1,0 +1,50 @@
+{
+  "checked_at": "2026-11-09",
+  "branch": "main",
+  "base_commit": "432993d4f9ea7ee1121ed6a897edab30aa426ffc",
+  "publication": {
+    "status": "draft",
+    "publication_ready": false,
+    "distances": [
+      null,
+      null
+    ],
+    "temporary_local_import_test_restored": true,
+    "active_navigation_index_sitemap_changed": false
+  },
+  "routing": {
+    "clean_hub": 200,
+    "clean_itinerary": 200,
+    "hub_index_alias": {
+      "status": 301,
+      "location": "/fpw/boating-guides/bahamas/"
+    },
+    "itinerary_index_alias": {
+      "status": 301,
+      "location": "/fpw/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/"
+    },
+    "missing_page": 404,
+    "private_review_json": 403,
+    "anonymous_export_test": 401,
+    "final_headers": {
+      "Cache-Control": "no-store, max-age=0",
+      "X-Robots-Tag": "noindex, follow"
+    },
+    "import_controls_present": false
+  },
+  "static_checks": {
+    "git_diff_check": "PASS",
+    "publication_patch_git_apply_check": "PASS; not applied",
+    "iis_xml": "PASS",
+    "json_parse": "PASS; final report files included in final sweep"
+  },
+  "unchanged_verified": [
+    "api/api_assets/USCGFloatPlan_new.pdf",
+    "robots.txt",
+    "boating-guides/index.cfm",
+    "sitemap.xml"
+  ],
+  "local_proof_only": true,
+  "production_checked": false
+}
+

@@ -1,0 +1,89 @@
+{
+  "checked_at": "2026-11-09",
+  "scope": "Prepared external Dockerfile change; current running-container and actual PDF evidence",
+  "original_failure": {
+    "component": "Java AWT SunFontManager loaded by ColdFusion cfdocument",
+    "native_library": "/opt/coldfusion/jre/lib/libfontmanager.so",
+    "missing_dependency": "libfreetype.so.6",
+    "observed_log": "/opt/coldfusion/cfusion/logs/coldfusion-error.log",
+    "log_evidence": "ExceptionInInitializerError / UnsatisfiedLinkError: libfreetype.so.6 cannot open shared object file in Loader for _CFDOCUMENT thread",
+    "date_limit": "Historical log mechanism reconfirmed; do not infer a new failure from the retained log."
+  },
+  "rendering_path": [
+    "FloatPlanPdfItineraryService.buildGuideSupplementHtml produces guide-only HTML",
+    "floatPlanUtils.createPDF invokes cfdocument for the guide supplement",
+    "The existing cfpdfform base form and cfpdf merge/protect path produces the final PDF"
+  ],
+  "current_runtime": {
+    "os": "Ubuntu 24.04.4 LTS",
+    "container": "cfdev-cf",
+    "image": "cfdev-coldfusion-mysql",
+    "image_id": "sha256:a8b94c100fe5c771ded7440f38d6b028d35a30ac84d6cd4c8cab781b6201fa2c",
+    "packages": {
+      "libfreetype6": "2.13.2+dfsg-1ubuntu0.2",
+      "fontconfig": "2.15.0-1.1ubuntu2",
+      "fonts-dejavu-core": "2.37-8"
+    },
+    "fontconfig_resolution": {
+      "sans-serif": "DejaVu Sans",
+      "Arial": "DejaVu Sans",
+      "Helvetica": "DejaVu Sans"
+    },
+    "linker_check": "All libfontmanager dependencies resolve with the JVM's server/lib directories in LD_LIBRARY_PATH; raw standalone ldd's libjvm warning is not a new missing package."
+  },
+  "confirmed_fix": {
+    "file": "api/api_assets/FloatPlanPdfItineraryService.cfc",
+    "symbol": "buildGuideSupplementHtml",
+    "change": "Explicit font-family:\"DejaVu Sans\",Arial,sans-serif",
+    "reason": "Previous cfdocument supplement used non-Unicode Helvetica and dropped prime/double-prime coordinate glyphs.",
+    "verification": "Actual generated supplement embeds DejaVuSans / DejaVuSans-Bold as CID TrueType Identity-H with Unicode maps. Extracted and rendered original coordinate notation retains prime symbols."
+  },
+  "durable_configuration": {
+    "external_path": "/Users/lawrencewald/Docker/cf-mysql-dev/DockerFile.cf",
+    "source_sha256": "185f47d5d9ad515a94a003c6f993d043ce44aa1586055e52e065d103debfe839",
+    "compose": "/Users/lawrencewald/Docker/cf-mysql-dev/docker-compose.yml",
+    "service": "coldfusion",
+    "build_context": ".",
+    "dockerfile": "DockerFile.cf",
+    "prepared_patch": "DockerFile.cf.patch",
+    "prepared_full_file": "DockerFile.cf.prepared",
+    "patch_dry_run": "Passed against actual current external file",
+    "applied": false,
+    "recreated": false,
+    "unverified_reason": "External configuration edits require owner instruction. The FROM adobecoldfusion/coldfusion:latest image is absent from the local image store; an exact build would obtain an unverified moving base tag. Existing mounted data is preserved, but the reviewed base engine/image must be resolved before rebuilding."
+  },
+  "mounts": {
+    "application_bind": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot -> /app",
+    "coldfusion_library_volume": "cf-mysql-dev_cfusion_lib -> /opt/coldfusion/cfusion/lib",
+    "coldfusion_log_volume": "cf-mysql-dev_cfusion_logs -> /opt/coldfusion/cfusion/logs",
+    "database": "Separate cfdev-mysql service and mysql_data named volume; not recreated or removed."
+  },
+  "after_approval_steps": [
+    "Reconfirm the DockerFile.cf SHA-256 and inspect the prepared six-line package-install addition. Do not apply if the source changed.",
+    "Resolve and record the intended Adobe base image/version before build; the current latest tag is not present locally. Preserve the existing application and CF library/log volumes and leave MySQL running.",
+    "From /Users/lawrencewald/Docker/cf-mysql-dev, apply the reviewed patch to DockerFile.cf and build only service coldfusion.",
+    "Recreate only ColdFusion: docker compose up -d --no-deps --force-recreate coldfusion. Never run down -v, remove volumes, or prune mounted data.",
+    "Verify dpkg-query, fc-match 'DejaVu Sans', JVM native-library resolution and the actual running CF version.",
+    "Authenticate normally and rerun guarded guide-export-runner with render=1/full=1; visually inspect guide supplement, standard nonguide PDF and incomplete print. Verify prime glyphs, forms, labels and page breaks again."
+  ],
+  "production_requirements": [
+    "Verify actual production operating system, ColdFusion version/update and Java runtime; Linux apt packages do not apply to an unverified Windows/Hostek installation.",
+    "Make DejaVu Sans regular and bold available to ColdFusion's PDF engine and register the family in ColdFusion Administrator when its installation directory is not discovered. Arial/sans-serif remain CSS fallbacks, but the actual Unicode-glyph PDF probe is required before release.",
+    "Verify output is licensed for production. The present Adobe Developer/Trial watermark is a separate runtime licensing characteristic, not a font defect.",
+    "Retest cfpdfform population, optional guide cfdocument supplement, merge and authorized private download in the deployed environment."
+  ],
+  "official_references": [
+    {
+      "title": "Docker compose up: recreation and mounted volumes",
+      "url": "https://docs.docker.com/reference/cli/docker/compose/up"
+    },
+    {
+      "title": "Adobe ColdFusion Administrator font management",
+      "url": "https://guides.adobe.com/coldfusion/en/docs/install-and-configure-coldfusion/using-the-coldfusion-administrator.html"
+    },
+    {
+      "title": "Adobe cfpdfformparam supported field-population attributes",
+      "url": "https://helpx.adobe.com/coldfusion/cfml-reference/coldfusion-tags/tags-p-q/cfpdfformparam.html"
+    }
+  ]
+}

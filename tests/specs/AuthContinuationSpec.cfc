@@ -134,6 +134,36 @@ component extends="testbox.system.BaseSpec" output=false {
           expect(variables.service.resolve(intent.token,123).waitForContinue).toBeFalse();
         }
       });
+      it("retains an exact public guide selection through new-account overview and Continue",function() {
+        var context={template_key="fort-lauderdale-bimini",template_version=1,import_request_id="6e4f4fe3-9b02-4fc3-9aa2-47a17c9ea3a1"};
+        var entry=variables.service.createIntent("planner",context,{source_page="bahamas_guide",section="worked_itinerary",cta_type="plan_trip",label="Use this itinerary"});
+        variables.service.bindMember(123);
+        var created=variables.service.resolve(entry.token,123,true);
+        expect(created.waitForContinue).toBeTrue();
+        expect(created.guideContext.template_key).toBe(context.template_key);
+        expect(created.guideContext.template_version).toBe(1);
+        expect(created.guideContext.import_request_id).toBe(context.import_request_id);
+        expect(created.recovery.action).toBe("planner");
+        expect(structIsEmpty(variables.service.getIntent(entry.token,456))).toBeTrue();
+        expect(variables.service.allowContinuation(entry.token,123)).toBeTrue();
+        var continued=variables.service.resolve(entry.token,123);
+        expect(continued.waitForContinue).toBeFalse();
+        expect(continued.guideContext.import_request_id).toBe(context.import_request_id);
+        expect(structCount(continued.guideContext)).toBe(3);
+      });
+      it("rejects forged guide parameters instead of accepting route or member identity",function() {
+        var context={template_key="fort-lauderdale-bimini",template_version=1,import_request_id="6e4f4fe3-9b02-4fc3-9aa2-47a17c9ea3a1"};
+        for (var extra in ["returnUrl","user_id","route_id","coordinates"]) {
+          var injected=duplicate(context); injected[extra]="123";
+          expect(function() { variables.service.createIntent("planner",injected); }).toThrow();
+        }
+        for (var bad in [{template_key="../secret",template_version=1,import_request_id=context.import_request_id},{template_key=context.template_key,template_version=0,import_request_id=context.import_request_id},{template_key=context.template_key,template_version=1,import_request_id="bad"}]) {
+          expect(function() { variables.service.createIntent("planner",bad); }).toThrow();
+        }
+        var expired=variables.service.createIntent("planner",context);
+        session.fpwAuthIntents[expired.token].expiresAt=dateAdd("s",-1,now());
+        expect(structIsEmpty(variables.service.resolve(expired.token,123))).toBeTrue();
+      });
       it("ignores a valid-shaped token missing from this session",function() {
         expect(structIsEmpty(variables.service.getIntent(repeatString("a",64),123))).toBeTrue();
         expect(structIsEmpty(variables.service.resolve(repeatString("a",64),123))).toBeTrue();

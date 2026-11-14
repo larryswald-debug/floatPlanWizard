@@ -1,0 +1,245 @@
+{
+  "checked_at": "2026-11-07",
+  "scope": "Release 1 local implementation and verification only",
+  "base_commit": "432993d4f9ea7ee1121ed6a897edab30aa426ffc",
+  "publication": {
+    "status": "draft",
+    "publication_ready": false,
+    "public_import_enabled": false,
+    "navigation_and_sitemap_entries_added": false,
+    "production_deployed": false,
+    "committed_or_pushed": false
+  },
+  "outcome": [
+    "Versioned public hub and Fort Lauderdale-Bimini worked example with self-hosted source-attributed SVGs.",
+    "Authenticated personal-copy import with exact auth continuation, ownership checks, mutation guard, durable retry identities and explicit another-copy action.",
+    "Nullable editable mileage and source/method, separate geometry provenance and member review, explicit knots and US gal/h inputs, incomplete subtotals and draft persistence.",
+    "Complete saves retain immutable source snapshot, notes, units, review and geometry context in the existing generated-trip representation.",
+    "Shared current-review readiness guard at route Float Plan creation, direct save and activation preparation; guide map and export labels retained in saved views.",
+    "Printable incomplete planning summary and guide-only supplement in the actual existing Float Plan PDF merge path.",
+    "Guide-only modal focus restoration returns keyboard users to the opener or replacement saved-card Edit action without moving focus during asynchronous loading."
+  ],
+  "destination_decision": {
+    "bimini": "Brown's Marina first-party coordinate accepted as candidate marina destination reference; datum and coordinate revision unspecified. It replaces the earlier named Big Game Club candidate, with no approach, berth, service or mileage verification.",
+    "florida": "NOAA Coast Pilot 4 chapter 10 paragraph 346, revised 2026-11-01, supplies the rounded PE buoy reference; it is not a Florida berth.",
+    "imported_mileage": [
+      null,
+      null
+    ],
+    "illustrative_worksheet_imported": false,
+    "immutable_source_records": 15
+  },
+  "implementation_files": {
+    "modified": [
+      "api/api_assets/FloatPlanPdfItineraryService.cfc",
+      "api/api_assets/floatPlanUtils.cfc",
+      "api/v1/ActiveCruiseViewModelService.cfc",
+      "api/v1/RouteMapGeometryService.cfc",
+      "api/v1/floatplan.cfc",
+      "api/v1/routeBuilder.cfc",
+      "api/v1/voyage.cfc",
+      "app/active-cruise.cfm",
+      "app/dashboard.cfm",
+      "app/follow-full-map.cfm",
+      "app/follow.cfm",
+      "assets/js/app/auth-modal.js",
+      "assets/js/app/auth.js",
+      "assets/js/app/dashboard.js",
+      "assets/js/app/dashboard/route-generator-tour.js",
+      "assets/js/app/dashboard/routebuilder.js",
+      "assets/js/app/follow/follow.js",
+      "assets/js/app/follow/followMap.js",
+      "includes/AuthContinuationService.cfc",
+      "includes/footer_scripts.cfm",
+      "includes/modals/route_generator_modal.cfm",
+      "includes/top_nav.cfm",
+      "partials/fpw-auth-modal.cfm",
+      "tests/dashboard-route-actions.spec.js",
+      "tests/specs/AuthContinuationSpec.cfc",
+      "web.config"
+    ],
+    "added": [
+      "api/v1/GuideTripService.cfc",
+      "app/guide-trip-print.cfm",
+      "assets/css/bahamas-guide.css",
+      "assets/css/guide-planner.css",
+      "assets/images/boating-guides/bahamas/bimini-context.svg",
+      "assets/images/boating-guides/bahamas/crossing-decisions.svg",
+      "assets/images/boating-guides/bahamas/regional-overview.svg",
+      "assets/images/boating-guides/bahamas/time-fuel-comparison.svg",
+      "assets/js/app/dashboard/guide-planner.js",
+      "assets/js/bahamas-guide.js",
+      "assets/js/guide-trip-print.js",
+      "boating-guides/bahamas/_footer.cfm",
+      "boating-guides/bahamas/_head.cfm",
+      "boating-guides/bahamas/_setup.cfm",
+      "boating-guides/bahamas/index.cfm",
+      "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+      "database/migrations/20261107_001_guide_route_imports.down.sql",
+      "database/migrations/20261107_001_guide_route_imports.preflight.sql",
+      "database/migrations/20261107_001_guide_route_imports.up.sql",
+      "database/migrations/20261107_001_guide_route_imports.verify.sql",
+      "publishing/bahamas/README.md",
+      "publishing/bahamas/assets.json",
+      "publishing/bahamas/build-assets.mjs",
+      "publishing/bahamas/local-source-checks.json",
+      "publishing/bahamas/maps/natural-earth-context.geojson",
+      "publishing/bahamas/maps/region-labels.json",
+      "publishing/bahamas/sources.json",
+      "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+      "tests/guide-export-runner.cfm",
+      "tests/guide-planner.spec.js",
+      "tests/guide-saved-editor.spec.js",
+      "tests/guide-saved-preview.spec.js",
+      "tests/guide-saved-view-runner.cfm",
+      "tests/guide-trip-integration-runner.cfm",
+      "tests/guide-trip-runner.cfm",
+      "tests/guide-trip-ui-fixture.cfm",
+      "tests/specs/GuideTripIntegrationSpec.cfc",
+      "tests/support/GuideSavedViewContract.cfc",
+      "tests/support/GuideTripDemoFixture.cfc",
+      "tests/support/GuideTripFixtureService.cfc",
+      "publishing/bahamas/implementation-checks.json"
+    ]
+  },
+  "local_environment": {
+    "mysql": "8.0.43",
+    "database": "FPW",
+    "cold_fusion": "2025,0,08,331874",
+    "migration": {
+      "name": "20261107_001_guide_route_imports",
+      "status": "Applied and verified locally",
+      "table": "guide_route_imports",
+      "columns": 20,
+      "engine": "InnoDB",
+      "collation": "utf8mb4_unicode_ci",
+      "scope": "New guide metadata table only; no shared port/segment/template seeding"
+    },
+    "external_routing_file": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/WEB-INF/rewrite.config",
+    "fonts": {
+      "approved_by_user": true,
+      "installed_in_running_container_only": true,
+      "dockerfile_changed": false,
+      "packages": {
+        "libfreetype6": "2.13.2+dfsg-1ubuntu0.2",
+        "fontconfig": "2.15.0-1.1ubuntu2",
+        "fonts-dejavu-core": "2.37-8"
+      },
+      "dependencies": "8 total new packages, 0 upgrades",
+      "cold_fusion_restarted": true,
+      "limitation": "Rebuilds need equivalent font support; current generated PDFs retain Adobe Developer/Trial watermark."
+    }
+  },
+  "backups": {
+    "source_snapshot": ".codex-snapshots/bahamas-guide-20261107/",
+    "original_tomcat_rewrite": ".codex-snapshots/bahamas-guide-20261107/external/WEB-INF/rewrite.config",
+    "database_backup": "/Users/lawrencewald/Docker/cf-mysql-dev/.codex-snapshots/bahamas-guide-20261107/database/fpw-before-guide-imports.sql.gz",
+    "database_gzip_integrity": "Verified before migration and after relocation outside webroot",
+    "correction": "An initial local HEAD check found the backup's original webroot location accessible. The backup was moved outside webroot and the dated task snapshot URL was denied. Only this task's dated snapshot path was added to routing scope."
+  },
+  "validation": [
+    {
+      "area": "Backend integration",
+      "result": "58/58 passed",
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/backend/integration-result.json",
+      "coverage": "Import/reuse/explicit second copy, owner isolation, draft/complete retries and conflict handling, null preservation, current review gates, source snapshot, geometry changes, fractional mileage, owned operational copy, endpoint invalidation and deletion tombstones. Guide append/remove/connected reorder, disconnected reorder rejection, stable-leg review preservation, changed-pair invalidation, edited mapping save/reopen and template retirement with existing-copy editing.",
+      "previous_evidence": ".codex-snapshots/bahamas-guide-20261107/backend/integration-result-before-leg-edit-checks.json"
+    },
+    {
+      "area": "Calculations and regressions",
+      "result": "8 guide arithmetic, 9 reserve-mode and 4 route-continuity checks passed",
+      "coverage": "Explicit speed/burn, percentage versus thirds, reserve applied once, incomplete subtotal, performance confirmation and null serialization."
+    },
+    {
+      "area": "HTTP security and concurrency",
+      "result": "5 backend HTTP checks passed; root also exercised invalid CSRF, foreign draft, unavailable version and GET mutation",
+      "coverage": "Anonymous, unsafe origin, CSRF, cross-user, exact version and concurrent duplicate protection."
+    },
+    {
+      "area": "Actual authentication",
+      "result": "Passed through public CTA with temporary local published gate",
+      "coverage": "New account registration, overview and Continue; separate anonymous sign-in reopening the same personal copy."
+    },
+    {
+      "area": "Actual draft and saved editor",
+      "result": "Passed",
+      "coverage": "20 kn/18 US gal/h with 60 nm outbound and unset return saved/reopened as incomplete; full 120 nm save retained 108 base/21.6 reserve/129.6 required; changed return invalidated review; newer incomplete draft was distinguished from last complete snapshot."
+    },
+    {
+      "area": "Frontend",
+      "result": "10 guide/map/actual-preview browser tests, 9 saved-view contract checks and 16 existing preview regressions passed",
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/evidence/frontend-schematic-final/",
+      "coverage": "Follow/Captain saved inputs and estimate labels, visibly dashed reciprocal schematic lines, member geometry metadata and source-method entry."
+    },
+    {
+      "area": "Earlier frontend regressions",
+      "result": "24 auth/recovery tests and saved-editor checks at 390/768/1440 passed",
+      "limitation": "One existing tooltip timing assertion failed in a combined run and then passed 3 targeted reruns without tooltip-code changes."
+    },
+    {
+      "area": "PDF/export",
+      "result": "16 export checks passed including actual existing createPDF path; merged five-page PDF and incomplete summary rendered and visually inspected",
+      "evidence": [
+        ".codex-snapshots/bahamas-guide-20261107/evidence/guide-official-form-with-supplement.pdf",
+        ".codex-snapshots/bahamas-guide-20261107/evidence/guide-incomplete-estimates.pdf"
+      ],
+      "coverage": "Estimate/provenance/review meaning, source dates/URLs, escaped notes, missing values, full-precision calculations with nearest-minute/one-decimal display, supplement present without normal overflow."
+    },
+    {
+      "area": "Privacy and routing",
+      "result": "Local checks passed",
+      "coverage": "Authenticated PDF 200 and no-store; anonymous PDF rejected; existing guide PDF direct static URL 403; publishing sources and dated task snapshots 403; guide clean URLs 200, aliases 301 once, missing path 404."
+    },
+    {
+      "area": "Final publication gate",
+      "result": "MCPCFC and Playwright confirmed both pages noindex/no-store with no import controls; manifest draft/publication_ready false, 15 copied sources and two null mileages",
+      "coverage": "No Bahamas navigation, guide-index or sitemap entry."
+    },
+    {
+      "area": "Final static checks",
+      "result": "git diff --check passed; IIS web.config XML parsed; manifest JSON gate/source/null assertions passed"
+    },
+    {
+      "area": "Final database verification",
+      "result": "PASS: 20 columns, required unique indexes, InnoDB and zero invalid JSON rows",
+      "coverage": "Read-only verifier rerun after integration checks."
+    },
+    {
+      "area": "Guide keyboard focus restoration",
+      "result": "17/17 focused editor/dashboard tests passed; actual existing-account keyboard Close restored original Edit Route control",
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/evidence/planner-guide-focus-restored.png",
+      "coverage": "Original opener, replaced opener, async no-steal, nonguide no-restore, 390/768/1440 editor layouts. Existing static-Escape behavior preserved."
+    },
+    {
+      "area": "Focused keyboard, reduced-motion and reflow",
+      "result": "Public section navigation and horizontally scrollable tables operated by keyboard; planner fields/review/draft save/Close keyboard reachable; guide focus visible; reduced-motion and 720px reflow passed",
+      "coverage": "Public ArrowRight table scrolling at390 with document width390; public/planner width720 with no clipped visible controls; reduced-motion guide animations0, modal transition0s.",
+      "limitations": "Native browser zoom, full screen-reader and contrast audits were not performed. CSS zoom2 showed shared-header overflow while guide content fit; this is an emulation artifact, not native browser zoom proof. One BODY focus sample during extended Tab traversal means complete focus trapping is not claimed."
+    }
+  ],
+  "unchanged_scope": [
+    "No production deployment, production database execution, commit or push.",
+    "No shared destination/segment/template seeding, paid providers or dependencies added to the repository.",
+    "No Beta Program change, vessel unit repair, check-in/monitoring/cancellation gate, plan activation or notification sending.",
+    "No later-phase public region pages, fee table, automatic weather/go-no-go scoring, chart republication or vendor guide analytics enablement."
+  ],
+  "remaining_release_gates": [
+    "Final editorial review of current entry/return procedures; CBP ROAM direct retrieval remained 403 and Customs legacy text conflicts were not converted into fees/history claims.",
+    "Verify deployed ColdFusion engine, licensing/font support, schema, routing/redirects, private caches and indexability; local results do not establish production behavior.",
+    "After release gates pass, set publication dates/status and add only the hub/first itinerary to navigation, guide index and sitemap.",
+    "Establish consent behavior before enabling optional vendor guide events."
+  ],
+  "per_trip_missing_inputs": [
+    "Each actual leg's defensible mileage and source/calculation method.",
+    "Explicit performance confirmation and current member mileage review.",
+    "Current charts/notices and intended harbor/approach paths, berth/service arrangements and applicable clearance procedures."
+  ],
+  "validation_limits": [
+    "Guide-specific append/remove/reorder was exercised through the backend integration contract; the equivalent browser drag/add/remove interactions were not independently exercised.",
+    "Percentage and thirds arithmetic were tested separately; a guide-specific thirds save/reopen scenario was not separately run.",
+    "Native browser zoom was not exercised; focused CSS zoom simulation and equivalent-width reflow are reported separately.",
+    "Actual activation, notification sending, production migration/deployment and executing the rollback were not performed.",
+    "No production field performance, crawler-IP/WAF or deployed cache proof is claimed.",
+    "Focused keyboard checks verify reachability and close-focus restoration, not a complete accessibility audit; one BODY focus sample during extended Tab traversal was recorded."
+  ]
+}

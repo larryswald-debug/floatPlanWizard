@@ -139,6 +139,11 @@
         hasOperationalPlan = (val(qRouteInstance.has_operational_plan[1]) GT 0);
       }
       originalCustomRouteId = resolveOriginalCustomRouteId(templateRouteCode, routeInstanceInputsRaw);
+      var isGuideMap = false;
+      if (len(routeInstanceInputsRaw) AND isJSON(routeInstanceInputsRaw)) {
+        var guideMapIdentity = deserializeJSON(routeInstanceInputsRaw);
+        isGuideMap = isStruct(guideMapIdentity) AND structKeyExists(guideMapIdentity, "guide_context") AND isStruct(guideMapIdentity.guide_context);
+      }
 
       if (arguments.preferOperationalSnapshot) {
         snapshotState = loadOperationalGeometrySnapshot(routeInstanceIdVal);
@@ -233,6 +238,13 @@
             segmentId=segmentIdVal
           );
           segmentCoords = segmentGeometry.coordinates;
+          // A guide's endpoint connection is display-only and never supplies mileage.
+          if (isGuideMap AND arrayLen(segmentCoords) LT 2 AND hasStartCoord AND hasEndCoord
+            AND abs(val(startLatRaw)) LTE 90 AND abs(val(endLatRaw)) LTE 90
+            AND abs(val(startLngRaw)) LTE 180 AND abs(val(endLngRaw)) LTE 180) {
+            segmentCoords = [[val(startLngRaw),val(startLatRaw)],[val(endLngRaw),val(endLatRaw)]];
+            segmentGeometry.source = "guide_schematic_connection";
+          }
 
           if (hasOperationalPlan AND arrayLen(segmentCoords) GTE 2) {
             segmentStart = segmentCoords[1];
@@ -575,6 +587,34 @@
 
       out.total_nm = roundTo2(out.total_nm);
       out.remaining_nm = max(0, roundTo2(out.total_nm - completedNm));
+
+      // Guide lines retain their provenance through saved and operational snapshots.
+      // A member review never changes a schematic connection into a navigation track.
+      if (len(routeInstanceInputsRaw) AND isJSON(routeInstanceInputsRaw)) {
+        var guideMapInputs = deserializeJSON(routeInstanceInputsRaw);
+        if (isStruct(guideMapInputs) AND structKeyExists(guideMapInputs, "guide_context") AND isStruct(guideMapInputs.guide_context)) {
+          var guideMapContext = guideMapInputs.guide_context;
+          var guideMapLegs = structKeyExists(guideMapContext, "legs") AND isArray(guideMapContext.legs) ? guideMapContext.legs : [];
+          out.route_geo["guide_estimates"] = true;
+          out.route_geo["guide_geometry_sources"] = [];
+          for (var guideSegmentIndex = 1; guideSegmentIndex LTE arrayLen(out.route_geo.coordinates); guideSegmentIndex++) {
+            var guideGeometryKind = "schematic";
+            var guideOrder = 0;
+            if (arrayLen(out.geometry_sources) EQ arrayLen(out.route_geo.coordinates)
+              AND structKeyExists(out.geometry_sources[guideSegmentIndex], "leg_order"))
+              guideOrder = val(out.geometry_sources[guideSegmentIndex].leg_order);
+            for (var guideMapLeg in guideMapLegs) {
+              if (structKeyExists(guideMapLeg, "order_index") AND val(guideMapLeg.order_index) EQ guideOrder
+                AND structKeyExists(guideMapLeg, "geometry_kind") AND guideMapLeg.geometry_kind EQ "member_plotted"
+                AND out.geometry_sources[guideSegmentIndex].source NEQ "guide_schematic_connection") {
+                guideGeometryKind = "member_plotted";
+                break;
+              }
+            }
+            arrayAppend(out.route_geo.guide_geometry_sources, guideGeometryKind);
+          }
+        }
+      }
       return out;
     </cfscript>
   </cffunction>

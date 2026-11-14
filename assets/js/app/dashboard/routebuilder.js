@@ -66,6 +66,8 @@
     activeRouteCode: "",
     activeRouteId: 0,
     activeRouteType: "generated",
+    guideContext: null,
+    guideMapEdited: false,
     selectedLegContext: "routegen",
     modalInitSeq: 0,
     editorBaseline: null,
@@ -136,6 +138,43 @@
       initialized: false
     }
   };
+
+  function guidePlanner() { return window.FPW.GuidePlanner || null; }
+  function guideLegFor(leg) {
+    var context = state.guideContext, id = toInt(getLegField(leg, "route_leg_id"), 0);
+    var rows = context && (context.legs || context.LEGS);
+    return Array.isArray(rows) ? rows.find(function (row) {
+      return toInt(row.user_route_leg_id !== undefined ? row.user_route_leg_id : row.USER_ROUTE_LEG_ID, 0) === id;
+    }) : null;
+  }
+  function acceptGuideDraft(data) {
+    state.guideContext = data;
+    if (data.route_name) state.myRoutes.activeRouteName = data.route_name;
+    renderMyRouteLegList();
+    notifyRoutesUpdated(data.generated_route_code || "");
+  }
+  function setGuideContext(data) {
+    var planner = guidePlanner();
+    state.guideContext = data && typeof data === "object" ? data : null;
+    if (dom.root) dom.root.classList.toggle("fpw-guide-mode", !!state.guideContext);
+    if (planner) {
+      if (state.guideContext) planner.mount(state.guideContext, {
+        changed: acceptGuideDraft,
+        reload: function () {
+          return loadMyRoute(state.myRoutes.activeRouteId, { silentError: true, rejectOnError: true }).then(function (payload) {
+            return payload.DATA.GUIDE_CONTEXT || payload.DATA.guide_context;
+          });
+        },
+        saved: function (saved) {
+          if (saved.legs) acceptGuideDraft(saved);
+          notifyRoutesUpdated(saved.generated_route_code || saved.route_code || "");
+        },
+        open: openSavedRoute
+      });
+      else planner.clear();
+    }
+    setModalModeUI();
+  }
 
   function isActiveModalInit(seq) {
     return seq === state.modalInitSeq;
@@ -896,11 +935,29 @@
       fetchOptions.credentials = "same-origin";
     }
 
-    return fetch(url, fetchOptions)
-      .then(function (res) {
-        if (res.status === 401 || res.status === 403) {
+    var actionMatch = String(url || "").match(/[?&]action=([^&]+)/i);
+    var action = actionMatch ? decodeURIComponent(actionMatch[1]).toLowerCase() : "";
+    var guideMutation = !!state.guideContext && String(fetchOptions.method || "GET").toUpperCase() === "POST"
+      && ["deleteuserroute", "setuserroutestartwaypoint", "addwaypointlegtouserroute", "addlegtouserroute",
+        "removelegfromuserroute", "reorderuserroutelegs", "saveroutelegoverridegeometry", "clearroutelegoverridegeometry"].indexOf(action) !== -1;
+    var request;
+    if (guideMutation) {
+      if (!window.Api || typeof window.Api.getAuthCsrfToken !== "function") {
+        return Promise.reject(new Error("Account access is unavailable. Refresh and try again."));
+      }
+      request = window.Api.getAuthCsrfToken().then(function (token) {
+        fetchOptions.headers = Object.assign({}, fetchOptions.headers || {}, { "X-CSRF-Token": token });
+        return fetch(url, fetchOptions);
+      });
+    } else {
+      request = fetch(url, fetchOptions);
+    }
+
+    return request.then(function (res) {
+        if (res.status === 401 || (res.status === 403 && !guideMutation)) {
           throw authError("Unauthorized");
         }
+        // Guide guard rejections include an actionable message; preserve it for the control.
         return res.text();
       })
       .then(function (txt) {
@@ -1661,12 +1718,16 @@
       listEl.innerHTML = '<div class="fpw-routegen__empty">No legs yet. Set a start waypoint and add the first leg endpoint.</div>';
       return;
     }
-    listEl.innerHTML = legs.map(function (leg, idx) {
+    listEl.innerHTML = (state.guideContext ? '<p class="fpw-routegen__help">Use the arrows to reorder destination stops. The original departure stays fixed; changed endpoint pairs need new mileage and review.</p>' : "") + legs.map(function (leg, idx) {
       var order = toInt(getLegField(leg, "order_index"), idx + 1);
       var routeLegId = toInt(getLegField(leg, "route_leg_id"), 0);
       var startName = String(getLegField(leg, "start_name") || "Start");
       var endName = String(getLegField(leg, "end_name") || "End");
+      var guideLeg = guideLegFor(leg);
+      var guideNm = guideLeg ? (guideLeg.distance_nm !== undefined ? guideLeg.distance_nm : guideLeg.DISTANCE_NM) : null;
       var distNm = roundTo2(parseFloat(getLegField(leg, "dist_nm")));
+      var guideDistanceKind = guideLeg && (guideLeg.distance_kind || guideLeg.DISTANCE_KIND);
+      var distanceLabel = state.guideContext ? (guideNm !== null && guideNm !== undefined && Number(guideNm) > 0 ? formatNumber(guideNm, 1) + " nm · " + (guideDistanceKind === "member_entered" ? "Member-entered estimate" : "estimate") : "Mileage missing · incomplete estimate") : formatNumber(distNm, 1) + " nm";
       var lockCount = toInt(getLegField(leg, "lock_count"), 0);
       var hasOverride = !!getLegField(leg, "has_user_override");
       var hasCoordError = !!getLegField(leg, "has_coordinate_error");
@@ -1675,12 +1736,13 @@
         + '<div class="fpw-routegen__myrouteleg" data-route-leg-id="' + String(routeLegId) + '" data-order="' + String(order) + '">'
         + '  <div>'
         + '    <div class="fpw-routegen__myroutelegname">' + escapeHtml(String(order).padStart(2, "0") + "  " + startName + " -> " + endName) + (hasOverride ? ' <span class="fpw-routegen__flag fpw-routegen__flag--override">Override</span>' : "") + "</div>"
-        + '    <div class="fpw-routegen__myroutelegmeta">' + formatNumber(distNm, 1) + " nm · " + formatNumber(lockCount, 0) + " locks" + (hasCoordError ? " · coords missing" : "") + "</div>"
+        + '    <div class="fpw-routegen__myroutelegmeta">' + distanceLabel + (state.guideContext ? "" : " · " + formatNumber(lockCount, 0) + " locks") + (hasCoordError ? " · coords missing" : "") + "</div>"
         + (hasCoordError && coordErrorText ? '<div class="fpw-routegen__help mt-1">' + escapeHtml(coordErrorText) + "</div>" : "")
         + "  </div>"
         + '  <div class="fpw-routegen__myroutelegactions">'
         + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="edit-geometry">Edit Route</button>'
         + '    <button type="button" class="btn-secondary btn-sm" data-my-route-action="remove-leg">Remove</button>'
+        + (state.guideContext ? '<button type="button" class="btn-secondary btn-sm" data-my-route-action="move-up" aria-label="Move destination stop up"' + (idx === 0 ? ' disabled' : '') + '>↑</button><button type="button" class="btn-secondary btn-sm" data-my-route-action="move-down" aria-label="Move destination stop down"' + (idx === legs.length - 1 ? ' disabled' : '') + '>↓</button>' : '')
         + "  </div>"
         + "</div>";
     }).join("");
@@ -1705,6 +1767,7 @@
     var opts = options || {};
     var routeIdVal = toInt(routeId, 0);
     if (routeIdVal <= 0) {
+      setGuideContext(null);
       state.myRoutes.activeRouteId = 0;
       state.myRoutes.activeRouteName = "";
       setMyRouteLegs([]);
@@ -1730,6 +1793,7 @@
         route.start_waypoint_id !== undefined ? route.start_waypoint_id : route.START_WAYPOINT_ID,
         0
       );
+      setGuideContext(data.GUIDE_CONTEXT || data.guide_context || null);
       setMyRouteLegs(Array.isArray(data.legs) ? data.legs : []);
       renderMyRouteWaypointOptions();
       renderMyRouteOptions();
@@ -1741,6 +1805,7 @@
       if (!opts.silentError) {
         showError((err && err.message) ? err.message : "Unable to load My Route.");
       }
+      if (opts.rejectOnError) throw err;
       return null;
     }).finally(function () {
       endMyRoutePending();
@@ -1895,6 +1960,17 @@
 
   function setModalModeUI() {
     var isEditor = state.modalMode === "editor";
+    if (state.guideContext) {
+      if (dom.generateBtn) { dom.generateBtn.classList.remove("d-none"); dom.generateBtn.textContent = "Save trip"; }
+      if (dom.saveBtn) { dom.saveBtn.classList.remove("d-none"); dom.saveBtn.textContent = "Save planning draft"; }
+      if (dom.resetBtn) dom.resetBtn.textContent = "Reload saved draft";
+      if (dom.myRouteLoadBtn) dom.myRouteLoadBtn.textContent = "Load saved route";
+      if (dom.hintLineEl) dom.hintLineEl.textContent = "Save incomplete estimates as a planning draft. Review each leg before entering the float-plan workflow.";
+      return;
+    }
+    if (dom.myRouteLoadBtn) dom.myRouteLoadBtn.textContent = "Load";
+    if (dom.generateBtn) dom.generateBtn.textContent = "Save Route";
+    if (dom.saveBtn) dom.saveBtn.textContent = "Save Route";
     if (dom.generateBtn) dom.generateBtn.classList.toggle("d-none", isEditor);
     if (dom.saveBtn) dom.saveBtn.classList.toggle("d-none", !isEditor);
     if (dom.resetBtn) dom.resetBtn.textContent = isEditor ? "Reset to Saved" : "Reset";
@@ -2240,6 +2316,7 @@
   }
 
   function applyGeneratorVesselFieldDefaults() {
+    if (state.guideContext) return;
     if (state.modalMode === "editor") return;
     if (!pendingDraftHasField("vessel_most_efficient_speed_kn")) {
       applyMostEfficientSpeedDefaultFromVessel();
@@ -2997,9 +3074,11 @@
     var latlngs = points.map(function (p) {
       return [parseFloat(p.lat), parseFloat(p.lon)];
     });
+    var schematic = !!state.guideContext && !state.selectedLegHasOverride && !state.guideMapEdited;
     var layer = window.L.polyline(latlngs, {
       color: "#5ab3ff",
       weight: 4,
+      dashArray: schematic ? "8 6" : null,
       opacity: 0.95
     });
     state.legMap.activeLayer = layer;
@@ -3072,6 +3151,7 @@
         state.legMap.drawnItems.removeLayer(state.legMap.activeLayer);
       }
       state.legMap.activeLayer = evt.layer;
+      state.guideMapEdited = true;
       state.legMap.drawnItems.addLayer(evt.layer);
       state.legMapClearIntent = false;
       state.legMapDraftPoints = extractMapPoints(evt.layer);
@@ -3087,6 +3167,8 @@
       state.legMapDraftPoints = extractDrawVertexPoints(evt);
     });
     state.legMap.map.on(window.L.Draw.Event.EDITED, function () {
+      state.guideMapEdited = true;
+      if (state.guideContext && state.legMap.activeLayer) state.legMap.activeLayer.setStyle({dashArray:null});
       state.legMapClearIntent = false;
       state.legMapDraftPoints = extractMapPoints(state.legMap.activeLayer);
       updateLegMapNmFromLayer();
@@ -3461,6 +3543,7 @@
   }
 
   function saveDraft() {
+    if (state.guideContext) return;
     if (!state.activeTemplateCode) return;
     var payload = {
       route_name: getRouteNameValue(true),
@@ -4195,6 +4278,26 @@
 
   function applyEditContext(editData) {
     var data = editData || {};
+    setGuideContext(data.GUIDE_CONTEXT || data.guide_context || null);
+    if (state.guideContext) {
+      // The owned draft is the guide editor's source of truth. CFML may uppercase
+      // the surrounding edit-context keys; none of the vessel-derived inputs apply.
+      var guideDraft = state.guideContext;
+      var guideRouteId = toInt(guideDraft.user_route_id !== undefined ? guideDraft.user_route_id : guideDraft.USER_ROUTE_ID, 0);
+      if (guideRouteId <= 0) throw new Error("This guide planning draft is unavailable. Return to My Routes and reload it.");
+      var guideRouteMeta = data.route || data.ROUTE || {};
+      var guideRouteCode = guideRouteMeta.route_code || guideRouteMeta.ROUTE_CODE || state.activeRouteCode;
+      state.activeRouteCode = String(guideRouteCode || "").trim();
+      applyRouteContext("my_route", guideRouteId);
+      state.myRoutes.activeRouteName = String(guideDraft.route_name !== undefined ? guideDraft.route_name : guideDraft.ROUTE_NAME || "").trim();
+      if (dom.routeNameEl) { dom.routeNameEl.value = state.myRoutes.activeRouteName; syncMyRouteNameFromRouteName(); }
+      state.pendingDraft = null;
+      state.editorBaseline = {route_type:"my_route",route_id:guideRouteId,route_name:state.myRoutes.activeRouteName};
+      setRouteCodeBadge(state.activeRouteCode);
+      clearRouteNameValidation();
+      clearError();
+      return;
+    }
     var inputs = data && data.inputs ? data.inputs : data;
     var routeMeta = data && data.route ? data.route : {};
     var templateMeta = (data && data.template && typeof data.template === "object") ? data.template : {};
@@ -4760,6 +4863,7 @@
   }
 
   function fetchGeneratorVesselDefaults() {
+    if (state.guideContext) return Promise.resolve(null);
     setStatus("Loading route defaults...");
     return fetchJson(apiUrl("routegen_getVessels"), {
       method: "POST",
@@ -5100,6 +5204,7 @@
 
     var expectedOrder = toInt(getLegField(leg, "order_index"), 0);
     state.selectedLegData = leg;
+    state.guideMapEdited = false;
     state.selectedLegOrder = expectedOrder;
     state.selectedLegHasOverride = legHasEffectiveOverride(leg);
     state.selectedLegSource = legOverrideSourceCode(leg);
@@ -5157,9 +5262,10 @@
         state.selectedLegSource = source;
 
         if (dom.legMapSourceEl) {
-          dom.legMapSourceEl.textContent = "Source: " + sourceLabel;
+          dom.legMapSourceEl.textContent = state.guideContext ? (hasAnyOverride ? "Solid line: member-created geometry; not independently verified" : "Dashed line: schematic connection; not a navigational route") : "Source: " + sourceLabel;
         }
         setLegMapNm(computedNm);
+        if (state.guideContext && !hasAnyOverride && dom.legMapNmEl) dom.legMapNmEl.textContent = "Schematic — no mileage calculation";
         updateLegMapButtons(leg, hasAnyOverride);
         if (dom.legMapHintEl) {
           dom.legMapHintEl.textContent = canPersistLegOverride(leg)
@@ -5168,7 +5274,14 @@
         }
 
         var shouldDrawUserPolyline = hasAnyOverride && points.length >= 2;
-        var layer = setLegMapLayer(shouldDrawUserPolyline ? points : []);
+        var displayPoints = shouldDrawUserPolyline ? points : [];
+        if (state.guideContext && !hasAnyOverride) {
+          var guideRow = guideLegFor(leg);
+          if (guideRow && [guideRow.start_lat,guideRow.start_lng,guideRow.end_lat,guideRow.end_lng].every(function (v) { return v !== null && v !== undefined && String(v).trim() !== "" && Number.isFinite(Number(v)); })) {
+            displayPoints = [{lat:Number(guideRow.start_lat),lon:Number(guideRow.start_lng)},{lat:Number(guideRow.end_lat),lon:Number(guideRow.end_lng)}];
+          }
+        }
+        var layer = setLegMapLayer(displayPoints);
         var endpointView = applyLegMapViewport(
           leg,
           data,
@@ -5283,6 +5396,10 @@
   function saveLegOverride() {
     var leg = state.selectedLegData;
     var saveMode = getLegOverrideSaveMode(leg);
+    if (state.guideContext && !state.selectedLegHasOverride && !state.guideMapEdited && !state.legMapClearIntent) {
+      setLegMapStatus("Draw or edit your own route geometry before saving. The dashed connection is schematic.");
+      return;
+    }
     var saveAction = "";
     var payload = {};
     if (!leg) {
@@ -5808,6 +5925,7 @@
   }
 
   function previewSelectedMyRoute(forceRefresh) {
+    if (state.guideContext && guidePlanner()) return guidePlanner().preview().then(function (data) { return {SUCCESS:true, DATA:{GUIDE_CONTEXT:data}}; });
     var routeId = toInt(state.myRoutes.activeRouteId || state.activeRouteId, 0);
     var payload = collectFormPayload();
     if (routeId <= 0) {
@@ -5965,6 +6083,7 @@
   }
 
   function generateRoute() {
+    if (state.guideContext && guidePlanner()) return guidePlanner().saveTrip();
     var payload = collectFormPayload();
     var isMyRoute = (String(state.activeRouteType || "").trim().toLowerCase() === "my_route");
     if (!canPreview(payload)) {
@@ -6067,6 +6186,7 @@
   }
 
   function saveEditedRoute() {
+    if (state.guideContext && guidePlanner()) return guidePlanner().saveDraft();
     var routeCode = String(state.activeRouteCode || "").trim();
     if (!routeCode) {
       showError("No route selected to save.");
@@ -6220,6 +6340,7 @@
   }
 
   function resetGeneratorState() {
+    setGuideContext(null);
     clearError();
     clearPreview();
     setStatus("Ready");
@@ -6333,9 +6454,57 @@
     setModalModeUI();
   }
 
+  // A guide copy can open before its asynchronous context is known. Retain its
+  // outside control now, but restore focus only after a guide modal has closed.
+  var guideReturnFocus = null;
+  var guideReturnRouteCode = "";
+  var guideReturnDraftId = 0;
+
+  function rememberGuideReturnFocus(routeCode, draftId) {
+    var active = document.activeElement;
+    if (active && dom.modalEl && dom.modalEl.contains(active)) return;
+    guideReturnFocus = active && active !== document.body ? active : null;
+    var card = active && typeof active.closest === "function" ? active.closest(".expedition-route-card") : null;
+    guideReturnRouteCode = String(routeCode || (card && card.getAttribute("data-route-code")) || "").trim();
+    guideReturnDraftId = toInt(draftId || (card && card.getAttribute("data-planning-draft-id")), 0);
+  }
+
+  function isVisibleGuideReturnControl(control) {
+    return !!(control && control.isConnected && typeof control.focus === "function"
+      && !control.disabled && control.getAttribute("aria-disabled") !== "true"
+      && control.getClientRects().length && window.getComputedStyle(control).visibility !== "hidden");
+  }
+
+  function restoreGuideReturnFocus() {
+    var target = guideReturnFocus;
+    var routeCode = guideReturnRouteCode;
+    var draftId = guideReturnDraftId;
+    guideReturnFocus = null;
+    guideReturnRouteCode = "";
+    guideReturnDraftId = 0;
+    if (!state.guideContext) return;
+    if (!isVisibleGuideReturnControl(target) && draftId > 0) {
+      target = document.querySelector('[data-open-planning-draft="' + draftId + '"]');
+      routeCode = routeCode || String(state.guideContext.generated_route_code || "");
+    }
+    if (!isVisibleGuideReturnControl(target) && routeCode) {
+      target = null;
+      Array.prototype.some.call(document.querySelectorAll(".expedition-route-card[data-route-code]"), function (card) {
+        if (card.getAttribute("data-route-code") !== routeCode) return false;
+        return Array.prototype.some.call(card.querySelectorAll(".js-expedition-view-edit"), function (control) {
+          if (!isVisibleGuideReturnControl(control)) return false;
+          target = control;
+          return true;
+        });
+      });
+    }
+    if (isVisibleGuideReturnControl(target)) target.focus({ preventScroll: true });
+  }
+
   function openModal(mode, routeCode, launchOptions) {
     if (!modal) return Promise.resolve(false);
     var options = launchOptions || {};
+    rememberGuideReturnFocus(routeCode, options.savedRouteId);
     var editorMode = mode === "editor";
     var freshStart = !!options.freshStart && !editorMode;
     state.modalInitSeq += 1;
@@ -6346,6 +6515,8 @@
     state.activeRouteCode = editorMode ? String(routeCode || "").trim() : "";
 
     resetGeneratorState();
+    // A saved guide must resolve before the generic empty-route tour can decide to start.
+    if (dom.root) dom.root.dataset.routeContextLoading = (editorMode || toInt(options.savedRouteId, 0) > 0) ? "true" : "false";
     if (editorMode && state.activeRouteCode) {
       setRouteCodeBadge(state.activeRouteCode);
     }
@@ -6383,7 +6554,7 @@
             })
             .catch(function (err) {
               if (!isActiveModalInit(initSeq)) return null;
-              if (options.recovery) throw err;
+              if (options.recovery || state.guideContext) throw err;
               if (state.templates.length) {
                 setActiveTemplate(String(state.templates[0].SHORT_CODE || state.templates[0].CODE || "").trim(), {
                   restoreDraft: false,
@@ -6454,6 +6625,10 @@
         return loadMyRoutes({ silentError: true, noAutoLoad: freshStart });
       })
       .then(function () {
+        if (isActiveModalInit(initSeq) && dom.root) {
+          dom.root.dataset.routeContextLoading = "false";
+          if (dom.modalEl) dom.modalEl.dispatchEvent(new window.CustomEvent("fpw:route-context-ready"));
+        }
         return true;
       })
       .catch(function (err) {
@@ -6481,6 +6656,7 @@
   }
 
   function onFormChange() {
+    if (state.guideContext && guidePlanner()) { guidePlanner().preview(); return; }
     clearError();
     updatePaceLabel();
     updateFuelBurnBasisUI();
@@ -6700,6 +6876,7 @@
   }
 
   function onResetClick() {
+    if (state.guideContext && guidePlanner()) return guidePlanner().refresh();
     if (state.modalMode === "editor") {
       resetEditorToBaseline();
       return;
@@ -6841,6 +7018,8 @@
       }
       clearError();
       setStatus("My Route deleted.");
+      setGuideContext(null);
+      notifyRoutesUpdated("");
       state.myRoutes.activeRouteId = 0;
       state.myRoutes.activeRouteName = "";
       state.myRoutes.startWaypointId = 0;
@@ -6968,6 +7147,10 @@
       showError("Select a My Route to load.");
       return;
     }
+    if (state.guideContext && guidePlanner() && selectedRouteId === toInt(state.myRoutes.activeRouteId, 0)) {
+      clearError();
+      return guidePlanner().refresh();
+    }
     if (selectedRouteId !== toInt(state.myRoutes.activeRouteId, 0)) {
       loadPromise = loadMyRoute(selectedRouteId);
     }
@@ -7079,6 +7262,10 @@
     var leg = getMyRouteLegById(routeLegId);
     if (!leg) return;
 
+    if (state.guideContext && (action === "move-up" || action === "move-down")) {
+      moveMyRouteLeg(routeLegId, action === "move-up" ? "up" : "down");
+      return;
+    }
     if (action === "remove-leg") {
       removeMyRouteLeg(routeLegId);
       return;
@@ -7242,10 +7429,16 @@
 
     if (dom.myRouteSelectEl) {
       dom.myRouteSelectEl.addEventListener("change", function () {
+        if (state.guideContext && guidePlanner() && guidePlanner().isDirty()) {
+          dom.myRouteSelectEl.value = String(state.myRoutes.activeRouteId || "");
+          showError("Save or reload the current planning draft before selecting another route.");
+          return;
+        }
         var routeId = toInt(dom.myRouteSelectEl.value, 0);
         if (routeId > 0) {
           loadMyRoute(routeId);
         } else {
+          setGuideContext(null);
           state.myRoutes.activeRouteId = 0;
           state.myRoutes.activeRouteName = "";
           state.myRoutes.startWaypointId = 0;
@@ -7459,6 +7652,7 @@
         }
         if (dom.setupPanelBodyEl) dom.setupPanelBodyEl.scrollTop = 0;
         resetLegMapSelection();
+        restoreGuideReturnFocus();
       });
       dom.modalEl.dataset.routegenBound = "true";
     }

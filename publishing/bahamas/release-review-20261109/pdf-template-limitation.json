@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-11-09",
+  "status": "Existing limitation; owner explicitly directed template unchanged",
+  "file": "api/api_assets/USCGFloatPlan_new.pdf",
+  "source_modified": false,
+  "observed": "Normal generated nonguide PDF date field clips the end of a four-digit year. Canonical AcroForm value remains12/01/2026; current date-field default appearance is /Helvetica8Tf with39-point width. Forty date fields use the same fixed-size setting. Long QA email/note text also exceeds some fixed single-line form fields.",
+  "evidence": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/evidence/standard-pdf-2.png",
+  "canonical_widget_check": "01DepartDate/02ArriveDate/03ArriveDate canonical fields and page widgets share the same PDFobjects, populated values and normal appearances. The observed issue is visual fitting, not lost date data.",
+  "owner_decision": "2026-11-09: Leave template unchanged; report the existing limitation.",
+  "scope": "No date-format change, form-field meaning change, PDF binary edit, flattening or template replacement was made. Guide supplement font/glyph and reserve-wording fixes are separate.",
+  "source_reference": "https://helpx.adobe.com/acrobat/desktop/work-with-pdf-forms/customize-form-fields/field-settings.html"
+}

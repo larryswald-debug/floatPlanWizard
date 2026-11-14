@@ -180,6 +180,7 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
                 </div>
 
                 <div id="expeditionTimelineBody" class="d-none">
+                    <section id="expeditionPlanningDrafts" class="mb-3 d-none" aria-labelledby="expeditionPlanningDraftsTitle"><h3 id="expeditionPlanningDraftsTitle">Planning drafts</h3><p>Editable itineraries awaiting Save trip. Incomplete estimates and member review remain visible in the planner.</p><div id="expeditionPlanningDraftList"></div><p id="expeditionPlanningDraftStatus" role="status"></p></section>
                     <div id="expeditionRouteList" class="expedition-route-list mb-3"></div>
                     <div id="expeditionRouteEmpty" class="expedition-state d-none mb-3">Click <strong>+ Create Route</strong> to create your first expedition route.</div>
                     <div id="expeditionTimelineAccordion" class="expedition-route-overview"></div>
@@ -1589,13 +1590,14 @@ request.fpwAuthCreatedEmail=fpwAuthContinuations.takeCreatedNotice(fpwRequireAut
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/fuel-math.js?v=20260815-reserve-mode"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/shared/cruise-timeline-view.js?v=20261029-shared-timeline"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/basic-floatplan.js?v=20261001-member-profile"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20261029-shared-timeline"></script>
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20260526-cache-bump"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/guide-planner.js?v=20261109-guide-controls"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/routebuilder.js?v=20261109-guide-controls"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/route-generator-tour.js?v=20261107-guide-itinerary-r2"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/help-tour.js?v=20260724-onboarding"></script>
 <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard/onboarding.js?v=20261001-auth-overview"></script>
 
 <!-- Dashboard-specific JS -->
-<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261027-route-action-tooltips"></script>
+<script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/dashboard.js?v=20261109-guide-controls"></script>
 
 </body>
 </html>

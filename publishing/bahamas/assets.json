@@ -1,0 +1,182 @@
+{
+  "created_at": "2026-11-07",
+  "license_note": "FPW original SVG compositions use Natural Earth public-domain geography and attributed GeoNames CC BY 4.0 labels. Two historical photographs are redistributed as Wikimedia-resized copies under their file-specific CC BY-SA 4.0 licenses. No proprietary charts or paid imagery.",
+  "assets": [
+    {
+      "id": "bahamas-regional-overview",
+      "path": "assets/images/boating-guides/bahamas/regional-overview.svg",
+      "type": "SVG",
+      "width": 1000,
+      "height": 700,
+      "rights": "Original FPW rendering; Natural Earth public-domain 10m country geometry and minor-island polygons. GeoNames geographic labels CC BY 4.0.",
+      "source_ids": [
+        "S16",
+        "S16a",
+        "S16b"
+      ],
+      "source_data": "publishing/bahamas/maps/natural-earth-context.geojson",
+      "method": "Equirectangular projection, longitude/latitude bounding box -82.5,22,-74,28.5; label points are geographic context only, never private itinerary waypoints. Main country outlines upgraded from110m to10m on2026-11-09 so major Bahamas islands remain visible.",
+      "alternative": "Visible numbered regional comparison and prose on the hub.",
+      "review": "2026-11-09 readiness revision; inspect rendered desktop/mobile/print before publication.",
+      "rendering": "Enlarged labels; keyboard-focusable horizontally scrolling viewport on narrow screens; adjacent HTML equivalent and full SVG link."
+    },
+    {
+      "id": "bimini-context",
+      "path": "assets/images/boating-guides/bahamas/bimini-context.svg",
+      "type": "SVG",
+      "width": 1000,
+      "height": 560,
+      "rights": "Original FPW rendering using public-domain Natural Earth geographic data and attributed geographic label points.",
+      "source_ids": [
+        "S10b",
+        "S18",
+        "S16",
+        "S16a"
+      ],
+      "method": "Equirectangular context projection box[-80.32,25.57,-79.08,26.22]. Actual template reference points copied from manifest. Brown’s original datum is unspecified, so its display remains a context marker. Dashed connection is schematic, never a navigation route or distance source. Main country outlines upgraded from110m to10m on2026-11-09 so major Bahamas islands remain visible.",
+      "alternative": "Visible numbered stop/coordinate-role table; actual imported endpoints distinguished from regional labels.",
+      "review": "2026-11-09 readiness revision; inspect rendered desktop/mobile/print before publication.",
+      "rendering": "Enlarged labels; keyboard-focusable horizontally scrolling viewport on narrow screens; adjacent HTML equivalent and full SVG link."
+    },
+    {
+      "id": "crossing-decisions",
+      "path": "assets/images/boating-guides/bahamas/crossing-decisions.svg",
+      "type": "SVG",
+      "width": 560,
+      "height": 500,
+      "rights": "Original FPW vector drawing; no third-party graphic reproduced.",
+      "source_ids": [
+        "S7"
+      ],
+      "method": "Concept diagram only. Current arrow shows general direction; no current velocity, compensation, forecast or safe-window conclusion.",
+      "alternative": "Crossing checklist next to the diagram.",
+      "review": "2026-11-09 readiness revision; inspect rendered desktop/mobile/print before publication."
+    },
+    {
+      "id": "time-fuel-comparison",
+      "path": "assets/images/boating-guides/bahamas/time-fuel-comparison.svg",
+      "type": "SVG",
+      "width": 560,
+      "height": 620,
+      "rights": "Original FPW chart derived from the illustrative worksheet in the versioned template.",
+      "source_ids": [],
+      "method": "120 illustrative nm / explicit knots = time; time × total vessel US gal/h = base burn; ×1.20 applies reserve once. Values calculated at full precision. Shared manifest inputs are not imported route mileage. Minutes rounded to nearest minute, matching visible worksheet. Vertical layout uses separate time and fuel scales.",
+      "alternative": "Visible calculation/comparison tables contain all inputs and results.",
+      "review": "2026-11-09 readiness revision; inspect rendered desktop/mobile/print before publication."
+    }
+  ],
+  "photographs": {
+    "status": "used_with_verified_file_specific_license",
+    "accessed_at": "2026-11-09",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "changes": "Wikimedia-generated330px and960px proportional resized copies. No crop, retouch or color change.",
+    "visual_inspection": "Both960px local files inspected: Alice Town waterfront boardwalk/palms/slips; Port Everglades aerial showing cruise ships and small craft. Useful historical local-day and staging context only; not current approach or facility evidence.",
+    "photos": [
+      {
+        "id": "alice-town-bimini",
+        "author": "Pietro",
+        "captured_at": "2014-08-17",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Alice_Town_Bimini_Bahamas_07.jpg",
+        "source_revision": "https://commons.wikimedia.org/w/index.php?title=File:Alice_Town_Bimini_Bahamas_07.jpg&oldid=1196364281",
+        "original_url": "https://upload.wikimedia.org/wikipedia/commons/4/42/Alice_Town_Bimini_Bahamas_07.jpg",
+        "source_credit": "Original source Flickr Pietro Valocchi; Commons license review October23,2018.",
+        "purpose": "Local days and time ashore; never identify photograph as Brown’s Marina.",
+        "files": [
+          {
+            "path": "assets/images/boating-guides/bahamas/alice-town-bimini-330.jpg",
+            "width": 330,
+            "height": 248,
+            "bytes": 27001,
+            "sha256": "75ac3019b5859fc7fedf319a116882112ba463d22d47309ed5d492db4303816e",
+            "download_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Alice_Town_Bimini_Bahamas_07.jpg/330px-Alice_Town_Bimini_Bahamas_07.jpg"
+          },
+          {
+            "path": "assets/images/boating-guides/bahamas/alice-town-bimini-960.jpg",
+            "width": 960,
+            "height": 720,
+            "bytes": 200653,
+            "sha256": "16b99e830ba900d0d2285782bccdc798f04f4fbd100de273d60d9b7254c1deb7",
+            "download_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Alice_Town_Bimini_Bahamas_07.jpg/960px-Alice_Town_Bimini_Bahamas_07.jpg"
+          }
+        ]
+      },
+      {
+        "id": "port-everglades",
+        "author": "Port Everglades PIO",
+        "captured_at": "2017-12-17",
+        "source_page": "https://commons.wikimedia.org/wiki/File:Port_Everglades_aerial_.jpg",
+        "source_revision": "https://commons.wikimedia.org/w/index.php?title=File:Port_Everglades_aerial_.jpg&oldid=1271481593",
+        "original_url": "https://upload.wikimedia.org/wikipedia/commons/3/34/Port_Everglades_aerial_.jpg",
+        "source_credit": "Own work attributed to Port Everglades PIO.",
+        "purpose": "Historical traffic/staging context; does not identify PE buoy or current conditions.",
+        "files": [
+          {
+            "path": "assets/images/boating-guides/bahamas/port-everglades-330.jpg",
+            "width": 330,
+            "height": 248,
+            "bytes": 25214,
+            "sha256": "0a7ab5fc1c04b1dee9a432a331de63764d84fb5f3c232a682e0117cf4f690eb7",
+            "download_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Port_Everglades_aerial_.jpg/330px-Port_Everglades_aerial_.jpg"
+          },
+          {
+            "path": "assets/images/boating-guides/bahamas/port-everglades-960.jpg",
+            "width": 960,
+            "height": 720,
+            "bytes": 179028,
+            "sha256": "15351140400a4236263b826f07ec06dd2d4a6698e563b0ec155144b6342f56b1",
+            "download_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Port_Everglades_aerial_.jpg/960px-Port_Everglades_aerial_.jpg"
+          }
+        ]
+      }
+    ]
+  },
+  "external_tiles": {
+    "used": false,
+    "reason": "Static self-hosted SVGs have no external tile dependency."
+  },
+  "attribution_links": [
+    {
+      "name": "Natural Earth public-domain terms",
+      "url": "https://www.naturalearthdata.com/about/terms-of-use/"
+    },
+    {
+      "name": "GeoNames CC BY 4.0 data",
+      "url": "https://www.geonames.org/export/"
+    }
+  ],
+  "reviewed_at": "2026-11-09",
+  "geography_preparation": {
+    "source_url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson",
+    "source_sha256": "239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255",
+    "source_bytes": 13287234,
+    "accessed_at": "2026-11-09",
+    "selected_admin_values": [
+      "United States of America",
+      "The Bahamas",
+      "Cuba"
+    ],
+    "clip_bounds": [
+      -82.5,
+      22,
+      -74,
+      28.5
+    ],
+    "method": "Sutherland–Hodgman rectangular ring clipping; omit consecutive vertices separated by less than0.0005degrees; retain six-decimal geographic precision. Preserve previously sourced10m minor-island features. Geographic context only.",
+    "country_polygon_counts": [
+      {
+        "name": "Cuba",
+        "polygons": 24
+      },
+      {
+        "name": "United States of America",
+        "polygons": 33
+      },
+      {
+        "name": "The Bahamas",
+        "polygons": 38
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,48 @@
+#fpwRouteGen.fpw-guide-mode .rg-layout-row > .rg-layout-col:last-child,
+#fpwRouteGen.fpw-guide-mode .rg-right-scroll > .rg-summary-column,
+#fpwRouteGen.fpw-guide-mode #routeGenLegLayout,
+#fpwRouteGen.fpw-guide-mode #routeGenTourBtn { display:none !important; }
+#fpwRouteGen.fpw-guide-mode #routeGenSaveBtn,
+#fpwRouteGen.fpw-guide-mode #routeGenGenerateBtn { display:inline-block !important; }
+#fpwRouteGen.fpw-guide-mode #routeGenMyRouteLegList .fpw-routegen__myroutelegmeta { white-space:normal; }
+#guideTripPanel[hidden] { display:none !important; }
+#guideTripPanel { color:inherit; line-height:1.55; padding:16px; }
+#guideTripPanel h2 { font-size:1.3rem; margin:0 0 10px; }
+#guideTripPanel h3 { font-size:1.05rem; margin:20px 0 12px; }
+#guideTripPanel p { margin:8px 0 12px; }
+#guideTripPanel .fpw-guide-planner__eyebrow { font-size:.8rem; color:#b7c7dc; text-transform:uppercase; letter-spacing:.06em; }
+#guideTripPanel .fpw-guide-planner__inputs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+#guideTripPanel .fpw-guide-planner__field { display:flex; flex-direction:column; gap:6px; font-size:.88rem; margin:0 0 8px; }
+#guideTripPanel .fpw-guide-planner__confirmation { display:flex; align-items:flex-start; gap:10px; margin:18px 0; padding:12px; border:1px solid #7793ac; border-radius:8px; }
+#guideTripPanel .fpw-guide-planner__confirmation input { flex:none; margin-top:5px; }
+#guideTripPanel .fpw-guide-planner__totals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+#guideTripPanel .fpw-guide-planner__totals div { border:1px solid #3b5268; border-radius:8px; padding:12px; }
+#guideTripPanel dt { font-size:.82rem; font-weight:400; color:#b7c7dc; }
+#guideTripPanel dd { margin:5px 0 0; font-size:1rem; font-weight:600; }
+#guideTripPanel .fpw-guide-planner__leg { min-width:0; border:1px solid #59758e; border-radius:8px; padding:14px; margin:16px 0; }
+#guideTripPanel legend { float:none; width:auto; max-width:100%; font-size:1rem; font-weight:600; margin:0; padding:0 5px; overflow-wrap:anywhere; }
+#guideTripPanel .fpw-guide-planner__leg label { display:block; font-size:.86rem; margin:10px 0; }
+#guideTripPanel input,#guideTripPanel textarea,#guideTripPanel select { max-width:100%; }
+#guideTripPanel .fpw-guide-planner__provenance,#guideTripPanel .fpw-guide-planner__source { font-size:.82rem; overflow-wrap:anywhere; color:#c3d0df; }
+#guideTripPanel [data-guide-review-state] { font-size:.86rem; font-weight:600; }
+#guideTripPanel .fpw-guide-planner__actions { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0 4px; }
+#guideTripPanel [data-guide-status]:not(:empty) { padding:12px; border:1px solid #90b9b0; border-radius:8px; margin:12px 0; }
+#guideTripPanel .fpw-guide-planner__error { border-color:#e3a49d !important; color:#ffe2de; }
+#guideTripPanel :focus-visible { outline:3px solid #a8d9ff; outline-offset:3px; }
+#fpwRouteGen.fpw-guide-mode #routeGenHintLine { white-space:normal; }
+@media (min-width:992px) { #fpwRouteGen.fpw-guide-mode .rg-layout-row > .rg-layout-col:nth-child(2) { flex:0 0 75%; max-width:75%; } }
+@media (max-width:640px) {
+  #guideTripPanel { padding:12px; }
+  #guideTripPanel .fpw-guide-planner__inputs,#guideTripPanel .fpw-guide-planner__totals { grid-template-columns:1fr; }
+  #guideTripPanel .fpw-guide-planner__actions > * { width:100%; text-align:center; }
+}
+/* A saved route code is an identifier, not a minimum width for the planner. */
+#fpwRouteGen.fpw-guide-mode,
+#fpwRouteGen.fpw-guide-mode .rg-modal,
+#fpwRouteGen.fpw-guide-mode .rg-topbar-right,
+#fpwRouteGen.fpw-guide-mode .rg-actions { min-width:0; }
+#fpwRouteGen.fpw-guide-mode #routeGenRouteCode { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+
+/* Keep keyboard-focused guide fields clear of the nested scroll-panel edges. */
+#fpwRouteGen.fpw-guide-mode .rg-right-scroll { scroll-padding-block:18px; }
+#guideTripPanel input,#guideTripPanel textarea,#guideTripPanel select,#guideTripPanel button,#guideTripPanel a { scroll-margin-block:18px; }

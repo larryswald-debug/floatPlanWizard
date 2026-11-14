@@ -6,17 +6,17 @@ const chesapeakePath = "/boating-guides/chesapeake-bay/";
 const expectedTitle = "Chesapeake Bay Cruising Guide: Routes, Destinations, Travel Times & Float Plan Planning";
 const tabTargets = ["#plan-a-cruise", "#destinations", "#itineraries", "#build-a-route", "#fuel"];
 
-test("Cruising Guides index is server-rendered, canonical, and limited to two published guides", async ({ page }) => {
+test("Cruising Guides index is server-rendered, canonical, and limited to three approved guides", async ({ page }) => {
   const response = await page.goto(baseUrl + "/boating-guides/", { waitUntil: "domcontentloaded" });
   expect(response && response.status()).toBe(200);
   const html = await response.text();
   const cards = page.locator(".fpw-cruising-card-grid > article.fpw-cruising-card");
-  await expect(cards).toHaveCount(2);
+  await expect(cards).toHaveCount(3);
   await expect(page.locator("h1")).toHaveCount(1);
   await expect(page.locator("h1")).toHaveText("Cruising Guides");
   await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", "https://floatplanwizard.com/boating-guides/");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index,follow");
-  for (const [index, route] of [[0, chesapeakePath], [1, "/great-loop/trip-planning/"]]) {
+  for (const [index, route] of [[0, chesapeakePath], [1, "/great-loop/trip-planning/"], [2, "/boating-guides/bahamas/"]]) {
     const card = cards.nth(index);
     expect(html).toContain('href="' + basePath + route + '"');
     const links = card.locator("a");
@@ -26,6 +26,18 @@ test("Cruising Guides index is server-rendered, canonical, and limited to two pu
     expect(await card.locator("img").getAttribute("alt")).toBeTruthy();
     expect(await card.locator("img").evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
   }
+  await expect(cards.locator("h3")).toHaveText([
+    "Chesapeake Bay Cruising Guide", "Great Loop Planning Guide", "Bahamas Cruising Guide"
+  ]);
+  await expect(page.locator(".fpw-cruising-index-intro > p:last-child")).toHaveText(
+    "In-depth guides for popular cruising destinations and trips. Research destinations, plan realistic daily legs, and prepare the details of your cruise — then bring it all together in FloatPlanWizard."
+  );
+  await expect(page.locator(".fpw-cruising-categories > li")).toHaveText([
+    "All Guides", "Featured", "Regional", "Planning"
+  ]);
+  await expect(page.locator(".fpw-cruising-category--active")).toHaveText("All Guides");
+  await expect(page.locator(".fpw-cruising-categories button, .fpw-cruising-categories a, .fpw-cruising-categories [tabindex]")).toHaveCount(0);
+  expect(html).not.toMatch(/Coming soon|ICW Planning Guide|Virgin Islands Cruising Guide|Pacific Northwest Cruising Guide/i);
   const schemas = await page.locator('script[type="application/ld+json"]').allTextContents();
   const nodes = schemas.flatMap(text => {
     const data = JSON.parse(text);
@@ -34,6 +46,42 @@ test("Cruising Guides index is server-rendered, canonical, and limited to two pu
   expect(nodes.some(node => node["@type"] === "CollectionPage")).toBe(true);
   expect(nodes.some(node => node["@type"] === "BreadcrumbList")).toBe(true);
   expect(nodes.some(node => node["@type"] === "Article")).toBe(false);
+  const guideList = nodes.find(node => node["@type"] === "ItemList");
+  expect(guideList.numberOfItems).toBe(3);
+  expect(guideList.itemListElement.map(item => item.url)).toEqual([
+    "https://floatplanwizard.com" + chesapeakePath,
+    "https://floatplanwizard.com/great-loop/trip-planning/",
+    "https://floatplanwizard.com/boating-guides/bahamas/"
+  ]);
+});
+
+test("Cruising Guides cards remain usable at desktop, tablet, and mobile widths", async ({ page }) => {
+  for (const width of [1280, 1024, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(baseUrl + "/boating-guides/", { waitUntil: "load" });
+    const cards = page.locator(".fpw-cruising-card-grid > article.fpw-cruising-card");
+    await expect(cards).toHaveCount(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const boxes = await cards.evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+    }));
+    expect(Math.max(...boxes.map(box => box.width)) - Math.min(...boxes.map(box => box.width))).toBeLessThan(1);
+    if (width === 1280) {
+      expect(Math.max(...boxes.map(box => box.top)) - Math.min(...boxes.map(box => box.top))).toBeLessThan(1);
+      expect(Math.max(...boxes.map(box => box.height)) - Math.min(...boxes.map(box => box.height))).toBeLessThan(1);
+    }
+    for (const link of await cards.locator(".fpw-cruising-card-link").all()) {
+      await link.focus();
+      await expect(link).toBeFocused();
+      expect(await link.evaluate(node => {
+        const rect = node.getBoundingClientRect(), card = node.closest("article").getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return rect.left >= card.left && rect.right <= card.right && rect.bottom <= card.bottom &&
+          style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0;
+      })).toBe(true);
+    }
+  }
 });
 
 test("Chesapeake hero keeps its original headline, SEO, and external-link behavior", async ({ page }) => {

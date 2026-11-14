@@ -483,6 +483,7 @@
             var sourceGeo = getPublicAuthoritySection(sourceMap, "routeGeo");
             var sourceTimeline = getPublicAuthoritySection(model, "routeTimeline");
             var sourceSummary = getPublicAuthoritySection(sourceTimeline, "summary");
+            var guideGeometryKind = "";
             var legs = [];
             var pins = [];
             var row = {};
@@ -595,6 +596,38 @@
             if (structKeyExists(sourceGeo, "coordinates") AND isArray(sourceGeo.coordinates)
                 AND listFind("LineString,MultiLineString", publicAuthorityText(sourceGeo, "type"))) {
                 out.map.routeGeo = { "type"=publicAuthorityText(sourceGeo, "type"), "coordinates"=duplicate(sourceGeo.coordinates) };
+                // Preserve only display provenance; never publish the private guide snapshot here.
+                if (structKeyExists(sourceGeo, "guide_estimates") AND isBoolean(sourceGeo.guide_estimates) AND sourceGeo.guide_estimates) {
+                    out.map.routeGeo["guide_estimates"] = true;
+                    out.map.routeGeo["guide_geometry_sources"] = [];
+                    if (structKeyExists(sourceGeo, "guide_geometry_sources") AND isArray(sourceGeo.guide_geometry_sources)) {
+                        for (guideGeometryKind in sourceGeo.guide_geometry_sources) {
+                            arrayAppend(out.map.routeGeo["guide_geometry_sources"], isSimpleValue(guideGeometryKind) AND compareNoCase(toString(guideGeometryKind), "member_plotted") EQ 0 ? "member_plotted" : "schematic");
+                        }
+                    }
+                    out.timeline.meta["guide_estimates"] = true;
+                    out.timeline.meta.inputs_source = "Saved guide planning estimates; member review is not independent route verification.";
+                }
+            }
+            if (structKeyExists(sourceTimeline,"guideEstimates") AND isStruct(sourceTimeline.guideEstimates)) {
+                var guideSummary = sourceTimeline.guideEstimates;
+                out.timeline.summary.total_nm = publicAuthorityText(guideSummary,"distanceNm");
+                out.timeline.summary.total_hours = publicAuthorityText(guideSummary,"runHours");
+                out.timeline.summary.fuel_est = publicAuthorityText(guideSummary,"baseFuelUsGal");
+                out.timeline.summary.reserve_est = publicAuthorityText(guideSummary,"reserveFuelUsGal");
+                out.timeline.summary["required_fuel_est"] = publicAuthorityText(guideSummary,"requiredFuelUsGal");
+                out.timeline.summary.effective_speed_kn = publicAuthorityText(guideSummary,"planningSpeedKn");
+                out.timeline.summary["fuel_burn_gph"] = publicAuthorityText(guideSummary,"underwayBurnUsGph");
+                out.timeline.summary.reserve_mode = publicAuthorityText(guideSummary,"reserveMode");
+                out.timeline.summary.reserve_pct = publicAuthorityText(guideSummary,"reservePercent");
+                out.timeline.summary["complete"] = structKeyExists(guideSummary,"complete") AND guideSummary.complete;
+                out.timeline.meta["guide_estimates"] = true;
+                for (var guideLeg in out.timeline.legs) {
+                    if (isNumeric(guideLeg.hours) AND isNumeric(out.timeline.summary.fuel_burn_gph)) {
+                        guideLeg["cruise_fuel_gallons"] = guideLeg.hours * out.timeline.summary.fuel_burn_gph;
+                        guideLeg["fuel_burn_gph"] = out.timeline.summary.fuel_burn_gph;
+                    }
+                }
             }
             return out;
         </cfscript>
@@ -5062,6 +5095,10 @@
                 };
             }
 
+            if (structKeyExists(storedInputs, "guide_context") AND isStruct(storedInputs.guide_context)) {
+                return buildGuideFollowCruiseTimeline(storedInputs.guide_context, progressByOrder);
+            }
+
             if (structKeyExists(optsLocal, "max_hours_per_day") AND isNumeric(optsLocal.max_hours_per_day) AND val(optsLocal.max_hours_per_day) GT 0) {
                 maxHoursPerDay = roundTo2(optsLocal.max_hours_per_day);
                 usedOpts = true;
@@ -5440,6 +5477,68 @@
             out.meta.inputs_source = inputsSource;
             out.meta.missing_inputs = missingInputs;
             out.meta.total_days_hint = totalDaysHint;
+            return out;
+        </cfscript>
+    </cffunction>
+
+    <!--- Guide-only public estimate projection; excludes personal notes, IDs, and source snapshots. --->
+    <cffunction name="buildGuideFollowCruiseTimeline" access="private" returntype="struct" output="false">
+        <cfargument name="guide" type="struct" required="true">
+        <cfargument name="progressByOrder" type="struct" required="true">
+        <cfscript>
+            var inputs = getPublicAuthoritySection(arguments.guide, "planning_inputs");
+            var totals = getPublicAuthoritySection(arguments.guide, "totals");
+            var out = { "summary"={}, "legs"=[], "meta"={ "guide_estimates"=true,
+                "inputs_source"="Saved guide planning estimates; member review is not independent route verification." } };
+            var speed = val(publicAuthorityText(inputs, "planning_speed_kn"));
+            var burn = val(publicAuthorityText(inputs, "underway_burn_us_gph"));
+            var cumulative = 0;
+            var completed = 0;
+            var progress = {};
+            var row = {};
+            var hours = "";
+            var legFuel = "";
+            var key = "";
+            var status = "";
+            var lastUpdate = "";
+            var leg = {};
+            out.summary = {
+                "total_nm"=publicAuthorityText(totals,"known_distance_nm"),
+                "total_hours"=publicAuthorityText(totals,"known_run_hours"),
+                "fuel_est"=publicAuthorityText(totals,"base_fuel_us_gal"),
+                "reserve_est"=publicAuthorityText(totals,"reserve_fuel_us_gal"),
+                "required_fuel_est"=publicAuthorityText(totals,"required_fuel_us_gal"),
+                "max_hours_per_day"=publicAuthorityText(inputs,"underway_hours_per_day"),
+                "effective_speed_kn"=publicAuthorityText(inputs,"planning_speed_kn"),
+                "fuel_burn_gph"=publicAuthorityText(inputs,"underway_burn_us_gph"),
+                "reserve_pct"=publicAuthorityText(inputs,"reserve_pct"), "reserve_mode"=publicAuthorityText(inputs,"reserve_mode"),
+                "complete"=structKeyExists(totals,"complete") AND totals.complete
+            };
+            if (structKeyExists(arguments.guide,"legs") AND isArray(arguments.guide.legs)) {
+                for (leg in arguments.guide.legs) {
+                    key = publicAuthorityText(leg,"order_index");
+                    progress = structKeyExists(arguments.progressByOrder,key) ? arguments.progressByOrder[key] : {};
+                    status = publicAuthorityText(progress,"status");
+                    if (status EQ "COMPLETED") completed++;
+                    lastUpdate = publicAuthorityText(progress,"last_update_ts");
+                    if (len(lastUpdate) AND isDate(lastUpdate)) lastUpdate = formatUtcDate(lastUpdate);
+                    hours = ""; legFuel = "";
+                    if (isNumeric(publicAuthorityText(leg,"distance_nm")) AND speed GT 0) {
+                        hours = val(leg.distance_nm) / speed;
+                        cumulative += hours;
+                        if (burn GT 0) legFuel = hours * burn;
+                    }
+                    row = {
+                        "leg_order"=val(key), "start_name"=publicAuthorityText(leg,"start_name"), "end_name"=publicAuthorityText(leg,"end_name"),
+                        "label"=publicAuthorityText(leg,"start_name") & " -> " & publicAuthorityText(leg,"end_name"),
+                        "dist_nm"=publicAuthorityText(leg,"distance_nm"), "hours"=hours, "cumulative_hours"=cumulative,
+                        "cruise_fuel_gallons"=legFuel, "fuel_burn_gph"=burn, "locks"=0,
+                        "progress"={ "percent_complete"=(status EQ "COMPLETED" ? 100 : status EQ "IN_PROGRESS" ? 50 : status EQ "STARTED" ? 25 : 0), "last_update_ts"=lastUpdate }
+                    };
+                    arrayAppend(out.legs,row);
+                }
+            }
+            out.summary["completed_legs"] = completed;
             return out;
         </cfscript>
     </cffunction>

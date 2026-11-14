@@ -513,8 +513,9 @@
       panel.hidden = false;
       var labels = {planner:"Trip Planner",account:"Account",vessel:"Vessel Setup",routes:"Routes",plans:"Float Plans",route:"Your Route",draft:"Your Float Plan","active-cruise":"Active Cruise","completed-trip":"Completed Trip","account-preferences":"Email Preferences"};
       button.textContent = "Continue to " + (labels[authHandoff.destinationKey] || "Dashboard");
-      button.disabled = authHandoff.destinationKey === "planner";
-      status.textContent = authHandoff.destinationKey === "planner"
+      var isGuideHandoff = !!(authHandoff.guideContext && authHandoff.guideContext.template_key);
+      button.disabled = authHandoff.destinationKey === "planner" && !isGuideHandoff;
+      status.textContent = isGuideHandoff ? "Your selected guide itinerary is retained. Continue to create or reopen your editable personal copy." : authHandoff.destinationKey === "planner"
         ? "Your planning goal is saved. Complete the four setup essentials, then continue."
         : "Your original destination is ready when you are.";
       button.addEventListener("click",function () {
@@ -547,7 +548,7 @@
           .finally(function () { dismiss.disabled = false; });
       });
       document.addEventListener("fpw:onboarding:updated",function (event) {
-        if (!authHandoff.token || authHandoff.destinationKey !== "planner") return;
+        if (!authHandoff.token || authHandoff.destinationKey !== "planner" || isGuideHandoff) return;
         var checklist = event.detail && event.detail.checklist || {};
         var ready = checklist.allComplete === true;
         button.disabled = !ready;
@@ -559,7 +560,7 @@
       ["draft","floatPlanWizardModal"],["draft","basicFloatPlanModal"]].forEach(function (entry) {
       var target = document.getElementById(entry[1]);
       if (target) target.addEventListener("shown.bs.modal",function () {
-        if (authHandoff.destinationKey === entry[0]) completeAuthHandoff();
+        if (authHandoff.destinationKey === entry[0] && !(authHandoff.guideContext && authHandoff.guideContext.template_key)) completeAuthHandoff();
       });
     });
     document.addEventListener("fpw:dashboard:user-ready",function () {
@@ -594,6 +595,33 @@
       return;
     }
     if (intent.action === "planner") {
+      if (authHandoff.guideContext && authHandoff.guideContext.template_key) {
+        var guidePlanner = window.FPW.GuidePlanner;
+        var routeModule = modules.routeBuilder;
+        if (!guidePlanner || !routeModule || !routeModule.openSavedRoute) {
+          showRecoveryWorkspace("The guide planner is unavailable. Reload this page to retry your retained selection.");
+          return;
+        }
+        guidePlanner.importItinerary(authHandoff.guideContext, false).then(function (copy) {
+          return routeModule.openSavedRoute(copy.user_route_id).then(function (result) {
+            if (result === false) throw new Error("The personal copy was created but could not be opened. Choose it in My Routes.");
+            completeAuthHandoff();
+          });
+        }).catch(function (error) {
+          showRecoveryWorkspace(error && error.message ? error.message : "Unable to open the selected guide itinerary.");
+          var status = document.getElementById("authContinuationStatus");
+          var button = document.getElementById("authContinuationBtn");
+          if (status) {
+            status.textContent = error && error.message ? error.message + " " : "Your itinerary selection is retained. Continue to retry. ";
+            var guideLink = document.createElement("a");
+            guideLink.href = (window.FPW_BASE || "") + "/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/";
+            guideLink.textContent = "Return to the worked itinerary";
+            status.appendChild(guideLink);
+          }
+          if (button) button.disabled = false;
+        });
+        return;
+      }
       var plannerButton = document.getElementById("openRouteBuilderBtn");
       if (plannerButton && !plannerButton.disabled && triggerExistingButton("openRouteBuilderBtn")) return;
       showRecoveryWorkspace("Continue planning from your Routes workspace.");
@@ -4787,6 +4815,7 @@
     var errorTextEl = null;
     var bodyEl = null;
     var routeListEl = null;
+    var planningDraftsEl = null, planningDraftListEl = null, planningDraftStatusEl = null, planningDrafts = [];
     var routeActionTooltips = [];
     var routeEmptyEl = null;
     var accordionEl = null;
@@ -4886,11 +4915,35 @@
       }
     }
 
+    function renderPlanningDrafts(drafts) {
+      planningDrafts = Array.isArray(drafts) ? drafts : [];
+      if (!planningDraftsEl || !planningDraftListEl) return;
+      toggleHidden(planningDraftsEl, !planningDrafts.length);
+      planningDraftListEl.innerHTML = planningDrafts.map(function (draft) {
+        var id = parseInt(draft.ROUTE_ID, 10);
+        if (!(id > 0)) return "";
+        var guide = guideRouteSummary({GUIDE_SUMMARY:{totals:draft.TOTALS || {}}});
+        var totals = guide.totals;
+        var summary = getRouteSummaryValues({GUIDE_SUMMARY:{totals:totals},ROUTE_ENDPOINTS:{START_LABEL:draft.START_LABEL,END_LABEL:draft.END_LABEL}}, {});
+        var complete = routeActionFlag(totals.complete);
+        var missing = Array.isArray(totals.missing_inputs) ? totals.missing_inputs : [];
+        return '<article class="expedition-route-card p-3 mb-2" data-planning-draft-id="' + id + '">' +
+          '<h4 class="h6">' + escapeHtml(draft.NAME || "Planning draft") + '</h4>' +
+          '<p><strong>Planning draft</strong> · ' + escapeHtml(draft.LEG_COUNT || 0) + ' movement legs</p>' +
+          '<p>' + escapeHtml(summary.start) + ' → ' + escapeHtml(summary.end) + '</p>' +
+          '<p>' + escapeHtml((complete ? "Planning estimates: " : "Incomplete estimate — known-leg subtotal: ") + summary.distance + " · " + summary.estimatedHours) + '</p>' +
+          (complete ? '<p>' + escapeHtml(summary.fuel) + '</p>' : '') +
+          (missing.length ? '<p>Missing: ' + escapeHtml(missing.join(", ")) + '.</p>' : '') +
+          '<div class="d-flex flex-wrap gap-2"><button type="button" class="btn-secondary" data-open-planning-draft="' + id + '">Open planning draft</button>' +
+          '<a class="btn-secondary" target="_blank" rel="noopener" href="' + BASE_PATH + '/app/guide-trip-print.cfm?routeId=' + id + '">Print planning summary</a></div></article>';
+      }).join("");
+    }
+
     function renderEmptyRoutes() {
-      if (summaryEl) summaryEl.textContent = "No routes yet";
+      if (summaryEl) summaryEl.textContent = planningDrafts.length ? "Planning drafts" : "No routes yet";
       disposeRouteActionTooltips();
       if (routeListEl) routeListEl.innerHTML = "";
-      if (routeEmptyEl) toggleHidden(routeEmptyEl, false);
+      if (routeEmptyEl) toggleHidden(routeEmptyEl, planningDrafts.length > 0);
       if (accordionEl) {
         accordionEl.innerHTML = "";
         toggleHidden(accordionEl, true);
@@ -5143,6 +5196,17 @@
       return "Saved";
     }
 
+    function guideRouteSummary(route) {
+      var guide = route && (route.GUIDE_SUMMARY || route.guide_summary);
+      if (!guide || typeof guide !== "object") return null;
+      var normalized = {};
+      Object.keys(guide).forEach(function (key) { normalized[key.toLowerCase()] = guide[key]; });
+      var source = normalized.totals || {}, totals = {};
+      Object.keys(source).forEach(function (key) { totals[key.toLowerCase()] = source[key]; });
+      normalized.totals = totals;
+      return normalized;
+    }
+
     function getRouteSummaryValues(route, totals) {
       var source = totals && typeof totals === "object" ? totals : {};
       var endpoints = getRouteEndpoints(route);
@@ -5156,6 +5220,25 @@
         : "";
       if (!fuelLabel) {
         fuelLabel = hasDefaultVessel ? "Fuel estimate unavailable" : "Requires default vessel";
+      }
+      var guide = guideRouteSummary(route);
+      if (guide) {
+        var guideTotals = guide.totals;
+        var guideDistance = parseFloat(guideTotals.known_distance_nm);
+        var guideHours = parseFloat(guideTotals.known_run_hours);
+        var guideFuel = parseFloat(guideTotals.required_fuel_us_gal);
+        var guideMinutes = Number.isFinite(guideHours) ? Math.round(guideHours * 60) : null;
+        var newer = routeActionFlag(guide.has_newer_draft);
+        return {
+          guide: true,
+          distance: Number.isFinite(guideDistance) ? formatNumber(guideDistance, 1) + " nm estimate" : "Mileage estimate unavailable",
+          estimatedHours: guideMinutes !== null ? Math.floor(guideMinutes / 60) + " h " + String(guideMinutes % 60).padStart(2, "0") + " min estimate" : "Time estimate unavailable",
+          waypoints: formatNumber(waypointCount, 0), locks: formatNumber(locks, 0),
+          fuel: Number.isFinite(guideFuel) ? formatNumber(guideFuel, 1) + " US gal estimate, including reserve" : "Fuel estimate unavailable",
+          start: endpoints.start || "Start unavailable", end: endpoints.end || "End unavailable",
+          note: newer ? (routeActionFlag(guide.draft_complete) ? "Newer planning draft" : "Newer incomplete planning draft") + " — displayed estimates are from the last saved trip. Open the planner to review the draft."
+            : "Planning estimates. Member mileage review is not independent navigation verification."
+        };
       }
       return {
         distance: formatNumber(distanceNm, 1) + " NM",
@@ -5411,12 +5494,13 @@
         + '<div class="fpw-route-detail-preview" aria-label="Route preview">'
         + '  <svg viewBox="0 0 420 210" role="img" aria-label="Display-only route preview">'
         + '    <rect x="0" y="0" width="420" height="210" class="fpw-route-preview-sea"></rect>'
-        + '    <path d="M 45 150 C 110 190, 172 184, 220 158 C 278 126, 330 118, 382 56" class="fpw-route-preview-line"></path>'
+        + '    <path d="M 45 150 C 110 190, 172 184, 220 158 C 278 126, 330 118, 382 56" class="fpw-route-preview-line"' + (summary.guide ? ' stroke-dasharray="8 7"' : '') + '></path>'
         + '    <circle cx="45" cy="150" r="8" class="fpw-route-preview-point fpw-route-preview-point--start"></circle>'
         + '    <circle cx="382" cy="56" r="8" class="fpw-route-preview-point fpw-route-preview-point--end"></circle>'
         + '    <text x="60" y="154" class="fpw-route-preview-label">' + escapeHtml(summary.start) + '</text>'
         + '    <text x="255" y="52" class="fpw-route-preview-label">' + escapeHtml(summary.end) + '</text>'
         + '  </svg>'
+        + (summary.guide ? '<p>Schematic illustration only; not a navigational route or plotted geometry.</p>' : '')
         + '</div>';
     }
 
@@ -5447,6 +5531,7 @@
       var totals = routeMeta.totals;
       var summary = getRouteSummaryValues(route, totals);
       var subtitle = buildRouteSubtitle(route, routeMeta.currentRouteGroup);
+      if (summary.guide && routeActionFlag(guideRouteSummary(route).has_newer_draft)) subtitle = summary.note;
       return ""
         + '<div class="expedition-route-card fpw-routes-table-row' + (routeMeta.isSelected ? ' is-selected' : '') + (routeMeta.isRouteForActiveTrip ? ' is-active' : '') + '"' + routeMeta.dataAttrs + ' role="button" tabindex="0">'
         + '  <div class="fpw-route-cell fpw-route-cell--route"><span class="fpw-route-favorite" aria-hidden="true"></span><div><strong>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</strong><span>' + escapeHtml(subtitle) + '</span></div></div>'
@@ -5469,6 +5554,7 @@
         + '  <h3>' + escapeHtml(route.NAME || route.SHORT_CODE || "Route") + '</h3>'
         + '  <span class="fpw-route-detail-type">' + escapeHtml(typeLabel) + '</span>'
         + '  <p>' + escapeHtml(subtitle) + '</p>'
+        + (summary.guide ? '<p class="fpw-guide-saved-note" role="note">' + escapeHtml(summary.note) + '</p>' : '')
         + '  <dl class="fpw-route-detail-facts">'
         + '    <div><dt>Start</dt><dd>' + escapeHtml(summary.start) + '</dd></div>'
         + '    <div><dt>Distance</dt><dd>' + escapeHtml(summary.distance) + '</dd></div>'
@@ -6280,6 +6366,7 @@
             modules.basicFloatPlan.setBasicMode(false);
           }
           var routes = Array.isArray(routesPayload.ROUTES) ? routesPayload.ROUTES : [];
+          renderPlanningDrafts(routesPayload.PLANNING_DRAFTS || []);
           var currentGroup = (routesPayload.CURRENT_GROUP && typeof routesPayload.CURRENT_GROUP === "object")
             ? routesPayload.CURRENT_GROUP
             : { HAS_CURRENT_GROUP: false };
@@ -6347,6 +6434,22 @@
       errorTextEl = document.getElementById("expeditionTimelineErrorText");
       bodyEl = document.getElementById("expeditionTimelineBody");
       routeListEl = document.getElementById("expeditionRouteList");
+      planningDraftsEl = document.getElementById("expeditionPlanningDrafts");
+      planningDraftListEl = document.getElementById("expeditionPlanningDraftList");
+      planningDraftStatusEl = document.getElementById("expeditionPlanningDraftStatus");
+      if (planningDraftListEl) planningDraftListEl.addEventListener("click", function (event) {
+        var button=event.target.closest("[data-open-planning-draft]");
+        if (!button || button.disabled) return;
+        var module=modules.routeBuilder, id=parseInt(button.getAttribute("data-open-planning-draft"),10);
+        if (!module || typeof module.openSavedRoute !== "function" || !(id > 0)) return;
+        button.disabled=true;
+        if (planningDraftStatusEl) planningDraftStatusEl.textContent="Opening planning draft…";
+        Promise.resolve(module.openSavedRoute(id)).then(function (opened) {
+          if (opened === false) throw new Error("The planning draft could not be opened. Refresh and retry.");
+          if (planningDraftStatusEl) planningDraftStatusEl.textContent="";
+        }).catch(function (error) { if (planningDraftStatusEl) planningDraftStatusEl.textContent=error.message || "Unable to open the planning draft."; })
+          .finally(function () { button.disabled=false; });
+      });
       window.addEventListener("pagehide", disposeRouteActionTooltips);
       window.addEventListener("pageshow", function (event) {
         if (event.persisted) initRouteActionTooltips();

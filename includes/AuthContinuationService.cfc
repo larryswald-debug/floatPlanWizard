@@ -17,6 +17,9 @@ component output=false {
       if (!len(emailDestinationPath(destination,arguments.context)))
         throw(type="FPW.Auth.InvalidIntent",message="Invalid destination context.");
       values=duplicate(arguments.context);
+    } else if (destination EQ "planner" AND !structIsEmpty(arguments.context)) {
+      values=guidePlannerContext(arguments.context);
+      if (structIsEmpty(values)) throw(type="FPW.Auth.InvalidIntent",message="Invalid guide itinerary context.");
     } else if (listFind("dashboard,account",destination)) {
       if (!structIsEmpty(arguments.context)) throw(type="FPW.Auth.InvalidIntent",message="Unexpected destination context.");
     } else {
@@ -106,7 +109,12 @@ component output=false {
     }
     entry.recovery={action="",routeId=0,routeInstanceId=0,routeCode="",floatPlanId=0,basicDraft=false};
     entry.emailDestinationPath="";
-    if (listFind("active-cruise,completed-trip,account-preferences",entry.destinationKey)) {
+    entry.guideContext={};
+    if (entry.destinationKey EQ "planner" AND structKeyExists(entry.values,"template_key")) {
+      entry.guideContext=guidePlannerContext(entry.values);
+      if (structIsEmpty(entry.guideContext)) return {};
+      entry.recovery.action="planner";
+    } else if (listFind("active-cruise,completed-trip,account-preferences",entry.destinationKey)) {
       entry.emailDestinationPath=emailDestinationPath(entry.destinationKey,entry.values);
       if (!len(entry.emailDestinationPath)) return {};
     } else if (!structIsEmpty(entry.values))
@@ -170,15 +178,33 @@ component output=false {
   public struct function normalizeSource(struct source={}) {
     var result={};
     var allowed={
-      source_page="great_loop_trip_planning,boat_fuel_calculator,great_loop_locks,top_nav,footer,dedicated_login,dedicated_join",
-      section="daily_decisions,after_planning_guide,top_nav,footer,account,great_loop_menu",
+      source_page="great_loop_trip_planning,boat_fuel_calculator,great_loop_locks,top_nav,footer,dedicated_login,dedicated_join,bahamas_guide",
+      section="daily_decisions,after_planning_guide,top_nav,footer,account,great_loop_menu,worked_itinerary",
       cta_type="plan_trip,plan_route,account,dashboard",
-      label="Start Planning,open FPW's Trip Planner workspace,Start Free,Account,Dashboard,My Account"
+      label="Start Planning,open FPW's Trip Planner workspace,Start Free,Account,Dashboard,My Account,Use this itinerary"
     };
     for (var key in allowed)
       if (structKeyExists(arguments.source,key) AND isSimpleValue(arguments.source[key])
         AND listFind(allowed[key],toString(arguments.source[key]))) result[key]=toString(arguments.source[key]);
     return result;
+  }
+
+  // Public guide selection is typed navigation context, never permission to read or create a private trip.
+  public struct function guidePlannerContext(required struct context) {
+    var out={};
+    if (structCount(arguments.context) NEQ 3) return out;
+    for (var key in ["template_key","template_version","import_request_id"])
+      if (!structKeyExists(arguments.context,key) OR !isSimpleValue(arguments.context[key])) return {};
+    var templateKey=toString(arguments.context.template_key);
+    var version=toString(arguments.context.template_version);
+    var requestId=lCase(toString(arguments.context.import_request_id));
+    if (!reFind("^[a-z0-9][a-z0-9-]{0,63}$",templateKey)
+      OR !reFind("^[1-9][0-9]{0,5}$",version)
+      OR !reFind("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",requestId)) return {};
+    out["template_key"]=templateKey;
+    out["template_version"]=val(version);
+    out["import_request_id"]=requestId;
+    return out;
   }
 
   // Email targets remain typed server-side intents. They are navigation hints, never authorization.

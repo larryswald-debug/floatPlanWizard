@@ -1,0 +1,99 @@
+diff --git a/boating-guides/index.cfm b/boating-guides/index.cfm
+--- a/boating-guides/index.cfm
++++ b/boating-guides/index.cfm
+@@ -6,8 +6,8 @@
+ request.fpwTopNavActive = "explore-guides";
+ fpwGuidesBasePath = request.fpwBase;
+ fpwGuidesCanonicalUrl = "https://floatplanwizard.com/boating-guides/";
+-fpwGuidesPageTitle = "Cruising Guides: Chesapeake Bay & Great Loop | FloatPlanWizard";
+-fpwGuidesPageDescription = "Explore FPW cruising guides for Chesapeake Bay and the Great Loop, with destinations, route planning, fuel, timing and float plan preparation.";
++fpwGuidesPageTitle = "Cruising Guides: Bahamas, Chesapeake Bay & Great Loop | FloatPlanWizard";
++fpwGuidesPageDescription = "Explore FPW cruising guides for the Bahamas, Chesapeake Bay and Great Loop, with destination research, editable itineraries, mileage, fuel and timing estimates.";
+ fpwGuidesSocialImage = "https://floatplanwizard.com/assets/images/social/floatplanwizard-social-preview-20260730.png";
+ fpwGuidesAt = chr(64);
+ fpwGuidesSchemaType = fpwGuidesAt & "type";
+@@ -51,7 +51,8 @@
+ fpwGuidesSchemaList["numberOfItems"] = 2;
+ fpwGuidesSchemaList["itemListElement"] = [
+   fpwGuidesListItem(1, "Chesapeake Bay Cruising Guide", "https://floatplanwizard.com/boating-guides/chesapeake-bay/"),
+-  fpwGuidesListItem(2, "Great Loop Planning Guide", "https://floatplanwizard.com/great-loop/trip-planning/")
++  fpwGuidesListItem(2, "Great Loop Planning Guide", "https://floatplanwizard.com/great-loop/trip-planning/"),
++  fpwGuidesListItem(3, "Bahamas Cruising and Trip Planning Guide", "https://floatplanwizard.com/boating-guides/bahamas/")
+ ];
+ 
+ fpwGuidesSchemaPage = structNew("ordered");
+@@ -138,6 +139,16 @@
+           <h2 id="fpwGreatLoopCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/">Great Loop Planning Guide</a></h2>
+           <p>Plan Great Loop legs with mileage, locks, bridges, fuel, and timing references, then review your route in FPW.</p>
+           <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/great-loop/trip-planning/">Explore the Great Loop guide <span aria-hidden="true">&rarr;</span></a>
++        </div>
++      </article>
++      <article class="fpw-cruising-card" aria-labelledby="fpwBahamasCardTitle">
++        <a class="fpw-cruising-card-image" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/bahamas/" aria-label="Read the Bahamas Cruising and Trip Planning Guide">
++          <img src="<cfoutput>#fpwGuidesBasePath#</cfoutput>/assets/images/boating-guides/bahamas/regional-overview.svg" width="1000" height="700" alt="Numbered geographic context map of Bahamas cruising areas" loading="lazy" decoding="async">
++        </a>
++        <div class="fpw-cruising-card-copy">
++          <h2 id="fpwBahamasCardTitle"><a href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/bahamas/">Bahamas Cruising and Trip Planning Guide</a></h2>
++          <p>Research the crossing and local stay, explore a Fort Lauderdale–Bimini example, and create an editable itinerary with clear estimate and review requirements.</p>
++          <a class="fpw-cruising-card-link" href="<cfoutput>#fpwGuidesBasePath#</cfoutput>/boating-guides/bahamas/">Explore the Bahamas guide <span aria-hidden="true">&rarr;</span></a>
+         </div>
+       </article>
+     </div>
+diff --git a/includes/top_nav.cfm b/includes/top_nav.cfm
+--- a/includes/top_nav.cfm
++++ b/includes/top_nav.cfm
+@@ -403,7 +403,7 @@
+ }
+ 
+ topNavPlanActive = listFindNoCase("dashboard,active-cruise", topNavActive) GT 0;
+-topNavExploreActive = topNavChesapeakeGuideActive OR listFindNoCase("explore-guides,explore-legs", topNavActive) GT 0 OR findNoCase("/great-loop/", topNavRequestPath) GT 0 OR findNoCase("/great-loop-", topNavRequestPath) GT 0;
++topNavExploreActive = findNoCase("/boating-guides/bahamas/", topNavRequestPath) GT 0 OR topNavChesapeakeGuideActive OR listFindNoCase("explore-guides,explore-legs", topNavActive) GT 0 OR findNoCase("/great-loop/", topNavRequestPath) GT 0 OR findNoCase("/great-loop-", topNavRequestPath) GT 0;
+ topNavLearnActive = topNavBoatingSafetyActive OR topNavWhyFloatPlanActive OR findNoCase("/how-it-works", topNavRequestPath) GT 0;
+ topNavToolsActive = topNavFuelActive OR topNavBoatLoanActive OR topNavWeatherActive;
+ 
+@@ -489,6 +489,7 @@
+             <div class="fpw-dropdown fpw-dropdown--explore" data-fpw-dropdown><button class="fpw-nav-link fpw-dropdown-toggle<cfif topNavExploreActive> is-active</cfif>" id="fpwExploreToggle" type="button" aria-expanded="false" aria-controls="fpwExploreMenu" data-fpw-dropdown-toggle>#renderFpwApprovedNavIcon("explore", "fpw-nav-icon")#<span>Explore</span><svg class="fpw-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg></button><div class="fpw-dropdown-menu fpw-explore-menu" id="fpwExploreMenu" aria-labelledby="fpwExploreToggle" hidden><div class="fpw-menu-scroll"><div class="fpw-explore-grid"><section class="fpw-explore-guides" aria-labelledby="fpwCruisingGuidesTitle"><h2 id="fpwCruisingGuidesTitle">#renderFpwApprovedNavIcon("explore", "")#Cruising Guides</h2>
+             <a class="fpw-guide-menu-card" href="#topNavBasePath#/boating-guides/chesapeake-bay/" <cfif topNavChesapeakeGuideActive>aria-current="page"</cfif>><img src="#topNavBasePath#/assets/images/navigation/thumb-chesapeake.jpg" width="116" height="92" alt=""><span><strong>Chesapeake Bay Cruising Guide</strong><small>Routes, destinations, travel times and more.</small></span></a>
+             <a class="fpw-guide-menu-card" href="#topNavBasePath#/great-loop/trip-planning/" <cfif findNoCase('/great-loop/trip-planning', topNavRequestPath) GT 0>aria-current="page"</cfif>><img src="#topNavBasePath#/assets/images/navigation/thumb-greatloop.jpg" width="116" height="92" alt=""><span><strong>Great Loop Planning Guide</strong><small>Plan your entire loop with FPW.</small></span></a>
++            <a class="fpw-guide-menu-card" href="#topNavBasePath#/boating-guides/bahamas/" <cfif findNoCase("/boating-guides/bahamas/", topNavRequestPath) GT 0>aria-current="page"</cfif>><img src="#topNavBasePath#/assets/images/boating-guides/bahamas/regional-overview.svg" width="116" height="92" alt=""><span><strong>Bahamas Cruising Guide</strong><small>A flexible Bimini example with editable estimates.</small></span></a>
+             <a class="fpw-menu-row fpw-menu-row--separator" href="#topNavBasePath#/boating-guides/" <cfif topNavActive EQ 'explore-guides'>aria-current="page"</cfif>>#renderFpwApprovedNavIcon("document", "fpw-menu-row-icon")#<span><strong>All Cruising Guides</strong></span><span class="fpw-menu-arrow" aria-hidden="true">&rarr;</span></a></section><section class="fpw-explore-libraries" aria-labelledby="fpwLoopLibrariesTitle"><h2 id="fpwLoopLibrariesTitle">#renderFpwApprovedNavIcon("pin", "")#Great Loop Libraries</h2>
+             <a class="fpw-menu-row" href="#topNavBasePath#/great-loop/ports/" <cfif findNoCase('/great-loop/ports/', topNavRequestPath) GT 0>aria-current="page"</cfif>>#renderFpwApprovedNavIcon("ship", "fpw-menu-row-icon")#<span><strong>Ports</strong></span><span class="fpw-menu-arrow" aria-hidden="true">&rarr;</span></a>
+             <a class="fpw-menu-row" href="#topNavBasePath#/great-loop/anchorages/" <cfif findNoCase('/great-loop/anchorages/', topNavRequestPath) GT 0>aria-current="page"</cfif>>#renderFpwApprovedNavIcon("anchor", "fpw-menu-row-icon")#<span><strong>Anchorages</strong></span><span class="fpw-menu-arrow" aria-hidden="true">&rarr;</span></a>
+diff --git a/sitemap.xml b/sitemap.xml
+--- a/sitemap.xml
++++ b/sitemap.xml
+@@ -105,6 +105,12 @@
+     <lastmod>2026-10-28</lastmod>
+   </url>
+   <url>
++    <loc>https://floatplanwizard.com/boating-guides/bahamas/</loc>
++  </url>
++  <url>
++    <loc>https://floatplanwizard.com/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/</loc>
++  </url>
++  <url>
+     <loc>https://floatplanwizard.com/fpw_great_loop_clockwise/</loc>
+     <lastmod>2026-10-29</lastmod>
+   </url>
+diff --git a/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json b/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json
+--- a/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json
++++ b/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json
+@@ -1,7 +1,7 @@
+ {
+   "template_key": "fort-lauderdale-bimini",
+   "template_version": 1,
+-  "status": "draft",
++  "status": "published",
+   "title": "Fort Lauderdale to Bimini: A Worked Trip Plan",
+   "canonical_url": "https://floatplanwizard.com/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/",
+   "stops": [
+@@ -75,7 +75,7 @@
+   "trip_notes": "Flexible example: stage in South Florida; cross and complete clearance; allow two local days; plan a return crossing; keep two additional weather days uncommitted. Local and weather days are notes, not scheduled movement legs. Confirm current documents, customs arrangements, overnight space, fuel supply, provisions, communications, actual route and shore-contact expectations. Brown’s Marina is the candidate Bimini destination reference, not a confirmed berth, fueling arrangement or reviewed approach. Its published coordinates have no stated datum or revision. Contact the marina and review current charts and conditions for the harbor approach. The Port Everglades reference is the published PE buoy, not a Florida berth; add and review staging movements separately. Member review records planning review only, never independent navigation verification. Example route distance — review for your trip. Each movement starts with an owner-supplied 50.3 NM planning estimate; the return follows the same example path in reverse. Measurement method, chart source and date are unspecified. Review or replace each leg before Float Plan creation.",
+   "verification": {
+     "checked_at": "2026-11-09",
+-    "publication_ready": false,
++    "publication_ready": true,
+     "blocking_items": [
+       "Production engine/schema compatibility, routing, cache and indexability verification",
+       "Final editorial review of current entry/return procedure and source limitations"
+

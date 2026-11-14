@@ -1,0 +1,13 @@
+--- /Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/WEB-INF/rewrite.config
++++ /Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/WEB-INF/rewrite.config
+@@ -3,6 +3,9 @@
+ 
+ # Deny the private scheduler file; a distinct target stops Tomcat from also invoking the default servlet.
+ RewriteRule ^/fpw/_fpw_private/scheduler-config\.json(?:$|[./;~].*) /WEB-INF/ [F,NC,L]
++
++# Deny all developer snapshots, including automatic exact-patch backups.
++RewriteRule ^/fpw/(?:[.]codex-snapshots|_codex_snapshots)(?:$|[./;~].*) /WEB-INF/ [F,NC,L]
+ 
+ # Deny the task's dated file snapshots and verification evidence.
+ RewriteRule ^/fpw/\.codex-snapshots/bahamas-guide-20261107(?:$|[./;~].*) /WEB-INF/ [F,NC,L]
+

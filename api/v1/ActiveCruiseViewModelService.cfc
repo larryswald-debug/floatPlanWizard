@@ -1137,6 +1137,9 @@
       }
 
       routeInputs = parseRouteInputsFromPlan(arguments.qPlan);
+      if (structKeyExists(routeInputs, "guide_context") AND isStruct(routeInputs.guide_context)) {
+        return enrichGuideRouteTimeline(routeInputs.guide_context, out);
+      }
       if (!structCount(routeInputs)) {
         return assignRouteTimelineFuelUnavailable(out, "Route generator fuel inputs are unavailable.");
       }
@@ -1239,6 +1242,69 @@
     </cfscript>
   </cffunction>
 
+  <!--- Saved guide inputs and totals are authoritative for guide estimates; vessel defaults never hydrate them. --->
+  <cffunction name="enrichGuideRouteTimeline" access="private" returntype="struct" output="false">
+    <cfargument name="guideContext" type="struct" required="true">
+    <cfargument name="routeTimeline" type="struct" required="true">
+    <cfscript>
+      var out = duplicate(arguments.routeTimeline);
+      var guide = arguments.guideContext;
+      var inputs = structKeyExists(guide, "planning_inputs") AND isStruct(guide.planning_inputs) ? guide.planning_inputs : {};
+      var totals = structKeyExists(guide, "totals") AND isStruct(guide.totals) ? guide.totals : {};
+      var savedLegs = structKeyExists(guide, "legs") AND isArray(guide.legs) ? guide.legs : [];
+      var summary = {
+        "complete" = structKeyExists(totals, "complete") AND totals.complete,
+        "distanceNm" = structKeyExists(totals, "known_distance_nm") ? totals.known_distance_nm : "",
+        "runHours" = structKeyExists(totals, "known_run_hours") ? totals.known_run_hours : "",
+        "baseFuelUsGal" = structKeyExists(totals, "base_fuel_us_gal") ? totals.base_fuel_us_gal : "",
+        "reserveFuelUsGal" = structKeyExists(totals, "reserve_fuel_us_gal") ? totals.reserve_fuel_us_gal : "",
+        "requiredFuelUsGal" = structKeyExists(totals, "required_fuel_us_gal") ? totals.required_fuel_us_gal : "",
+        "planningSpeedKn" = structKeyExists(inputs, "planning_speed_kn") ? inputs.planning_speed_kn : "",
+        "underwayBurnUsGph" = structKeyExists(inputs, "underway_burn_us_gph") ? inputs.underway_burn_us_gph : "",
+        "reserveMode" = structKeyExists(inputs, "reserve_mode") ? inputs.reserve_mode : "",
+        "reservePercent" = structKeyExists(inputs, "reserve_pct") ? inputs.reserve_pct : ""
+      };
+      var fuel = {};
+      var saved = {};
+      var i = 0;
+      var distance = 0;
+      out["guideEstimates"] = summary;
+      out["effectiveSpeedKn"] = summary.planningSpeedKn;
+      if (structKeyExists(out, "summary") AND isStruct(out.summary)) out.summary["totalNm"] = summary.distanceNm;
+      for (i = 1; i LTE arrayLen(out.legs); i++) {
+        saved = {};
+        for (var candidate in savedLegs) {
+          if (isStruct(candidate) AND structKeyExists(candidate, "order_index") AND candidate.order_index EQ out.legs[i].routeLegOrder) {
+            saved = candidate; break;
+          }
+        }
+        fuel = buildRouteTimelineLegFuelUnavailable("Guide planning inputs are incomplete.");
+        fuel["authority"] = "saved_guide_estimate";
+        if (summary.complete AND structKeyExists(saved, "distance_nm") AND isNumeric(saved.distance_nm)
+            AND isNumeric(summary.planningSpeedKn) AND summary.planningSpeedKn GT 0
+            AND isNumeric(summary.underwayBurnUsGph) AND summary.underwayBurnUsGph GT 0) {
+          distance = val(saved.distance_nm);
+          out.legs[i].distanceNm = distance;
+          out.legs[i].estimatedDurationSeconds = distance / summary.planningSpeedKn * 3600;
+          fuel.isAvailable = true;
+          fuel.unavailableReason = "";
+          fuel.totalFuelGallons = summary.baseFuelUsGal;
+          fuel.totalFuelLabel = numberFormat(summary.baseFuelUsGal, "0.0") & " US gal";
+          fuel.fuelWithReserveGallons = summary.requiredFuelUsGal;
+          fuel.fuelWithReserveLabel = numberFormat(summary.requiredFuelUsGal, "0.0") & " US gal";
+          fuel.legFuelNeededGallons = distance / summary.planningSpeedKn * summary.underwayBurnUsGph;
+          fuel.legFuelNeededLabel = numberFormat(fuel.legFuelNeededGallons, "0.0") & " US gal";
+          fuel.reserveMode = summary.reserveMode;
+          fuel.reservePercent = summary.reservePercent;
+          fuel.reserveGallons = summary.reserveFuelUsGal;
+          fuel.reserveLabel = numberFormat(summary.reserveFuelUsGal, "0.0") & " US gal (" & (summary.reserveMode EQ "thirds" ? "thirds" : summary.reservePercent & "% added") & ")";
+        }
+        out.legs[i].fuel = fuel;
+      }
+      return out;
+    </cfscript>
+  </cffunction>
+
   <cffunction name="buildCurrentLegFuelSection" access="private" returntype="struct" output="false">
     <cfargument name="qPlan" type="query" required="true">
     <cfargument name="routeTimeline" type="struct" required="true">
@@ -1286,6 +1352,16 @@
       var reservePercent = 0;
       var reserveGallons = 0;
 
+      if (structKeyExists(arguments.routeTimeline, "guideEstimates")) {
+        for (var guideLeg in arguments.routeTimeline.legs) {
+          if (guideLeg.routeLegOrder EQ arguments.currentLeg.order AND structKeyExists(guideLeg, "fuel")) {
+            structAppend(out, guideLeg.fuel, true);
+            return out;
+          }
+        }
+        out.unavailableReason = "Guide planning inputs are incomplete.";
+        return out;
+      }
       if (!structCount(routeInputs)) {
         out.unavailableReason = "Route generator fuel inputs are unavailable.";
         return out;

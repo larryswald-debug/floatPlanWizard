@@ -880,7 +880,7 @@ topNavShowAppSubnav = topNavIsLoggedIn
   </cfif>
   <cfif NOT structKeyExists(request, "fpwAuthScriptRendered")>
     <cfset request.fpwAuthScriptRendered = true>
-    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20261001-unified-auth"></script>
+    <script src="#topNavBasePath#/assets/js/app/auth.js?v=20261107-guide-itinerary-auth"></script>
   </cfif>
   <cfif NOT topNavIsLoggedIn>
     <script src="#topNavBasePath#/assets/js/app/core.js?v=20261001-unified-auth"></script>

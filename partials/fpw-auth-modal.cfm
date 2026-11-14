@@ -44,8 +44,8 @@
   </cfif>
   <cfif NOT structKeyExists(request, "fpwAuthScriptRendered")>
     <cfset request.fpwAuthScriptRendered = true>
-    <script src="#encodeForHTMLAttribute(fpwAuthModalBase)#/assets/js/app/auth.js?v=20261001-unified-auth"></script>
+    <script src="#encodeForHTMLAttribute(fpwAuthModalBase)#/assets/js/app/auth.js?v=20261107-guide-itinerary-auth"></script>
   </cfif>
-  <script src="#encodeForHTMLAttribute(fpwAuthModalBase)#/assets/js/app/auth-modal.js?v=20261001-unified-auth"></script>
+  <script src="#encodeForHTMLAttribute(fpwAuthModalBase)#/assets/js/app/auth-modal.js?v=20261107-guide-itinerary-auth"></script>
   </cfoutput>
 </cfif>

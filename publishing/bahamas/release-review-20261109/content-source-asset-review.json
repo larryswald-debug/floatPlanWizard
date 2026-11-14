@@ -1,0 +1,273 @@
+{
+  "checked_at": "2026-11-09",
+  "scope": "Public guide content, source/asset readiness and future publication patch. No release, production configuration, database changes, commit or push.",
+  "result": "Ready for owner content/visual review with mileage intentionally unset; publication remains disabled.",
+  "publication": {
+    "status": "draft",
+    "publication_ready": false,
+    "enabled_import_controls": 0,
+    "noindex": true,
+    "no_store": true,
+    "navigation_sitemap_patch_applied": false,
+    "future_patch": "publishing/bahamas/release-review-20261109/publication-after-approval.patch",
+    "patch_check": "git apply --check publishing/bahamas/release-review-20261109/publication-after-approval.patch passed after final manifest restoration and source edits; patch remains unapplied."
+  },
+  "source_decisions": [
+    {
+      "topic": "Endpoint pair",
+      "decision": "Retained exact published PE buoy and Brown’s marina coordinates, coordinate roles and unspecified datum limitations. No invented offshore waypoint or added precision.",
+      "urls": [
+        "https://nauticalcharts.noaa.gov/publications/coast-pilot/files/cp4/CPB4_C10_WEB.pdf",
+        "https://www.brownsmarinabimini.com/browns-marina-in-bimini-location/"
+      ],
+      "evidence": "NOAA revision01NOV2026 paragraph346, p338 still current retrieved edition; Brown’s published notation unchanged. Both re-retrieved November9."
+    },
+    {
+      "topic": "Mileage",
+      "decision": "Both actual leg distances remain null; public #enter-mileage instructions match actual planner controls.",
+      "rejected": [
+        {
+          "source": "https://biggameclubbimini.com/marina/coordinates/",
+          "reason": "47.6nm describes an offshore/reference-to-Bimini-approach comparison, not this destination pair; source directs visitors to confirm shifting approach conditions."
+        },
+        {
+          "source": "https://www.brownsmarinabimini.com/browns-marina-in-bimini-location/",
+          "reason": "Approximately48miles from Miami has unspecified units/endpoints and is not PE–Brown’s mileage."
+        },
+        {
+          "source": "https://myoloh.com/the-return-compass-cay-to-fort-lauderdale/",
+          "reason": "First-person2018 report has53.2nm to BahiaMar,48nm offshore crossing; exact current PE–Brown’s component not supplied."
+        },
+        {
+          "source": "Constructed worksheet",
+          "reason": "60nm each way remains a separate arithmetic illustration."
+        },
+        {
+          "source": "Geodesic/schematic",
+          "reason": "Never accepted as route mileage."
+        }
+      ]
+    },
+    {
+      "topic": "Bahamas procedure",
+      "decision": "Current official Customs page, Augustrecent-updatesPDF and Septemberoffice directory retrieved. Useful digital application/payment plus in-person approval checklist and current Bimini-contact link. Legacy/manual conflicts remain disclosed; fee table/history omitted.",
+      "urls": [
+        "https://www.bahamascustoms.gov.bs/visitor-info/marine-vessel-declarations-cruising-permits/",
+        "https://www.bahamascustoms.gov.bs/wp-content/uploads/2026/08/Pleasure-Vessel-Clearance-Recent-Updates-Revised.pdf",
+        "https://www.bahamascustoms.gov.bs/customs-offices-ports/"
+      ]
+    },
+    {
+      "topic": "United States return",
+      "decision": "Primary indexed CBPArticle1029 supports immediate arrival reporting; Article1476 supplies a general predeparture inquiry channel. Detailed ROAM/current+legacy and Florida reporting pages all403 through web+MCPCF; no eligibility, app-clearance or port-number promise. General inquiry explicitly is not an arrival report.",
+      "urls": [
+        "https://www.help.cbp.gov/s/article/Article-1029",
+        "https://www.help.cbp.gov/s/article/Article-1476?language=en_US",
+        "https://www.cbp.gov/travel/pleasure-boats/pleasure-boat-overview/roam",
+        "https://www.cbp.gov/travel/pleasure-boats-private-flyers/pleasure-boat-overview/roam",
+        "https://www.cbp.gov/travel/pleasure-boats-private-flyers/pleasure-boat-locations/fl"
+      ]
+    }
+  ],
+  "content_reconciliation": [
+    [
+      "Assumptions, units, worksheet, slower comparison, changed plan",
+      "retained and visually checked;120nm6h108base129.6required,7kn17h09m82.3required; changed125nm6h15m112.5base135required"
+    ],
+    [
+      "Actual imported mileage and partial totals",
+      "two nulls; no complete-trip fuel sufficiency; draft/save/reopen instructions retained"
+    ],
+    [
+      "Actual planner instructions",
+      "added six-step #enter-mileage section with matching labels Planning mileage estimate(nm), Source or calculation method, Confirm or replace this mileage, Save planning draft, Save trip"
+    ],
+    [
+      "Local days, waiting, return, logistics and clearance",
+      "retained substantive sections; official office/contact fallbacks added"
+    ],
+    [
+      "Map equivalents and map provenance",
+      "Explicit matching1/2 stop-table numbers and1→2/2→1 movement references added. Numbered regional table retained. Schematic connector and member-created/confirmed distinctions retained."
+    ],
+    [
+      "Photographs",
+      "two purposeful historical context photographs added with visible source/author/date/CCBYSA4.0/resize disclosure; four local responsive files;431896bytes total"
+    ],
+    [
+      "Geographic overview and Bimini map",
+      "upgraded country geometry110m→10m, retainingminor-islands; labels enlarged; scale footer shortened; narrow view pans within focusable region"
+    ],
+    [
+      "Crossing and time/fuel visuals",
+      "rebuilt vertical layouts560×500/560×620; readable mobile text, exact minute rounding, all chart inputs derived from manifest"
+    ],
+    [
+      "SEO/authorship",
+      "server-rendered substantive text; oneH1; unique title/description; production canonicals; valid matching WebPage/Article/BreadcrumbList; Organization author; source-reviewdate differs from nonexistent publicationdate"
+    ],
+    [
+      "Future phases",
+      "no new standalone region pages or later templates"
+    ],
+    [
+      "Analytics/crawlers",
+      "no vendor events enabled; no robots/training/private-path policy changes"
+    ]
+  ],
+  "checks": {
+    "runtime": {
+      "tool": "MCPCF",
+      "hub_status": 200,
+      "itinerary_status": 200,
+      "cache_control": "no-store, max-age=0",
+      "robots_header": "noindex, follow",
+      "private_patch_status": 403
+    },
+    "rendered": {
+      "tool": "Isolated host Playwright after MCP profile-lock failure and sandbox launch denial; escalated isolated launch succeeded",
+      "width390_no_document_overflow": true,
+      "one_h1_each": true,
+      "canonical_schema_match": true,
+      "local_anchor_failures": 0,
+      "import_control_count": 0,
+      "all_images_decoded": true,
+      "photo_count": 2,
+      "final_itinerary_widths": [
+        {
+          "viewport": 390,
+          "document": 390
+        },
+        {
+          "viewport": 768,
+          "document": 768
+        },
+        {
+          "viewport": 1440,
+          "document": 1440
+        }
+      ],
+      "numbered_stop_table": [
+        "1 · Port Everglades lighted buoy PE — planning reference",
+        "2 · Brown’s Marina, Bimini — candidate destination reference"
+      ],
+      "numbered_movement_rows": [
+        "1 → 2 · Outbound",
+        "2 → 1 · Return"
+      ],
+      "final_preview_visible": true,
+      "final_import_controls": 0,
+      "focus_correction": {
+        "scope": "Frontend changed only .bh-page a:focus-visible outline to existing map teal; retained 3px width and4px offset.",
+        "reported_browser_contrast": "6.34:1 after correction; prior orange2.72:1.",
+        "cache_reference": "Shared boating-guides/bahamas/_head.cfm now loads bahamas-guide.css?v=20261109-guide-focus for both public pages.",
+        "verification": "Both local endpoints200, no-store/noindex preserved and rendered shared stylesheet key confirmed."
+      }
+    },
+    "visuals": {
+      "all_four_svg_desktop_and_mobile": "Inspected actual rendered crops; corrected missing major-island outlines and clipped scale footer. Phone maps intentionally pan; adjacent tables and full SVG links remain usable.",
+      "print_css": "All assets loaded; maps have scrollWidth equal to clientWidth. Both public guides printed to Letter PDF with0.5in margins; regional map/HTML table, crossing diagram, Bimini references/table, chart, photographs/captions, unset mileage/incomplete subtotal and entry instructions visually inspected without clipping. Breadcrumb navigation then removed from print CSS to meet print contract; final captures regenerated and inspected.",
+      "public_print_pdfs": [
+        {
+          "path": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/evidence/public-hub-print.pdf",
+          "pages": 9
+        },
+        {
+          "path": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/evidence/public-itinerary-print.pdf",
+          "pages": 11
+        }
+      ],
+      "offline_build": [
+        {
+          "path": "assets/images/boating-guides/bahamas/regional-overview.svg",
+          "reproducible": true
+        },
+        {
+          "path": "assets/images/boating-guides/bahamas/bimini-context.svg",
+          "reproducible": true
+        },
+        {
+          "path": "assets/images/boating-guides/bahamas/time-fuel-comparison.svg",
+          "reproducible": true
+        },
+        {
+          "path": "assets/images/boating-guides/bahamas/crossing-decisions.svg",
+          "reproducible": true
+        }
+      ],
+      "final_print_breadcrumb_display": "none",
+      "final_mobile_crops_reviewed": [
+        "regional-overview-mobile.png",
+        "bimini-context-mobile.png",
+        "crossing-decisions-mobile.png",
+        "time-fuel-comparison-mobile.png"
+      ],
+      "final_print_numbering": "Final itinerary PDF regenerated from restored draft; page3 map markers1/2 match explicit stop-row1/2 labels and remain legible; movement rows1→2/2→1."
+    },
+    "other_agent_evidence": "Frontend owns final390/768/1440 full-page screenshots, keyboard/nativezoom/planner workflow checks. Root owns publicationpatch dry-run and production readiness."
+  },
+  "seo_primary_recheck": [
+    {
+      "url": "https://developers.google.com/search/docs/appearance/ai-features",
+      "status": "retrieved",
+      "conclusion": "Ordinary crawlability/indexability/useful HTML and accurate structured data remain relevant; inclusion not guaranteed."
+    },
+    {
+      "url": "https://developers.google.com/search/docs/fundamentals/ai-optimization-guide",
+      "status": "retrieved",
+      "conclusion": "No special AI schema or llms.txt required; preserve substantive human-readable material."
+    },
+    {
+      "url": "https://developers.google.com/search/updates",
+      "status": "retrieved",
+      "conclusion": "May8 notice says FAQ rich results ceased May7,2026. No FAQ schema/rich-result promise added."
+    },
+    {
+      "url": "https://www.bing.com/webmasters/help/webmaster-guidelines-30fba23a",
+      "status": "javascript_shell_only",
+      "conclusion": "Full content not independently verified; no new Bing-specific claim or implementation."
+    }
+  ],
+  "source_limitations": [
+    "Defensible actual endpoint-pair mileage not available; intentional null-input path is the release content, not an invented estimate.",
+    "Detailed ROAM/Florida reporting procedures remain inaccessible. Checklist directs member to primary authority before travel; no unverified eligibility or fallback number.",
+    "Customs legacy contradictions remain; no fee table or history published.",
+    "Production engine/schema/routing/cache/WAF/crawler behavior unverified here; owner publication decision remains separate."
+  ],
+  "changed_existing_files": [
+    "boating-guides/bahamas/index.cfm",
+    "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+    "boating-guides/bahamas/_head.cfm",
+    "assets/css/bahamas-guide.css",
+    "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+    "publishing/bahamas/sources.json",
+    "publishing/bahamas/assets.json",
+    "publishing/bahamas/build-assets.mjs",
+    "publishing/bahamas/maps/natural-earth-context.geojson",
+    "assets/images/boating-guides/bahamas/regional-overview.svg",
+    "assets/images/boating-guides/bahamas/bimini-context.svg",
+    "assets/images/boating-guides/bahamas/crossing-decisions.svg",
+    "assets/images/boating-guides/bahamas/time-fuel-comparison.svg",
+    "publishing/bahamas/README.md"
+  ],
+  "new_runtime_files": [
+    "assets/images/boating-guides/bahamas/alice-town-bimini-330.jpg",
+    "assets/images/boating-guides/bahamas/alice-town-bimini-960.jpg",
+    "assets/images/boating-guides/bahamas/port-everglades-330.jpg",
+    "assets/images/boating-guides/bahamas/port-everglades-960.jpg"
+  ],
+  "snapshots": ".codex-snapshots/bahamas-guide-20261107/readiness-20261109/public/",
+  "untouched_active_files": [
+    "boating-guides/index.cfm",
+    "includes/top_nav.cfm",
+    "sitemap.xml",
+    "web.config",
+    "robots.txt"
+  ],
+  "new_review_files": [
+    "publishing/bahamas/release-review-20261109/README.md",
+    "publishing/bahamas/release-review-20261109/content-source-asset-review.json",
+    "publishing/bahamas/release-review-20261109/publication-after-approval.patch"
+  ]
+}
+

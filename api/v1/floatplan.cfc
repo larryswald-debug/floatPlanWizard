@@ -1689,6 +1689,7 @@
                 endLocationVal = isNull(qSource.end_location[1]) ? "" : trim(toString(qSource.end_location[1]));
                 inputsJson = isNull(qSource.routegen_inputs_json[1]) ? "" : toString(qSource.routegen_inputs_json[1]);
                 sourceInputs = parseRouteInputs(inputsJson);
+                var guideOperationalCopy = structKeyExists(sourceInputs, "guide_context") AND isStruct(sourceInputs.guide_context);
                 sourceInputKeys = structKeyArray(sourceInputs);
                 for (sourceInputIndex = 1; sourceInputIndex LTE arrayLen(sourceInputKeys); sourceInputIndex++) {
                     sourceInputKey = sourceInputKeys[sourceInputIndex];
@@ -1739,7 +1740,7 @@
                             name = { value = routeName, cfsqltype = "cf_sql_varchar" },
                             shortCode = { value = routeCode, cfsqltype = "cf_sql_varchar" },
                             description = { value = routeDescription, cfsqltype = "cf_sql_varchar", null = NOT len(routeDescription) },
-                            totalNm = { value = totalNmVal, cfsqltype = "cf_sql_decimal", null = totalNmIsNull },
+                            totalNm = { value = totalNmVal, cfsqltype = "cf_sql_decimal", scale = (guideOperationalCopy ? 2 : 0), null = totalNmIsNull },
                             totalLocks = { value = totalLocksVal, cfsqltype = "cf_sql_integer", null = totalLocksIsNull }
                         },
                         { datasource = "fpw", result = "freshRouteInsertResult" }
@@ -1854,6 +1855,7 @@
                                 baseDistNm = {
                                     value = (baseDistIsNull ? 0 : val(qLegs.base_dist_nm[legIndex])),
                                     cfsqltype = "cf_sql_decimal",
+                                    scale = (guideOperationalCopy ? 2 : 0),
                                     null = baseDistIsNull
                                 },
                                 lockCount = {
@@ -1864,6 +1866,31 @@
                                 notes = { value = notesVal, cfsqltype = "cf_sql_varchar", null = NOT len(notesVal) }
                             },
                             { datasource = "fpw" }
+                        );
+                    }
+
+                    if (guideOperationalCopy) {
+                        // Preserve the saved guide plot; never substitute a later editable draft.
+                        queryExecute(
+                            "INSERT INTO route_leg_user_overrides
+                                (user_id,route_id,route_leg_id,route_leg_order,segment_id,geometry_json,computed_nm,override_fields_json)
+                             SELECT :uid,:newRouteId,target.id,target.leg_order,NULL,
+                                    sourceOverride.geometry_json,sourceOverride.computed_nm,sourceOverride.override_fields_json
+                             FROM route_instance_legs sourceLeg
+                             INNER JOIN route_leg_user_overrides sourceOverride
+                               ON sourceOverride.route_leg_id=sourceLeg.id
+                              AND sourceOverride.route_id=:sourceRouteId AND sourceOverride.user_id=:uid
+                             INNER JOIN route_instance_legs target
+                               ON target.route_instance_id=:targetInstance AND target.leg_order=sourceLeg.leg_order
+                             WHERE sourceLeg.route_instance_id=:sourceInstance",
+                            {
+                                uid={value=arguments.userId,cfsqltype="cf_sql_integer"},
+                                newRouteId={value=newRouteId,cfsqltype="cf_sql_integer"},
+                                sourceRouteId={value=sourceGeneratedRouteId,cfsqltype="cf_sql_integer"},
+                                targetInstance={value=newRouteInstanceId,cfsqltype="cf_sql_integer"},
+                                sourceInstance={value=arguments.sourceRouteInstanceId,cfsqltype="cf_sql_integer"}
+                            },
+                            {datasource="fpw"}
                         );
                     }
 
@@ -1990,6 +2017,14 @@
             if (qRouteLock.recordCount NEQ 1) {
                 result.ERROR = "SOURCE_ROUTE_INSTANCE_NOT_FOUND";
                 result.MESSAGE = "The source route instance could not be found.";
+                return result;
+            }
+
+            // Guide mileage review is a planning gate, never a navigation certification.
+            var guideReadiness = createObject("component", resolveApiV1ComponentPath("GuideTripService")).init("fpw").validateReadiness(arguments.userId, arguments.routeInstanceId);
+            if (!guideReadiness.allowed) {
+                result.ERROR = guideReadiness.code;
+                result.MESSAGE = guideReadiness.message;
                 return result;
             }
 
@@ -4397,6 +4432,13 @@
                 return result;
             }
 
+            var guideReadiness = createObject("component", resolveApiV1ComponentPath("GuideTripService")).init("fpw").validateReadiness(arguments.userId, routeInstanceId);
+            if (!guideReadiness.allowed) {
+                result.ERROR = guideReadiness.code;
+                result.MESSAGE = guideReadiness.message;
+                return result;
+            }
+
             var memberProfile = createObject("component", resolveApiV1ComponentPath("profile")).readMemberName(arguments.userId);
             if (!memberProfile.hasName) {
                 return {SUCCESS=false, ERROR="PROFILE_NAME_REQUIRED", MESSAGE="Enter your name in the first Float Plan step before saving or sending."};
@@ -4503,6 +4545,13 @@
                 var activityOwner = queryExecute("SELECT userId FROM users WHERE userId=:uid FOR UPDATE",
                     {uid={value=arguments.userId,cfsqltype="cf_sql_integer"}},{datasource=ds});
                 if (activityOwner.recordCount NEQ 1) throw(type="FPW.MemberActivity.Ownership",message="Member not found.");
+                // Recheck under the same member lock used by guide draft edits.
+                guideReadiness = createObject("component", resolveApiV1ComponentPath("GuideTripService")).init("fpw").validateReadiness(arguments.userId, routeInstanceId);
+                if (!guideReadiness.allowed) {
+                    result.ERROR = guideReadiness.code;
+                    result.MESSAGE = guideReadiness.message;
+                    return result;
+                }
                 if (!activityWasCreate) {
                     activityBefore = readDraftActivityProjection(arguments.userId,planId,false,ds);
                 }

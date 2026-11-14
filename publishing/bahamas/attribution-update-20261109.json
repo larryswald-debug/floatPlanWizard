@@ -1,0 +1,195 @@
+{
+  "date": "2026-11-09",
+  "scope": "Local implementation and verification; release candidate remains draft.",
+  "request": "Changing imported guide mileage must discard prior active attribution/review, retain the original snapshot, allow incomplete drafts and require a source/method plus review before Float Plan creation.",
+  "root_cause": "The planner retained the prior method for positive mileage changes, while the backend rejected a blank method even for a planning draft.",
+  "fix": "The UI clears the active method on each numeric transition. The server discards retained prior/imported method text, source IDs/dates and review on a numeric change, while accepting a different explicitly supplied replacement method in the same request. Positive changed mileage uses the existing member_entered kind. The immutable source snapshot is not updated.",
+  "backup_root": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/bahamas-guide-20261107/attribution-20261109/",
+  "changed_files": [
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/GuideTripService.cfc",
+      "description": "Clear stale attribution/review on mileage edits; allow missing-method drafts; require method for review, complete saves and guide readiness."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/api_assets/FloatPlanPdfItineraryService.cfc",
+      "description": "Shared summary/PDF exact Member-entered estimate label and explicit missing-method/incomplete messages."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/guide-planner.js",
+      "description": "Clear method on every numeric edit including repeated unsaved edits; show member attribution and missing-method draft guidance."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/routebuilder.js",
+      "description": "Label guide member-entered mileage in the leg list."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/dashboard.cfm",
+      "description": "Refresh the two changed planner JavaScript cache keys."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+      "description": "Explain clearing attribution/review, preserving original snapshot and allowing incomplete drafts."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/specs/GuideTripIntegrationSpec.cfc",
+      "description": "Fourteen new attribution/persistence/guard checks plus explicit arithmetic-fixture methods."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-trip-runner.cfm",
+      "description": "Missing-attribution calculation check and explicit arithmetic-fixture methods."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-trip-ui-fixture.cfm",
+      "description": "Existing local/auth/CSRF guarded owned-import test branch; in-memory publication override only."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-planner.spec.js",
+      "description": "Three focused attribution regressions including repeated unsaved mileage edits."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/GuideSavedViewContract.cfc",
+      "description": "Explicit source/method values for existing arithmetic fixtures."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-export-runner.cfm",
+      "description": "Missing/new member-method export assertions and actual edited-draft/Float Plan PDF checks."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/GuideTripDemoFixture.cfc",
+      "description": "Optional real edited-mileage fixture with draft/review/save/reopen and immutable snapshot assertions."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/README.md",
+      "description": "Document current attribution behavior and link this report."
+    },
+    {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/attribution-update-20261109.json",
+      "description": "This scoped implementation and verification report."
+    }
+  ],
+  "verification": {
+    "backend_integration": {
+      "passed": 93,
+      "total": 93,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/integration-result.json",
+      "new_attribution_checks": 14
+    },
+    "calculations_and_local_guard": {
+      "passed": 22,
+      "total": 22,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/calculation-result.json"
+    },
+    "saved_view": {
+      "passed": 9,
+      "total": 9,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/saved-view-result.json"
+    },
+    "existing_reserve": {
+      "passed": 9,
+      "total": 9,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/reserve-result.json"
+    },
+    "existing_continuity": {
+      "passed": 4,
+      "total": 4,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/continuity-result.json"
+    },
+    "export_runner": {
+      "passed": 31,
+      "total": 31,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/export-result.json"
+    },
+    "frontend_focused": {
+      "passed": 21,
+      "total": 21,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/evidence/frontend-tests"
+    },
+    "live_browser": {
+      "passed": 11,
+      "total": 11,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/evidence/browser-attribution-checks.json",
+      "flow": "Normal fresh registration; guarded test-only owned import with manifest kept draft; existing planner handoff; ordinary mileage/method/review/save/reopen/print/Float Plan controls.",
+      "limitation": "After review, the clean account reached the existing No vessel available requirement. Successful draft Float Plan creation and real PDF generation were verified separately with a disposable fixture containing a vessel."
+    },
+    "pdf_text": {
+      "passed": 19,
+      "total": 19,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/evidence/pdf-text-checks.json"
+    },
+    "pdf_visual": {
+      "pdfs": 6,
+      "pages": 18,
+      "inspected": true,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/evidence/pdf-visual-review.json",
+      "result": "Edited mileage, exact member attribution, missing/new method, review meaning, estimates and source records are legible in summaries and guide supplements."
+    },
+    "pdf_fields": {
+      "canonical_widget_value_mismatches": 0,
+      "populated_widgets_without_appearance": 0,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/evidence/pdf-field-checks.json"
+    },
+    "existing_copy_preservation": {
+      "imports_unchanged": 39,
+      "saved_snapshot_json_unchanged": 21,
+      "evidence": ".codex-snapshots/bahamas-guide-20261107/attribution-20261109/backend/existing-copy-preservation.json",
+      "boundary": "Baseline captured after source edits and before runtime tests; no bulk update or migration."
+    },
+    "static_checks": {
+      "git_diff_check": "passed",
+      "unapplied_publication_patch_dry_run": "passed"
+    }
+  },
+  "observed_example": {
+    "fresh": {
+      "outbound_nm": 50.3,
+      "return_nm": 50.3,
+      "total_nm": 100.6,
+      "speed_kn": 20,
+      "burn_us_gph": 18,
+      "estimated_hours": 5.03,
+      "estimated_base_fuel_us_gal": 90.54,
+      "estimated_required_with_20pct_us_gal": 108.648
+    },
+    "edited_draft": {
+      "outbound_nm": 50.3,
+      "return_nm": 55,
+      "total_nm": 105.3,
+      "kind": "member_entered",
+      "label": "Member-entered estimate",
+      "active_method": "",
+      "source_ids": [],
+      "source_dates": {},
+      "review": "unreviewed",
+      "complete": false,
+      "missing_method_count": 1,
+      "save_reopen": "passed",
+      "source_snapshot_original_return_nm": 50.3
+    },
+    "after_method_and_review": {
+      "return_nm": 55,
+      "total_nm": 105.3,
+      "estimated_hours": 5.265,
+      "estimated_base_fuel_us_gal": 94.77,
+      "estimated_required_with_20pct_us_gal": 113.724,
+      "display_time": "5 h 16 min",
+      "display_base_fuel": "94.8 US gal",
+      "display_required_fuel": "113.7 US gal",
+      "save_reopen_and_summary": "passed"
+    },
+    "guards": "Missing attribution/review blocks guide progression at creation, direct save and activation guard boundaries. No activation or sends were performed. Review does not establish independent route verification."
+  },
+  "unchanged": [
+    "Manifest version1, draft status, publication_ready=false and original50.3 NM leg values/provenance.",
+    "Separate120 NM illustrative worksheet.",
+    "Existing member copies/saved trips.",
+    "Schema, runtime configuration, official PDF form template, nonguide production calculations, publication/nav/sitemap, deployments and notifications."
+  ],
+  "limitations": [
+    "Local verification is not production verification.",
+    "Existing fixed-size official PDF form fields can clip dates and long text; source form left unchanged as directed.",
+    "ColdFusion Developer/Trial watermark remains in locally generated supplements.",
+    "Public import stayed disabled; fresh current-manifest browser import used the existing guarded test fixture rather than toggling publication."
+  ],
+  "cleanup": "Temporary private authentication files removed and isolated browser closed. Disposable integration fixtures cleaned up. Protected QA artifacts retained."
+}
+

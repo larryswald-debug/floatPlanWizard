@@ -1,0 +1,59 @@
+{
+  "role": "geographic_label_only_never_import",
+  "attribution": "GeoNames CC BY 4.0; Eleuthera value retrieved through Mapcarta citing GeoNames3572435.",
+  "accessed_at": "2026-11-07",
+  "labels": [
+    {
+      "name": "Bimini",
+      "lat": 25.70444,
+      "lon": -79.28889,
+      "dx": -19,
+      "dy": 27,
+      "anchor": "end",
+      "source_url": "https://www.geonames.org/search.html?country=BS&q=Bimini"
+    },
+    {
+      "name": "Grand Bahama",
+      "lat": 26.6333333,
+      "lon": -78.4166667,
+      "dx": -14,
+      "dy": -21,
+      "anchor": "end",
+      "source_url": "https://www.geonames.org/search.html?country=BS&q=Grand%20Bahama"
+    },
+    {
+      "name": "Abacos",
+      "lat": 26.46504,
+      "lon": -77.13432,
+      "dx": 18,
+      "dy": -12,
+      "source_url": "https://www.geonames.org/search.html?country=BS&q=Abacos"
+    },
+    {
+      "name": "Berry Islands",
+      "lat": 25.72111,
+      "lon": -77.83139,
+      "dx": 18,
+      "dy": 3,
+      "source_url": "https://www.geonames.org/search.html?country=BS&q=Berry%20Islands"
+    },
+    {
+      "name": "Eleuthera",
+      "lat": 25.13472,
+      "lon": -76.14418,
+      "dx": 18,
+      "dy": 0,
+      "source_url": "https://mapcarta.com/19490548"
+    },
+    {
+      "name": "Exumas (George Town)",
+      "lat": 23.51616453512508,
+      "lon": -75.78665256500244,
+      "dx": -18,
+      "dy": 28,
+      "anchor": "end",
+      "source_url": "https://www.geonames.org/search.html?country=BS&q=Exumas%20(George%20Town)"
+    }
+  ]
+}
+

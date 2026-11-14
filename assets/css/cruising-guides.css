@@ -159,7 +159,7 @@
 body.fpw-cruising-index-body {
   min-height: 100vh;
   margin: 0;
-  background: #031522;
+  background: #011d2d;
   color: #f7fbff;
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -169,113 +169,199 @@ body.fpw-cruising-index-body {
 }
 .fpw-cruising-index {
   min-width: 0;
-  background: linear-gradient(180deg, #031522, #041b2b);
+  background:
+    radial-gradient(ellipse 850px 440px at 100% 0, rgba(0, 172, 195, .8), rgba(0, 105, 128, .24) 46%, transparent 80%),
+    #011d2d;
 }
 .fpw-cruising-index-shell {
-  width: min(1200px, calc(100% - 64px));
+  width: min(1500px, calc(100% - 80px));
   margin-inline: auto;
-  padding: 28px 0 72px;
-}
-.fpw-cruising-breadcrumbs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0 0 36px;
-  color: #b9cbda;
-  font-size: 14px;
-  line-height: 1.4;
-}
-.fpw-cruising-breadcrumbs a {
-  color: inherit;
-  text-decoration: none;
+  padding: 14px 0 48px;
 }
 .fpw-cruising-index-intro {
-  max-width: 830px;
-  margin-bottom: 34px;
+  margin: 0 12px 27px;
 }
 .fpw-cruising-eyebrow {
-  margin: 0 0 12px;
-  color: #16d9eb;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 1.1px;
+  margin: 0 0 6px;
+  color: #00f4fc;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: .4px;
   text-transform: uppercase;
 }
 .fpw-cruising-index-intro h1 {
   margin: 0;
   color: #f7fbff;
-  font-size: clamp(36px, 4vw, 52px);
-  line-height: 1.08;
+  font-size: 59px;
+  font-weight: 700;
+  line-height: 1.0441;
   letter-spacing: -1.4px;
 }
 .fpw-cruising-index-intro > p:last-child {
-  margin: 20px 0 0;
-  color: #b9cbda;
-  font-size: 17px;
-  line-height: 1.65;
+  max-width: 1100px;
+  margin: 8px 0 0;
+  color: #e0edf5;
+  font-size: 19px;
+  line-height: 1.4211;
+}
+.fpw-cruising-featured-header {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin: 0 0 28px;
+  padding-left: 12px;
+}
+.fpw-cruising-featured-header h2 {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 16px;
+  margin: 0;
+  color: #f7fbff;
+  font-size: 31px;
+  line-height: 1.15;
+}
+.fpw-cruising-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 23px;
+  height: 23px;
+  background: currentColor;
+  -webkit-mask: var(--fpw-cruising-icon) center / contain no-repeat;
+  mask: var(--fpw-cruising-icon) center / contain no-repeat;
+}
+.fpw-cruising-icon--book {
+  --fpw-cruising-icon: url("../images/boating-guides/cruising-guides/icon-book.svg");
+  width: 42px;
+  height: 40px;
+  -webkit-mask-size: 56px 40px;
+  mask-size: 56px 40px;
+  color: #00f4fc;
+}
+.fpw-cruising-icon--star {
+  --fpw-cruising-icon: url("../images/boating-guides/cruising-guides/icon-star.svg");
+}
+.fpw-cruising-icon--pin {
+  --fpw-cruising-icon: url("../images/boating-guides/cruising-guides/icon-pin.svg");
+}
+.fpw-cruising-icon--calendar {
+  --fpw-cruising-icon: url("../images/boating-guides/cruising-guides/icon-calendar.svg");
+}
+.fpw-cruising-featured-divider {
+  flex: 1 1 auto;
+  min-width: 24px;
+  height: 1px;
+  background: #00dce7;
+}
+.fpw-cruising-categories {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fpw-cruising-category {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 8px 20px;
+  border: 1px solid #00dce7;
+  border-radius: 999px;
+  color: #f7fbff;
+  font-size: 16px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.fpw-cruising-category .fpw-cruising-icon {
+  color: #c4f7ff;
+}
+.fpw-cruising-category--active {
+  padding-inline: 23px;
+  background: #00f4fc;
+  color: #011d2d;
 }
 .fpw-cruising-card-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 18px;
 }
 .fpw-cruising-card {
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid #17617a;
-  border-radius: 12px;
-  background: #031b2b;
+  border: 1px solid #1f6075;
+  border-radius: 16px;
+  background: #022030;
 }
 .fpw-cruising-card-image {
   display: block;
   overflow: hidden;
-  aspect-ratio: 420 / 240;
+  aspect-ratio: 2.28;
 }
 .fpw-cruising-card-image img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scale(1.05);
+  transform-origin: right bottom;
+}
+/* Crop the captured card edges from the supplied images without altering the files. */
+.fpw-cruising-card-image img[src$="03-great-loop-card.jpg"] {
+  transform: scale(1.07);
+}
+.fpw-cruising-card-image img[src$="04-bahamas-card.jpg"] {
+  transform: scale(1.1);
 }
 .fpw-cruising-card-copy {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   align-items: flex-start;
-  padding: 26px;
+  min-height: 168px;
+  padding: 10px 23px 18px;
 }
-.fpw-cruising-card h2 {
+.fpw-cruising-card h3 {
   margin: 0;
-  font-size: 24px;
+  font-size: 26px;
+  font-weight: 700;
   line-height: 1.2;
+  letter-spacing: -.4px;
 }
-.fpw-cruising-card h2 a {
+.fpw-cruising-card h3 a {
   color: #f7fbff;
   text-decoration: none;
 }
 .fpw-cruising-card-copy > p {
-  margin: 16px 0 24px;
-  color: #b9cbda;
-  font-size: 16px;
-  line-height: 1.6;
+  margin: 6px 0 12px;
+  color: #e0edf5;
+  font-size: 17px;
+  line-height: 1.3;
 }
 .fpw-cruising-card-link {
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 48px;
+  min-height: 26px;
   margin-top: auto;
-  color: #16d9eb;
-  font-size: 15px;
+  color: #00f4fc;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1.4;
   text-decoration: none;
 }
 .fpw-cruising-card-link span {
-  font-size: 22px;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
 }
 .fpw-cruising-index a:hover {
   color: #88f5ff;
@@ -288,6 +374,18 @@ body.fpw-cruising-index-body {
   outline-offset: -4px;
 }
 
+@media (max-width: 1200px) {
+  .fpw-cruising-featured-header {
+    flex-wrap: wrap;
+    row-gap: 16px;
+  }
+  .fpw-cruising-categories {
+    flex-basis: 100%;
+  }
+  .fpw-cruising-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 @media (max-width: 1040px) {
   .fpw-chesapeake-hero-inner {
     padding-inline: 24px;
@@ -332,8 +430,29 @@ body.fpw-cruising-index-body {
     padding-top: 24px;
     padding-bottom: 48px;
   }
-  .fpw-cruising-breadcrumbs {
-    margin-bottom: 28px;
+  .fpw-cruising-index-intro {
+    margin-inline: 0;
+  }
+  .fpw-cruising-eyebrow {
+    font-size: 13px;
+  }
+  .fpw-cruising-index-intro h1 {
+    font-size: 40px;
+  }
+  .fpw-cruising-featured-header {
+    gap: 16px;
+    padding-inline: 0;
+  }
+  .fpw-cruising-featured-header h2 {
+    gap: 10px;
+    font-size: 26px;
+  }
+  .fpw-cruising-categories {
+    gap: 8px;
+  }
+  .fpw-cruising-category {
+    padding: 7px 13px;
+    font-size: 14px;
   }
   .fpw-cruising-index-intro > p:last-child {
     font-size: 16px;
@@ -344,8 +463,16 @@ body.fpw-cruising-index-body {
   .fpw-cruising-card-copy {
     padding: 22px;
   }
-  .fpw-cruising-card h2 {
-    font-size: 22px;
+  .fpw-cruising-card h3 {
+    font-size: 23px;
+  }
+  .fpw-cruising-card-copy > p {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  .fpw-cruising-card-link {
+    min-height: 44px;
+    font-size: 16px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

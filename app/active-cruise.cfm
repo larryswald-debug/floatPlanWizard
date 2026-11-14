@@ -527,6 +527,9 @@
     activeCruiseV2RouteProgressSummary = activeCruiseV2Model.routeTimeline.summary;
   }
 
+  activeCruiseV2GuideEstimate = structKeyExists(activeCruiseV2Model, "routeTimeline") AND isStruct(activeCruiseV2Model.routeTimeline)
+    AND structKeyExists(activeCruiseV2Model.routeTimeline, "guideEstimates") AND isStruct(activeCruiseV2Model.routeTimeline.guideEstimates);
+
   if (
     structKeyExists(activeCruiseV2Model, "currentLeg")
     AND isStruct(activeCruiseV2Model.currentLeg)
@@ -3841,6 +3844,19 @@
                 </div>
               </div>
 
+              <cfif activeCruiseV2GuideEstimate>
+                <cfset guideDisplay = activeCruiseV2Model.routeTimeline.guideEstimates>
+                <p class="map-position-note" data-guide-estimate-summary role="note">
+                  <strong>Guide planning estimates:</strong>
+                  #encodeForHTML(fpwV2Number(fpwV2Get(guideDisplay, "distanceNm"), " nm"))#,
+                  #encodeForHTML(fpwV2Number(fpwV2Get(guideDisplay, "runHours"), " h"))# movement time;
+                  #encodeForHTML(fpwV2Number(fpwV2Get(guideDisplay, "baseFuelUsGal"), " US gal"))# base fuel,
+                  #encodeForHTML(fpwV2Number(fpwV2Get(guideDisplay, "requiredFuelUsGal"), " US gal"))# including reserve.
+                  Explicit inputs: #encodeForHTML(fpwV2Number(fpwV2Get(guideDisplay, "planningSpeedKn"), " kn"))# and
+                  #encodeForHTML(fpwV2Number(fpwV2Get(guideDisplay, "underwayBurnUsGph"), " US gal/h"))#.
+                  Dashed lines are schematic connections; solid plots are member-created. Member review is not independent navigation verification.
+                </p>
+              </cfif>
               <div class="header-stats">
                 <div class="metric">
                   <span>Scheduled Departure</span>
@@ -3902,7 +3918,7 @@
                     <p class="route-leg-estimate-copy" data-fpw-field="currentLeg.summary">#encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "fromName"), "Not available"))# to #encodeForHTML(fpwV2Text(fpwV2Get(activeCruiseV2Model.currentLeg, "toName"), "Not available"))#</p>
                     <div class="route-leg-estimate-metrics">
                       <div class="route-leg-estimate-metric">
-                        <span>Distance</span>
+                        <span><cfif activeCruiseV2GuideEstimate>Estimated Distance<cfelse>Distance</cfif></span>
                         <strong data-fpw-field="currentLeg.distanceNm">#encodeForHTML(fpwV2Number(fpwV2Get(activeCruiseV2Model.currentLeg, "distanceNm"), " nm"))#</strong>
                       </div>
                       <div class="route-leg-estimate-metric">
@@ -4163,7 +4179,7 @@
                             <div class="route-plan-detail-grid">
                               <div><span>Departure</span><strong>#encodeForHTML(routePlanDepartureLabel)#</strong></div>
                               <div><span>ETA / Arrival</span><strong>#encodeForHTML(routePlanArrivalLabel)#</strong></div>
-                              <div><span>Distance</span><strong>#encodeForHTML(routePlanDistanceLabel)#</strong></div>
+                              <div><span><cfif activeCruiseV2GuideEstimate>Estimated Distance<cfelse>Distance</cfif></span><strong>#encodeForHTML(routePlanDistanceLabel)#</strong></div>
                               <div><span>Progress</span><strong>#encodeForHTML(routePlanProgressLabel)#</strong></div>
                             </div>
                             <div class="route-plan-lock-detail">
@@ -4242,7 +4258,7 @@
                     <span>V2 Model</span>
                   </div>
                   <div class="data-grid">
-                    <div class="data-item"><span>Distance</span><strong data-selected-leg-field="distance">#encodeForHTML(selectedRoutePlanDistanceLabel)#</strong><small>Total leg length</small></div>
+                    <div class="data-item"><span><cfif activeCruiseV2GuideEstimate>Estimated Distance<cfelse>Distance</cfif></span><strong data-selected-leg-field="distance">#encodeForHTML(selectedRoutePlanDistanceLabel)#</strong><small><cfif activeCruiseV2GuideEstimate>Planning estimate<cfelse>Total leg length</cfif></small></div>
                     <div class="data-item"><span>Remaining</span><strong data-selected-leg-field="remaining">#encodeForHTML(selectedRoutePlanRemainingLabel)#</strong><small>From selected leg model</small></div>
                     <div class="data-item"><span>Est. Leg Time</span><strong data-selected-leg-field="estimatedDuration">#encodeForHTML(selectedRoutePlanEstimatedDurationLabel)#</strong><small>Projected full duration</small></div>
                     <div class="data-item"><span>Time Left</span><strong data-selected-leg-field="remainingDuration">#encodeForHTML(selectedRoutePlanRemainingDurationLabel)#</strong><small>Projected remaining duration</small></div>
@@ -4250,8 +4266,8 @@
                     <div class="data-item"><span>Progress</span><strong data-selected-leg-field="progress">#encodeForHTML(selectedRoutePlanProgressLabel)#</strong><small>Selected leg progress</small></div>
                     <div class="data-item"><span>Status</span><strong data-selected-leg-field="status">#encodeForHTML(selectedRoutePlanStatusLabel)#</strong><small>Selected leg status</small></div>
                     <div class="data-item"><span>Arrival</span><strong data-selected-leg-field="arrival">#encodeForHTML(selectedRoutePlanArrivalLabel)#</strong><small>ETA / arrival</small></div>
-                    <div class="data-item"><span>Total Fuel</span><strong data-selected-leg-field="totalFuel">#encodeForHTML(selectedRoutePlanTotalFuelLabel)#</strong><small>Route estimate</small></div>
-                    <div class="data-item"><span>Fuel + Reserve</span><strong data-selected-leg-field="fuelReserve">#encodeForHTML(selectedRoutePlanFuelReserveLabel)#</strong><small>Route estimate with reserve</small></div>
+                    <div class="data-item"><span><cfif activeCruiseV2GuideEstimate>Estimated Total Fuel<cfelse>Total Fuel</cfif></span><strong data-selected-leg-field="totalFuel">#encodeForHTML(selectedRoutePlanTotalFuelLabel)#</strong><small>Route estimate</small></div>
+                    <div class="data-item"><span><cfif activeCruiseV2GuideEstimate>Estimated Fuel + Reserve<cfelse>Fuel + Reserve</cfif></span><strong data-selected-leg-field="fuelReserve">#encodeForHTML(selectedRoutePlanFuelReserveLabel)#</strong><small>Route estimate with reserve</small></div>
                     <div class="data-item"><span>Leg Fuel Needed</span><strong data-selected-leg-field="legFuelNeeded">#encodeForHTML(selectedRoutePlanLegFuelNeededLabel)#</strong><small>Selected leg estimate</small></div>
                   </div>
                 </div>
@@ -4651,7 +4667,7 @@
     <script id="fpwActiveCruiseV2WeatherPayload" type="application/json">#fpwV2JsonForScript(weatherModel)#</script>
   </cfif>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20260527-cache-bump"></script>
+  <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/follow/followMap.js?v=20261107-guide-estimates-r3"></script>
   <cfif !request.fpwTripPreview><script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/app/shared/route-weather-assist.js?v=20260527-cache-bump"></script></cfif>
   <script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/leaflet-noaa-waypoint-map.js?v=20260527-cache-bump"></script>
   <cfif !request.fpwTripPreview><script src="#encodeForHTMLAttribute(activeCruiseV2BasePath)#/assets/js/maps/fpw-weather-overlays.js?v=20260527-cache-bump"></script></cfif>
@@ -4669,6 +4685,7 @@
   const fullMapStatusEl = document.getElementById('fpwActiveCruiseV2FullMapStatus');
   let fullMapInstance = null;
   let fullMapRouteLayer = null;
+  let fullMapGuideLegend = null;
   let fullMapPinLayer = null;
   let fullMapBoatMarker = null;
   let fullMapReturnFocusEl = null;
@@ -4891,6 +4908,32 @@
     if (!mapInstance || !window.L || !routeGeo) {
       return null;
     }
+    if (routeGeo.guide_estimates) {
+      const segments = routeGeo.type === 'LineString' ? [routeGeo.coordinates] : routeGeo.coordinates;
+      const sources = Array.isArray(routeGeo.guide_geometry_sources) ? routeGeo.guide_geometry_sources : [];
+      const group = window.L.featureGroup();
+      (Array.isArray(segments) ? segments : []).forEach(function(coordinates, index) {
+        const memberPlotted = sources[index] === 'member_plotted';
+        // Reversed schematic return legs must share dash phase with the outbound line.
+        const points = coordinates.slice();
+        if (!memberPlotted && points.length > 1) {
+          const first = points[0], last = points[points.length - 1];
+          if (first[0] > last[0] || (first[0] === last[0] && first[1] > last[1])) points.reverse();
+        }
+        window.L.geoJSON({ type: 'LineString', coordinates: points }, {
+          style: { color: '#5b7cfa', weight: 4, opacity: 0.92, dashArray: memberPlotted ? null : '8 7' }
+        }).bindTooltip(memberPlotted ? 'Member-created plot — planning estimate' : 'Schematic connection — not a navigational route').addTo(group);
+      });
+      fullMapGuideLegend = window.L.control({ position: 'bottomleft' });
+      fullMapGuideLegend.onAdd = function() {
+        const el = window.L.DomUtil.create('div', 'follow-guide-map-legend');
+        el.style.cssText = 'max-width:260px;background:white;color:#172b3a;padding:8px;font-size:12px;line-height:1.4';
+        el.textContent = 'Planning estimates. Dashed: schematic connection. Solid: member-created plot. Member review is not independent navigation verification.';
+        return el;
+      };
+      fullMapGuideLegend.addTo(mapInstance);
+      return group.addTo(mapInstance);
+    }
     return window.L.geoJSON(routeGeo, {
       style: {
         color: '#5b7cfa',
@@ -4927,6 +4970,10 @@
   function resetFullMapLayers() {
     if (!fullMapInstance) {
       return;
+    }
+    if (fullMapGuideLegend) {
+      fullMapGuideLegend.remove();
+      fullMapGuideLegend = null;
     }
     if (fullMapRouteLayer) {
       fullMapInstance.removeLayer(fullMapRouteLayer);

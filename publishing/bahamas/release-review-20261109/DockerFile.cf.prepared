@@ -1,0 +1,19 @@
+# DockerFile.cf – ColdFusion + MySQL JDBC driver
+FROM adobecoldfusion/coldfusion:latest
+
+# Accept EULA at build-time so container will run
+ENV acceptEULA=YES
+
+# PDF rendering: Java AWT requires FreeType and a discoverable font family.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libfreetype6 fontconfig fonts-dejavu-core \
+ && fc-cache -f \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy MySQL JDBC driver into CF lib
+COPY drivers/mysql-connector-j.jar /opt/coldfusion/cfusion/lib/
+
+# Ensure ColdFusion can read the jar (CF often runs as non-root)
+# Also add a legacy-compatible filename some CF builds expect.
+RUN chmod 644 /opt/coldfusion/cfusion/lib/mysql-connector-j.jar \
+ && cp -f /opt/coldfusion/cfusion/lib/mysql-connector-j.jar /opt/coldfusion/cfusion/lib/mysql-connector-java.jar

@@ -1,0 +1,245 @@
+{
+  "checked_at": "2026-11-09",
+  "request": "Owner-supplied50.3NM outbound PE buoy→Brown’s Marina and50.3NM return along the same example path in reverse.",
+  "result": "Implemented locally; release candidate remains draft.",
+  "representation": {
+    "distance_kind": "source_reported_estimate",
+    "label": "Example route distance — review for your trip.",
+    "source": "Owner-supplied planning estimate",
+    "measurement_method": "unspecified",
+    "chart_source": "unspecified",
+    "measurement_date": "unspecified",
+    "distance_source_ids": [],
+    "distance_source_dates": {},
+    "coordinate_sources": "Unchanged on stops; not presented as mileage sources.",
+    "geometry_kind": "schematic",
+    "initial_member_review": "unreviewed",
+    "template_version": 1,
+    "label_location": "Per-leg distance_method shown in the public itinerary, planner editor, persisted snapshot and planning print. Existing aggregate cards keep generic estimate labels."
+  },
+  "calculation": {
+    "legs_nm": [
+      50.3,
+      50.3
+    ],
+    "total_nm": 100.6,
+    "imported_speed_kn": null,
+    "imported_underway_burn_us_gph": null,
+    "comparison_assumptions": {
+      "speed_kn": 20,
+      "total_underway_us_gph": 18,
+      "reserve_mode": "percentage",
+      "reserve_pct": 20
+    },
+    "comparison_results": {
+      "run_hours": 5.03,
+      "display_time": "5h02min",
+      "base_fuel_us_gal": 90.54,
+      "display_base_fuel": "90.5USgal",
+      "required_with_reserve_us_gal": 108.648,
+      "display_required": "108.6USgal"
+    },
+    "separate_worksheet": {
+      "legs_nm": [
+        60,
+        60
+      ],
+      "total_nm": 120,
+      "unchanged": true
+    },
+    "worksheet_is_imported": false
+  },
+  "preservation": {
+    "checked_at": "2026-11-09",
+    "imports_baseline_boundary": "Captured before manifest mileage edit.",
+    "saved_snapshots_baseline_boundary": "Captured after manifest-only edit and before backend test execution; manifest copy code was independently inspected.",
+    "preexisting_import_rows": 38,
+    "unchanged_import_rows": 38,
+    "changed_import_rows": [],
+    "preexisting_generated_snapshot_rows": 20,
+    "unchanged_generated_snapshot_rows": 20,
+    "changed_generated_snapshot_rows": [],
+    "new_rows_outside_baseline": 1,
+    "production_service_changed": false,
+    "tests": 79,
+    "passed": 79,
+    "disposable_fixtures_cleaned": true
+  },
+  "checks": {
+    "backend_integration": {
+      "passed": 79,
+      "total": 79,
+      "disposable_fixtures_cleaned": true
+    },
+    "normal_browser": {
+      "checked_at": "2026-11-09",
+      "code_changes": [],
+      "browser": "Isolated headed Chromium; MCPPlaywright profile locked, previously approved fallback",
+      "public": {
+        "outbound_nm": 50.3,
+        "return_nm": 50.3,
+        "total_nm": 100.6,
+        "label": "Example route distance — review for your trip.",
+        "method_chart_date": "unspecified",
+        "worksheet_nm": 120,
+        "gate": "draft restored by root"
+      },
+      "workflow": {
+        "normal_registration": true,
+        "dashboard_continue": true,
+        "fresh_private_route": 791,
+        "private_saved_route": 26265,
+        "initial_time_fuel_unset": true,
+        "untouched_save_reopen": true,
+        "explicit_inputs": {
+          "speed_kn": 20,
+          "burn_us_gph": 18,
+          "reserve_mode": "percentage",
+          "reserve_pct": 20
+        },
+        "untouched_totals": {
+          "missing_leg_count": 0,
+          "missing_inputs": [],
+          "complete": true,
+          "known_cruise_fuel_us_gal": 90.53999999999999,
+          "reserve_fuel_us_gal": 18.107999999999997,
+          "estimate_label": "Planning estimates",
+          "known_run_hours": 5.029999999999999,
+          "known_distance_nm": 100.6,
+          "base_fuel_us_gal": 90.53999999999999,
+          "usable_above_requirement_us_gal": 81.352,
+          "required_fuel_us_gal": 108.648
+        },
+        "review_gate_initial": "GUIDE_REVIEW_REQUIRED",
+        "edited_return_nm": 55,
+        "edit_invalidates_review": true,
+        "review_gate_after_edit": "GUIDE_REVIEW_REQUIRED",
+        "reconfirmed_saved_reopened": true,
+        "edited_totals": {
+          "missing_leg_count": 0,
+          "missing_inputs": [],
+          "complete": true,
+          "known_cruise_fuel_us_gal": 94.77,
+          "reserve_fuel_us_gal": 18.953999999999997,
+          "estimate_label": "Planning estimates",
+          "known_run_hours": 5.265,
+          "known_distance_nm": 105.3,
+          "base_fuel_us_gal": 94.77,
+          "usable_above_requirement_us_gal": 76.27600000000001,
+          "required_fuel_us_gal": 113.72399999999999
+        },
+        "original_snapshot_unchanged": true,
+        "stable_saved_route": true,
+        "maps": "schematic; unchanged by member confirmation"
+      },
+      "print": {
+        "status": 200,
+        "cache": "private, no-store, no-cache, must-revalidate",
+        "exact_owner_label_retained": true,
+        "member_method_retained": true
+      },
+      "assertions": {
+        "passed": 14,
+        "total": 14
+      },
+      "limits": [
+        "Summary cards and Follow/Captain summaries retain generic estimate labels; exact example sentence is in per-leg source/method and planning/PDF model.",
+        "Mileage edit test also changed its source/method to describe member input. Existing numeric-only edits do not automatically rewrite a nonmissing method.",
+        "No activation, sending or production changes."
+      ]
+    },
+    "publication": {
+      "status": "draft",
+      "publication_ready": false,
+      "temporarily_enabled_local_import_restored": true,
+      "public_pages_status": 200,
+      "robots": "noindex, follow",
+      "cache": "no-store, max-age=0",
+      "future_patch_applied": false,
+      "future_patch_dry_run": "PASS"
+    },
+    "static": {
+      "json": "PASS",
+      "git_diff_check": "PASS",
+      "stops_unchanged": true,
+      "planning_defaults_unchanged": true,
+      "worksheet_unchanged": true
+    }
+  },
+  "changed_files": [
+    {
+      "path": "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+      "change": "Set both movement estimates to50.3; record owner-supplied source/method text, empty mileage source references/dates, schematic geometry and unchanged draft gate; update current notes/verification wording."
+    },
+    {
+      "path": "boating-guides/bahamas/_setup.cfm",
+      "change": "Derive actual-template distance total and public time/fuel comparison from the manifest, separately from the unchanged worksheet."
+    },
+    {
+      "path": "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+      "change": "Show exact example label,50.3NM legs/100.6NM total, owner provenance/unspecified metadata and review-or-replace steps; retain separate120NM illustration."
+    },
+    {
+      "path": "boating-guides/bahamas/index.cfm",
+      "change": "Replace stale missing-default descriptions with owner-estimate context while retaining missing-value behavior."
+    },
+    {
+      "path": "tests/support/GuideTripFixtureService.cfc",
+      "change": "Make missing-mileage coverage an explicit test fixture mode instead of relying on editorial defaults."
+    },
+    {
+      "path": "tests/specs/GuideTripIntegrationSpec.cfc",
+      "change": "Add11current-owner-estimate integration checks; preserve68existing missing/review/save/geometry/security checks."
+    },
+    {
+      "path": "publishing/bahamas/README.md",
+      "change": "Document current defaults, unchanged personal snapshots and superseding mileage report."
+    },
+    {
+      "path": "publishing/bahamas/release-review-20261109/publication-after-approval.patch",
+      "change": "Refresh only manifest context after notes/line changes; future publication patch still unapplied."
+    },
+    {
+      "path": "publishing/bahamas/mileage-update-20261109.json",
+      "change": "Current implementation and verification report."
+    }
+  ],
+  "snapshots": [
+    ".codex-snapshots/bahamas-guide-20261107/mileage-20261109/",
+    ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/"
+  ],
+  "evidence": {
+    "integration": ".codex-snapshots/bahamas-guide-20261107/mileage-20261109/backend/integration-result.json",
+    "preservation": ".codex-snapshots/bahamas-guide-20261107/mileage-20261109/backend/existing-copy-preservation.json",
+    "browser": ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/",
+    "browser_checks": ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/browser-mileage-checks.json",
+    "screenshots": [
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/edited-planning-summary.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/edited-save-reopened-desktop.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/edited-save-reopened-mobile.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/fresh-import-desktop.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/fresh-import-mobile.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/unreviewed-float-plan-gate.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/untouched-save-reopened-desktop.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/updated-public-itinerary-1440.png",
+      ".codex-snapshots/bahamas-guide-20261107/owner-mileage-20261109/evidence/updated-public-itinerary-390.png"
+    ]
+  },
+  "scope": {
+    "production_backend_and_planner_calculation_changes": false,
+    "frontend_javascript_changes": false,
+    "migration_executed": false,
+    "external_configuration_changes": false,
+    "production_deployment": false,
+    "commit_or_push": false,
+    "operational_activation_or_sending": false,
+    "existing_copy_behavior": "Ordinary selection reuses the member's existing copy. Only genuinely new copies receive updated defaults; stored member edits/source snapshots are not overwritten."
+  },
+  "limitations": [
+    "Owner supply is the provenance; measurement method, chart source and date are not independently documented.",
+    "Planning estimates and member review do not establish independent navigation verification.",
+    "Local verification is not production release verification."
+  ],
+  "supersedes": "Earlier Nov7/Nov9 reports correctly described null defaults at their verification time. This owner-directed update supersedes only that editorial default; historical reports are retained."
+}
+

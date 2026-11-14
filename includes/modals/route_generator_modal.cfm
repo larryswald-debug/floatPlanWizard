@@ -1121,6 +1121,7 @@
     }
   </style>
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/cruise-timeline.css?v=20261029-shared-timeline">
+  <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/guide-planner.css?v=20261109-guide-readiness">
 
   <div class="rg-modal">
     <div class="rg-topbar">
@@ -1323,6 +1324,7 @@
             </div>
 
             <div class="rg-right-scroll">
+              <section id="guideTripPanel" aria-labelledby="guideTripTitle" hidden></section>
               <section class="rg-section rg-summary-column">
                 <div class="rg-mini-grid rg-right-mini-grid">
                   <article class="rg-mini-card">

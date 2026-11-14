@@ -58,6 +58,7 @@ async function bootDashboard(page, routes, options = {}) {
               <button id="expeditionTimelineRetry" type="button">Retry</button>
             </div>
             <div id="expeditionTimelineBody" class="d-none">
+              <section id="expeditionPlanningDrafts" class="d-none"><h3>Planning drafts</h3><div id="expeditionPlanningDraftList"></div><p id="expeditionPlanningDraftStatus" role="status"></p></section>
               <div id="expeditionRouteList"></div>
               <div id="expeditionRouteEmpty" class="d-none">No routes</div>
               <div id="expeditionTimelineAccordion"></div>
@@ -70,10 +71,11 @@ async function bootDashboard(page, routes, options = {}) {
 
   await page.addStyleTag({ content: bootstrapCss + "\n" + dashboardCss });
   await page.addScriptTag({ content: bootstrapScript });
-  await page.evaluate(({ initialRoutes, failArchive, activeTrip }) => {
+  await page.evaluate(({ initialRoutes, failArchive, activeTrip, planningDrafts }) => {
     window.FPW_BASE = "/fpw";
     window.__routeActionsTest = {
       routes: initialRoutes,
+      planningDrafts: planningDrafts || [],
       activeTrip: activeTrip || { SUCCESS: false },
       actions: [],
       calls: [],
@@ -128,6 +130,7 @@ async function bootDashboard(page, routes, options = {}) {
           SUCCESS: true,
           AUTH: true,
           ROUTES: state.routes,
+          PLANNING_DRAFTS: state.planningDrafts,
           CURRENT_GROUP: { HAS_CURRENT_GROUP: false },
           ACTIVE_TRIP: state.activeTrip
         };
@@ -154,13 +157,13 @@ async function bootDashboard(page, routes, options = {}) {
         headers: { "Content-Type": "application/json" }
       }));
     };
-  }, { initialRoutes: routes, failArchive: options.failArchive, activeTrip: options.activeTrip });
+  }, { initialRoutes: routes, failArchive: options.failArchive, activeTrip: options.activeTrip, planningDrafts: options.planningDrafts });
 
   await page.addScriptTag({ content: dashboardSource });
   await page.evaluate(() => {
     document.dispatchEvent(new Event("DOMContentLoaded"));
     const record = (action, ...args) => window.__routeActionsTest.actions.push({ action, args });
-    window.FPW.DashboardModules.routeBuilder = { openEditorForRoute: code => record("edit", code) };
+    window.FPW.DashboardModules.routeBuilder = { openEditorForRoute: code => record("edit", code), openSavedRoute: id => { record("open-draft", id); return Promise.resolve(true); } };
     window.FPW.DashboardModules.floatplans = {
       openWizardForPlan: (id, step) => record("wizard", id, step),
       cancelFloatPlan: id => record("cancel", id)
@@ -377,4 +380,69 @@ test("icons call the original actions and preserve confirmation messages", async
   expect(state.confirmations).toContain("Archive this route? It will be removed from your Routes list while its completed Premium Send history is retained.");
   expect(state.confirmations).toContain("Delete this route and any attached non-Premium float-plan data? This cannot be undone.");
   expect(state.alerts).toEqual([]);
+});
+
+test("guide saved card uses explicit snapshot estimates and distinguishes a newer incomplete draft", async ({ page }) => {
+  const guide = routePayload({
+    NAME:"Bimini guide estimate",SHORT_CODE:"USER_ROUTE_GUIDE_FIXTURE",
+    TOTALS:{TOTAL_NM:999,ESTIMATED_HOURS:99,WAYPOINT_COUNT:2,HAS_DEFAULT_VESSEL:false},
+    GUIDE_SUMMARY:{
+      totals:{known_distance_nm:120,known_run_hours:6,required_fuel_us_gal:129.6},
+      has_newer_draft:true,draft_complete:false,source_user_route_id:42,draft_revision:3,generated_revision:2
+    }
+  });
+  await bootDashboard(page,[guide]);
+  const detail=page.locator(".fpw-route-detail-pane");
+  await expect(detail).toContainText("120.0 nm estimate");
+  await expect(detail).toContainText("6 h 00 min estimate");
+  await expect(detail).toContainText("129.6 US gal estimate, including reserve");
+  await expect(detail).not.toContainText("Requires default vessel");
+  await expect(detail).toContainText("Newer incomplete planning draft");
+  await expect(detail).toContainText("last saved trip");
+  await expect(detail.locator(".fpw-route-preview-line")).toHaveAttribute("stroke-dasharray","8 7");
+  await expect(detail).toContainText("not a navigational route");
+  await page.evaluate(()=>{window.__routeActionsTest.routes[0].GUIDE_SUMMARY.has_newer_draft=false;document.dispatchEvent(new CustomEvent("fpw:routes-updated"));});
+  await expect(detail).not.toContainText("Newer incomplete");
+  await expect(detail).toContainText("not independent navigation verification");
+});
+function planningDraftPayload() {
+  return {ROUTE_ID:42,NAME:"Bahamas <example>",LEG_COUNT:2,START_LABEL:"Port Everglades",END_LABEL:"Port Everglades",
+    TOTALS:{complete:false,known_distance_nm:100.6,known_hours:null,known_cruise_fuel_us_gal:null,missing_leg_count:0,missing_inputs:["Planning speed (knots)","Underway fuel burn (US gal/h)"]}};
+}
+for(const width of [390,1440]){
+  test("planning drafts remain visible without generated routes at "+width+"px",async({page})=>{
+    await page.setViewportSize({width,height:900});
+    await bootDashboard(page,[],{planningDrafts:[planningDraftPayload()]});
+    const card=page.locator("[data-planning-draft-id]");
+    await expect(page.locator("#expeditionPlanningDrafts")).toBeVisible();
+    await expect(card).toContainText("Bahamas <example>");
+    await expect(card).toContainText("100.6");
+    await expect(card).toContainText("Incomplete estimate");
+    await expect(card).toContainText("Planning speed");
+    await expect(card.locator("button")).toHaveCount(1);
+    await expect(card.locator("a")).toHaveAttribute("href","/fpw/app/guide-trip-print.cfm?routeId=42");
+    await expect(page.locator("#expeditionRouteEmpty")).toBeHidden();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await card.getByRole("button",{name:"Open planning draft"}).click();
+    expect(await page.evaluate(()=>window.__routeActionsTest.actions)).toContainEqual({action:"open-draft",args:[42]});
+  });
+}
+test("failed planning draft opening gives a visible retry message",async({page})=>{
+  await bootDashboard(page,[],{planningDrafts:[planningDraftPayload()]});
+  await page.evaluate(()=>{window.FPW.DashboardModules.routeBuilder.openSavedRoute=async()=>false;});
+  await page.getByRole("button",{name:"Open planning draft"}).click();
+  await expect(page.locator("#expeditionPlanningDraftStatus")).toContainText("could not be opened. Refresh and retry.");
+  await expect(page.locator("#expeditionPlanningDraftStatus")).toBeVisible();
+  await expect(page.getByRole("button",{name:"Open planning draft"})).toBeEnabled();
+});
+test("a completed save replaces the planning draft with the ordinary saved route card",async({page})=>{
+  await bootDashboard(page,[],{planningDrafts:[planningDraftPayload()]});
+  await page.evaluate(route=>{
+    window.__routeActionsTest.planningDrafts=[];
+    window.__routeActionsTest.routes=[route];
+    return window.FPW.DashboardModules.expeditionTimeline.load();
+  },routePayload());
+  await expect(page.locator("#expeditionPlanningDrafts")).toBeHidden();
+  await expect(page.locator("[data-planning-draft-id]")).toHaveCount(0);
+  await expect(page.locator(".fpw-routes-table-row")).toHaveCount(1);
 });

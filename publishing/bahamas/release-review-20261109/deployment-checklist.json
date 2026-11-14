@@ -1,0 +1,167 @@
+{
+  "checked_at": "2026-11-09",
+  "scope": "Local release readiness, scoped source fixes and the explicitly approved one-field fpw datasource CLOB correction with ColdFusion stop/start. No production deployment, production database execution, migration rerun, rollback execution, commit or push; no container recreation, Tomcat edit or PDF template edit.",
+  "verdict": "Scoped local backend and security checks pass after the approved CLOB correction. Production deployment remains gated on actual delivery exclusions, target runtime/schema/cache proof, general external snapshot-denial approval and publication approval.",
+  "best_fix": "Use the reviewed runtime allowlist through the actual delivery tool, exclude all development material, retain required private manifests behind web-server denial, and verify authenticated caches and PDFs on the target before publication.",
+  "safest_fix": "Keep the release unpublished with imports disabled while the operator supplies delivery and target-runtime proof. Removing metadata or rolling back code after guide copies exist is not a safe substitute.",
+  "verified_local": {
+    "database": {
+      "schema": "FPW",
+      "mysql": "8.0.43",
+      "table": "guide_route_imports",
+      "columns": 20,
+      "engine": "InnoDB",
+      "collation": "utf8mb4_unicode_ci",
+      "invalid_json_rows": 0,
+      "indexes": {
+        "uq_guide_import_request": [
+          "user_id",
+          "import_request_id"
+        ],
+        "uq_guide_my_route": [
+          "user_route_id"
+        ]
+      },
+      "migration_executed_this_review": false
+    },
+    "backup": {
+      "path": "/Users/lawrencewald/Docker/cf-mysql-dev/.codex-snapshots/bahamas-guide-20261107/database/fpw-before-guide-imports.sql.gz",
+      "bytes": 755189,
+      "gzip_integrity": "PASS",
+      "outside_webroot": true,
+      "former_file_absent": true,
+      "former_url_head": 403,
+      "purpose": "Historical local pre-migration backup; not a fresh production backup or post-import rollback export."
+    },
+    "test_guards": {
+      "five_new_runners_anonymous_post": "401 TEST_AUTH_REQUIRED",
+      "authenticated_get": 405,
+      "missing_csrf": 403,
+      "unsafe_origin": 403,
+      "authenticated_valid_post": "200; 13 access-control checks plus 8 arithmetic checks all pass",
+      "production_environment_check": "Pure validation denies production/prod/empty env; no deployed production endpoint invocation is claimed",
+      "evidence": "deployment-security-checks.json"
+    },
+    "web_server": {
+      "repository_iis": "web.config now returns404 for all .codex-snapshots/_codex_snapshots and tests/testbox paths, before redirects; XML and scoped regex checks passed. Deployment not exercised.",
+      "local_tomcat": "Current external rule denies the dated Bahamas directory only. General automatic-backup path was confirmed200 by HEAD; this review's seven automatic backup files were preserved byte-for-byte by MCPCF roundtrip under protected dated directory then removed from original paths. Representative old URL now404, protected replacement403.",
+      "prepared_external_patch": "deployment-tomcat-snapshot-denial.patch; NOT APPLIED. Requires explicit approval and appropriate reload/restart, then HEAD denial checks."
+    },
+    "regression": {
+      "guide_integration": "68/68 passed after approved CLOB correction; 74834-character saved JSON reads in full and reopens correctly. Earlier64-check failure and raw truncation evidence are retained.",
+      "normal_route_continuity": "4/4 passed again after approved CLOB correction and restart.",
+      "reserve_modes": "9/9 passed again after approved CLOB correction and restart.",
+      "evidence": "deployment-backend-integration.json"
+    },
+    "coldfusion_clob": {
+      "approved_local_change": true,
+      "disable_clob": false,
+      "persistent_volume": "cf-mysql-dev_cfusion_lib",
+      "only_setting_semantically_changed": true,
+      "before_backup_directory": "/Users/lawrencewald/Docker/cf-mysql-dev/.codex-snapshots/bahamas-guide-20261107/readiness-20261109/cf-clob",
+      "read_only_probe_expected": 70001,
+      "read_only_probe_received": 70001,
+      "restart_only": true,
+      "no_container_recreation": true,
+      "evidence": "deployment-datasource-clob.json",
+      "long_snapshot_database_characters": 74834,
+      "long_snapshot_coldfusion_characters": 74834,
+      "long_snapshot_json_valid": true
+    }
+  },
+  "steps": [
+    {
+      "order": 1,
+      "name": "Authorize release and identify target",
+      "required": "Name the responsible operator, production host/webroot, actual ColdFusion edition/build, DB engine/version/name and approved credential access. Record current source revision/file hashes. Do not infer target compatibility from local MySQL8/CF2025 or historical Hostek descriptions.",
+      "status": "TARGET PROOF REQUIRED"
+    },
+    {
+      "order": 2,
+      "name": "Prove delivery exclusions",
+      "required": "Use deployment-allowlist.json. Obtain the actual tool's dry-run/exported transfer list; verify no snapshots/dumps/test endpoints/fixtures/credentials/internal review records. Existing .gitignore does not establish SFTP/FTPS exclusion. Do not overwrite server-owned private files/uploads or use blanket remote deletion.",
+      "status": "ACTUAL DELIVERY MECHANISM UNVERIFIED"
+    },
+    {
+      "order": 3,
+      "name": "Migration preflight",
+      "files": [
+        "database/migrations/20261107_001_guide_route_imports.preflight.sql"
+      ],
+      "required": "Run read-only preflight on the verified target. For a new installation require READY_FOR_NEW_MIGRATION, seven InnoDB parent tables, INT identifiers compatible with new signed INT columns, route_instances.routegen_inputs_json, and supported JSON_VALID/CHECK behavior. Inspect COLUMN_TYPE and character/collation details, not integer display widths. If guide_route_imports already exists, STOP; run verify and compare schema rather than rerunning up.",
+      "status": "LOCAL ALREADY APPLIED; TARGET NOT RUN"
+    },
+    {
+      "order": 4,
+      "name": "Fresh external backup before target migration",
+      "required": "Back up the selected target using the established operational credential mechanism to a protected path outside every public root. Record size/hash, gzip integrity, restoration procedure and access controls. A backup download must not be accessible by HTTP. Retain current application/configuration snapshots outside delivery scope. The Nov7 local backup is insufficient for new target or post-import rollback.",
+      "status": "COMMANDS PREPARED; NOT EXECUTED"
+    },
+    {
+      "order": 5,
+      "name": "Apply additive migration once",
+      "files": [
+        "database/migrations/20261107_001_guide_route_imports.up.sql",
+        "database/migrations/20261107_001_guide_route_imports.verify.sql"
+      ],
+      "required": "After separate production DB authorization, use a client that stops on errors. Run up once, then verify. Require20 columns, both unique indexes, InnoDB and zero invalid JSON rows. Review request_history_json/check constraints and identifier types explicitly. Never delete or seed shared ports, segments, templates, routes or Beta Program records.",
+      "status": "TARGET EXECUTION REQUIRES APPROVAL"
+    },
+    {
+      "order": 6,
+      "name": "Runtime, fonts and licensing",
+      "required": "Use root-owned font/runtime runbook and prepared Dockerfile patch. Verify target CF engine build and datasource behavior; obtain explicit approval for external Docker/config changes and base image acquisition. A running-container package install does not survive rebuild. Check required fonts/native libraries in a recreated approved environment, actual guide+nonguide PDF rendering, glyphs, embedded fonts and merge behavior. Verify production license separately from Developer/Trial watermark. Confirm datasource long-text retrieval (CLOB) is enabled: local fpw originally had disable_clob=true/buffer64000 and truncated long guide_context; approved correction now enables CLOB. See deployment-datasource-clob.json. Preserve existing credentials, BLOB and all unrelated settings.",
+      "status": "LOCAL CLOB CORRECTED AND TESTED; SEE ROOT FONT EVIDENCE; PRODUCTION RUNTIME/RECREATION PROOF STILL REQUIRED"
+    },
+    {
+      "order": 7,
+      "name": "Server access rules before assets",
+      "required": "Apply reviewed IIS rules with the release and verify404/403 for publishing/bahamas JSON/review files, internal underscore includes, tests/testbox, all snapshot directories and guide-generated static PDF URLs. On local Tomcat only, the prepared general snapshot deny requires explicit approval and reload. Server-side fileRead must still read the two private runtime JSONs. Robots/noindex is not access control.",
+      "status": "LOCAL DATED DENIAL PASSES; GENERAL TOMCAT PATCH PREPARED; IIS NOT DEPLOYED"
+    },
+    {
+      "order": 8,
+      "name": "Private cache and authentication",
+      "required": "Using authorized existing test sessions after deployment approval, verify API, planning print and authenticated PDF responses are no-store/private and cannot enter CDN shared cache. Verify anonymous and cross-user denial without reading another member's data. Inspect actual CDN/WAF/cache rules and Vary/cookie behavior; a DYNAMIC header alone proves neither private-cache safety nor crawler access.",
+      "status": "TARGET PROOF REQUIRED"
+    },
+    {
+      "order": 9,
+      "name": "Smoke actual workflows",
+      "required": "Once production test mutations are explicitly authorized, exercise exact anonymous template continuation, registration/Continue or existing-member sign-in, owned import/reuse, null-mileage draft, explicit performance, per-leg review, complete save/reopen, map and planning/PDF labels. Do not activate, send, schedule alerts or operate safety actions merely for release testing.",
+      "status": "LOCAL PROOF RECORDED SEPARATELY; TARGET MUTATIONS REQUIRE APPROVAL"
+    },
+    {
+      "order": 10,
+      "name": "Publication, canonical and crawler checks",
+      "required": "After owner publication approval only: set true publication/update dates and status, add hub+first itinerary to navigation/index/sitemap. Verify canonical clean200, indexalias301 once, missing404, no stray noindex or snippet headers, sitemap consistency, public content with no private data, robots training/search policy unchanged and actual CDN/WAF crawler access. Read-only external checks do not prove real crawler-IP access.",
+      "status": "UNPUBLISHED GATE PRESERVED"
+    }
+  ],
+  "prepared_mysql_commands": {
+    "warning": "NOT EXECUTED. Run only on explicitly approved target with variables supplied by the operator and existing approved mysql login-path credentials; no credential contents are read here. Do not use --force. Resolve preflight findings before continuing.",
+    "preflight": "set -euo pipefail\n: \"${FPW_RELEASE_DB:?Set the independently verified FPW or fpw target database}\"\n: \"${FPW_RELEASE_LOGIN_PATH:?Set the existing approved mysql login path}\"\n: \"${FPW_RELEASE_SOURCE:?Set the reviewed checkout path}\"\ncase \"$FPW_RELEASE_DB\" in FPW|fpw) ;; *) exit 1 ;; esac\nmysql --login-path=\"$FPW_RELEASE_LOGIN_PATH\" --batch --show-warnings \"$FPW_RELEASE_DB\" < \"$FPW_RELEASE_SOURCE/database/migrations/20261107_001_guide_route_imports.preflight.sql\"",
+    "backup": "set -euo pipefail\numask 077\n: \"${FPW_RELEASE_BACKUP_FILE:?Set a new protected absolute .sql.gz path outside every webroot}\"\ntest ! -e \"$FPW_RELEASE_BACKUP_FILE\"\nmysqldump --login-path=\"$FPW_RELEASE_LOGIN_PATH\" --single-transaction --routines --triggers --events --hex-blob --default-character-set=utf8mb4 --databases \"$FPW_RELEASE_DB\" | gzip > \"$FPW_RELEASE_BACKUP_FILE\"\ngzip -t \"$FPW_RELEASE_BACKUP_FILE\"\nshasum -a 256 \"$FPW_RELEASE_BACKUP_FILE\"",
+    "up_then_verify": "mysql --login-path=\"$FPW_RELEASE_LOGIN_PATH\" --batch --show-warnings \"$FPW_RELEASE_DB\" < \"$FPW_RELEASE_SOURCE/database/migrations/20261107_001_guide_route_imports.up.sql\"\nmysql --login-path=\"$FPW_RELEASE_LOGIN_PATH\" --batch --show-warnings \"$FPW_RELEASE_DB\" < \"$FPW_RELEASE_SOURCE/database/migrations/20261107_001_guide_route_imports.verify.sql\""
+  },
+  "rollback": {
+    "exercised": false,
+    "preferred": "Retire/disable new imports and withdraw navigation/publication while retaining the service/schema/readiness guards for existing member copies. Preserve all guide_route_imports snapshots, draft/review state, durable request histories and generated guide_context.",
+    "empty_table_only": "The supplied down.sql deliberately errors if any guide_route_imports row exists, then drops only that table. It does not delete My Routes, private waypoints, normalized trips or unrelated Beta data. It requires separately reviewed explicit database selection and an error-stopping client.",
+    "populated_data": "Do not run down or delete import records. Export and reconcile guide_route_imports with owned user_routes/user_route_legs/waypoints, loop_routes, route_instances/route_instance_legs, guide_context and geometry overrides before approving a targeted rollback/migration. Preserve stable IDs and request tombstones; removing them permits stale retries and loses null/provenance/review distinctions.",
+    "code_rollback_risk": "Restoring pre-guide routeBuilder/floatplan/PDF/map code while guide records remain can remove review gates, revive fallback distance/default-vessel calculations and mislabel exported estimates. Application rollback must keep compatibility and guards for existing guide copies or disable those flows explicitly under a reviewed plan.",
+    "database_restore_risk": "Restoring the entire pre-migration database overwrites all subsequent unrelated member/Beta/application activity; the Nov7 local snapshot is not a safe populated rollback. No database restore or down script was executed."
+  },
+  "analytics": {
+    "new_guide_vendor_events": "Disabled. bahamas-guide.js emits none; guide-planner.js requires window.FPW_GUIDE_ANALYTICS_ENABLED===true. Search across239 applicable source files found only the gate reference, no enable assignment.",
+    "existing_helper": "includes/analytics_ga4.cfm loads Plausible for nonpreview requests; GA4 script is production-host/path-gated. The helper calls gtag when present. No explicit consent enforcement is present in this include; searched common consent integration identifiers were not found in the scoped assets/includes/app/pages/partials scan.",
+    "conclusion": "Consent enforcement is not established, including any external tag-manager configuration. Existing tags were not changed. Keep optional new vendor events disabled. Required server-side product events remain distinct.",
+    "if_future_enabled": "Verify policy and runtime behavior first; emit only public template key/version, approved placement/outcome at successful state transitions. Never send route IDs, coordinates, member names/dates, notes, continuation tokens or performance inputs to vendors."
+  },
+  "remaining_operator_decisions": [
+    "Identify actual release delivery mechanism and provide exclusion proof.",
+    "Approve external configuration/base-image work if reproducible local container verification is desired.",
+    "Authorize production deployment/database actions and later production workflow tests separately.",
+    "Approve publication only after outstanding target and editorial checks."
+  ]
+}
