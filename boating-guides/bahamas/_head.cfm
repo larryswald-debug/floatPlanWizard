@@ -18,23 +18,21 @@
 <link rel="stylesheet" href="#bhBase#/assets/css/layout.css?v=20260620-page-width">
 <link rel="stylesheet" href="#bhBase#/assets/css/top-nav.css?v=20261028-approved-navigation">
 <link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide.css?v=20261109-guide-focus">
-<cfif NOT bhIsItinerary>
 <link rel="stylesheet" href="#bhBase#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color" media="screen">
 <link rel="stylesheet" href="#bhBase#/assets/css/cruising-guides.css?v=20261114-three-guide-library" media="screen">
-<link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide-dark.css?v=20261114-dark-guide" media="screen">
-</cfif>
+<link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide-dark.css?v=20261114-dark-itinerary" media="screen">
 <script type="application/ld+json">#bhJsonLd#</script>
 </cfoutput>
 <cfinclude template="../../includes/analytics_ga4.cfm">
 <cfinclude template="../../includes/analytics_clarity.cfm">
 <cfinclude template="../../includes/trustedsite.cfm">
 </head>
-<body<cfif NOT bhIsItinerary> class="fpw-overdue-body bh-dark-guide"</cfif>>
+<body class="fpw-overdue-body bh-dark-guide">
 <cfinclude template="../../includes/top_nav.cfm">
-<main id="main-content" class="bh-page<cfif NOT bhIsItinerary> fpw-overdue-page</cfif>">
-<div class="bh-shell<cfif NOT bhIsItinerary> fpw-overdue-content</cfif>">
+<main id="main-content" class="bh-page fpw-overdue-page">
+<div class="bh-shell fpw-overdue-content">
 <cfoutput>
-<cfif NOT bhIsItinerary><div class="bh-guide-hero"><div class="bh-guide-hero-inner"></cfif>
+<div class="bh-guide-hero"><div class="bh-guide-hero-inner">
 <nav class="bh-breadcrumbs" aria-label="Breadcrumb">
 <a href="#bhBase#/">FloatPlanWizard</a><span aria-hidden="true">/</span>
 <a href="#bhBase#/boating-guides/">Cruising Guides</a><span aria-hidden="true">/</span>
@@ -48,7 +46,7 @@
 <p class="bh-meta">By FloatPlanWizard · Source review <time datetime="#encodeForHTMLAttribute(bhChecked)#">November 9, 2026</time>. Individual retrieval dates and verification limits appear beside the relevant facts.</p>
 <cfif NOT bhPublished><p class="bh-status"><strong>Release preview.</strong> Personal-copy import is awaiting owner publication approval and production checks.</p></cfif>
 </header>
-<cfif NOT bhIsItinerary></div></div></cfif>
+</div></div>
 </cfoutput>
 
 

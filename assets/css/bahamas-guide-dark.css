@@ -1,5 +1,5 @@
-/* Bahamas hub only. Shared FPW guide tokens, panels, and navigation load first.
-   This screen-only sheet leaves the worked itinerary and existing print styles intact. */
+/* Bahamas hub and worked itinerary. Shared FPW guide tokens, panels, and navigation load first.
+   This screen-only sheet leaves the existing print styles intact. */
 body.bh-dark-guide {
   --fpw-nav-teal: #19e6ee;
   --fpw-nav-teal-2: #20cfd8;
@@ -192,6 +192,20 @@ body.bh-dark-guide {
   color: var(--bh-muted);
   font-size: .9rem;
   line-height: 1.6;
+}
+.bh-dark-guide .bh-timeline li {
+  border-top-color: var(--bh-accent);
+  background: var(--bh-soft);
+}
+.bh-dark-guide .bh-timeline li + li {
+  margin-top: 0;
+}
+.bh-dark-guide .bh-timeline strong {
+  color: var(--bh-ink);
+}
+.bh-dark-guide .bh-timeline .bh-flex {
+  border-top-color: var(--fpw-overdue-amber);
+  background: rgba(89, 58, 13, .32);
 }
 .bh-dark-guide .bh-checklist li::before {
   border-color: var(--bh-accent);

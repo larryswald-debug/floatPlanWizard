@@ -2,8 +2,10 @@
 <cfinclude template="../../_setup.cfm">
 <cfinclude template="../../_head.cfm">
 <cfoutput>
-<nav class="bh-nav" aria-label="Worked itinerary sections">
+<nav class="bh-nav fpw-guide-section-nav" aria-label="Worked itinerary sections">
+<div class="fpw-guide-section-links">
 <a href="##assumptions">Assumptions</a><a href="##personal-copy">Personal copy</a><a href="##stops">Stops &amp; mileage</a><a href="##enter-mileage">Enter mileage</a><a href="##worksheet">Time &amp; fuel</a><a href="##flexible-days">Flexible days</a><a href="##changed-plan">Changed plan</a><a href="##sources">Sources</a>
+</div>
 </nav>
 <section id="assumptions" aria-labelledby="assumptions-title">
 <h2 id="assumptions-title">A flexible example for an experienced coastal skipper</h2>
@@ -30,7 +32,7 @@
 <tr><th scope="row">Local/weather days and research notes</th><td>Edit the notes and trip expectations as your plan changes; these are not scheduled laydays</td></tr>
 </tbody></table></div>
 <cfif bhPublished>
-<div class="bh-actions"><a class="bh-button" href="#bhBase#/app/join.cfm" data-fpw-auth-intent="planner" data-fpw-guide-template="#encodeForHTMLAttribute(bhManifest.template_key)#" data-fpw-guide-version="#bhManifest.template_version#" data-fpw-auth-source-page="bahamas_guide" data-fpw-auth-section="worked_itinerary" data-fpw-auth-cta-type="plan_trip" data-fpw-auth-label="Use this itinerary">Use this itinerary</a></div>
+<div class="bh-actions"><a class="fpw-cta fpw-cta-primary" href="#bhBase#/app/join.cfm" data-fpw-auth-intent="planner" data-fpw-guide-template="#encodeForHTMLAttribute(bhManifest.template_key)#" data-fpw-guide-version="#bhManifest.template_version#" data-fpw-auth-source-page="bahamas_guide" data-fpw-auth-section="worked_itinerary" data-fpw-auth-cta-type="plan_trip" data-fpw-auth-label="Use this itinerary">Use this itinerary</a></div>
 <p class="bh-meta">Creates an editable personal copy after sign-in or registration. Ordinary repeat selections reopen your current copy of this version. Use the planner’s explicit Create another copy action for an additional copy.</p>
 <cfelse>
 <div class="bh-note"><p><strong>Personal-copy import is not released yet.</strong> Source semantics have been recorded, including Brown’s Marina’s unstated coordinate datum. Local workflow checks have been completed. Publication awaits owner review and the separate production checks.</p><p>Review the example here while the import remains unavailable. No account is required to read or print it.</p></div>
@@ -104,7 +106,7 @@
 </section>
 <section id="review-tasks" aria-labelledby="review-title"><h2 id="review-title">Your review before the Float Plan workflow</h2>
 <ul class="bh-checklist"><li>Confirm the exact endpoint pair and current approach information for every movement.</li><li>Review or replace each leg’s owner-supplied mileage and record its actual source or calculation method; leave unknown details unspecified.</li><li>Confirm speed in knots and total-vessel US gal/h, reserve mode, usable fuel and relevant allowances.</li><li>Explicitly confirm or replace every leg’s current mileage; review again after changes.</li><li>Review the complete saved snapshot, notes and schedule before progressing into Float Plan creation.</li><li>Confirm the shore contact understands changes, expected updates and the reporting plan.</li></ul>
-<div class="bh-actions"><button type="button" class="bh-button bh-button--secondary" data-bh-print>Print this worked example</button><a href="#bhHub#" class="bh-button bh-button--secondary">Back to the Bahamas guide</a></div><p class="bh-meta">This is the public example’s print view. It contains no personal trip data, continuation tokens or private route identifiers. The planner’s separate planning summary preserves your own draft’s inputs and review state.</p>
+<div class="bh-actions"><button type="button" class="fpw-secondary-cta" data-bh-print>Print this worked example</button><a href="#bhHub#" class="fpw-secondary-cta">Back to the Bahamas guide</a></div><p class="bh-meta">This is the public example’s print view. It contains no personal trip data, continuation tokens or private route identifiers. The planner’s separate planning summary preserves your own draft’s inputs and review state.</p>
 </section>
 <section id="sources" class="bh-sources" aria-labelledby="sources-title"><h2 id="sources-title">Sources, dates and limitations</h2><p>Retrieval confirms what a source says. It does not confirm navigation, current berthing or stock. Published coordinate datum and revision are retained where stated; missing metadata remains explicitly missing.</p>
 <ul><cfloop array="#['S18','S10b','S10','S10a','S8','S9','S1','S3','S3a','S3b','S5','S5a','S5b','S6','S6a','S6b','S7','S16','S16a']#" index="bhId"><li>#bhSource(bhId,bhSources[bhId].authority & ' — ' & bhSources[bhId].topic)#<small>#encodeForHTML(bhSources[bhId].claim)# Accessed #encodeForHTML(bhSources[bhId].accessed_at)#. #encodeForHTML(bhSources[bhId].effective_date)#. Status: #encodeForHTML(replace(bhSources[bhId].verification_status,'_',' ','all'))#.</small></li></cfloop></ul>
