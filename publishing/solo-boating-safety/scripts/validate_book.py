@@ -14,6 +14,9 @@ from lxml import etree, html
 from PIL import Image
 from pypdf import PdfReader
 
+from posthog_client import posthog_client
+from posthog_logs import posthog_logger
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -417,6 +420,21 @@ def main() -> int:
         print(f"VALIDATION_FAILED: {len(check.errors)} error(s)", file=sys.stderr)
         return 1
     print("VALIDATION_OK")
+    posthog_logger.info(
+        "publication validation completed",
+        extra={
+            "validation_scope": "publication_bundle",
+            "validated_formats": 4,
+        },
+    )
+    if posthog_client:
+        posthog_client.capture(
+            event="publication_validation_completed",
+            properties={
+                "validation_scope": "publication_bundle",
+                "validated_formats": 4,
+            },
+        )
     return 0
 
 

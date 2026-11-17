@@ -15,6 +15,9 @@ from pathlib import Path
 from lxml import etree
 from PIL import Image
 
+from posthog_client import posthog_client
+from posthog_logs import posthog_logger
+
 
 ROOT = Path(__file__).resolve().parents[1]
 GRAPHICS = ROOT / "assets" / "graphics"
@@ -139,8 +142,14 @@ def build() -> list[Path]:
 
 if __name__ == "__main__":
     validated = build()
-    print(
-        "Validated "
-        f"{sum(path.suffix.lower() == '.png' for path in validated)} "
-        "owner-supplied publication figures."
+    png_count = sum(path.suffix.lower() == ".png" for path in validated)
+    print(f"Validated {png_count} owner-supplied publication figures.")
+    posthog_logger.info(
+        "graphics validation completed",
+        extra={"graphics_png_count": png_count},
     )
+    if posthog_client:
+        posthog_client.capture(
+            event="graphics_validation_completed",
+            properties={"graphics_png_count": png_count},
+        )
