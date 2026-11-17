@@ -197,6 +197,7 @@ fpwCtaConfig = {
   <cfinclude template="../../includes/analytics_ga4.cfm">
   <cfinclude template="../../includes/analytics_clarity.cfm">
   <cfinclude template="../../includes/trustedsite.cfm">
+<cfinclude template="../../includes/analytics_posthog.cfm">
 </head>
 <body class="fpw-overdue-body">
 <cfinclude template="../../includes/top_nav.cfm">

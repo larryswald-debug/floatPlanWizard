@@ -141,6 +141,14 @@
               <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/great-loop/trip-planning/">Explore the Great Loop <span aria-hidden="true">&rarr;</span></a>
             </div>
           </article>
+          <article class="fpw-home-guide-card" aria-labelledby="fpwHomeBahamasTitle">
+            <img class="fpw-home-guide-photo" src="<cfoutput>#landingBasePath#</cfoutput>/assets/images/boating-guides/cruising-guides/04-bahamas-card.jpg" width="479" height="206" alt="Cruising yacht in turquoise Bahamas waters" loading="lazy" decoding="async">
+            <div class="fpw-home-guide-copy">
+              <h3 id="fpwHomeBahamasTitle">Bahamas Cruising Guide</h3>
+              <p>Plan Gulf Stream crossings, island stops, fuel, weather windows, and Bahamas cruising routes.</p>
+              <a class="fpw-btn fpw-btn-primary" href="<cfoutput>#landingBasePath#</cfoutput>/boating-guides/bahamas/">Explore the Bahamas <span aria-hidden="true">&rarr;</span></a>
+            </div>
+          </article>
         </div>
       </div>
     </section>

@@ -20,7 +20,7 @@
 <link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide.css?v=20261109-guide-focus">
 <link rel="stylesheet" href="#bhBase#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color" media="screen">
 <link rel="stylesheet" href="#bhBase#/assets/css/cruising-guides.css?v=20261114-three-guide-library" media="screen">
-<link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide-dark.css?v=20261116-arrival-panel-height" media="screen">
+<link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide-dark.css?v=20261117-conversion-ctas" media="screen">
 <script type="application/ld+json">#bhJsonLd#</script>
 </cfoutput>
 <style>
@@ -62,6 +62,7 @@
 <cfinclude template="../../includes/analytics_ga4.cfm">
 <cfinclude template="../../includes/analytics_clarity.cfm">
 <cfinclude template="../../includes/trustedsite.cfm">
+<cfinclude template="../../includes/analytics_posthog.cfm">
 </head>
 <body class="fpw-overdue-body bh-dark-guide">
 <cfinclude template="../../includes/top_nav.cfm">

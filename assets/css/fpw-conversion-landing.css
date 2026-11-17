@@ -1695,7 +1695,8 @@ body.fpw-home-page {
 
 .fpw-home-guide-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
   gap: 28px;
 }
 
@@ -1716,6 +1717,12 @@ body.fpw-home-page {
   aspect-ratio: 2.32 / 1;
   object-fit: cover;
   object-position: center;
+}
+
+/* Reuse the guide index crop that removes captured edges from this asset. */
+.fpw-home-guide-photo[src$="04-bahamas-card.jpg"] {
+  transform: scale(1.1);
+  transform-origin: right bottom;
 }
 
 .fpw-home-guide-copy {
@@ -1876,6 +1883,7 @@ body.fpw-home-page {
 }
 
 @media (max-width: 1050px) {
+  .fpw-home-guide-grid,
   .fpw-home-tool-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

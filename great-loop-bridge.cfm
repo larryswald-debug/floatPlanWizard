@@ -156,6 +156,7 @@ if (bridgeResult.SUCCESS) {
   <link rel="stylesheet" href="<cfoutput>#request.fpwBase#</cfoutput>/assets/css/great-loop-library-detail.css?v=20261104">
   <cfinclude template="includes/analytics_ga4.cfm">
   <cfinclude template="includes/analytics_clarity.cfm">
+<cfinclude template="includes/analytics_posthog.cfm">
 </head>
 <body class="fpw-bridge-body">
 <cfinclude template="includes/top_nav.cfm">

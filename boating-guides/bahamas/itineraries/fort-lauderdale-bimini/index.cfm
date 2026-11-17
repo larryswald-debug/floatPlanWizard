@@ -17,6 +17,10 @@
 <li>Confirm usable fuel, idle/auxiliary allowances, overnight arrangements, customs and communications.</li>
 </ul></div><aside class="bh-note"><p><strong>Two distinct sets of numbers appear below.</strong></p><p>The worked example uses <strong>#bhOne(bhManifest.legs[1].distance_nm)# NM outbound and #bhOne(bhManifest.legs[2].distance_nm)# NM return</strong>: owner-supplied planning estimates for the example path and its reverse. The separate worksheet uses 60 nm each way, 120 NM total, to explain the arithmetic. The two examples use separate distances.</p><p>Every planning distance and resulting time/fuel total remains an estimate, including after review.</p></aside></div>
 </section>
+<section class="bh-conversion bh-conversion--strip bh-no-print" aria-labelledby="planning-cta-title">
+<div><h2 id="planning-cta-title">Ready to build your own version?</h2><p>Use FPW to create your own route and adjust the stops, mileage, speed and timing for your boat.</p></div>
+<a class="fpw-cta fpw-cta-primary" href="#bhBase#/app/dashboard.cfm?recoveryAction=planner">Plan Your Trip in FPW</a>
+</section>
 <div class="bh-photo-pair" aria-label="Dated context photographs">
 <figure class="bh-photo"><img src="#bhAsset#port-everglades-960.jpg" srcset="#bhAsset#port-everglades-330.jpg 330w, #bhAsset#port-everglades-960.jpg 960w" sizes="(max-width: 700px) calc(100vw - 32px), 540px" width="960" height="720" loading="lazy" decoding="async" alt="Cruise ships and small craft in Port Everglades, photographed from above in 2017."><figcaption><strong>Florida staging context.</strong> Port Everglades, December 17, 2017. Commercial traffic belongs in departure research; this photograph does not show current conditions or the PE buoy. Photo: <a href="https://commons.wikimedia.org/wiki/File:Port_Everglades_aerial_.jpg">Port Everglades PIO</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. Wikimedia-resized copies; no crop or other alteration.</figcaption></figure>
 <figure class="bh-photo"><img src="#bhAsset#alice-town-bimini-960.jpg" srcset="#bhAsset#alice-town-bimini-330.jpg 330w, #bhAsset#alice-town-bimini-960.jpg 960w" sizes="(max-width: 700px) calc(100vw - 32px), 540px" width="960" height="720" loading="lazy" decoding="async" alt="A waterfront boardwalk, palm trees and marina slips in Alice Town, Bimini, photographed in 2014."><figcaption><strong>Local-day context.</strong> Alice Town, August 17, 2014. Plan time ashore separately from movement legs; this is not a current berth or approach reference. Photo: <a href="https://commons.wikimedia.org/wiki/File:Alice_Town_Bimini_Bahamas_07.jpg">Pietro</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. Wikimedia-resized copies; no crop or other alteration.</figcaption></figure>
@@ -48,6 +52,10 @@
 </div>
 <p>These are planning estimates, not a range assurance or a departure decision. The <a href="##worksheet">separate 60 NM-per-leg worksheet</a> below keeps its original illustrative assumptions.</p>
 <noscript><p class="bh-note">The initial sample estimates are shown above. Enable JavaScript to recalculate them when you change the sample values.</p></noscript>
+<div class="bh-tool-cta bh-no-print">
+<p>Use your own boat's speed and fuel burn to run the numbers.</p>
+<a class="fpw-cta fpw-cta-primary" href="#bhBase#/boat-fuel-calculator/">Open the Fuel Calculator <span aria-hidden="true">&rarr;</span></a>
+</div>
 </section>
 <section id="stops" aria-labelledby="stops-title">
 <h2 id="stops-title">Know what each point represents</h2>
@@ -113,6 +121,15 @@
 <section id="review-tasks" aria-labelledby="review-title"><h2 id="review-title">Your review before the Float Plan workflow</h2>
 <ul class="bh-checklist"><li>Confirm the exact endpoint pair and current approach information for every movement.</li><li>Review or replace each leg’s owner-supplied mileage and record its actual source or calculation method; leave unknown details unspecified.</li><li>Confirm speed in knots and total-vessel US gal/h, reserve mode, usable fuel and relevant allowances.</li><li>Explicitly confirm or replace every leg’s current mileage; review again after changes.</li><li>Review the saved route and schedule before progressing into Float Plan creation.</li><li>Confirm the shore contact understands changes, expected updates and the reporting plan.</li></ul>
 <div class="bh-actions"><button type="button" class="fpw-secondary-cta" data-bh-print>Print this worked example</button><a href="#bhHub#" class="fpw-secondary-cta">Back to the Bahamas guide</a></div><p class="bh-meta">This is the public example’s print view. It contains no personal trip data, continuation tokens or private route identifiers.</p>
+</section>
+<section class="bh-conversion bh-conversion--final bh-no-print" aria-labelledby="final-cta-title">
+<p class="bh-eyebrow">READY TO BUILD YOUR OWN TRIP?</p>
+<h2 id="final-cta-title">Take the next step in FloatPlanWizard.</h2>
+<p>Build your own route, use your boat's real performance numbers, then create the float plan you will actually use for the trip.</p>
+<div class="bh-actions">
+<a class="fpw-cta fpw-cta-primary" href="#bhBase#/app/dashboard.cfm?recoveryAction=planner">Build Your Route</a>
+<a class="fpw-secondary-cta" href="#bhBase#/app/dashboard.cfm?recoveryAction=plans">Create a Float Plan</a>
+</div>
 </section>
 <section id="sources" class="bh-sources" aria-labelledby="sources-title"><h2 id="sources-title">Sources, dates and limitations</h2><p>Retrieval confirms what a source says. It does not confirm navigation, current berthing or stock. Published coordinate datum and revision are retained where stated; missing metadata remains explicitly missing.</p>
 <ul><cfloop array="#['S18','S10b','S10','S10a','S8','S9','S1','S3','S3a','S3b','S5','S5a','S5b','S6','S6a','S6b','S7','S16','S16a']#" index="bhId"><li>#bhSource(bhId,bhSources[bhId].authority & ' — ' & bhSources[bhId].topic)#<small>#encodeForHTML(bhSources[bhId].claim)# Accessed #encodeForHTML(bhSources[bhId].accessed_at)#. #encodeForHTML(bhSources[bhId].effective_date)#. Status: #encodeForHTML(replace(bhSources[bhId].verification_status,'_',' ','all'))#.</small></li></cfloop></ul>

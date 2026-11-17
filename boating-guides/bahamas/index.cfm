@@ -7,6 +7,10 @@
 <a href="##regions">Choose an area</a><a href="##florida-crossing">Crossing</a><a href="##entry-and-return">Entry &amp; return</a><a href="##fuel-provisioning-communications">Fuel &amp; logistics</a><a href="##worked-trip">Worked trip</a><a href="##checklist">Checklist</a>
 </div>
 </nav>
+<section class="bh-conversion bh-conversion--strip bh-no-print" aria-labelledby="planning-cta-title">
+<div><h2 id="planning-cta-title">Planning your own Bahamas cruise?</h2><p>Use FPW to build your route, estimate fuel and organize the details before departure.</p></div>
+<a class="fpw-cta fpw-cta-primary" href="#bhBase#/app/dashboard.cfm?recoveryAction=planner">Plan Your Trip in FPW</a>
+</section>
 <section id="regions" aria-labelledby="regions-title">
 <h2 id="regions-title">Start with one cruising area</h2>
 <p>A first trip becomes easier to revise when it has a clear arrival area, a workable return and a few optional local days. Choose your region before building a list of distant stops. Research each actual approach, overnight arrangement and service separately.</p>
@@ -70,6 +74,10 @@
 <div class="bh-grid"><div>
 <h3>Use your boat’s operating point</h3><p>Enter speed in <strong>knots</strong> and total-vessel underway consumption in <strong>US gallons per hour</strong>. A per-engine burn rate, a speed in kilometres per hour or nominal tank capacity cannot be silently substituted. Confirm usable fuel and add realistic idle or auxiliary allowances.</p>
 <p>The <a href="#bhBase#/boat-fuel-calculator/">boat fuel calculator</a> can help explore assumptions. The guide example uses a clearly stated 20% added reserve; it applies the reserve once. A calculation is not a finding that a crossing is safe or that fuel will be available.</p>
+<div class="bh-tool-cta bh-no-print">
+<p>Estimate fuel, range and reserve for your own boat.</p>
+<a class="fpw-cta fpw-cta-primary" href="#bhBase#/boat-fuel-calculator/">Open the Fuel Calculator <span aria-hidden="true">&rarr;</span></a>
+</div>
 <h3>Confirm services directly</h3><p>Record the supplier, access requirements, operating hours and last confirmation for intended fuel, water and overnight stops. A facility list is a research lead. Carry a plan that does not depend on an unconfirmed delivery or berth.</p>
 </div><aside class="bh-panel"><h3>Allow for the days you might wait</h3><ul class="bh-checklist"><li>Water, food, medications and waste capacity for extra days</li><li>Vessel/crew limits, draft and season-specific research</li><li>Working communications and a fallback beyond assumed mobile coverage</li><li>Documents and permission duration if the return changes</li><li>A shore contact who understands the revised plan</li></ul><p><a href="#bhBase#/shore-contact-overdue-boater/">Read the shore-contact guide</a> and agree how updates will be communicated.</p></aside></div>
 </section>
@@ -83,6 +91,15 @@
 <h2 id="checklist-title">Before this becomes your trip</h2>
 <ul class="bh-checklist"><li>Choose exact departure and destination references and research the entire intended path.</li><li>Record a source or reproducible calculation method for each leg’s planning mileage.</li><li>Enter speed in knots and total underway consumption in US gal/h; confirm usable fuel and reserve mode.</li><li>Review approach, draft, weather, daylight, clearance, overnight and service constraints.</li><li>Replace or explicitly confirm each leg’s mileage. Your review is not independent navigation verification.</li><li>Recheck affected legs after any endpoint, mileage, source or geometry change.</li><li>Keep missing values distinct from complete estimates; do not treat a partial subtotal as a complete-trip requirement.</li><li>Review the completed trip and keep shore-contact expectations current.</li></ul>
 <div class="bh-actions"><button type="button" class="fpw-secondary-cta" data-bh-print>Print this guide</button></div>
+</section>
+<section class="bh-conversion bh-conversion--final bh-no-print" aria-labelledby="final-cta-title">
+<p class="bh-eyebrow">READY TO PLAN YOUR OWN CRUISE?</p>
+<h2 id="final-cta-title">Turn the guide into your own Bahamas trip.</h2>
+<p>Build your route in FPW, estimate travel time and fuel, organize your trip details, and prepare a float plan for your shore contact.</p>
+<div class="bh-actions">
+<a class="fpw-cta fpw-cta-primary" href="#bhBase#/app/dashboard.cfm?recoveryAction=planner">Start Planning Your Trip</a>
+<a class="fpw-secondary-cta" href="#bhBase#/app/dashboard.cfm?recoveryAction=plans">Create a Float Plan</a>
+</div>
 </section>
 <section id="sources" class="bh-sources" aria-labelledby="sources-title"><h2 id="sources-title">Sources and what was checked</h2>
 <p>“Retrieved” means the source was accessible and supported the described information. It does not confirm safe passage, an available berth, fuel stock or an independently verified route. Regulatory and service facts need a fresh check before use.</p>
