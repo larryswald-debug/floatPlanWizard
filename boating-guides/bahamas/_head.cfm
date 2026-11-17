@@ -20,9 +20,45 @@
 <link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide.css?v=20261109-guide-focus">
 <link rel="stylesheet" href="#bhBase#/assets/css/shore-contact-overdue-guide.css?v=20260806-cta-color" media="screen">
 <link rel="stylesheet" href="#bhBase#/assets/css/cruising-guides.css?v=20261114-three-guide-library" media="screen">
-<link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide-dark.css?v=20261114-dark-itinerary" media="screen">
+<link rel="stylesheet" href="#bhBase#/assets/css/bahamas-guide-dark.css?v=20261116-arrival-panel-height" media="screen">
 <script type="application/ld+json">#bhJsonLd#</script>
 </cfoutput>
+<style>
+@media (min-width: 801px) {
+  #sample-calculator > .bh-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+#sample-calculator .bh-panel:first-child > p:not(#bhSampleError) {
+  margin: 1.5rem 0 0;
+}
+#sample-calculator dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+#sample-calculator dt,
+#sample-calculator dd {
+  margin: 0;
+}
+#sample-calculator dd {
+  text-align: right;
+  white-space: nowrap;
+}
+#sample-calculator input {
+  margin-top: .4rem;
+  box-sizing: border-box;
+  width: min(100%, 18rem);
+  padding: .55rem .7rem;
+  border: 1px solid var(--bh-line);
+  border-radius: 6px;
+  background: var(--bh-soft);
+  color: var(--bh-ink);
+  font: inherit;
+}
+</style>
 <cfinclude template="../../includes/analytics_ga4.cfm">
 <cfinclude template="../../includes/analytics_clarity.cfm">
 <cfinclude template="../../includes/trustedsite.cfm">
@@ -44,11 +80,7 @@
 <h1>#encodeForHTML(bhTitle)#</h1>
 <p class="bh-lede">#encodeForHTML(bhDescription)#</p>
 <p class="bh-meta">By FloatPlanWizard · Source review <time datetime="#encodeForHTMLAttribute(bhChecked)#">November 9, 2026</time>. Individual retrieval dates and verification limits appear beside the relevant facts.</p>
-<cfif NOT bhPublished><p class="bh-status"><strong>Release preview.</strong> Personal-copy import is awaiting owner publication approval and production checks.</p></cfif>
 </header>
 </div></div>
 </cfoutput>
-
-
-
 

@@ -1,3 +1,5 @@
+> **Historical record — superseded November 15, 2026.** The entire guide-to-route feature has been removed. Do not follow this document's deployment, migration, import or workflow instructions. See `../README.md` and `../full-route-import-rollback-20261115.json` for the independent guide/calculator architecture.
+
 # Bahamas release-readiness review — November 9, 2026
 
 Start with the [owner decision and requirement matrix](/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/OWNER-REVIEW.md), then [screenshots and PDFs](/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/EVIDENCE.md). Exact source/test/asset edits are in [changed-files.json](/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/changed-files.json); deployment and rollback steps are in [deployment-checklist.json](/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/deployment-checklist.json).
@@ -39,5 +41,3 @@ Natural Earth country geometry is now 1:10m rather than 1:110m; minor-island sha
 ## Local evidence limits
 
 MCPCF confirmed both pages 200 with noindex/no-store and denied the private patch 403. Isolated Playwright confirmed one H1, matching canonical/schema, no missing section anchors and no import control on either page. The paginated hub (9 pages) and itinerary (11 pages) PDFs were visually checked for figure/table fit, estimate/provenance labels and readable photo captions. Frontend supplies the final multi-width screenshots and interaction checks. Public print PDF paths and visual evidence are recorded in the JSON. Production/CDN/cache/WAF/crawler verification is separate.
-
-

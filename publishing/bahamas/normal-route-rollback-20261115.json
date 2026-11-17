@@ -1,0 +1,766 @@
+{
+  "report": "FPW Bahamas worked route: replace Planning Drafts with normal route creation",
+  "date": "2026-11-15",
+  "workspace": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw",
+  "scope": "Implemented locally in FPW only. No commit, push, production deployment, production data change, activation, monitoring or notification send.",
+  "01_root_cause_and_selected_fix": {
+    "root_cause": "The worked example had become a separate persistent planning subsystem with its own dashboard cards, editor, calculations, save/print lifecycle and branches in shared route, Float Plan, Follow, Captain, map and PDF paths. Removing only its service or cards would leave shared dependencies broken.",
+    "best_fix": "Completed the approved fuller rollback: a thin authenticated import into ordinary owned waypoints, My Route source and saved route instance; all subsequent editing/calculation uses the normal Route Generator and Save Route.",
+    "safest_fix_comparison": "The narrower option was to retire runtime dependencies while retaining the obsolete metadata table. The user selected archive/conversion followed by removal of guide_route_imports instead.",
+    "preserved": "Bahamas article and Cruising Guides, dark styles and images, ordinary route behavior/improvements, auth safeguards, public rewrites and existing HTTP security blocks."
+  },
+  "02_inspected_sources_and_execution_paths": {
+    "inventory": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/files.sha256.json",
+    "snapshot_file_count": 103,
+    "source_of_route_definition": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+    "execution_path": [
+      "Public itinerary CTA -> existing typed auth continuation/login/join -> dashboard import bridge.",
+      "routeBuilder.handle -> member/planning access and POST/CSRF guard -> importGuideRoute.",
+      "Per-member/request lock -> existing bounded continuation result or transaction/member row lock.",
+      "Existing waypoint persistence -> ordinary My Route/start/legs -> ordinary numeric overrides.",
+      "Normal input/vessel defaults -> routegenGenerate -> previewUserRoute -> normal totals and normalized saved instance.",
+      "Ordinary dashboard route row -> openEditorForRoute -> normal leg/settings edits -> Save Route.",
+      "Ordinary saved instance -> existing Float Plan preview, PDF, Follow, Captain and map services."
+    ],
+    "anchors": [
+      "api/v1/routeBuilder.cfc: importGuideRoute (13915), createUserRoute (2228), setUserRouteStartWaypoint (2595), addWaypointLegToUserRoute (2678).",
+      "api/v1/routeBuilder.cfc: routegenPrepareDistanceOverride (3593), saveRouteLegOverrideGeometry (3642), routegenGenerate (13050).",
+      "api/v1/routeBuilder.cfc: routegenReadInput (7573), routegenSerializeInputsForInstance (8388), routegenComputeTotals (9120), routegenRebuildNormalizedInstanceLegs (10652).",
+      "includes/AuthContinuationService.cfc: getGuideRouteImportIntent and completeGuideRouteImportIntent.",
+      "assets/js/app/dashboard.js: dispatchRecoveryAction planner import branch.",
+      "assets/js/app/dashboard/routebuilder.js: normal leg overlay, manual-distance normalization/save and openEditorForRoute."
+    ]
+  },
+  "03_exact_changed_files": {
+    "counts": {
+      "modified": 27,
+      "deleted": 28,
+      "new": 6,
+      "total": 61
+    },
+    "files": [
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/api_assets/FloatPlanPdfItineraryService.cfc",
+        "purpose": "Remove guide-only itinerary supplements; retain ordinary saved itinerary."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/api_assets/floatPlanUtils.cfc",
+        "purpose": "Remove guide-only PDF integration."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/ActiveCruiseViewModelService.cfc",
+        "purpose": "Remove guide-specific preview calculations and provenance."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/GuideTripService.cfc",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/RouteMapGeometryService.cfc",
+        "purpose": "Remove guide-specific geometry/schematic branches; preserve ordinary geometry precedence."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/floatplan.cfc",
+        "purpose": "Remove guide save/activation branches; preserve existing operational geometry snapshot flow; bind cloned mileage at scale 2."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/routeBuilder.cfc",
+        "purpose": "Thin authenticated import, generic numeric mileage overrides, ordinary saved-leg precision, and removal of guide lifecycle branches."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/voyage.cfc",
+        "purpose": "Remove guide-specific Follow timeline/fuel/review branches."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/api/v1/waypoint.cfc",
+        "purpose": "Add nonremote saveRouteWaypoint wrapper around existing persistence with exact owned-waypoint reuse."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/active-cruise.cfm",
+        "purpose": "Remove guide-specific Captain presentation and update affected asset version."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/dashboard.cfm",
+        "purpose": "Remove Planning Draft markup/assets and update changed script versions."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/follow-full-map.cfm",
+        "purpose": "Update changed Follow map asset version."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/follow.cfm",
+        "purpose": "Update changed Follow asset versions."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/guide-trip-print.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/css/guide-planner.css",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard.js",
+        "purpose": "Remove Planning Draft listing/lifecycle; import into ordinary editor; refresh normal route/waypoint/readiness data; preserve backend error text."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/guide-planner.js",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/route-generator-tour.js",
+        "purpose": "Remove guide-mode tour branches; retain ordinary generator tour."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/routebuilder.js",
+        "purpose": "Remove guide editor mode; add generic distance controls, validation, transient overrides, and normal save handling."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/waypoints.js",
+        "purpose": "Expose existing waypoint loader and return its promise for post-import refresh."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/follow/follow.js",
+        "purpose": "Remove guide-only Follow rendering."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/follow/followMap.js",
+        "purpose": "Remove guide-only map/schematic rendering."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/guide-trip-print.js",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/boating-guides/bahamas/_head.cfm",
+        "purpose": "Update obsolete preview workflow notice while preserving publication/noindex behavior."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+        "purpose": "Enable ordinary import CTA independently of publication flag; replace obsolete planning-draft workflow instructions."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/database/migrations/20261107_001_guide_route_imports.down.sql",
+        "purpose": "Remove obsolete creation/verification/rollback migration for the retired subsystem."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/database/migrations/20261107_001_guide_route_imports.preflight.sql",
+        "purpose": "Remove obsolete creation/verification/rollback migration for the retired subsystem."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/database/migrations/20261107_001_guide_route_imports.up.sql",
+        "purpose": "Remove obsolete creation/verification/rollback migration for the retired subsystem."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/database/migrations/20261107_001_guide_route_imports.verify.sql",
+        "purpose": "Remove obsolete creation/verification/rollback migration for the retired subsystem."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/great-loop/trip-planning/index.cfm",
+        "purpose": "Update ordinary leg editor help to describe numeric distance entry."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/includes/AuthContinuationService.cfc",
+        "purpose": "Validate and retain completed import result in existing bounded session intent."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/includes/modals/route_generator_modal.cfm",
+        "purpose": "Remove guide-only panel/style; add Distance override (NM) and Use calculated controls."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/README.md",
+        "purpose": "Document current normal route flow and retirement boundary."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/OWNER-REVIEW.md",
+        "purpose": "Mark old release workflow superseded and historical."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/README.md",
+        "purpose": "Mark old release workflow superseded and historical."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/deployment-allowlist.json",
+        "purpose": "Remove obsolete executable deployment instructions that could reinstall the retired workflow."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/deployment-checklist.json",
+        "purpose": "Remove obsolete executable deployment instructions that could reinstall the retired workflow."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/deployment-prepare-clob.py",
+        "purpose": "Remove obsolete executable deployment instructions that could reinstall the retired workflow."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/publication-after-approval.patch",
+        "purpose": "Remove obsolete executable deployment instructions that could reinstall the retired workflow."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/bahamas-itinerary-test.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "M",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/dashboard-route-actions.spec.js",
+        "purpose": "Remove assertions for deleted planning-draft behavior; preserve ordinary dashboard regression coverage."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-export-runner.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-planner.spec.js",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-saved-editor.spec.js",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-saved-preview.spec.js",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-saved-view-runner.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-trip-integration-runner.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-trip-runner.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-trip-ui-fixture.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/specs/GuideTripIntegrationSpec.cfc",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/GuideLocalTestGuard.cfc",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/GuideSavedViewContract.cfc",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/GuideTripDemoFixture.cfc",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/GuideTripFixtureService.cfc",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "D",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/guide-test-guard.cfm",
+        "purpose": "Remove obsolete dedicated planning-draft runtime, assets, print endpoint or tests."
+      },
+      {
+        "status": "??",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/database/migrations/20261115_001_retire_guide_route_imports.up.sql",
+        "purpose": "Guarded, idempotent retirement SQL that refuses a populated table."
+      },
+      {
+        "status": "??",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/normal-bahamas-import.spec.js",
+        "purpose": "Canonical local end-to-end import, auth, reuse/conflict, calculations, save/reopen and downstream regressions."
+      },
+      {
+        "status": "??",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/normal-route-import-runner.cfm",
+        "purpose": "Local-only authenticated and CSRF-protected canonical test fixture runner."
+      },
+      {
+        "status": "??",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/route-leg-distance.spec.js",
+        "purpose": "Focused ordinary mileage UI and save regression coverage, including decimal boundaries."
+      },
+      {
+        "status": "??",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/support/NormalRouteImportSpec.cfc",
+        "purpose": "Owned fixture snapshots, injected transaction failure and downstream PDF/preview contracts."
+      },
+      {
+        "status": "??",
+        "path": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/normal-route-rollback-20261115.json",
+        "purpose": "Detailed implementation, archive, reconciliation and validation report."
+      }
+    ]
+  },
+  "04_snapshots_and_archives": {
+    "source_snapshot_directory": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115",
+    "source_checksums": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/files.sha256.json",
+    "preexisting_diff": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/pre-change.diff",
+    "baseline_git_head": "c108837ab63e6f2041772c7650e39b4586810892",
+    "original_uncommitted_files": [
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/app/dashboard.cfm",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/css/guide-planner.css",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/guide-planner.js",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/assets/js/app/dashboard/routebuilder.js",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/includes/modals/route_generator_modal.cfm",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-planner.spec.js",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/tests/guide-saved-editor.spec.js"
+    ],
+    "coverage": "103 source text snapshots plus the original seven-file diff and baseline Git HEAD. Exact MCPCFC patch backups are under .codex-snapshots/fpw-patches. Text-copy snapshots can include the file tool's trailing newline; hashes describe archived bytes.",
+    "database_archive_location": "Docker cfdev-cf:/opt/coldfusion/cfusion/logs/fpw-maintenance-archives/normal-route-rollback-20261115/",
+    "database_archive_storage": "Persistent ColdFusion logs volume, outside publicly served content.",
+    "database_before": {
+      "file": "database-before.json",
+      "bytes": 6080746,
+      "sha256": "9c46cebaec90a257036822f287621b2b1b8930936a8b7976c71f97acbf327e6b",
+      "schema_and_rows_tables": 44,
+      "verification": "All captured rows reconciled column-by-column against the pre-mutation database."
+    },
+    "conversion_result": {
+      "file": "conversion-result.json",
+      "sha256": "df19c68da78a3a43bc3d26b7d43c41e806c82664d9223fe0ed013ca056d5be08"
+    },
+    "additional_archives": [
+      "maintenance-runner.cfm.txt",
+      "current-qa-fixtures.json"
+    ],
+    "local_evidence": [
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/database-verification.txt",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/qa-cleanup-and-retirement-verification.txt",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/maintenance-runner-final.cfm.txt"
+    ],
+    "temporary_maintenance_endpoint": "Removed after archive verification, conversion, cleanup, table retirement and QA cleanup."
+  },
+  "05_removal_inventory": {
+    "removed": [
+      "Planning Draft dashboard cards, counts, queries and actions",
+      "Guide editor mode, panels, confirmations, calculations, review state, save/reset/print behavior",
+      "GuideTripService and dedicated planner/print assets and endpoints",
+      "Abandoned draft/save API actions",
+      "Guide-specific branches in route loading/saving, Float Plans, Follow, Captain, map and PDF paths",
+      "Obsolete dedicated tests and creation migration quartet",
+      "Executable obsolete deployment allowlist/checklist/preparation script/publication patch"
+    ],
+    "preserved_guards": [
+      "Authentication and CSRF",
+      "Ownership/member locks",
+      "Existing operational geometry snapshots",
+      "Private publishing/test/snapshot and prior generated-guide-PDF HTTP denial rules",
+      "Public routes and draft noindex/no-store"
+    ],
+    "deleted_file_inventory": "See 03_exact_changed_files, status D."
+  },
+  "06_reused_creation_methods": {
+    "methods": [
+      "createUserRoute()",
+      "setUserRouteStartWaypoint()",
+      "addWaypointLegToUserRoute()",
+      "saveRouteLegOverrideGeometry()",
+      "routegenReadInput()",
+      "routegenLoadAvailableVessels()",
+      "routegenGenerate()",
+      "previewUserRoute()",
+      "routegenComputeTotals()",
+      "routegenSerializeInputsForInstance()",
+      "routegenRebuildNormalizedInstanceLegs()",
+      "openEditorForRoute()"
+    ],
+    "transaction": "All source/waypoint/leg/override/generation writes occur inside one import transaction and the existing member-row lock. A failed creation result throws; injected late generation failure rolled back source writes and product events.",
+    "idempotency": "Per-member/request serialization and completed response retained in the existing session intent. Same valid operation returns the same route. A new operation with the canonical route name is a conflict, not a numbered copy.",
+    "continuation": "Existing four-hour TTL and maximum eight intents; successful editor open acknowledges/discards continuation. Invalid/expired/evicted/consumed tokens cannot start a new import."
+  },
+  "07_waypoint_persistence": {
+    "entry_point": "api/v1/waypoint.cfc::saveRouteWaypoint (public, nonremote)",
+    "persistence": "Calls existing private persistWaypoint().",
+    "reuse": "Owned waypoint only; binary exact clean-name equality and coordinates compared as DECIMAL(18,10). Existing matching waypoint/notes remain unchanged.",
+    "new_records": "Only normal name/coordinates; optional notes empty. No narrative, source, review or guide metadata."
+  },
+  "08_start_waypoint": {
+    "method": "setUserRouteStartWaypoint()",
+    "name": "Port Everglades lighted buoy PE",
+    "coordinates": {
+      "latitude": 26.091666666666665,
+      "longitude": -80.07944444444443
+    },
+    "definition": "Existing manifest coordinates retained without editorial substitution."
+  },
+  "09_legs": {
+    "method": "addWaypointLegToUserRoute()",
+    "route_name": "Fort Lauderdale to Bimini",
+    "destination": {
+      "name": "Brown’s Marina, Bimini",
+      "latitude": 25.722194444444444,
+      "longitude": -79.29827777777777
+    },
+    "sequence": [
+      "Port Everglades lighted buoy PE -> Brown’s Marina, Bimini",
+      "Brown’s Marina, Bimini -> Port Everglades lighted buoy PE"
+    ],
+    "distances_nm": [
+      50.3,
+      50.3
+    ],
+    "total_nm": 100.6
+  },
+  "10_ordinary_mileage_override": {
+    "ui": "Normal leg editor: Distance override (NM), Use calculated, existing Revert Overrides.",
+    "storage": "Existing computed_nm DECIMAL(10,2), existing override_fields_json.manual_distance_nm, existing geometry_json. No new column or table.",
+    "numeric_only_geometry": "[]; does not manufacture a path or report a drawn-geometry override.",
+    "validation": "Finite positive numeric value fitting DECIMAL(10,2), maximum 99999999.99, rounded to two decimals; values rounding to zero rejected. Browser and server bounds aligned.",
+    "semantics": [
+      "Omitted mileage preserves an existing manual value.",
+      "Explicit empty mileage clears only manual mileage and restores geometry or ordinary fallback distance.",
+      "Geometry edits preserve manual mileage until cleared.",
+      "Unrelated override fields and existing geometry are preserved.",
+      "Revert Overrides remains the full reset.",
+      "Effective override selection precedes ordinary distance/time/fuel/timeline calculations."
+    ],
+    "coverage": "My Routes, generated saved route legs, template/segment overrides and transient template drafts.",
+    "decimal_binding": "Normal saved base_dist_nm and override bindings use scale=2; the former guide-specific precision repair is removed."
+  },
+  "11_settings_mapping": [
+    {
+      "source": "50.30 NM per leg",
+      "normal_field": "computed_nm + override_fields_json.manual_distance_nm",
+      "persistence": "route_leg_user_overrides; normal generated route_instance_legs.base_dist_nm",
+      "control": "Distance override (NM)"
+    },
+    {
+      "source": "6.5 underway hours/day",
+      "normal_field": "underway_hours_per_day",
+      "persistence": "route_instances.routegen_inputs_json",
+      "control": "Underway hours/day"
+    },
+    {
+      "source": "20% percentage reserve",
+      "normal_field": "reserve_mode=percentage, reserve_pct=20",
+      "persistence": "route_instances.routegen_inputs_json",
+      "control": "Reserve controls"
+    },
+    {
+      "source": "Zero idle burn/hours",
+      "normal_field": "idle_burn_gph=0, idle_hours_total=0",
+      "persistence": "Normal normalized route inputs",
+      "control": "Idle controls"
+    },
+    {
+      "source": "Speed/burn unspecified",
+      "normal_field": "selected_vessel_id and normal max/efficient-speed/GPH snapshot fields",
+      "persistence": "route_instances.routegen_inputs_json",
+      "control": "Existing vessel/performance controls"
+    },
+    {
+      "source": "Date/pace unspecified",
+      "normal_field": "Browser-local today, pace=RELAXED",
+      "persistence": "Normal route inputs and instance",
+      "control": "Date and Pace"
+    }
+  ],
+  "12_values_excluded_from_member_records": {
+    "excluded": [
+      "Illustrative worksheet 60 NM, 20 knots and 18 GPH",
+      "Article sources, citations, disclaimers and narrative",
+      "Guide review flags and confirmations",
+      "Guide-specific lifecycle metadata",
+      "Unsupported unsaved planning settings/notes without normal fields"
+    ],
+    "ordinary_default_note": "The normal no-vessel/max-speed fallback can itself be 20 knots; RELAXED then yielded 5 knots in the retained no-vessel example. That is existing generator behavior, not importing the worksheet's 20-knot operating point."
+  },
+  "13_vessel_proof": {
+    "tested": [
+      "Default vessel with complete performance",
+      "Default vessel with missing efficiency/burn values",
+      "No vessel"
+    ],
+    "evidence": "Live integration compares vessel snapshots before and after import and saved-route editing. Profiles were equal. Normal default selection and saved input snapshots were verified.",
+    "permanent_changes": "No permanent vessel update is performed by the import.",
+    "limits": "Insufficient vessel data follows ordinary generator/dashboard behavior; no guide-specific inference or new vessel defaults were added."
+  },
+  "14_dashboard_proof": {
+    "normal_rows": 1,
+    "planning_draft_nodes": 0,
+    "retained_example": {
+      "owner_id": 10834,
+      "source_route_id": 835,
+      "route_instance_id": 2813,
+      "generated_route_id": 26301,
+      "route_code": "USER_ROUTE_10834_261115213552_72489"
+    },
+    "display": "Ordinary saved route row, 100.6 NM and normal calculated duration.",
+    "refresh": "Actual completed dashboard reload made zero guide_import requests and retained one ordinary row.",
+    "screenshot": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/dashboard-normal.png"
+  },
+  "15_generator_and_article_proof": {
+    "generator": "Ordinary title, vessel/performance/settings controls and Reset to Saved / Close / Save Route footer. No guide editor panel.",
+    "generator_screenshots": [
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/generator-normal-desktop.png",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/generator-normal-mobile.png"
+    ],
+    "article": "CTA enabled while robots remains noindex,follow; dark styles loaded. Final fresh page checks at 1440px and 390px had scrollWidth equal to viewport and no page exceptions.",
+    "article_screenshots": [
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/article-1440-final.png",
+      "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/article-390-final.png"
+    ],
+    "style_integrity": "git diff --exit-code passed for Bahamas/Cruising Guides CSS, all assets/images and web.config.",
+    "cache": "Changed dashboard/Follow script references carry updated versions. No cache purge or deployment performed."
+  },
+  "16_waypoint_database_proof": {
+    "new_example": "Two ordinary owned waypoints, exact clean names and manifest coordinates; notes empty.",
+    "reuse": "Pre-created exact compatible waypoints were reused with original IDs/notes unchanged.",
+    "collision": "Canonical route-name conflict returned NAME_CONFLICT with before/after state equal; no copies, overwrite or waypoint mutation."
+  },
+  "17_leg_and_map_proof": {
+    "database": "Normal source legs and saved instance legs contain 50.30 and 50.30 NM.",
+    "numeric_only": "Overrides persist empty geometry []; map service does not claim a drawn path.",
+    "tests": "All three persistence APIs were exercised for manual set, geometry addition, omitted-mileage preservation, manual clear and full reset; 21 invalid-input cases rejected without fixture mutation."
+  },
+  "18_calculation_proof": {
+    "ordinary_non_guide_fixture": {
+      "distance_nm": 24,
+      "legs_nm": [
+        15.25,
+        8.75
+      ],
+      "balanced_speed_kn": 12,
+      "run_hours": 2,
+      "base_fuel_gal": 8,
+      "reserve_pct": 20,
+      "reserve_fuel_gal": 1.6,
+      "required_fuel_gal": 9.6
+    },
+    "pace_change": "RELAXED used normal 5-knot speed and 4.8 run hours for the same 24 NM.",
+    "import_settings": "6.5 underway hours/day and 20% reserve verified in saved normal inputs; reserve edit to25% persisted through ordinary update/reload.",
+    "engine": "All totals, fuel, reserves, days and timeline stay in existing normal route calculations."
+  },
+  "19_edit_save_reopen_proof": {
+    "live_ui": "Changed outbound mileage from50.30 to55.30, saved override, closed leg overlay, used Save Route, closed/reopened ordinary editor. Same instance had legs55.30/50.30 and105.60 NM.",
+    "restoration": "Retained review example restored through ordinary UI/save to50.30/50.30 and100.60 NM.",
+    "geometry": "Geometry additions preserved manual mileage; clearing mileage retained geometry and restored calculated distance. Full reset removed overrides.",
+    "identity": "Save Route updated the same generated route/instance, without generating another import."
+  },
+  "20_validation_results_and_limits": {
+    "tooling": "MCPCFC source/runtime tools and MCP Playwright used. Previously approved local Node/Playwright fallback used because the MCPCFC runner has no Node/npx. No dependencies changed.",
+    "final_runs": [
+      {
+        "suite": "tests/route-leg-distance.spec.js",
+        "passed": 6,
+        "failed": 0,
+        "duration_seconds": 6,
+        "output": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/test-results/numeric-capacity-final",
+        "details": "Desktop/mobile, numeric-only, geometry preservation, Use calculated, generated endpoint/full reset, saved identity, accepted10000.01/max99999999.99, rejected100000000/0.001, rounding12.346 to12.35."
+      },
+      {
+        "suite": "tests/dashboard-route-actions.spec.js",
+        "passed": 9,
+        "failed": 0,
+        "duration_seconds": 3.6,
+        "output": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/test-results/dashboard-final"
+      },
+      {
+        "suite": "tests/normal-bahamas-import.spec.js",
+        "passed": 5,
+        "skipped": 1,
+        "failed": 0,
+        "flaky": 0,
+        "duration_seconds": 17.552,
+        "report": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/normal-route-rollback-20261115/test-results/normal-combined-report.json"
+      }
+    ],
+    "signup_limit": "The real public CTA -> Join -> Continue test passed earlier with a new canonical account. The final combined rerun explicitly skipped that one case after the existing local five-signups-per-IP/hour limit was exhausted; the remaining cases used the existing createAccount business operation through the protected local test helper. Rate-limit configuration was not changed.",
+    "negative_request": "Invalid/absent continuation produced HTTP409 InvalidIntent and identical before/after state. The expected rejected request adds a browser network error; happy-path checks had no JavaScript/console errors.",
+    "downstream": "Draft-only normal Float Plan test produced a valid423850-byte PDF, two-leg100.6 NM itinerary and HTTP200 owner Follow/Active Cruise previews; monitoring, voyage streams and companion tracking remained zero.",
+    "scope_limits": [
+      "No production runtime/database validation.",
+      "Focused suites and local live checks were run, not the entire repository suite.",
+      "Four-hour natural token expiry was not waited out; expiry/eviction/discard behavior is source-verified, with missing/invalid intent rejection tested.",
+      "No live activation, monitoring, notification delivery or underway trip was started.",
+      "Frontend fixture tests use mocked APIs; separate live tests establish backend persistence.",
+      "Legacy saved instances were reconciled in the database; each legacy instance was not individually opened through every downstream UI."
+    ],
+    "preexisting_or_resolved_test_issues": "An earlier dashboard tooltip timing assertion passed on focused rerun and the final full nine-test run. Earlier debug/test artifacts remain historical evidence, not current failures. The final import error copy preserves backend instructions rather than promising retries for expired tokens/name conflicts."
+  },
+  "21_schema_and_retained_data_actions": {
+    "database": "Local FPW / MySQL8.0.43.",
+    "before": {
+      "imports": 54,
+      "owners": 27,
+      "saved_instances": 25,
+      "waypoints": 108,
+      "draft_floatplans": 19
+    },
+    "retained_source_route_ids": [
+      693,
+      789,
+      791,
+      797,
+      816,
+      817,
+      818,
+      819,
+      820,
+      821,
+      822,
+      823,
+      824,
+      831,
+      833
+    ],
+    "retained_instance_ids": [
+      2702,
+      2775,
+      2777,
+      2784,
+      2803
+    ],
+    "converted_known_source_leg_distances": 26,
+    "missing_mileage_archived": [
+      {
+        "route_id": 693,
+        "leg_id": 516
+      },
+      {
+        "route_id": 831,
+        "leg_id": 677
+      },
+      {
+        "route_id": 831,
+        "leg_id": 679
+      },
+      {
+        "route_id": 833,
+        "leg_id": 682
+      }
+    ],
+    "unsupported_state": "Unsaved settings, notes and review state archived. Missing mileage now follows ordinary source-route behavior; no distance invented.",
+    "route_693": "Two-leg source kept separate from saved instance2702. Its three saved leg distances40/20/60 remain intact; never regenerated from the newer source.",
+    "saved_inputs": "Existing normal saved settings and values preserved; only obsolete guide_context metadata removed, with saved timestamps preserved.",
+    "dropped_table": "guide_route_imports only, after all54metadata rows were archived, conversion verified and table emptied.",
+    "shared_schema": "No shared table dropped; no new table or column.",
+    "migration": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/database/migrations/20261115_001_retire_guide_route_imports.up.sql",
+    "migration_validation": "Rerun with table already absent succeeded and returned remaining0. Populated-table refusal is encoded in the SQL guard.",
+    "final_reconciliation": {
+      "obsolete_tables": 0,
+      "preserved_source_routes": 15,
+      "preserved_saved_instances": 5,
+      "converted_overrides": 26,
+      "route_693_saved_legs": 3,
+      "remaining_guide_contexts": 0
+    }
+  },
+  "22_disposable_data_cleanup": {
+    "old_provenance": "Rechecked19codex-guide-demo fixture accounts (38imports) plus prior interface fixture owner10817/source834 (one import). Uncertain member routes/waypoints were not renamed or deleted.",
+    "old_removed": {
+      "imports": 39,
+      "source_routes": 39,
+      "source_legs": 78,
+      "waypoints": 78,
+      "saved_instances": 20,
+      "generated_routes": 20,
+      "draft_floatplans": 19,
+      "vessels": 20
+    },
+    "new_qa_archive": "current-qa-fixtures.json, outside webroot, before cleanup.",
+    "new_qa_removed": {
+      "owners": 17,
+      "source_routes": 17,
+      "saved_instances": 14,
+      "draft_floatplans": 3,
+      "waypoints": 37,
+      "vessels": 12
+    },
+    "new_qa_owner_range": "10835 through10851; exact canonical test prefix checked.",
+    "retained": "Canonical account records and product history retained; one review example owned by10834 remains. No monitoring/tracking/Follow activity was created by import."
+  },
+  "23_diff_and_integrity_checks": {
+    "git_diff_check": "PASS",
+    "javascript_syntax": "PASS for changed frontend JavaScript.",
+    "cfml": "Changed components executed successfully through local API/UI tests.",
+    "unrelated_test_artifacts": "Tracked test-results files restored to pre-task bytes; final tracked test-results status clean.",
+    "protected_files": "Bahamas dark CSS, Bahamas base CSS, Cruising Guides CSS, image assets and web.config unchanged.",
+    "runtime_search": "No GuideTripService, guide_context, PLANNING_DRAFTS or retired guide actions/panels remain in active api/app/assets/includes/partials runtime paths, aside from retained short-lived auth selection names noted below."
+  },
+  "24_final_git_status": {
+    "branch": "main",
+    "upstream": "origin/main",
+    "head": "c108837ab63e6f2041772c7650e39b4586810892",
+    "head_matches_upstream_at_final_check": true,
+    "staged_files": 0,
+    "modified_tracked": 27,
+    "deleted_tracked": 28,
+    "new_untracked": 6,
+    "total": 61,
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "notes": "Working tree intentionally contains implementation changes and this report. Snapshots are local ignored evidence. No unrelated uncommitted work was discarded."
+  },
+  "25_remaining_references_risks_and_boundaries": {
+    "intentional_references": [
+      "guide_import and short-lived auth guideContext/template keys remain only as the thin import entry/selection, not a stored planning type.",
+      "Versioned public/editorial manifest retains source/review/narrative metadata for the article; new member records receive only normal fields.",
+      "Historical source/validation JSON reports remain provenance and are marked superseded by current release documentation.",
+      "Retirement SQL and security blocks intentionally still name the retired table/old private PDFs."
+    ],
+    "data_risk": "Archived unsaved guide-only state is no longer an active editor mode. Preserved source routes now use normal behavior; saved instances remain independent.",
+    "deployment": "No production change was made. Any other populated environment must archive and reconcile its own data before retirement; local record IDs/counts must never be applied blindly elsewhere. Guarded retirement SQL refuses a populated table.",
+    "session_limit": "Replay receipts intentionally depend on the existing bounded session; after token expiry/eviction/consumption, start a fresh selection, which still cannot overwrite a same-name route.",
+    "completed_scope": "Approved local implementation, cleanup, preservation, focused validation and report complete. No further changes proposed."
+  },
+  "historical_report": true,
+  "superseded_by": "full-route-import-rollback-20261115.json",
+  "superseded_note": "The owner subsequently abandoned all guide-to-route importing and numeric distance entry. This report records earlier work only; it is not the current architecture or a deployment instruction."
+}

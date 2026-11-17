@@ -77,12 +77,6 @@
       }, 260);
     });
 
-    modalEl.addEventListener("fpw:route-context-ready", function () {
-      var rootEl = document.querySelector(ROOT_SELECTOR);
-      if (rootEl && rootEl.classList.contains("fpw-guide-mode")) closeTour(false);
-      else maybeAutoStart();
-    });
-
     modalEl.addEventListener("hidden.bs.modal", function () {
       closeTour(true);
     });
@@ -480,8 +474,7 @@
   function isRouteGeneratorOpen() {
     var modalEl = query(MODAL_SELECTOR);
     var rootEl = query(ROOT_SELECTOR);
-    return !!(modalEl && rootEl && modalEl.classList.contains("show") && isVisible(rootEl)
-      && rootEl.dataset.routeContextLoading !== "true" && !rootEl.classList.contains("fpw-guide-mode"));
+    return !!(modalEl && rootEl && modalEl.classList.contains("show") && isVisible(rootEl));
   }
 
   function hasSeenTour() {

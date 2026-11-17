@@ -238,7 +238,7 @@
       "effective_date": "Linked Explorer chart copyright 2009; HTML revision unknown",
       "verification_status": "retrieved_historical_reference",
       "review_frequency": "before_template_release",
-      "claim": "47.6 nm is a published approach-segment comparison, not berth-to-berth validated mileage. Ambiguous Florida coordinate typography is not imported.",
+      "claim": "47.6 nm is a published approach-segment comparison, not berth-to-berth validated mileage. Ambiguous Florida coordinate typography is not used for this example.",
       "reviewer": "FPW editorial review pending",
       "next_review_date": "2026-12-09",
       "associated_pages": [
@@ -570,4 +570,3 @@
     }
   ]
 }
-

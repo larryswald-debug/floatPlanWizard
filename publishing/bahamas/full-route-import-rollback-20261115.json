@@ -1,0 +1,1329 @@
+{
+  "title": "Bahamas guide full route-import rollback",
+  "report_date_local": "2026-11-15",
+  "timezone": "America/New_York",
+  "repository": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw",
+  "status": "Implemented and locally validated; uncommitted",
+  "owner_direction": "Remove the entire guide-to-member-route bridge and new numeric Route Generator mileage entry. Preserve guide design/content and existing member data. Owner explicitly authorized a small new browser-only calculator after no original public editable calculator could be recovered.",
+  "decision": {
+    "best_fix": "Completed surgical removal of importer and numeric mileage feature, restoration of baseline ordinary geometry behavior, and an independent browser-only article calculator.",
+    "safest_fix": "A narrower hidden/disabled CTA would leave abandoned backend behavior and does not satisfy the owner direction. No alternative retained implementation is recommended.",
+    "boundaries": [
+      "No commit or push",
+      "No production deployment or configuration changes",
+      "No new migration or conversion of the 15 retained source routes",
+      "No new account-persistence or route-creation substitute",
+      "No hard reset or wholesale commit revert"
+    ]
+  },
+  "sections": [
+    {
+      "number": 1,
+      "title": "Pre-import baseline identified",
+      "commit": "432993d4f9ea7ee1121ed6a897edab30aa426ffc",
+      "author_date": "2026-11-07T08:31:58-05:00",
+      "finding": "Immediately before guide/import work. This baseline contains no Bahamas guide; it supplies the ordinary route, geometry and authentication reference."
+    },
+    {
+      "number": 2,
+      "title": "Import-related commits identified",
+      "commits": [
+        {
+          "hash": "38fa56ec5f1934feb76edb17aac4233d240c4398",
+          "author_date": "2026-11-14T12:01:54-05:00",
+          "subject": "Add Bahamas guide planning and refresh Cruising Guides",
+          "disposition": "Mixed guide/design/import work; feature portions removed surgically, useful content and ordinary improvements retained."
+        },
+        {
+          "hash": "c108837ab63e6f2041772c7650e39b4586810892",
+          "author_date": "2026-11-14T17:51:30-05:00",
+          "subject": "css of bahama guide to dard",
+          "disposition": "Dark guide design preserved; HEAD unchanged."
+        }
+      ],
+      "uncommitted_at_start": "The thin normal-route importer, numeric override feature and earlier Planning Drafts removal were already uncommitted. Starting status had 61 entries. The complete starting diff and status were snapshotted."
+    },
+    {
+      "number": 3,
+      "title": "Files inspected",
+      "edited_or_removed_files": [
+        "api/v1/routeBuilder.cfc",
+        "api/v1/waypoint.cfc",
+        "app/dashboard.cfm",
+        "assets/js/app/auth-modal.js",
+        "assets/js/app/auth.js",
+        "assets/js/app/dashboard/routebuilder.js",
+        "assets/js/app/dashboard/waypoints.js",
+        "assets/js/app/dashboard.js",
+        "assets/js/bahamas-guide.js",
+        "boating-guides/bahamas/_footer.cfm",
+        "boating-guides/bahamas/_head.cfm",
+        "boating-guides/bahamas/_setup.cfm",
+        "boating-guides/bahamas/index.cfm",
+        "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+        "database/migrations/20261115_001_retire_guide_route_imports.up.sql",
+        "great-loop/trip-planning/index.cfm",
+        "includes/AuthContinuationService.cfc",
+        "includes/footer_scripts.cfm",
+        "includes/modals/route_generator_modal.cfm",
+        "includes/top_nav.cfm",
+        "partials/fpw-auth-modal.cfm",
+        "publishing/bahamas/README.md",
+        "publishing/bahamas/normal-route-rollback-20261115.json",
+        "publishing/bahamas/release-review-20261109/OWNER-REVIEW.md",
+        "publishing/bahamas/release-review-20261109/README.md",
+        "publishing/bahamas/sources.json",
+        "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+        "tests/normal-bahamas-import.spec.js",
+        "tests/normal-route-import-runner.cfm",
+        "tests/route-leg-distance.spec.js",
+        "tests/specs/AuthContinuationSpec.cfc",
+        "tests/support/NormalRouteImportSpec.cfc"
+      ],
+      "additional_current_paths": [
+        "api/api_assets/FloatPlanPdfItineraryService.cfc",
+        "api/api_assets/floatPlanUtils.cfc",
+        "api/v1/ActiveCruiseViewModelService.cfc",
+        "api/v1/RouteMapGeometryService.cfc",
+        "api/v1/floatplan.cfc",
+        "api/v1/voyage.cfc",
+        "app/active-cruise.cfm",
+        "app/follow-full-map.cfm",
+        "app/follow.cfm",
+        "assets/js/app/follow/follow.js",
+        "assets/js/app/follow/followMap.js",
+        "assets/js/app/dashboard/route-generator-tour.js",
+        "assets/css/bahamas-guide-dark.css",
+        "assets/css/bahamas-guide.css",
+        "assets/css/cruising-guides.css",
+        "publishing/bahamas/build-assets.mjs",
+        "tests/dashboard-route-actions.spec.js",
+        "web.config"
+      ],
+      "history_and_supplied_material": [
+        "432993d, 38fa56e and c108837 versions",
+        "18 relevant snapshot files",
+        "The two supplied Bahamas/Cruising Guides ZIP packages",
+        "/Users/lawrencewald/Downloads/FPW-Bahamas-Guide-Codex-Plan-Mode-Prompt.md"
+      ],
+      "finding": "Repository searches, baseline comparisons, local schema/rows and rendered browser behavior were used. Historical material did not contain an original standalone public editable sample calculator."
+    },
+    {
+      "number": 4,
+      "title": "Files changed",
+      "this_task_count": 35,
+      "counts": {
+        "modified": 27,
+        "deleted": 5,
+        "added": 3
+      },
+      "files": [
+        {
+          "path": "api/v1/routeBuilder.cfc",
+          "action": "modified",
+          "description": "Removed guide import dispatch/orchestration, import transaction/receipt logic and numeric override payload/validation/calculation branches. Restored baseline ordinary geometry code, retaining the existing normal saved-leg decimal scale=2 correction.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/api/v1/routeBuilder.cfc"
+        },
+        {
+          "path": "api/v1/waypoint.cfc",
+          "action": "modified",
+          "description": "Removed importer-only nonremote saveRouteWaypoint bridge; restored baseline ordinary waypoint persistence.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/api/v1/waypoint.cfc"
+        },
+        {
+          "path": "app/dashboard.cfm",
+          "action": "modified",
+          "description": "Removed import-only rendering/context and updated asset cache token; previous Planning Drafts removal preserved.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/app/dashboard.cfm"
+        },
+        {
+          "path": "assets/js/app/auth-modal.js",
+          "action": "modified",
+          "description": "Removed guide import modal context; restored normal authentication behavior.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/assets/js/app/auth-modal.js"
+        },
+        {
+          "path": "assets/js/app/auth.js",
+          "action": "modified",
+          "description": "Removed guide import authentication handoff; restored normal authentication behavior.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/assets/js/app/auth.js"
+        },
+        {
+          "path": "assets/js/app/dashboard/routebuilder.js",
+          "action": "modified",
+          "description": "Restored baseline normal route editor, geometry payload, drawing/editing, calculations and save controls; removed import handoff and numeric mileage code.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/assets/js/app/dashboard/routebuilder.js"
+        },
+        {
+          "path": "assets/js/app/dashboard/waypoints.js",
+          "action": "modified",
+          "description": "Removed importer-only waypoint reload export; restored baseline.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/assets/js/app/dashboard/waypoints.js"
+        },
+        {
+          "path": "assets/js/app/dashboard.js",
+          "action": "modified",
+          "description": "Removed guide continuation/import orchestration; restored ordinary Dashboard route workflow.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/assets/js/app/dashboard.js"
+        },
+        {
+          "path": "assets/js/bahamas-guide.js",
+          "action": "modified",
+          "description": "Removed route-import click/auth flow; added browser-only sample input validation and calculations, with no requests or persistence.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/assets/js/bahamas-guide.js"
+        },
+        {
+          "path": "boating-guides/bahamas/_footer.cfm",
+          "action": "modified",
+          "description": "Updated guide script version; preserved footer.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/boating-guides/bahamas/_footer.cfm"
+        },
+        {
+          "path": "boating-guides/bahamas/_head.cfm",
+          "action": "modified",
+          "description": "Preserved current head/SEO/design; added only scoped dark input styles for the authorized public calculator.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/boating-guides/bahamas/_head.cfm"
+        },
+        {
+          "path": "boating-guides/bahamas/_setup.cfm",
+          "action": "modified",
+          "description": "Removed import eligibility/publication CTA state; kept editorial data loading, sample mileage/worksheet and existing noindex behavior.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/boating-guides/bahamas/_setup.cfm"
+        },
+        {
+          "path": "boating-guides/bahamas/index.cfm",
+          "action": "modified",
+          "description": "Removed obsolete planning-draft/import instructions while preserving hub content and design.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/boating-guides/bahamas/index.cfm"
+        },
+        {
+          "path": "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+          "action": "modified",
+          "description": "Removed account-import CTA and workflow instructions; added authorized independent sample calculator with fixed 100.6 NM and existing article assumptions.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm"
+        },
+        {
+          "path": "database/migrations/20261115_001_retire_guide_route_imports.up.sql",
+          "action": "deleted",
+          "description": "Removed obsolete importer/numeric-override test or retirement migration; preserved original in private snapshot.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/database/migrations/20261115_001_retire_guide_route_imports.up.sql"
+        },
+        {
+          "path": "great-loop/trip-planning/index.cfm",
+          "action": "modified",
+          "description": "Restored geometry-only help statement.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/great-loop/trip-planning/index.cfm"
+        },
+        {
+          "path": "includes/AuthContinuationService.cfc",
+          "action": "modified",
+          "description": "Removed guide import context/source allowlist and completed-import receipts; retained baseline ordinary authentication continuation.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/includes/AuthContinuationService.cfc"
+        },
+        {
+          "path": "includes/footer_scripts.cfm",
+          "action": "modified",
+          "description": "Removed import-only support and updated ordinary script cache token.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/includes/footer_scripts.cfm"
+        },
+        {
+          "path": "includes/modals/route_generator_modal.cfm",
+          "action": "modified",
+          "description": "Restored baseline geometry panel and six-row map grid; removed numeric distance input and Use calculated control.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/includes/modals/route_generator_modal.cfm"
+        },
+        {
+          "path": "includes/top_nav.cfm",
+          "action": "modified",
+          "description": "Removed import-only authentication data and updated cache token; retained current navigation.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/includes/top_nav.cfm"
+        },
+        {
+          "path": "partials/fpw-auth-modal.cfm",
+          "action": "modified",
+          "description": "Removed guide template/continuation fields and updated ordinary cache token.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/partials/fpw-auth-modal.cfm"
+        },
+        {
+          "path": "publishing/bahamas/README.md",
+          "action": "modified",
+          "description": "Documented final architecture, independent calculator, no migrations/imports and preservation rules.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/publishing/bahamas/README.md"
+        },
+        {
+          "path": "publishing/bahamas/normal-route-rollback-20261115.json",
+          "action": "modified",
+          "description": "Retained prior report as historical evidence and added explicit superseded-by metadata.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/publishing/bahamas/normal-route-rollback-20261115.json"
+        },
+        {
+          "path": "publishing/bahamas/release-review-20261109/OWNER-REVIEW.md",
+          "action": "modified",
+          "description": "Marked historical import/deployment instructions superseded by the full rollback.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/publishing/bahamas/release-review-20261109/OWNER-REVIEW.md"
+        },
+        {
+          "path": "publishing/bahamas/release-review-20261109/README.md",
+          "action": "modified",
+          "description": "Marked historical release instructions superseded.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/publishing/bahamas/release-review-20261109/README.md"
+        },
+        {
+          "path": "publishing/bahamas/sources.json",
+          "action": "modified",
+          "description": "Changed only rendered S8 wording from 'is not imported' to 'is not used for this example'; retained source evidence.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/publishing/bahamas/sources.json"
+        },
+        {
+          "path": "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+          "action": "modified",
+          "description": "Removed importer contract/inputs/notes and unused duplicate source register snapshot; retained public coordinates, 50.3 NM legs, worksheet, verification and editorial research.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json"
+        },
+        {
+          "path": "tests/normal-bahamas-import.spec.js",
+          "action": "deleted",
+          "description": "Removed obsolete importer/numeric-override test or retirement migration; preserved original in private snapshot.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/tests/normal-bahamas-import.spec.js"
+        },
+        {
+          "path": "tests/normal-route-import-runner.cfm",
+          "action": "deleted",
+          "description": "Removed obsolete importer/numeric-override test or retirement migration; preserved original in private snapshot.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/tests/normal-route-import-runner.cfm"
+        },
+        {
+          "path": "tests/route-leg-distance.spec.js",
+          "action": "deleted",
+          "description": "Removed obsolete importer/numeric-override test or retirement migration; preserved original in private snapshot.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/tests/route-leg-distance.spec.js"
+        },
+        {
+          "path": "tests/specs/AuthContinuationSpec.cfc",
+          "action": "modified",
+          "description": "Removed only two import-specific cases; restored ordinary baseline tests.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/tests/specs/AuthContinuationSpec.cfc"
+        },
+        {
+          "path": "tests/support/NormalRouteImportSpec.cfc",
+          "action": "deleted",
+          "description": "Removed obsolete importer/numeric-override test or retirement migration; preserved original in private snapshot.",
+          "snapshot": ".codex-snapshots/bahamas-import-full-rollback-20261115/files/tests/support/NormalRouteImportSpec.cfc"
+        },
+        {
+          "path": "tests/bahamas-sample-calculator.spec.js",
+          "action": "added",
+          "description": "Six independent calculator/browser/layout/no-persistence regression tests."
+        },
+        {
+          "path": "tests/route-geometry-regression.spec.js",
+          "action": "added",
+          "description": "Fresh canonical account regression for ordinary geometry drawing/editing, calculations, save/reopen, removed-feature rejection and cleanup."
+        },
+        {
+          "path": "publishing/bahamas/full-route-import-rollback-20261115.json",
+          "action": "added",
+          "description": "Current detailed 24-item rollback report."
+        }
+      ],
+      "previous_work_preserved": "The final Git inventory includes previous authorized removal/ordinary improvements as well as this task. The 28 tracked deletions listed in section 8 already existed when this task began. api/v1/waypoint.cfc and assets/js/app/dashboard/waypoints.js changed during this rollback but now match HEAD, so do not appear in final git status."
+    },
+    {
+      "number": 5,
+      "title": "Snapshot paths",
+      "root": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/bahamas-import-full-rollback-20261115",
+      "files_root": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/bahamas-import-full-rollback-20261115/files",
+      "checksum_manifest": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/bahamas-import-full-rollback-20261115/files.sha256.json",
+      "initial_status": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/bahamas-import-full-rollback-20261115/pre-change-status.json",
+      "initial_diff": "/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/.codex-snapshots/bahamas-import-full-rollback-20261115/pre-change.diff",
+      "initial_diff_bytes": 609481,
+      "snapshot_count": 32,
+      "all_snapshot_checksums_verified": true,
+      "checksums": [
+        {
+          "path": "api/v1/routeBuilder.cfc",
+          "bytes": 714720,
+          "sha256": "5db3b4b2499a063ed30241060e2aae253e916689b355aac6ed98df38f926f870"
+        },
+        {
+          "path": "api/v1/waypoint.cfc",
+          "bytes": 28412,
+          "sha256": "6c5cf3ba5fa873b2bc0014fa2c6824c806093ecd371e929fb473fd717efef594"
+        },
+        {
+          "path": "app/dashboard.cfm",
+          "bytes": 119538,
+          "sha256": "3561b9bb4ecbc7c80801320bb07dd257035090f3915b96069fd97b557f783baa"
+        },
+        {
+          "path": "assets/js/app/auth-modal.js",
+          "bytes": 12269,
+          "sha256": "29e330d901a4e185ffdc516cf94db3eeeb415f4de8c23defd9af49c1963705d5"
+        },
+        {
+          "path": "assets/js/app/auth.js",
+          "bytes": 6680,
+          "sha256": "8c4d246de6e72d0e62c1266af7ef41846122a2b8d3e86d0748a1cd6cba5fd6d8"
+        },
+        {
+          "path": "assets/js/app/dashboard/routebuilder.js",
+          "bytes": 314709,
+          "sha256": "e0680908bc0f7ce46de98888664543e3c71abd506e3b67c3e93535b8c35a4846"
+        },
+        {
+          "path": "assets/js/app/dashboard/waypoints.js",
+          "bytes": 37915,
+          "sha256": "bda26d59e284e18f3451ce18fa39e3db2f9b480480acf55120020750e7693d65"
+        },
+        {
+          "path": "assets/js/app/dashboard.js",
+          "bytes": 289489,
+          "sha256": "7a9a7ba40942906e20e1d461a9beadbc44c39da828f8c083507c3d2d8ea8c5f5"
+        },
+        {
+          "path": "assets/js/bahamas-guide.js",
+          "bytes": 974,
+          "sha256": "ce58666d44f10149a3f1757561e1bce97898ff4a44319a4255e42f17e6d8bc1f"
+        },
+        {
+          "path": "boating-guides/bahamas/_footer.cfm",
+          "bytes": 714,
+          "sha256": "23997dad272cac2543aed8d3de2722031e91eddf113c4b96f1659a948958b347"
+        },
+        {
+          "path": "boating-guides/bahamas/_head.cfm",
+          "bytes": 3080,
+          "sha256": "20e9282fdd5647db6874c40a234c2483b37baafe58097e58cc80445aa5351846"
+        },
+        {
+          "path": "boating-guides/bahamas/_setup.cfm",
+          "bytes": 5205,
+          "sha256": "eb2da2059c3d3727e909af692dfa2d97074d9f2d9a42ce1205df15d0115a5b6b"
+        },
+        {
+          "path": "boating-guides/bahamas/index.cfm",
+          "bytes": 16586,
+          "sha256": "510c50a3971c6cefd4388b3709c4d5ba70b716b2b0bfa84028df586a7b9d473d"
+        },
+        {
+          "path": "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+          "bytes": 23295,
+          "sha256": "f19143df93ab4a2506bae7b09347a80f1958fa0bdb332ccce112eb904b3bb509"
+        },
+        {
+          "path": "database/migrations/20261115_001_retire_guide_route_imports.up.sql",
+          "bytes": 1049,
+          "sha256": "a972d32a06cd55a5eeaf9820bc76e938fb8a34930c407234c660767a52ebba85"
+        },
+        {
+          "path": "great-loop/trip-planning/index.cfm",
+          "bytes": 50674,
+          "sha256": "8e4e5d6e0c6d9193a17b45a533bae9069304ccb7a0a5b7c924e353d61cacf331"
+        },
+        {
+          "path": "includes/AuthContinuationService.cfc",
+          "bytes": 14122,
+          "sha256": "de00d6a2cd340a710f4329bec3d7f74d05c1b8251db893c7303095bfff7fc7d9"
+        },
+        {
+          "path": "includes/footer_scripts.cfm",
+          "bytes": 745,
+          "sha256": "4e7095004278460de1f70c71a484b099111c6a5c6abe101bf62505601da91b9e"
+        },
+        {
+          "path": "includes/modals/route_generator_modal.cfm",
+          "bytes": 67580,
+          "sha256": "b0d6b177a827af56a65681066a2de44d1602f20862910972d33b9b2617bb1392"
+        },
+        {
+          "path": "includes/top_nav.cfm",
+          "bytes": 62151,
+          "sha256": "841b8fb0de7d683fd039275f2324778a8ccf80099c0afa2d469c2126828d091d"
+        },
+        {
+          "path": "partials/fpw-auth-modal.cfm",
+          "bytes": 3486,
+          "sha256": "8bae09b88a739912d20c7afc2db82b6a21cafab4b111918d94fd13a39ab8a833"
+        },
+        {
+          "path": "publishing/bahamas/README.md",
+          "bytes": 6256,
+          "sha256": "cd8ba8a0f53e5f53ae1c73812b603f84edb882369bf1e5ebc6fe2a7c2aecc233"
+        },
+        {
+          "path": "publishing/bahamas/normal-route-rollback-20261115.json",
+          "bytes": 42285,
+          "sha256": "52f4b509808d93ffc2a93ec0d33f7df61ff75f649fc1ad9480eab5dcf87acd26"
+        },
+        {
+          "path": "publishing/bahamas/release-review-20261109/OWNER-REVIEW.md",
+          "bytes": 17361,
+          "sha256": "f4066fc6cec3481ef956eaeaae8e00122e853be7101da4d5bd2b023efc254021"
+        },
+        {
+          "path": "publishing/bahamas/release-review-20261109/README.md",
+          "bytes": 5457,
+          "sha256": "9cf63dcf215024604324bceea63878bbbf158f902fa18fed20199f15804cde7f"
+        },
+        {
+          "path": "publishing/bahamas/sources.json",
+          "bytes": 24112,
+          "sha256": "0af3c2a83883673da007346632df48516ac65bce9a97e6c634408b069c164c77"
+        },
+        {
+          "path": "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json",
+          "bytes": 23562,
+          "sha256": "0cc360102c260ca29c852db8a931433125e58490f5209595521bf41140ae0757"
+        },
+        {
+          "path": "tests/normal-bahamas-import.spec.js",
+          "bytes": 22812,
+          "sha256": "55af6f6eb1f826196c738eb2fbd221df771217c947ba82b8f7d8f1d0c1f8b4b3"
+        },
+        {
+          "path": "tests/normal-route-import-runner.cfm",
+          "bytes": 2629,
+          "sha256": "fd07eb9ec7f35f9a6dd106a22706ce4c5672ae1779693c6c970599bafe51b760"
+        },
+        {
+          "path": "tests/route-leg-distance.spec.js",
+          "bytes": 14341,
+          "sha256": "e9de1d609b80afdcee95c19d8d5b572fc785a986eba5e1619530a3a0748e55c8"
+        },
+        {
+          "path": "tests/specs/AuthContinuationSpec.cfc",
+          "bytes": 11572,
+          "sha256": "ab5e5fe211af31f41048b0bc3441ef2aa763839adaaa9fc79d3db232d85e91a0"
+        },
+        {
+          "path": "tests/support/NormalRouteImportSpec.cfc",
+          "bytes": 7268,
+          "sha256": "347f1751aa57bfe076aebffffa0a31bb23da82a5d07ae7dac8ac4093eb434ee9"
+        }
+      ],
+      "notes": [
+        "Every preexisting file edited/deleted this task has a before-edit snapshot.",
+        "New tests/report have no before-edit contents.",
+        "MCP patch operations also created automatic backup files.",
+        "No raw member database archive is placed in this report; compact preservation evidence is in private snapshots. No schema conversion was performed."
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Guide import UI removed",
+      "files": [
+        "boating-guides/bahamas/index.cfm",
+        "boating-guides/bahamas/_setup.cfm",
+        "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm",
+        "assets/js/bahamas-guide.js"
+      ],
+      "removed": [
+        "CTA markup and data attributes",
+        "Importer-only authentication/publication eligibility",
+        "Import click handling/loading/messages",
+        "Import/save/copy workflow instructions"
+      ],
+      "result": "No dormant hidden CTA or replacement member-route creation action. Public hub and itinerary both returned HTTP 200; rendered audit found no obsolete workflow instructions."
+    },
+    {
+      "number": 7,
+      "title": "Guide import backend removed",
+      "files": [
+        "api/v1/routeBuilder.cfc",
+        "api/v1/waypoint.cfc",
+        "includes/AuthContinuationService.cfc"
+      ],
+      "removed": [
+        "guide_import action dispatch/guard/catch/gate",
+        "importGuideRoute and requireRouteImportSuccess orchestration",
+        "Guide waypoint lookup/reuse/create bridge",
+        "Import name collision, transaction, member lock and creation orchestration",
+        "Guide-only completed-result receipts and continuation contexts"
+      ],
+      "preserved": "Ordinary route/waypoint create/update/delete and authentication/CSRF behavior. Removed action is rejected by current handler."
+    },
+    {
+      "number": 8,
+      "title": "Planning-draft system removed",
+      "current_state": "No runtime GuideTripService, Planning Drafts dashboard/editor, guide print endpoint, guide-only CSS/JS or guide schema deployment machinery. Their earlier authorized deletions remain in the working tree.",
+      "tracked_deletions_already_present_at_start": [
+        "api/v1/GuideTripService.cfc",
+        "app/guide-trip-print.cfm",
+        "assets/css/guide-planner.css",
+        "assets/js/app/dashboard/guide-planner.js",
+        "assets/js/guide-trip-print.js",
+        "database/migrations/20261107_001_guide_route_imports.down.sql",
+        "database/migrations/20261107_001_guide_route_imports.preflight.sql",
+        "database/migrations/20261107_001_guide_route_imports.up.sql",
+        "database/migrations/20261107_001_guide_route_imports.verify.sql",
+        "publishing/bahamas/release-review-20261109/deployment-allowlist.json",
+        "publishing/bahamas/release-review-20261109/deployment-checklist.json",
+        "publishing/bahamas/release-review-20261109/deployment-prepare-clob.py",
+        "publishing/bahamas/release-review-20261109/publication-after-approval.patch",
+        "tests/bahamas-itinerary-test.cfm",
+        "tests/guide-export-runner.cfm",
+        "tests/guide-planner.spec.js",
+        "tests/guide-saved-editor.spec.js",
+        "tests/guide-saved-preview.spec.js",
+        "tests/guide-saved-view-runner.cfm",
+        "tests/guide-trip-integration-runner.cfm",
+        "tests/guide-trip-runner.cfm",
+        "tests/guide-trip-ui-fixture.cfm",
+        "tests/specs/GuideTripIntegrationSpec.cfc",
+        "tests/support/GuideLocalTestGuard.cfc",
+        "tests/support/GuideSavedViewContract.cfc",
+        "tests/support/GuideTripDemoFixture.cfc",
+        "tests/support/GuideTripFixtureService.cfc",
+        "tests/support/guide-test-guard.cfm"
+      ],
+      "additionally_deleted_this_task": [
+        "tests/normal-bahamas-import.spec.js",
+        "tests/normal-route-import-runner.cfm",
+        "tests/route-leg-distance.spec.js",
+        "tests/support/NormalRouteImportSpec.cfc",
+        "database/migrations/20261115_001_retire_guide_route_imports.up.sql"
+      ],
+      "shared_paths": "The downstream Float Plan, Follow, Captain, PDF and map paths were inspected for guide branches. Existing ordinary behavior/guards and previous removal changes were preserved."
+    },
+    {
+      "number": 9,
+      "title": "Dashboard rollback details",
+      "files": [
+        "app/dashboard.cfm",
+        "assets/js/app/dashboard.js"
+      ],
+      "result": "Standard Routes and saved-route actions remain. No Planning Drafts cards/section/counts or importer handoff. Preserved ordinary saved route was visible before disposable fixture cleanup. Guide input edits create no route/waypoint API requests."
+    },
+    {
+      "number": 10,
+      "title": "Route Generator rollback details",
+      "files": [
+        "includes/modals/route_generator_modal.cfm",
+        "assets/js/app/dashboard/routebuilder.js",
+        "api/v1/routeBuilder.cfc"
+      ],
+      "result": "Restored normal editor/footer, vessel/performance, fuel/reserve, summary, timeline and Save Route flow. No guide editor mode, special review/notes/panels or guide save behavior.",
+      "map_layout": "Restored the original six-row geometry panel. The extra numeric-input row and its layout requirement are gone. Browser map area in focused regression was x=31, y=187, width=1378, height=738 at 1440x1000."
+    },
+    {
+      "number": 11,
+      "title": "Numeric Distance Override rollback details",
+      "removed": [
+        "Distance Override (NM) input",
+        "Use calculated control",
+        "Numeric override explanatory copy",
+        "Numeric-only request fields and validation",
+        "manual_distance_nm generation/interpretation in runtime",
+        "Numeric transient/persistence/calculation branches"
+      ],
+      "no_schema_drop": "Numeric feature used existing computed_nm and override_fields_json, not dedicated new columns. Shared original geometry fields/tables remain.",
+      "historical_rows": "Existing historical distances/opaque JSON are not rewritten merely to remove origin. No numeric UI or API save path remains."
+    },
+    {
+      "number": 12,
+      "title": "Original geometry mileage behavior restored",
+      "baseline_proof": {
+        "byte_identical_to_baseline": [
+          "api/v1/waypoint.cfc",
+          "includes/AuthContinuationService.cfc",
+          "assets/js/app/dashboard/routebuilder.js",
+          "includes/modals/route_generator_modal.cfm",
+          "assets/js/app/dashboard.js",
+          "assets/js/app/dashboard/waypoints.js",
+          "assets/js/app/auth.js",
+          "assets/js/app/auth-modal.js",
+          "tests/specs/AuthContinuationSpec.cfc"
+        ],
+        "routeBuilder_only_baseline_difference": "api/v1/routeBuilder.cfc:10942 retains scale=2 on the normal saved-leg decimal binding; this preserves geometry-derived fractional miles."
+      },
+      "anchors": [
+        "includes/modals/route_generator_modal.cfm:1411 Computed NM",
+        "includes/modals/route_generator_modal.cfm:1413 Draw or edit polyline, then save override.",
+        "api/v1/routeBuilder.cfc getRouteLegOverrideGeometry/saveRouteLegOverrideGeometry",
+        "api/v1/routeBuilder.cfc routegenGetLegGeometry/routegenSaveLegOverride/routegenSaveSegmentOverride",
+        "assets/js/app/dashboard/routebuilder.js updateLegMapNmFromLayer/loadLegGeometry"
+      ],
+      "behavior": "Draw/edit/save uses valid polyline geometry and calculated NM; numeric-only empty geometry save is rejected. Existing stored positive computed_nm still loads under the original baseline precedence. Intentional future geometry save recalculates it, and normal Revert removes the override.",
+      "regression_nm": [
+        22.12,
+        12.3,
+        11.7
+      ]
+    },
+    {
+      "number": 13,
+      "title": "Sample itinerary editable controls",
+      "provenance": "NEW and explicitly authorized by owner; not claimed to be recovered original controls. Historical source offered a static worksheet and account-backed planner, not an independent public editable calculator.",
+      "location": "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm:24 #sample-calculator",
+      "inputs": [
+        {
+          "id": "bhSampleSpeed",
+          "label": "Planning speed (knots)",
+          "default": 20,
+          "validation": "Finite and greater than zero"
+        },
+        {
+          "id": "bhSampleBurn",
+          "label": "Total-vessel consumption (US gal/h)",
+          "default": 18,
+          "validation": "Finite and nonnegative"
+        },
+        {
+          "id": "bhSampleReserve",
+          "label": "Reserve added to base fuel (%)",
+          "default": 20,
+          "validation": "Finite and nonnegative"
+        },
+        {
+          "id": "bhSampleUsable",
+          "label": "Usable fuel aboard (US gal)",
+          "default": 190,
+          "validation": "Finite and nonnegative"
+        }
+      ],
+      "not_added": "6.5 underway hours/day was an importer-only input, not a public worksheet assumption; no new daily itinerary workflow is invented.",
+      "persistence": "No API, database writes, localStorage, sessionStorage or cookies for calculator edits. Reload restores the defaults."
+    },
+    {
+      "number": 14,
+      "title": "Sample calculation behavior",
+      "distance": {
+        "outbound_nm": 50.3,
+        "return_nm": 50.3,
+        "total_nm": 100.6,
+        "editable": false
+      },
+      "formulas": {
+        "movement_hours": "100.6 / speed_knots",
+        "base_us_gal": "movement_hours * underway_gph",
+        "reserve_us_gal": "base_us_gal * reserve_percent / 100",
+        "required_us_gal": "base_us_gal + reserve_us_gal",
+        "remaining_margin_us_gal": "usable_us_gal - required_us_gal"
+      },
+      "effects": {
+        "speed": "Recalculates movement time and all fuel results",
+        "consumption": "Recalculates base, reserve, requirement and margin; distance/time unchanged",
+        "reserve": "Recalculates reserve, requirement and margin",
+        "usable": "Recalculates remaining margin"
+      },
+      "rounding": "Full precision calculations; time displayed to nearest minute and fuel to one decimal.",
+      "invalid_inputs": "Blank, nonfinite, nonpositive speed or negative fuel/reserve/usable values show accessible error and unavailable outputs; nonfinite intermediate results are rejected.",
+      "defaults": {
+        "movement_time": "5 h 02 min",
+        "base_us_gal": 90.5,
+        "reserve_us_gal": 18.1,
+        "required_us_gal": 108.6,
+        "margin_us_gal": 81.4
+      },
+      "changed_browser_example": {
+        "inputs": {
+          "speed_kn": 10,
+          "gph": 9,
+          "reserve_pct": 25,
+          "usable_us_gal": 160
+        },
+        "outputs": {
+          "movement_time": "10 h 04 min",
+          "base_us_gal": 90.5,
+          "reserve_us_gal": 22.6,
+          "required_us_gal": 113.2,
+          "margin_us_gal": 46.8
+        }
+      },
+      "other_content": "Separate existing 60+60 NM worksheet, 7 kn/4 GPH comparison, revised 65 NM return example, maps and citations preserved."
+    },
+    {
+      "number": 15,
+      "title": "Schema rollback",
+      "schema_actions_this_task": [],
+      "migration_actions_this_task": [],
+      "database": "Local FPW, MySQL 8.0.43",
+      "finding": "guide_route_imports was already absent. No guide/manual-only columns existed to drop. Original shared override tables/columns remain. Obsolete create/preflight/verify/down and retirement scripts are absent from active source.",
+      "no_migration": "The 15 retained routes were not migrated, converted, renamed or rebuilt in this task."
+    },
+    {
+      "number": 16,
+      "title": "Existing user-data handling",
+      "preserved_source_route_ids": [
+        693,
+        789,
+        791,
+        797,
+        816,
+        817,
+        818,
+        819,
+        820,
+        821,
+        822,
+        823,
+        824,
+        831,
+        833
+      ],
+      "preserved_saved_instance_ids": [
+        2702,
+        2775,
+        2777,
+        2784,
+        2803
+      ],
+      "additional_preserved_source_route": 855,
+      "proof": [
+        {
+          "table": "routes",
+          "rows": 16,
+          "unchanged": true
+        },
+        {
+          "table": "legs",
+          "rows": 32,
+          "unchanged": true
+        },
+        {
+          "table": "overrides",
+          "rows": 28,
+          "unchanged": true
+        },
+        {
+          "table": "instances",
+          "rows": 5,
+          "unchanged": true
+        },
+        {
+          "table": "instanceLegs",
+          "rows": 11,
+          "unchanged": true
+        },
+        {
+          "table": "waypoints",
+          "rows": 48,
+          "unchanged": true
+        }
+      ],
+      "proof_path": ".codex-snapshots/bahamas-import-full-rollback-20261115/data-preservation-final.json",
+      "source_693": "Two source legs and one known 40 NM source override remain. Saved instance 2702 independently retains its three 40/20/60 NM legs; it was not rebuilt from the newer source.",
+      "historical_numeric_rows": "26 known-distance override rows on retained sources plus two for source 855 remain unchanged. Original baseline loading honors stored distance without a compatibility branch. Four original geometry overrides were not targeted.",
+      "removed_proven_review_fixture": {
+        "owner": 10834,
+        "source": 835,
+        "saved_instance": 2813,
+        "waypoints": [
+          1874,
+          1875
+        ],
+        "method": "Normal authenticated delete APIs; four successful HTTP 200 operations",
+        "remaining_active_routes": 0,
+        "remaining_instances": 0,
+        "remaining_waypoints": 0
+      },
+      "new_regression_fixture_cleanup": {
+        "owners": [
+          10859,
+          10860,
+          10861,
+          10862,
+          10893
+        ],
+        "final_active_source_routes": 0,
+        "final_route_instances": 0,
+        "final_waypoints": 0,
+        "final_vessels": 0,
+        "evidence": ".codex-snapshots/bahamas-import-full-rollback-20261115/tests/normal-route-fixture-cleanup.json"
+      },
+      "cleanup_limits": "Normal delete APIs retain inactive source/override history; two override rows for review source 835 and inactive fixture history are not hard-deleted. Empty disposable accounts remain. No broad SQL purge or uncertain-member changes.",
+      "other_test_cleanup": "Operational geometry fixtures: zero before and after. TripPreview's four preexisting test users were left unchanged; new fixture operations rolled back."
+    },
+    {
+      "number": 17,
+      "title": "Bahamas guide visual regression",
+      "result": "PASS in local Chromium at 1440x1000 and 390x844",
+      "checks": [
+        "Dark layout and hero retained",
+        "Map/photo assets and content retained",
+        "No mobile horizontal overflow",
+        "Four inputs and result panels remain within viewport",
+        "No import CTA",
+        "noindex,follow retained",
+        "No request during calculator edits; reload resets"
+      ],
+      "unchanged_git_paths": [
+        "assets/css/bahamas-guide-dark.css",
+        "assets/css/bahamas-guide.css",
+        "assets/css/cruising-guides.css",
+        "assets/images",
+        "web.config"
+      ],
+      "limited_new_style": "Only scoped #sample-calculator input styling in existing _head.cfm.",
+      "evidence": [
+        ".codex-snapshots/bahamas-import-full-rollback-20261115/calculator-desktop.png",
+        ".codex-snapshots/bahamas-import-full-rollback-20261115/calculator-mobile.png",
+        ".codex-snapshots/bahamas-import-full-rollback-20261115/test-results/public-calculator"
+      ],
+      "limitation": "Local Chromium proof, not production or a Safari-specific visual retest."
+    },
+    {
+      "number": 18,
+      "title": "Dashboard regression",
+      "result": "PASS",
+      "playwright_dashboard_tests": 9,
+      "details": "Existing Dashboard route action/state and responsive coverage passed; saved route normal rendering and absence of Planning Drafts verified in MCP browser and fresh route regression.",
+      "evidence": ".codex-snapshots/bahamas-import-full-rollback-20261115/tests/frontend/playwright-report-unrestricted.json"
+    },
+    {
+      "number": 19,
+      "title": "Route Generator regression",
+      "result": "PASS: 1 focused end-to-end spec",
+      "test": "tests/route-geometry-regression.spec.js",
+      "details": [
+        "Fresh member via public Join",
+        "Normal vessel/waypoint/source/start/leg creation",
+        "Original map and Computed NM visible",
+        "Actual mouse drawing and vertex editing: 22.12 -> 12.30 -> 11.70 NM",
+        "Geometry saved and Save Route/reopen preserved points and mileage",
+        "Default vessel unchanged",
+        "Fuel/reserve, route summary and cruise timeline consistent",
+        "Numeric input and Use calculated absent",
+        "Removed guide_import action and numeric-only empty-geometry save rejected",
+        "Fixture cleanup successful"
+      ],
+      "evidence": ".codex-snapshots/bahamas-import-full-rollback-20261115/tests/normal-route-regression-evidence.json"
+    },
+    {
+      "number": 20,
+      "title": "Other FPW regression results",
+      "suites": [
+        {
+          "name": "Public calculator Playwright",
+          "passed": 6,
+          "failed": 0
+        },
+        {
+          "name": "Dashboard/auth/auth-modal Playwright",
+          "passed": 17,
+          "failed": 0,
+          "skipped": 0,
+          "flaky": 0,
+          "breakdown": {
+            "dashboard": 9,
+            "auth_continuation": 3,
+            "auth_modal": 5
+          }
+        },
+        {
+          "name": "Normal geometry Playwright",
+          "passed": 1,
+          "failed": 0
+        },
+        {
+          "name": "CFML authentication/recovery",
+          "passed": 22,
+          "failed": 0,
+          "errors": 0
+        },
+        {
+          "name": "CFML timeline",
+          "checks_passed": 23
+        },
+        {
+          "name": "Node timeline/view",
+          "passed": 13,
+          "failed": 0
+        },
+        {
+          "name": "Operational geometry snapshots",
+          "passed": 8,
+          "failed": 0,
+          "errors": 0
+        },
+        {
+          "name": "TripPreview/Active/Follow view models and gates",
+          "passed": 16,
+          "failed": 0,
+          "errors": 0
+        }
+      ],
+      "browser_test_total": 24,
+      "operational_geometry_coverage": "Fractional-distance activation snapshot cloning, immutable stored geometry, pins-only fallback without fabricated lines, explicit/reversed paths, draft live geometry and activation freeze.",
+      "limits": [
+        "Focused suites, not every repository test",
+        "No production deployment/runtime proof",
+        "No end-to-end live underway trip or notification/monitor activation",
+        "No fresh full PDF-render browser audit in this task"
+      ],
+      "tooling": "MCPCFC and MCP Playwright used for discovery/browser evidence. Previously approved local focused Playwright fallback used because MCPCFC runner lacks Node. Initial sandbox browser launch failed on macOS MachPortRendezvousServer; approved unrestricted local runs passed. Tracked test-results were unchanged."
+    },
+    {
+      "number": 21,
+      "title": "Console result",
+      "result": "No console/page errors in successful guide and ordinary geometry flows",
+      "evidence": "Normal-route regression recorded empty pageErrors, consoleErrors and serverErrors arrays. MCP guide/ordinary editor inspection found zero errors; ordinary warnings were observed and were not reported as errors."
+    },
+    {
+      "number": 22,
+      "title": "git diff --check result",
+      "result": "PASS",
+      "exit_code": 0,
+      "output": "",
+      "other_checks": [
+        "JavaScript syntax checks passed",
+        "Protected design/assets/web.config diff check exit 0",
+        "32/32 snapshot SHA-256 and byte lengths verified",
+        "Changed JSON/report parsing checked before completion"
+      ]
+    },
+    {
+      "number": 23,
+      "title": "Final git status",
+      "branch": "main",
+      "upstream": "origin/main",
+      "head": "c108837ab63e6f2041772c7650e39b4586810892",
+      "staged_files": 0,
+      "changed_entries": 69,
+      "counts": {
+        "modified_tracked": 37,
+        "deleted_tracked": 28,
+        "untracked": 4
+      },
+      "entries": [
+        {
+          "status": " M",
+          "path": "api/api_assets/FloatPlanPdfItineraryService.cfc"
+        },
+        {
+          "status": " M",
+          "path": "api/api_assets/floatPlanUtils.cfc"
+        },
+        {
+          "status": " M",
+          "path": "api/v1/ActiveCruiseViewModelService.cfc"
+        },
+        {
+          "status": " M",
+          "path": "api/v1/floatplan.cfc"
+        },
+        {
+          "status": " D",
+          "path": "api/v1/GuideTripService.cfc"
+        },
+        {
+          "status": " M",
+          "path": "api/v1/routeBuilder.cfc"
+        },
+        {
+          "status": " M",
+          "path": "api/v1/RouteMapGeometryService.cfc"
+        },
+        {
+          "status": " M",
+          "path": "api/v1/voyage.cfc"
+        },
+        {
+          "status": " M",
+          "path": "app/active-cruise.cfm"
+        },
+        {
+          "status": " M",
+          "path": "app/dashboard.cfm"
+        },
+        {
+          "status": " M",
+          "path": "app/follow-full-map.cfm"
+        },
+        {
+          "status": " M",
+          "path": "app/follow.cfm"
+        },
+        {
+          "status": " D",
+          "path": "app/guide-trip-print.cfm"
+        },
+        {
+          "status": " D",
+          "path": "assets/css/guide-planner.css"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/auth-modal.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/auth.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/dashboard.js"
+        },
+        {
+          "status": " D",
+          "path": "assets/js/app/dashboard/guide-planner.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/dashboard/route-generator-tour.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/dashboard/routebuilder.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/follow/follow.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/app/follow/followMap.js"
+        },
+        {
+          "status": " M",
+          "path": "assets/js/bahamas-guide.js"
+        },
+        {
+          "status": " D",
+          "path": "assets/js/guide-trip-print.js"
+        },
+        {
+          "status": " M",
+          "path": "boating-guides/bahamas/_footer.cfm"
+        },
+        {
+          "status": " M",
+          "path": "boating-guides/bahamas/_head.cfm"
+        },
+        {
+          "status": " M",
+          "path": "boating-guides/bahamas/_setup.cfm"
+        },
+        {
+          "status": " M",
+          "path": "boating-guides/bahamas/index.cfm"
+        },
+        {
+          "status": " M",
+          "path": "boating-guides/bahamas/itineraries/fort-lauderdale-bimini/index.cfm"
+        },
+        {
+          "status": " D",
+          "path": "database/migrations/20261107_001_guide_route_imports.down.sql"
+        },
+        {
+          "status": " D",
+          "path": "database/migrations/20261107_001_guide_route_imports.preflight.sql"
+        },
+        {
+          "status": " D",
+          "path": "database/migrations/20261107_001_guide_route_imports.up.sql"
+        },
+        {
+          "status": " D",
+          "path": "database/migrations/20261107_001_guide_route_imports.verify.sql"
+        },
+        {
+          "status": " M",
+          "path": "great-loop/trip-planning/index.cfm"
+        },
+        {
+          "status": " M",
+          "path": "includes/AuthContinuationService.cfc"
+        },
+        {
+          "status": " M",
+          "path": "includes/footer_scripts.cfm"
+        },
+        {
+          "status": " M",
+          "path": "includes/modals/route_generator_modal.cfm"
+        },
+        {
+          "status": " M",
+          "path": "includes/top_nav.cfm"
+        },
+        {
+          "status": " M",
+          "path": "partials/fpw-auth-modal.cfm"
+        },
+        {
+          "status": "??",
+          "path": "publishing/bahamas/full-route-import-rollback-20261115.json"
+        },
+        {
+          "status": "??",
+          "path": "publishing/bahamas/normal-route-rollback-20261115.json"
+        },
+        {
+          "status": " M",
+          "path": "publishing/bahamas/README.md"
+        },
+        {
+          "status": " D",
+          "path": "publishing/bahamas/release-review-20261109/deployment-allowlist.json"
+        },
+        {
+          "status": " D",
+          "path": "publishing/bahamas/release-review-20261109/deployment-checklist.json"
+        },
+        {
+          "status": " D",
+          "path": "publishing/bahamas/release-review-20261109/deployment-prepare-clob.py"
+        },
+        {
+          "status": " M",
+          "path": "publishing/bahamas/release-review-20261109/OWNER-REVIEW.md"
+        },
+        {
+          "status": " D",
+          "path": "publishing/bahamas/release-review-20261109/publication-after-approval.patch"
+        },
+        {
+          "status": " M",
+          "path": "publishing/bahamas/release-review-20261109/README.md"
+        },
+        {
+          "status": " M",
+          "path": "publishing/bahamas/sources.json"
+        },
+        {
+          "status": " M",
+          "path": "publishing/bahamas/templates/fort-lauderdale-bimini-v1.json"
+        },
+        {
+          "status": " D",
+          "path": "tests/bahamas-itinerary-test.cfm"
+        },
+        {
+          "status": "??",
+          "path": "tests/bahamas-sample-calculator.spec.js"
+        },
+        {
+          "status": " M",
+          "path": "tests/dashboard-route-actions.spec.js"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-export-runner.cfm"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-planner.spec.js"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-saved-editor.spec.js"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-saved-preview.spec.js"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-saved-view-runner.cfm"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-trip-integration-runner.cfm"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-trip-runner.cfm"
+        },
+        {
+          "status": " D",
+          "path": "tests/guide-trip-ui-fixture.cfm"
+        },
+        {
+          "status": "??",
+          "path": "tests/route-geometry-regression.spec.js"
+        },
+        {
+          "status": " M",
+          "path": "tests/specs/AuthContinuationSpec.cfc"
+        },
+        {
+          "status": " D",
+          "path": "tests/specs/GuideTripIntegrationSpec.cfc"
+        },
+        {
+          "status": " D",
+          "path": "tests/support/guide-test-guard.cfm"
+        },
+        {
+          "status": " D",
+          "path": "tests/support/GuideLocalTestGuard.cfc"
+        },
+        {
+          "status": " D",
+          "path": "tests/support/GuideSavedViewContract.cfc"
+        },
+        {
+          "status": " D",
+          "path": "tests/support/GuideTripDemoFixture.cfc"
+        },
+        {
+          "status": " D",
+          "path": "tests/support/GuideTripFixtureService.cfc"
+        }
+      ],
+      "commit": false,
+      "push": false,
+      "production_deployment": false,
+      "scope_note": "Inventory includes preexisting authorized changes. The current report is the fourth untracked file."
+    },
+    {
+      "number": 24,
+      "title": "Remaining import/planning-draft references",
+      "runtime_feature_references": "None found in active feature runtime after focused and broad searches.",
+      "legitimate_remaining": [
+        {
+          "scope": "Negative regression tests",
+          "reason": "Assertions name removed actions/selectors to prove rejection/absence."
+        },
+        {
+          "scope": "Historical reports, private snapshots and Git",
+          "reason": "Retained provenance with explicit superseded notices; not active deployment instructions."
+        },
+        {
+          "scope": "Existing ordinary override rows",
+          "reason": "Opaque historical manual_distance_nm fields remain untouched as member data; no runtime interpretation or new numeric writes."
+        },
+        {
+          "scope": "Public editorial mileage/research and source register",
+          "reason": "Sample planning mileage and source review language can describe the informational article without account workflow."
+        },
+        {
+          "scope": "app/join.cfm:296",
+          "reason": "Unrelated standard 'Plan and save trips at no cost' signup copy."
+        },
+        {
+          "scope": "assets/js/boat-cost-ui.js:178",
+          "reason": "Unrelated boat budget calculator 'Planning estimates only.' copy."
+        }
+      ],
+      "security": "Existing private publishing/tests/snapshot and old generated-PDF HTTP denials preserved."
+    }
+  ],
+  "acceptance": {
+    "guide_independent": true,
+    "no_import_cta": true,
+    "no_route_waypoint_or_planning_draft_creation": true,
+    "editable_browser_only_sample": true,
+    "sample_mileage_preserved": true,
+    "no_input_persistence": true,
+    "dark_design_preserved": true,
+    "planning_dashboard_and_editor_absent": true,
+    "numeric_entry_removed": true,
+    "ordinary_geometry_draw_edit_save_reopen_passed": true,
+    "member_records_preserved": true,
+    "no_schema_migration_required": true,
+    "console_errors": 0,
+    "diff_check": "PASS",
+    "qualification": "The original public calculator did not exist in recoverable history; owner explicitly approved the new small calculator. Historical saved distances are deliberately retained rather than rewriting member routes."
+  },
+  "remaining_exceptions": [
+    "Local-only validation; production and Safari-specific verification not performed.",
+    "Normal deletion retains inactive test source/override history and empty disposable accounts.",
+    "Historical positive stored distances remain readable under original normal override precedence.",
+    "Existing draft/noindex publication gate remains unchanged."
+  ],
+  "completion": "Requested rollback complete. No replacement import, additional planning workflow, commit, push or production deployment."
+}
+

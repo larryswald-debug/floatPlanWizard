@@ -2,7 +2,7 @@
 <cfinclude template="_setup.cfm">
 <cfinclude template="_head.cfm">
 <cfoutput>
-<nav class="bh-nav fpw-guide-section-nav" aria-label="Bahamas guide sections">
+<nav class="bh-nav bh-nav--full-width fpw-guide-section-nav" aria-label="Bahamas guide sections">
 <div class="fpw-guide-section-links">
 <a href="##regions">Choose an area</a><a href="##florida-crossing">Crossing</a><a href="##entry-and-return">Entry &amp; return</a><a href="##fuel-provisioning-communications">Fuel &amp; logistics</a><a href="##worked-trip">Worked trip</a><a href="##checklist">Checklist</a>
 </div>
@@ -42,7 +42,7 @@
 <div id="exumas" class="bh-region"><h3>6 · Exumas: keep the park plan flexible</h3>
 <p>#bhSource("S14","Bahamas National Trust’s park payment policy")# does not guarantee a mooring through payment or reservation. Build an alternative into the itinerary. #bhSource("S13","Staniel Cay Yacht Club’s service information")# is a starting point for provisioning research; confirm current availability directly.</p></div>
 </div></div>
-<div id="andros" class="bh-region"><h3>Andros and other cruising areas</h3><p>Keep regions outside the first example as research choices, not invented route templates. <a href="https://www.bahamas.com/islands/andros">Official Andros information</a> helps identify an area to investigate. The same endpoint, approach, fuel, communications and contingency questions apply.</p></div>
+<div id="andros" class="bh-region"><h3>Andros and other cruising areas</h3><p>Keep regions outside the first example as research choices, not invented route examples. <a href="https://www.bahamas.com/islands/andros">Official Andros information</a> helps identify an area to investigate. The same endpoint, approach, fuel, communications and contingency questions apply.</p></div>
 </section>
 <section id="florida-crossing" aria-labelledby="crossing-title">
 <h2 id="crossing-title">Plan a crossing with room to wait</h2>
@@ -50,7 +50,7 @@
 <p>Define the Florida departure reference and Bahamas destination before comparing distances. A marina-to-marina movement includes different water from an offshore-reference comparison. Do not transfer another publisher’s number onto different endpoints.</p>
 <p>The Gulf Stream is a moving-water consideration. Wind, waves, current, passage duration and crew limits belong in the same decision. #bhSource("S7","NWS explains the Gulf Stream")#; consult current #bhSource("S6","NWS Miami marine products")#, #bhSource("S6a","National Hurricane Center marine products")# and #bhSource("S6b","Bahamas Department of Meteorology forecasts")# for the waters and period involved.</p>
 <ul><li>Record forecast issuance and valid times, not just a screenshot.</li><li>Work back from daylight arrival and the route your skipper has reviewed.</li><li>Keep a departure delay, shortened stay and later return as real options.</li><li>Recheck the return crossing independently; the outbound decision does not approve it.</li></ul>
-</div><aside class="bh-panel"><h3>A comparison is only as useful as its endpoints</h3><p>#bhSource("S8","Big Game Club publishes a 47.6 nm approach comparison")#. Its linked chart is dated 2009 and the stated offshore reference points do not define a full berth-to-berth passage. That number is not used as mileage for this guide’s personal-copy template.</p><p>The example imports owner-supplied estimates totaling #bhOne(bhTemplateDistance)# NM; review each leg for your trip. Missing mileage still remains unset if you clear a value. The separate <a href="#bhItinerary###worksheet">120 NM worksheet</a> demonstrates arithmetic only.</p></aside></div>
+</div><aside class="bh-panel"><h3>A comparison is only as useful as its endpoints</h3><p>#bhSource("S8","Big Game Club publishes a 47.6 nm approach comparison")#. Its linked chart is dated 2009 and the stated offshore reference points do not define a full berth-to-berth passage. That number is not used as mileage for this guide’s worked example.</p><p>The example uses owner-supplied estimates totaling #bhOne(bhTemplateDistance)# NM; review each leg for your trip. Its sample calculator lets you explore speed, consumption, reserve and usable-fuel assumptions. The separate <a href="#bhItinerary###worksheet">120 NM worksheet</a> demonstrates arithmetic only.</p></aside></div>
 <figure class="bh-figure bh-figure--compact"><img src="#bhAsset#crossing-decisions.svg" width="560" height="500" loading="lazy" alt="Schematic crossing decision diagram: consider wind and waves, current, passage duration and a waiting alternative together. It supplies no forecast or course compensation."><figcaption>Original FPW schematic based on NWS Gulf Stream context. It is not to scale, a current model or an automatic crossing-safety decision.</figcaption></figure>
 </section>
 <section id="entry-and-return" aria-labelledby="entry-title">
@@ -62,7 +62,8 @@
 <li>Use #bhSource("S3","Bahamas Customs’ pleasure-vessel clearance instructions")# and its #bhSource("S3a","recent-updates notice")# for the current digital application/payment process and in-person Customs approval.</li>
 <li>Check current charges, permit duration, re-entry conditions and any fishing permissions directly with Customs. Keep the approved documents available.</li>
 </ol><p class="bh-meta">The Customs page contains conflicting legacy/manual passages. Its newer linked August 2026 notice and September office directory were retrieved again on November 9, 2026. Historical fee-change dates and unresolved details are omitted.</p></div>
-<div class="bh-panel"><h3>Returning to the United States</h3><p>#bhSource("S5","CBP’s pleasure-boat arrival guidance")# says operators returning from a foreign place must report arrival immediately. Before leaving the Bahamas, confirm the procedure for your vessel, everyone aboard and your intended U.S. arrival location.</p><p>Check #bhSource("S5a","CBP’s ROAM guidance")# for current eligibility and procedure and obtain the relevant port’s reporting alternative. The detailed ROAM and Florida reporting pages returned access errors during the November 9 check. Use #bhSource("S5b","CBP’s general information contact")# before travel to obtain the intended port’s instructions if those pages remain unavailable. A general inquiry is not an arrival report. Do not assume app eligibility, remote approval or completion of formalities.</p><h3>Activities and restrictions</h3><p>Check #bhSource("S4","official fishing guidance")# and destination-specific restrictions before planning an activity. Park rules, customs permission and a marina reservation address different requirements.</p></div></div>
+<div class="bh-panel"><h3>Returning to the United States</h3><p>#bhSource("S5","CBP’s pleasure-boat arrival guidance")# says operators returning from a foreign place must report arrival immediately. Before leaving the Bahamas, confirm the procedure for your vessel, everyone aboard and your intended U.S. arrival location.</p><p>Check #bhSource("S5a","CBP’s ROAM guidance")# for current eligibility and procedure and obtain the relevant port’s reporting alternative. The detailed ROAM and Florida reporting pages returned access errors during the November 9 check. Use #bhSource("S5b","CBP’s general information contact")# before travel to obtain the intended port’s instructions if those pages remain unavailable. A general inquiry is not an arrival report. Do not assume app eligibility, remote approval or completion of formalities.</p></div>
+<div class="bh-panel bh-panel--full-width"><h3>Activities and restrictions</h3><p>Check #bhSource("S4","official fishing guidance")# and destination-specific restrictions before planning an activity. Park rules, customs permission and a marina reservation address different requirements.</p></div></div>
 </section>
 <section id="fuel-provisioning-communications" aria-labelledby="logistics-title">
 <h2 id="logistics-title">Make fuel, provisions and communications explicit</h2>
@@ -74,13 +75,13 @@
 </section>
 <section id="worked-trip" aria-labelledby="example-title">
 <h2 id="example-title">Work through one trip, including the changed plan</h2>
-<div class="bh-panel"><p class="bh-eyebrow">First worked example</p><h3>Fort Lauderdale to Bimini</h3><p>A Florida staging day, outbound movement, two local days, return movement and two uncommitted weather days. Review the template’s editable owner-supplied distance estimates, keep the separate 120 NM time/fuel worksheet distinct, then see what changes when the return is delayed or longer.</p>
+<div class="bh-panel"><p class="bh-eyebrow">First worked example</p><h3>Fort Lauderdale to Bimini</h3><p>A Florida staging day, outbound movement, two local days, return movement and two uncommitted weather days. Review the owner-supplied distance estimates, explore the sample calculator’s assumptions, and keep the separate 120 NM time/fuel worksheet distinct. See what changes when the return is delayed or longer.</p>
 <div class="bh-actions"><a class="fpw-cta fpw-cta-primary" href="#bhItinerary#">Explore the worked trip</a></div>
-<p>When released, <strong>Use this itinerary</strong> creates an editable personal copy in My Routes. Movement legs transfer to Trip Planner; local days and weather allowances transfer as notes. Each leg needs the member’s mileage review before the Float Plan workflow.</p></div>
+<p>Change the sample’s speed, fuel consumption, reserve percentage and usable fuel to explore its estimates. The guide is an educational example; sample edits stay on this page and reset when it is reloaded.</p></div>
 </section>
 <section id="checklist" aria-labelledby="checklist-title">
 <h2 id="checklist-title">Before this becomes your trip</h2>
-<ul class="bh-checklist"><li>Choose exact departure and destination references and research the entire intended path.</li><li>Record a source or reproducible calculation method for each leg’s planning mileage.</li><li>Enter speed in knots and total underway consumption in US gal/h; confirm usable fuel and reserve mode.</li><li>Review approach, draft, weather, daylight, clearance, overnight and service constraints.</li><li>Replace or explicitly confirm each leg’s mileage. Your review is not independent navigation verification.</li><li>Recheck affected legs after any endpoint, mileage, source or geometry change.</li><li>Keep missing values unset and partial totals labeled incomplete; save unfinished work as a planning draft.</li><li>Review the completed trip and keep shore-contact expectations current.</li></ul>
+<ul class="bh-checklist"><li>Choose exact departure and destination references and research the entire intended path.</li><li>Record a source or reproducible calculation method for each leg’s planning mileage.</li><li>Enter speed in knots and total underway consumption in US gal/h; confirm usable fuel and reserve mode.</li><li>Review approach, draft, weather, daylight, clearance, overnight and service constraints.</li><li>Replace or explicitly confirm each leg’s mileage. Your review is not independent navigation verification.</li><li>Recheck affected legs after any endpoint, mileage, source or geometry change.</li><li>Keep missing values distinct from complete estimates; do not treat a partial subtotal as a complete-trip requirement.</li><li>Review the completed trip and keep shore-contact expectations current.</li></ul>
 <div class="bh-actions"><button type="button" class="fpw-secondary-cta" data-bh-print>Print this guide</button></div>
 </section>
 <section id="sources" class="bh-sources" aria-labelledby="sources-title"><h2 id="sources-title">Sources and what was checked</h2>
@@ -93,5 +94,3 @@
 </section>
 </cfoutput>
 <cfinclude template="_footer.cfm">
-
-

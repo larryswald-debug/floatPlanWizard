@@ -4,7 +4,7 @@
 <cfinclude template="../../includes/fpw_base_path.cfm">
 <cfparam name="bhIsItinerary" default="false">
 <cfscript>
-// The immutable editorial manifest is the only source for template facts and worked inputs.
+// The editorial manifest supplies the guide's facts and initial worked-example inputs.
 bhManifest = deserializeJSON(fileRead(expandPath(request.fpwBase & "/publishing/bahamas/templates/fort-lauderdale-bimini-v1.json"), "utf-8"));
 bhRegister = deserializeJSON(fileRead(expandPath(request.fpwBase & "/publishing/bahamas/sources.json"), "utf-8"));
 bhSources = {};
@@ -15,7 +15,7 @@ bhItinerary = bhHub & "itineraries/fort-lauderdale-bimini/";
 bhAsset = bhBase & "/assets/images/boating-guides/bahamas/";
 bhPublished = bhManifest.status EQ "published" AND structKeyExists(bhManifest, "verification") AND bhManifest.verification.publication_ready;
 bhTitle = bhIsItinerary ? bhManifest.title : "Bahamas Cruising and Trip Planning Guide";
-bhDescription = bhIsItinerary ? "Explore a flexible Bimini example, review its assumptions, and create an editable FPW itinerary with mileage, timing and fuel estimates." : "Compare Bahamas cruising areas, prepare for the crossing, and customize a worked trip with clear mileage, time and fuel assumptions.";
+bhDescription = bhIsItinerary ? "Explore a flexible Bimini example and adjust sample speed, fuel and reserve assumptions to compare planning estimates." : "Compare Bahamas cruising areas, prepare for the crossing, and explore a worked example with clear mileage, time and fuel assumptions.";
 bhCanonical = bhIsItinerary ? bhManifest.canonical_url : "https://floatplanwizard.com/boating-guides/bahamas/";
 bhChecked = bhManifest.verification.checked_at;
 bhPageReady = true;
@@ -36,8 +36,8 @@ for (bhMovement in bhManifest.legs) {
   if (isNull(bhMovement.distance_nm)) bhTemplateMissingLegs++;
   else bhTemplateDistance += bhMovement.distance_nm;
 }
-// These public comparison results use the worksheet's explicit operating assumptions;
-// the personal copy still requires the member's own confirmed speed and consumption.
+// Initial public sample estimates use the worksheet's explicit operating assumptions.
+// Browser-only sample edits do not change this editorial data or any member records.
 bhTemplateHours = bhTemplateDistance / bhWorksheet.planning_speed_kn;
 bhTemplateBurn = bhTemplateHours * bhWorksheet.underway_burn_us_gph;
 bhTemplateRequired = bhTemplateBurn * (1 + bhWorksheet.reserve_pct / 100);
@@ -87,4 +87,3 @@ bhJsonLd = replace(serializeJSON(bhSchema), "</", "<\/", "all");
 </cfscript>
 <cfheader name="Cache-Control" value="no-store, max-age=0">
 <cfif NOT bhPublished><cfheader name="X-Robots-Tag" value="noindex, follow"></cfif>
-

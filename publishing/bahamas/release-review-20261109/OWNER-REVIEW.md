@@ -1,3 +1,5 @@
+> **Historical record — superseded November 15, 2026.** The entire guide-to-route feature has been removed. Do not follow this document's deployment, migration, import or workflow instructions. See `../README.md` and `../full-route-import-rollback-20261115.json` for the independent guide/calculator architecture.
+
 # Bahamas release candidate — owner review, November 9, 2026
 
 **Verdict: ready for owner review. Production publication remains gated.** The authorized local readiness work is complete, with the existing official PDF date-field limitation retained at your direction. The guide is restored to `draft` / `publication_ready:false`; both imported mileages remain null. No publication, production deployment, production database execution, commit or push occurred.
@@ -80,4 +82,3 @@ The local general-snapshot Tomcat deny patch is prepared, not applied; IIS sourc
 Rollback was not exercised. Retiring imports while keeping existing copies and review guards is the safest reversal after use. Dropping populated guide metadata or restoring the entire pre-migration database would lose member/review/request history or unrelated later data; the supplied down script refuses a populated table.
 
 Remaining owner actions are concrete: review this candidate and its missing-mileage/checklist limits; identify the actual deployment tool and transfer exclusions; authorize any external Docker/Tomcat work separately; then authorize target deployment/database verification and the [exact four-file publication patch](/Users/lawrencewald/Docker/cf-mysql-dev/wwwroot/fpw/publishing/bahamas/release-review-20261109/publication-after-approval.patch). Publication approval alone is not production deployment or test-mutation approval.
-

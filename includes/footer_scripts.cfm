@@ -10,5 +10,5 @@
 </cfif>
 <cfif NOT structKeyExists(request, "fpwAuthScriptRendered")>
   <cfset request.fpwAuthScriptRendered = true>
-  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20261107-guide-itinerary-auth"></script>
+  <script src="<cfoutput>#request.fpwBase#</cfoutput>/assets/js/app/auth.js?v=20261115-bahamas-full-rollback"></script>
 </cfif>
