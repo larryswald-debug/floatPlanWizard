@@ -13,7 +13,6 @@ bhBase = request.fpwBase;
 bhHub = bhBase & "/boating-guides/bahamas/";
 bhItinerary = bhHub & "itineraries/fort-lauderdale-bimini/";
 bhAsset = bhBase & "/assets/images/boating-guides/bahamas/";
-bhPublished = bhManifest.status EQ "published" AND structKeyExists(bhManifest, "verification") AND bhManifest.verification.publication_ready;
 bhTitle = bhIsItinerary ? bhManifest.title : "Bahamas Cruising and Trip Planning Guide";
 bhDescription = bhIsItinerary ? "Explore a flexible Bimini example and adjust sample speed, fuel and reserve assumptions to compare planning estimates." : "Compare Bahamas cruising areas, prepare for the crossing, and explore a worked example with clear mileage, time and fuel assumptions.";
 bhCanonical = bhIsItinerary ? bhManifest.canonical_url : "https://floatplanwizard.com/boating-guides/bahamas/";
@@ -86,4 +85,3 @@ arrayAppend(bhSchema[chr(64) & "graph"], bhArticle);
 bhJsonLd = replace(serializeJSON(bhSchema), "</", "<\/", "all");
 </cfscript>
 <cfheader name="Cache-Control" value="no-store, max-age=0">
-<cfif NOT bhPublished><cfheader name="X-Robots-Tag" value="noindex, follow"></cfif>

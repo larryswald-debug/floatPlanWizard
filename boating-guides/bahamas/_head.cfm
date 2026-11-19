@@ -7,7 +7,7 @@
 <cfoutput>
 <title>#encodeForHTML(bhTitle)# | FPW</title>
 <meta name="description" content="#encodeForHTMLAttribute(bhDescription)#">
-<meta name="robots" content="#bhPublished ? 'index,follow' : 'noindex,follow'#">
+<meta name="robots" content="index,follow">
 <link rel="canonical" href="#encodeForHTMLAttribute(bhCanonical)#">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="FloatPlanWizard">
